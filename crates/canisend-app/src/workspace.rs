@@ -88,7 +88,7 @@ impl Application {
         let workspace = Workspace::init_v4(root)?;
         let status = workspace.status()?;
         Ok(ActionReceipt::new(
-            "workspace-v4.init",
+            "workspace.initialize.commit",
             "initialized",
             format!(
                 "Initialized neutral Workspace v4 at {}",
@@ -108,7 +108,7 @@ impl Application {
         let status = workspace.status()?;
         debug_assert_eq!(status.workspace_format, WORKSPACE_V4_FORMAT);
         Ok(ActionReceipt::new(
-            "workspace-v4.status",
+            "workspace.status",
             "available",
             format!(
                 "Workspace contains {} Application(s)",
@@ -218,43 +218,45 @@ impl Application {
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceHealthReadModel>, ApplicationError> {
         let workspace = open_workspace(root)?;
-        let check = workspace.check()?;
-        let status = if check.ok { "healthy" } else { "issues-found" };
-        Ok(ActionReceipt::new(
-            "workspace.check",
-            status,
-            if check.ok {
-                "Workspace integrity check passed".to_owned()
-            } else {
-                format!("Workspace check found {} issue(s)", check.issues.len())
-            },
-            WorkspaceHealthReadModel {
-                path: workspace.paths.root,
-                check,
-            },
-        ))
+        workspace_check_receipt(workspace, "workspace.check")
+    }
+
+    pub fn check_workspace_v4(
+        root: &Path,
+    ) -> Result<ActionReceipt<WorkspaceHealthReadModel>, ApplicationError> {
+        let workspace = open_workspace_v4(root)?;
+        workspace_check_receipt(workspace, "workspace.check")
+    }
+
+    pub fn backup_workspace_v4(
+        root: &Path,
+        destination: &Path,
+    ) -> Result<ActionReceipt<BackupReadModel>, ApplicationError> {
+        let workspace = open_workspace_v4(root)?;
+        workspace_backup_receipt(workspace, destination, "workspace.backup.commit")
+    }
+
+    pub fn restore_workspace_v4(
+        backup: &Path,
+        destination: &Path,
+    ) -> Result<ActionReceipt<WorkspaceRestoreReadModel>, ApplicationError> {
+        let workspace = Workspace::restore_v4(backup, destination)?;
+        workspace_restore_receipt(workspace, backup, "workspace.restore.commit")
+    }
+
+    pub fn repair_workspace_v4(
+        root: &Path,
+    ) -> Result<ActionReceipt<WorkspaceRepairReadModel>, ApplicationError> {
+        let workspace = open_workspace_v4(root)?;
+        workspace_repair_receipt(workspace, "workspace.repair.commit")
     }
 
     pub fn backup_workspace(
         root: &Path,
         destination: &Path,
     ) -> Result<ActionReceipt<BackupReadModel>, ApplicationError> {
-        let mut workspace = open_workspace(root)?;
-        let BackupResult {
-            directory,
-            manifest,
-        } = workspace.backup(destination)?;
-        Ok(ActionReceipt::new(
-            "workspace.backup",
-            "verified",
-            format!("Verified backup created at {}", directory.display()),
-            BackupReadModel {
-                destination: directory,
-                format: BACKUP_FORMAT.to_owned(),
-                blob_count: manifest.blobs.len(),
-                manifest,
-            },
-        ))
+        let workspace = open_workspace(root)?;
+        workspace_backup_receipt(workspace, destination, "workspace.backup")
     }
 
     pub fn restore_workspace(
@@ -262,42 +264,101 @@ impl Application {
         destination: &Path,
     ) -> Result<ActionReceipt<WorkspaceRestoreReadModel>, ApplicationError> {
         let workspace = Workspace::restore(backup, destination)?;
-        let status = workspace.status()?;
-        Ok(ActionReceipt::new(
-            "workspace.restore",
-            "restored",
-            format!("Restored workspace at {}", destination.display()),
-            WorkspaceRestoreReadModel {
-                backup: backup.to_path_buf(),
-                destination: workspace.paths.root,
-                workspace: status,
-            },
-        ))
+        workspace_restore_receipt(workspace, backup, "workspace.restore")
     }
 
     pub fn repair_workspace(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceRepairReadModel>, ApplicationError> {
-        let mut workspace = open_workspace(root)?;
-        let repaired_projections = ProjectionService::new(
-            &mut workspace.database,
-            &workspace.blobs,
-            &workspace.paths.root,
-        )
-        .repair_all()?;
-        let check = workspace.check()?;
-        let path = workspace.paths.root;
-        Ok(ActionReceipt::new(
-            "workspace.repair",
-            "repaired",
-            format!("Repaired {repaired_projections} managed projection(s)"),
-            WorkspaceRepairReadModel {
-                workspace: path,
-                repaired_projections,
-                check,
-            },
-        ))
+        let workspace = open_workspace(root)?;
+        workspace_repair_receipt(workspace, "workspace.repair")
     }
+}
+
+fn workspace_check_receipt(
+    workspace: Workspace,
+    operation: &'static str,
+) -> Result<ActionReceipt<WorkspaceHealthReadModel>, ApplicationError> {
+    let check = workspace.check()?;
+    let status = if check.ok { "healthy" } else { "issues-found" };
+    Ok(ActionReceipt::new(
+        operation,
+        status,
+        if check.ok {
+            "Workspace integrity check passed".to_owned()
+        } else {
+            format!("Workspace check found {} issue(s)", check.issues.len())
+        },
+        WorkspaceHealthReadModel {
+            path: workspace.paths.root,
+            check,
+        },
+    ))
+}
+
+fn workspace_backup_receipt(
+    mut workspace: Workspace,
+    destination: &Path,
+    operation: &'static str,
+) -> Result<ActionReceipt<BackupReadModel>, ApplicationError> {
+    let BackupResult {
+        directory,
+        manifest,
+    } = workspace.backup(destination)?;
+    Ok(ActionReceipt::new(
+        operation,
+        "verified",
+        format!("Verified backup created at {}", directory.display()),
+        BackupReadModel {
+            destination: directory,
+            format: BACKUP_FORMAT.to_owned(),
+            blob_count: manifest.blobs.len(),
+            manifest,
+        },
+    ))
+}
+
+fn workspace_restore_receipt(
+    workspace: Workspace,
+    backup: &Path,
+    operation: &'static str,
+) -> Result<ActionReceipt<WorkspaceRestoreReadModel>, ApplicationError> {
+    let status = workspace.status()?;
+    let destination = workspace.paths.root.clone();
+    Ok(ActionReceipt::new(
+        operation,
+        "restored",
+        format!("Restored workspace at {}", destination.display()),
+        WorkspaceRestoreReadModel {
+            backup: backup.to_path_buf(),
+            destination,
+            workspace: status,
+        },
+    ))
+}
+
+fn workspace_repair_receipt(
+    mut workspace: Workspace,
+    operation: &'static str,
+) -> Result<ActionReceipt<WorkspaceRepairReadModel>, ApplicationError> {
+    let repaired_projections = ProjectionService::new(
+        &mut workspace.database,
+        &workspace.blobs,
+        &workspace.paths.root,
+    )
+    .repair_all()?;
+    let check = workspace.check()?;
+    let path = workspace.paths.root;
+    Ok(ActionReceipt::new(
+        operation,
+        "repaired",
+        format!("Repaired {repaired_projections} managed projection(s)"),
+        WorkspaceRepairReadModel {
+            workspace: path,
+            repaired_projections,
+            check,
+        },
+    ))
 }
 
 fn require_new_or_empty_directory(root: &Path) -> Result<(), ApplicationError> {
@@ -396,6 +457,63 @@ mod tests {
         assert_eq!(reopened.status.application_count, 0);
 
         fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
+    }
+
+    #[test]
+    fn workspace_v4_recovery_surface_round_trips_and_rejects_legacy_backups() {
+        let source = temporary_root("v4-recovery-source");
+        let backup = temporary_root("v4-recovery-backup");
+        let restored = temporary_root("v4-recovery-restored");
+        Application::initialize_workspace_v4(&source).expect("initialize Workspace v4");
+
+        assert!(
+            Application::check_workspace_v4(&source)
+                .expect("check Workspace v4")
+                .data
+                .check
+                .ok
+        );
+        let backup_receipt =
+            Application::backup_workspace_v4(&source, &backup).expect("backup Workspace v4");
+        assert_eq!(backup_receipt.operation, "workspace.backup.commit");
+        let restore_receipt =
+            Application::restore_workspace_v4(&backup, &restored).expect("restore Workspace v4");
+        assert_eq!(restore_receipt.operation, "workspace.restore.commit");
+        assert_eq!(
+            restore_receipt.data.workspace.workspace_format,
+            canisend_contracts::WORKSPACE_V4_FORMAT
+        );
+        let repair_receipt =
+            Application::repair_workspace_v4(&restored).expect("repair Workspace v4");
+        assert_eq!(repair_receipt.operation, "workspace.repair.commit");
+        assert!(repair_receipt.data.check.ok);
+
+        fs::remove_dir_all(source).expect("remove source");
+        fs::remove_dir_all(backup).expect("remove backup");
+        fs::remove_dir_all(restored).expect("remove restored");
+
+        let legacy = temporary_root("v4-recovery-legacy");
+        let legacy_backup = temporary_root("v4-recovery-legacy-backup");
+        let rejected = temporary_root("v4-recovery-rejected");
+        Application::initialize_workspace(&legacy).expect("initialize legacy Workspace");
+        Application::backup_workspace(&legacy, &legacy_backup).expect("backup legacy Workspace");
+        let config_before = fs::read(legacy_backup.join("canisend.toml"))
+            .expect("read verified legacy backup config");
+
+        assert!(matches!(
+            Application::restore_workspace_v4(&legacy_backup, &rejected),
+            Err(ApplicationError::Store(
+                canisend_store::StoreError::WorkspaceFormatUnsupported { .. }
+            ))
+        ));
+        assert!(!rejected.exists());
+        assert_eq!(
+            fs::read(legacy_backup.join("canisend.toml")).expect("legacy backup remains readable"),
+            config_before
+        );
+
+        fs::remove_dir_all(legacy).expect("remove legacy source");
+        fs::remove_dir_all(legacy_backup).expect("remove legacy backup");
     }
 
     #[test]

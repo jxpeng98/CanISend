@@ -10,22 +10,21 @@ use std::{
 };
 
 use canisend_app::{
-    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, AgentSkillsInstallState,
-    AgentSkillsStatusState, AgentSkillsUninstallState, Application, ApplicationArchiveRequest,
-    ApplicationError, ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    AgentHost, AgentPackExportRequest, AgentSkillsInstallState, AgentSkillsStatusState,
+    AgentSkillsUninstallState, Application, ApplicationArchiveRequest, ApplicationError,
+    ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
     ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4, ApplicationFlowExportRequestV3,
     ApplicationFlowPlanRequestV3, ContentCatalogFilter, ContentCatalogStatus, ContentCategory,
     ContentSearchRequest, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PackageExportRequest,
-    PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
-    ProviderSendConsent, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
-    TaskOperation, TaskPrepareRequest, WorkflowBeginRequest, WorkflowCompleteRequest,
-    WorkflowRerunRequest, WorkspaceInitPolicy, WorkspaceV3MigrationRequest,
+    NetworkFetchConsent, PackageExportRequest, PrivateExportConsent, PrivateReadConsent,
+    ProjectionCopyAsNewRequest, ProjectionReplaceRequest, ProviderSendConsent, RenderExportRequest,
+    TaskExecutionMode, TaskInputExportRequest, TaskOperation, TaskPrepareRequest,
+    WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowRerunRequest, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
     AgentError, AgentResponse, CompatibilityNotice, CompatibilitySurface, DocumentKind, EntityId,
     ErrorCode, ExecutionMode, ExitClass, NextAction, PrivacyClassification, PublicSchemaId,
-    Revision, SemanticVersion, Sha256Digest, VersionData, WorkflowPackId, WorkflowStage,
+    Revision, SemanticVersion, VersionData, WorkflowPackId, WorkflowStage,
 };
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -228,7 +227,7 @@ enum ResourceCommand {
 
 #[derive(Debug, Subcommand)]
 enum WorkspaceCommand {
-    /// Initialize a new Pack-qualified workspace at --workspace or the current directory.
+    /// Initialize a neutral Workspace v4 at --workspace or the current directory.
     Init(WorkspaceInitArgs),
     /// Report authoritative workspace and SQLite status.
     Status(OutputArgs),
@@ -240,10 +239,6 @@ enum WorkspaceCommand {
     Restore(WorkspaceRestoreArgs),
     /// Rebuild missing or repair-required projections while preserving user edits.
     Repair(OutputArgs),
-    /// Preview the body-free v2-to-v3 migration plan without writing.
-    MigrationPreview(OutputArgs),
-    /// Migrate using the exact reviewed plan digest and a new verified backup.
-    Migrate(WorkspaceMigrateArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -262,18 +257,14 @@ enum JobCommand {
 
 #[derive(Debug, Subcommand)]
 enum ApplicationCommand {
-    /// List body-free application dossiers with metadata and current progress.
-    List(ApplicationListArgs),
-    /// Show one body-free application dossier and its exact next actions.
-    Show(ApplicationJobArgs),
-    /// List canonical v3 Applications in the current Workspace.
-    V3List(OutputArgs),
-    /// Show one canonical v3 Application.
-    V3Show(ApplicationV3IdArgs),
+    /// List Pack-bound Applications in the current Workspace v4.
+    List(OutputArgs),
+    /// Show one Pack-bound Application in the current Workspace v4.
+    Show(ApplicationV3IdArgs),
     /// Archive one Workspace v4 Application without deleting history or shared data.
     Archive(ApplicationV3ArchiveArgs),
-    /// Create an exact-Pack v3 Application from a reviewed JSON request.
-    GenericCreate(ApplicationV3CreateArgs),
+    /// Create a Pack-bound Application in Workspace v4 from a reviewed JSON request.
+    Create(ApplicationV3CreateArgs),
     /// Confirm Requirements and commit an exact-Pack v3 Plan from JSON.
     GenericPlan(ApplicationV3CandidateArgs),
     /// Commit exact-Pack v3 Deliverables for review from JSON.
@@ -521,26 +512,8 @@ struct WorkspaceBackupArgs {
     output: OutputArgs,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum BuiltInPackName {
-    AcademicJob,
-    GenericApplication,
-}
-
-impl BuiltInPackName {
-    const fn id(self) -> &'static str {
-        match self {
-            Self::AcademicJob => ACADEMIC_JOB_WORKFLOW_PACK_ID,
-            Self::GenericApplication => GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-        }
-    }
-}
-
 #[derive(Debug, Args)]
 struct WorkspaceInitArgs {
-    /// Transitional legacy Workspace selection; omit to initialize neutral Workspace v4.
-    #[arg(long, value_enum)]
-    pack: Option<BuiltInPackName>,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -551,18 +524,6 @@ struct WorkspaceRestoreArgs {
     backup: PathBuf,
     /// New or empty destination directory for the restored workspace.
     destination: PathBuf,
-    #[command(flatten)]
-    output: OutputArgs,
-}
-
-#[derive(Debug, Args)]
-struct WorkspaceMigrateArgs {
-    /// Exact digest returned by workspace migration-preview.
-    #[arg(long)]
-    expected_plan_sha256: String,
-    /// New or empty destination for the verified pre-migration backup.
-    #[arg(long, value_name = "PATH")]
-    backup_destination: PathBuf,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -618,23 +579,6 @@ struct JobIdArgs {
 }
 
 #[derive(Debug, Args)]
-struct ApplicationListArgs {
-    #[arg(long)]
-    include_archived: bool,
-    #[command(flatten)]
-    output: OutputArgs,
-}
-
-#[derive(Debug, Args)]
-struct ApplicationJobArgs {
-    /// Canonical UUIDv7 job ID.
-    #[arg(long)]
-    job: String,
-    #[command(flatten)]
-    output: OutputArgs,
-}
-
-#[derive(Debug, Args)]
 struct ApplicationV3IdArgs {
     #[arg(long)]
     application: String,
@@ -644,6 +588,9 @@ struct ApplicationV3IdArgs {
 
 #[derive(Debug, Args)]
 struct ApplicationV3CreateArgs {
+    /// Exact workflow Pack ID bound to the new Application.
+    #[arg(long)]
+    pack: String,
     /// Reviewed bounded JSON request matching the canonical operation contract.
     #[arg(long, value_name = "PATH")]
     candidate: PathBuf,
@@ -1430,17 +1377,13 @@ impl Cli {
                 command:
                     WorkspaceCommand::Status(output)
                     | WorkspaceCommand::Check(output)
-                    | WorkspaceCommand::Repair(output)
-                    | WorkspaceCommand::MigrationPreview(output),
+                    | WorkspaceCommand::Repair(output),
             } => output.json,
             Command::Workspace {
                 command: WorkspaceCommand::Backup(arguments),
             } => arguments.output.json,
             Command::Workspace {
                 command: WorkspaceCommand::Restore(arguments),
-            } => arguments.output.json,
-            Command::Workspace {
-                command: WorkspaceCommand::Migrate(arguments),
             } => arguments.output.json,
             Command::Job { command } => match command {
                 JobCommand::Create(arguments) => arguments.output.json,
@@ -1451,12 +1394,10 @@ impl Cli {
                 }
             },
             Command::Application { command } => match command {
-                ApplicationCommand::List(arguments) => arguments.output.json,
+                ApplicationCommand::List(output) => output.json,
                 ApplicationCommand::Show(arguments) => arguments.output.json,
-                ApplicationCommand::V3List(output) => output.json,
-                ApplicationCommand::V3Show(arguments) => arguments.output.json,
                 ApplicationCommand::Archive(arguments) => arguments.output.json,
-                ApplicationCommand::GenericCreate(arguments) => arguments.output.json,
+                ApplicationCommand::Create(arguments) => arguments.output.json,
                 ApplicationCommand::GenericPlan(arguments)
                 | ApplicationCommand::GenericCompose(arguments) => arguments.output.json,
                 ApplicationCommand::GenericApprove(arguments) => arguments.output.json,
@@ -1679,8 +1620,8 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: ResourceCommand::List(_),
         } => resource_list(),
         Command::Workspace {
-            command: WorkspaceCommand::Init(arguments),
-        } => workspace_init(workspace, arguments.pack),
+            command: WorkspaceCommand::Init(_arguments),
+        } => workspace_init(workspace),
         Command::Workspace {
             command: WorkspaceCommand::Status(_),
         } => workspace_status(workspace),
@@ -1696,12 +1637,6 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Workspace {
             command: WorkspaceCommand::Repair(_),
         } => workspace_repair(workspace),
-        Command::Workspace {
-            command: WorkspaceCommand::MigrationPreview(_),
-        } => workspace_migration_preview(workspace),
-        Command::Workspace {
-            command: WorkspaceCommand::Migrate(arguments),
-        } => workspace_migrate(workspace, arguments),
         Command::Job {
             command: JobCommand::Create(arguments),
         } => job_create(workspace, arguments),
@@ -1718,22 +1653,16 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: JobCommand::Archive(arguments),
         } => job_archive(workspace, &arguments.job_id),
         Command::Application {
-            command: ApplicationCommand::List(arguments),
-        } => application_list(workspace, arguments.include_archived),
+            command: ApplicationCommand::List(_),
+        } => application_list(workspace),
         Command::Application {
             command: ApplicationCommand::Show(arguments),
-        } => application_show(workspace, &arguments.job),
-        Command::Application {
-            command: ApplicationCommand::V3List(_),
-        } => application_v3_list(workspace),
-        Command::Application {
-            command: ApplicationCommand::V3Show(arguments),
-        } => application_v3_show(workspace, &arguments.application),
+        } => application_show(workspace, &arguments.application),
         Command::Application {
             command: ApplicationCommand::Archive(arguments),
         } => application_archive(workspace, arguments),
         Command::Application {
-            command: ApplicationCommand::GenericCreate(arguments),
+            command: ApplicationCommand::Create(arguments),
         } => application_v3_create(workspace, arguments),
         Command::Application {
             command: ApplicationCommand::GenericPlan(arguments),
@@ -2241,32 +2170,17 @@ fn resource_list() -> CommandResult<CommandOutput> {
     success("resource.list", "available", &data, human)
 }
 
-fn workspace_init(
-    workspace_path: Option<PathBuf>,
-    pack: Option<BuiltInPackName>,
-) -> CommandResult<CommandOutput> {
+fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
-    let receipt = match pack {
-        Some(BuiltInPackName::AcademicJob) => Application::initialize_workspace_with_policy(
-            &root,
-            WorkspaceInitPolicy::PreserveExistingFiles,
-        )
-        .map(|receipt| (receipt.data.path, receipt.data.status)),
-        Some(BuiltInPackName::GenericApplication) => Application::initialize_workspace_for_pack(
-            &root,
-            BuiltInPackName::GenericApplication.id(),
-        )
-        .map(|receipt| (receipt.data.path, receipt.data.status)),
-        None => Application::initialize_workspace_v4_with_policy(
-            &root,
-            WorkspaceInitPolicy::PreserveExistingFiles,
-        )
-        .map(|receipt| (receipt.data.path, receipt.data.status)),
-    }
-    .map_err(|error| app_adapter::failure("workspace.init", error))?;
+    let receipt = Application::initialize_workspace_v4_with_policy(
+        &root,
+        WorkspaceInitPolicy::PreserveExistingFiles,
+    )
+    .map(|receipt| (receipt.data.path, receipt.data.status))
+    .map_err(|error| app_adapter::failure("workspace.initialize.commit", error))?;
     let (path, data) = receipt;
     success(
-        "workspace.init",
+        "workspace.initialize.commit",
         "initialized",
         &data,
         vec![
@@ -2279,17 +2193,11 @@ fn workspace_init(
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root(workspace_path, "workspace.status")?;
-    let data = match Application::workspace_status_v4(&root) {
-        Ok(receipt) => receipt.data.status,
-        Err(ApplicationError::CompatibilityUnavailable { .. }) => {
-            Application::workspace_status(&root)
-                .map_err(|error| app_adapter::failure("workspace.status", error))?
-                .data
-                .status
-        }
-        Err(error) => return Err(app_adapter::failure("workspace.status", error)),
-    };
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.status")?;
+    let data = Application::workspace_status_v4(&root)
+        .map_err(|error| app_adapter::failure("workspace.status", error))?
+        .data
+        .status;
     success(
         "workspace.status",
         "available",
@@ -2305,8 +2213,8 @@ fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
 }
 
 fn workspace_check(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root(workspace_path, "workspace.check")?;
-    let data = Application::check_workspace(&root)
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.check")?;
+    let data = Application::check_workspace_v4(&root)
         .map_err(|error| app_adapter::failure("workspace.check", error))?
         .data
         .check;
@@ -2327,8 +2235,8 @@ fn workspace_backup(
     workspace_path: Option<PathBuf>,
     destination: PathBuf,
 ) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root(workspace_path, "workspace.backup")?;
-    let result = Application::backup_workspace(&root, &destination)
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.backup")?;
+    let result = Application::backup_workspace_v4(&root, &destination)
         .map_err(|error| app_adapter::failure("workspace.backup", error))?
         .data;
     success(
@@ -2343,7 +2251,7 @@ fn workspace_backup(
 }
 
 fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<CommandOutput> {
-    let data = Application::restore_workspace(&backup, &destination)
+    let data = Application::restore_workspace_v4(&backup, &destination)
         .map_err(|error| app_adapter::failure("workspace.restore", error))?
         .data
         .workspace;
@@ -2359,8 +2267,8 @@ fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<Com
 }
 
 fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root(workspace_path, "workspace.repair")?;
-    let repaired = Application::repair_workspace(&root)
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.repair")?;
+    let repaired = Application::repair_workspace_v4(&root)
         .map_err(|error| app_adapter::failure("workspace.repair", error))?
         .data
         .repaired_projections;
@@ -2369,65 +2277,6 @@ fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
         "repaired",
         &json!({"repaired_projections": repaired}),
         vec![format!("Repaired projections: {repaired}")],
-    )
-}
-
-fn workspace_migration_preview(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let operation = "workspace-v3.migration-preview";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
-    let preview = Application::preview_workspace_v3_migration(&root)
-        .map_err(|error| app_adapter::failure(operation, error))?
-        .data;
-    success(
-        operation,
-        "ready",
-        &preview,
-        vec![
-            format!("Applications: {}", preview.application_count),
-            format!("Required backup bytes: {}", preview.required_backup_bytes),
-            format!("Plan SHA-256: {}", preview.migration_plan_sha256),
-            "Next: review this body-free plan and migrate with its exact digest".to_owned(),
-        ],
-    )
-}
-
-fn workspace_migrate(
-    workspace_path: Option<PathBuf>,
-    arguments: WorkspaceMigrateArgs,
-) -> CommandResult<CommandOutput> {
-    let operation = "workspace-v3.migrate";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
-    let expected_plan_sha256 =
-        Sha256Digest::try_new(arguments.expected_plan_sha256).map_err(|error| {
-            CommandFailure::new(
-                operation,
-                "invalid",
-                ErrorCode::InputInvalid,
-                error.to_string(),
-                false,
-            )
-        })?;
-    let result = Application::migrate_workspace_v3(
-        &root,
-        WorkspaceV3MigrationRequest {
-            expected_plan_sha256,
-            backup_destination: arguments.backup_destination,
-        },
-    )
-    .map_err(|error| app_adapter::failure(operation, error))?
-    .data;
-    success(
-        operation,
-        "migrated",
-        &result,
-        vec![
-            format!(
-                "Migrated Applications: {}",
-                result.migration.application_ids.len()
-            ),
-            format!("Verified backup: {}", result.backup_destination.display()),
-            "Legacy authority and files were preserved for compatibility".to_owned(),
-        ],
     )
 }
 
@@ -2584,89 +2433,23 @@ fn job_archive(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<C
     )
 }
 
-fn application_list(
-    workspace_path: Option<PathBuf>,
-    include_archived: bool,
-) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root(workspace_path, "application.dossier.list")?;
-    let list = Application::list_application_dossiers(&root, include_archived)
-        .map_err(|error| app_adapter::failure("application.dossier.list", error))?
-        .data;
-    let human = if list.applications.is_empty() {
-        vec!["No application dossiers found".to_owned()]
-    } else {
-        list.applications
-            .iter()
-            .map(|dossier| {
-                let deadline = dossier
-                    .metadata
-                    .deadline
-                    .as_deref()
-                    .unwrap_or("no deadline");
-                format!(
-                    "{}  {} — {}  [{:?}; {}/{}; {}]",
-                    dossier.job.id,
-                    dossier.job.title,
-                    dossier.job.institution,
-                    dossier.state,
-                    dossier.completed_stages,
-                    dossier.total_stages,
-                    deadline
-                )
-            })
-            .collect()
-    };
-    success("application.dossier.list", "available", &list, human)
-}
-
-fn application_show(workspace_path: Option<PathBuf>, job_id: &str) -> CommandResult<CommandOutput> {
-    let _ = parse_entity_id("application.dossier.show", job_id)?;
-    let root = app_adapter::workspace_root(workspace_path, "application.dossier.show")?;
-    let receipt = Application::application_dossier(&root, job_id)
-        .map_err(|error| app_adapter::failure("application.dossier.show", error))?;
-    let dossier = receipt.data;
-    let mut human = vec![
-        format!("{} — {}", dossier.job.title, dossier.job.institution),
-        format!("State: {:?}", dossier.state),
-        format!(
-            "Progress: {}/{} stages",
-            dossier.completed_stages, dossier.total_stages
-        ),
-        format!(
-            "Deadline: {}",
-            dossier
-                .metadata
-                .deadline
-                .as_deref()
-                .unwrap_or("not recorded")
-        ),
-    ];
-    if let Some(next) = dossier.next_actions.first() {
-        human.push(format!("Next: {}", next.description));
-    }
-    let mut output = success("application.dossier.show", "available", &dossier, human)?;
-    output.response.next_actions = receipt.next_actions;
-    Ok(output)
-}
-
-const MAX_APPLICATION_V3_CANDIDATE_BYTES: u64 = 4 * 1024 * 1024;
-
-fn application_v3_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let operation = "application-v3.list";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
-    let applications = Application::list_application_models_v3(&root)
+fn application_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let operation = "application.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let applications = Application::list_application_models_v4(&root)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     let human = if applications.is_empty() {
-        vec!["No canonical v3 Applications found".to_owned()]
+        vec!["No Applications found".to_owned()]
     } else {
         applications
             .iter()
             .map(|stored| {
                 format!(
-                    "{}  {}  [revision {}; {:?}]",
+                    "{}  {}  [{}; revision {}; {:?}]",
                     stored.snapshot.application.id,
                     stored.snapshot.opportunity.title,
+                    stored.snapshot.pack.id,
                     stored.snapshot.application.revision.get(),
                     stored.snapshot.application.lifecycle
                 )
@@ -2676,13 +2459,13 @@ fn application_v3_list(workspace_path: Option<PathBuf>) -> CommandResult<Command
     success(operation, "current", &applications, human)
 }
 
-fn application_v3_show(
+fn application_show(
     workspace_path: Option<PathBuf>,
     application_id: &str,
 ) -> CommandResult<CommandOutput> {
-    let operation = "application-v3.show";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
-    let stored = Application::application_model_v3(&root, application_id)
+    let operation = "application.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let stored = Application::application_model_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
     success(
@@ -2698,38 +2481,30 @@ fn application_v3_show(
     )
 }
 
+const MAX_APPLICATION_V3_CANDIDATE_BYTES: u64 = 4 * 1024 * 1024;
+
 fn application_v3_create(
     workspace_path: Option<PathBuf>,
     arguments: ApplicationV3CreateArgs,
 ) -> CommandResult<CommandOutput> {
-    let operation = "application-flow-v3.create";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let operation = "application.create.commit";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let request = read_application_v3_candidate::<ApplicationFlowCreateRequestV3>(
         operation,
         &arguments.candidate,
     )?;
-    let pack_id =
-        WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID).map_err(|error| {
-            app_adapter::failure(operation, ApplicationError::InvalidInput(error.to_string()))
-        })?;
-    let v4_result = Application::create_application_flow_v4(
+    let pack_id = WorkflowPackId::try_new(arguments.pack).map_err(|error| {
+        app_adapter::failure(operation, ApplicationError::InvalidInput(error.to_string()))
+    })?;
+    let model = Application::create_application_flow_v4(
         &root,
         ApplicationFlowCreateRequestV4 {
             pack_id,
-            application: request.clone(),
+            application: request,
         },
-    );
-    // M3-LEGACY removes this bounded fallback with the historical generic-* aliases. Neutral
-    // Workspace v4 never reaches it: all new Applications bind an exact Pack before mutation.
-    let model = match v4_result {
-        Ok(receipt) => receipt.data,
-        Err(ApplicationError::CompatibilityUnavailable { .. }) => {
-            Application::create_application_flow_v3(&root, request)
-                .map_err(|error| app_adapter::failure(operation, error))?
-                .data
-        }
-        Err(error) => return Err(app_adapter::failure(operation, error)),
-    };
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?
+    .data;
     success(
         operation,
         "created",
@@ -2750,7 +2525,7 @@ fn application_archive(
     arguments: ApplicationV3ArchiveArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "application.archive";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let expected_revision = Revision::try_new(arguments.expected_revision).map_err(|error| {
         CommandFailure::new(
             operation,
@@ -2790,7 +2565,7 @@ fn application_v3_plan(
     arguments: ApplicationV3CandidateArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "application-flow-v3.plan";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let request = read_application_v3_candidate::<ApplicationFlowPlanRequestV3>(
         operation,
         &arguments.candidate,
@@ -2827,7 +2602,7 @@ fn application_v3_compose(
     arguments: ApplicationV3CandidateArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "application-flow-v3.compose";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let request = read_application_v3_candidate::<ApplicationFlowComposeRequestV3>(
         operation,
         &arguments.candidate,
@@ -2858,7 +2633,7 @@ fn application_v3_approve(
     arguments: ApplicationV3ApproveArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "application-flow-v3.approve";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let expected_revision = Revision::try_new(arguments.expected_revision).map_err(|error| {
         CommandFailure::new(
             operation,
@@ -2898,7 +2673,7 @@ fn application_v3_export(
     arguments: ApplicationV3ExportArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "application-flow-v3.export";
-    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let request = ApplicationFlowExportRequestV3::try_new(
         &arguments.application,
         arguments.expected_revision,
@@ -4738,11 +4513,11 @@ mod tests {
             .surface_leaves(OperationSurface::Cli)
             .expect("CLI leaves");
         assert_eq!(actual, expected);
-        assert_eq!(actual.len(), 87);
+        assert_eq!(actual.len(), 83);
     }
 
     #[test]
-    fn canonical_v3_commands_parse_with_neutral_workspace_and_revision_boundaries() {
+    fn canonical_v4_commands_parse_with_neutral_workspace_and_revision_boundaries() {
         let initialized = Cli::try_parse_from([
             "canisend",
             "--workspace",
@@ -4754,7 +4529,7 @@ mod tests {
         assert!(matches!(
             initialized.command,
             Command::Workspace {
-                command: WorkspaceCommand::Init(super::WorkspaceInitArgs { pack: None, .. })
+                command: WorkspaceCommand::Init(_)
             }
         ));
 
@@ -4802,18 +4577,12 @@ mod tests {
             &"a".repeat(64),
             "--backup-destination",
             "/tmp/canisend-v2-backup",
-        ])
-        .expect("revision-bound migration command");
-        assert!(matches!(
-            migrate.command,
-            Command::Workspace {
-                command: WorkspaceCommand::Migrate(_)
-            }
-        ));
+        ]);
+        assert!(migrate.is_err(), "retired migration command must not parse");
     }
 
     #[test]
-    fn canonical_v3_cli_preserves_full_semantic_lifecycle_and_failures() {
+    fn canonical_v4_cli_preserves_full_semantic_lifecycle_and_failures() {
         let root = std::env::temp_dir().join(format!(
             "canisend-cli-generic-{}-{}",
             std::process::id(),
@@ -4830,7 +4599,6 @@ mod tests {
             workspace: Some(root.clone()),
             command: Command::Workspace {
                 command: WorkspaceCommand::Init(WorkspaceInitArgs {
-                    pack: None,
                     output: OutputArgs { json: true },
                 }),
             },
@@ -4864,13 +4632,14 @@ mod tests {
         let created = command_ok(execute(Cli {
             workspace: Some(root.clone()),
             command: Command::Application {
-                command: ApplicationCommand::GenericCreate(ApplicationV3CreateArgs {
+                command: ApplicationCommand::Create(ApplicationV3CreateArgs {
+                    pack: canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned(),
                     candidate: candidate.clone(),
                     output: OutputArgs { json: true },
                 }),
             },
         }));
-        assert_eq!(created.response.operation, "application-flow-v3.create");
+        assert_eq!(created.response.operation, "application.create.commit");
         assert_eq!(created.response.status, "created");
         assert_eq!(
             created
@@ -4891,7 +4660,7 @@ mod tests {
         let listed = command_ok(execute(Cli {
             workspace: Some(root.clone()),
             command: Command::Application {
-                command: ApplicationCommand::V3List(OutputArgs { json: true }),
+                command: ApplicationCommand::List(OutputArgs { json: true }),
             },
         }));
         assert_eq!(
@@ -4907,13 +4676,13 @@ mod tests {
         let shown = command_ok(execute(Cli {
             workspace: Some(root.clone()),
             command: Command::Application {
-                command: ApplicationCommand::V3Show(ApplicationV3IdArgs {
+                command: ApplicationCommand::Show(ApplicationV3IdArgs {
                     application: application_id.clone(),
                     output: OutputArgs { json: true },
                 }),
             },
         }));
-        assert_eq!(shown.response.operation, "application-v3.show");
+        assert_eq!(shown.response.operation, "application.show");
 
         let planned_deliverables = serde_json::json!([{
             "kind": "primary-document",
@@ -4946,7 +4715,7 @@ mod tests {
             .is_err()
         );
         assert_eq!(
-            Application::application_model_v3(&root, &application_id)
+            Application::application_model_v4(&root, &application_id)
                 .expect("unchanged after stale Plan")
                 .data
                 .snapshot
@@ -5018,7 +4787,7 @@ mod tests {
             .is_err()
         );
         assert_eq!(
-            Application::application_model_v3(&root, &application_id)
+            Application::application_model_v4(&root, &application_id)
                 .expect("unchanged after stale approval")
                 .data
                 .snapshot
@@ -5107,7 +4876,7 @@ mod tests {
         assert_eq!(archived.response.operation, "application.archive");
         assert_eq!(archived.response.status, "archived");
         assert_eq!(
-            Application::application_model_v3(&root, &application_id)
+            Application::application_model_v4(&root, &application_id)
                 .expect("archived Application")
                 .data
                 .snapshot
@@ -5151,7 +4920,8 @@ mod tests {
             execute(Cli {
                 workspace: Some(academic_root.clone()),
                 command: Command::Application {
-                    command: ApplicationCommand::GenericCreate(ApplicationV3CreateArgs {
+                    command: ApplicationCommand::Create(ApplicationV3CreateArgs {
+                        pack: canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned(),
                         candidate: candidate.clone(),
                         output: OutputArgs { json: true },
                     }),

@@ -87,7 +87,7 @@
       "version-and-doctor",
       "documented-quickstart",
       "host-agent-smoke",
-      "agent-v3-mcp-smoke",
+      "agent-v4-mcp-smoke",
       "isolated-install-uninstall-workspace-retention"
     ],
     "targets": [

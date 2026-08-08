@@ -72,15 +72,17 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 22] = [
+pub const CANISEND_MCP_TOOLS: [&str; 26] = [
     "canisend_agent_v3_capabilities",
     "canisend_agent_v3_context",
     "canisend_application_approve",
     "canisend_application_compose",
     "canisend_application_create",
     "canisend_application_export",
+    "canisend_application_list",
     "canisend_application_plan",
     "canisend_application_review",
+    "canisend_application_show",
     "canisend_applications_list",
     "canisend_capabilities",
     "canisend_context",
@@ -95,12 +97,16 @@ pub const CANISEND_MCP_TOOLS: [&str; 22] = [
     "canisend_task_latest",
     "canisend_task_prepare",
     "canisend_workflow_status",
+    "canisend_workspace_check",
+    "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 13] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 17] = [
     "canisend_agent_v3_capabilities",
     "canisend_agent_v3_context",
     "canisend_application_review",
+    "canisend_application_list",
+    "canisend_application_show",
     "canisend_applications_list",
     "canisend_capabilities",
     "canisend_context",
@@ -111,6 +117,8 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 13] = [
     "canisend_task_completion_preview",
     "canisend_task_latest",
     "canisend_workflow_status",
+    "canisend_workspace_check",
+    "canisend_workspace_status",
 ];
 
 pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 9] = [

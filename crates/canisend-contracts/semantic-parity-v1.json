@@ -15,7 +15,17 @@
     {
       "id": "generic-cli-lifecycle",
       "path": "crates/canisend-cli/src/lib.rs",
-      "marker": "fn canonical_v3_cli_preserves_full_semantic_lifecycle_and_failures()"
+      "marker": "fn canonical_v4_cli_preserves_full_semantic_lifecycle_and_failures()"
+    },
+    {
+      "id": "workspace-v4-cli-recovery",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn native_workspace_commands_initialize_check_backup_and_restore()"
+    },
+    {
+      "id": "workspace-v4-mcp-reads",
+      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
+      "marker": "fn returns_structured_facade_results_and_rejects_malformed_arguments()"
     },
     {
       "id": "generic-tauri-lifecycle",
@@ -175,6 +185,20 @@
   ],
   "shared_operations": [
     {
+      "operation": "workspace.status",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success"],
+      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "workspace.check",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "recovery"],
+      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads"]
+    },
+    {
       "operation": "application.list",
       "kind": "read",
       "revision_bound": false,
@@ -235,8 +259,8 @@
     {
       "pack": "generic-application",
       "surface": "cli",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.approve", "application.export"],
-      "fixtures": ["generic-cli-lifecycle"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.approve", "application.export"],
+      "fixtures": ["workspace-v4-cli-recovery", "generic-cli-lifecycle"]
     },
     {
       "pack": "generic-application",
@@ -247,8 +271,8 @@
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["agent-v3.capabilities", "agent-v3.context", "application.list", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
-      "fixtures": ["generic-mcp-lifecycle"]
+      "operations": ["workspace.status", "workspace.check", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
+      "fixtures": ["workspace-v4-mcp-reads", "generic-mcp-lifecycle"]
     },
     {
       "pack": "academic-job",
@@ -350,8 +374,8 @@
   "read_families": [
     {
       "id": "generic-application",
-      "operations": ["agent-v3.capabilities", "agent-v3.context", "application.list", "application.show"],
-      "fixtures": ["generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
+      "operations": ["workspace.status", "workspace.check", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.show"],
+      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "generic-cli-lifecycle", "generic-tauri-lifecycle", "generic-mcp-lifecycle"]
     },
     {
       "id": "academic-application",

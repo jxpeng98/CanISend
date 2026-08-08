@@ -697,7 +697,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            87
+            83
         );
         assert_eq!(
             bindings
@@ -711,14 +711,17 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            22
+            26
         );
         assert!(registry.presentation_aliases.iter().any(|alias| {
             alias.id.as_str() == "content.*" && alias.class == OperationClass::WildcardAlias
         }));
-        assert!(registry.presentation_aliases.iter().any(|alias| {
-            alias.id.as_str() == "application.dossier" && alias.class == OperationClass::Composite
-        }));
+        assert!(
+            registry
+                .presentation_aliases
+                .iter()
+                .all(|alias| alias.id.as_str() != "application.dossier")
+        );
     }
 
     #[test]
