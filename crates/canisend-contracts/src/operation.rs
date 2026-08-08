@@ -689,7 +689,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn built_in_registry_has_exact_typed_surfaces_and_alias_classes() {
+    fn built_in_registry_has_exact_transitional_cli_tauri_and_clean_v4_mcp_surfaces() {
         let registry = OperationRegistry::built_in().expect("built-in operation registry");
         let bindings = registry.resolved_bindings().expect("resolved bindings");
         assert_eq!(
@@ -711,7 +711,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            26
+            4
         );
         assert!(registry.presentation_aliases.iter().any(|alias| {
             alias.id.as_str() == "content.*" && alias.class == OperationClass::WildcardAlias

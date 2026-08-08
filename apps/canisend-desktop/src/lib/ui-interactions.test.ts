@@ -6,8 +6,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import UiInteractionHarness from "./test-fixtures/UiInteractionHarness.svelte";
 
-afterEach(() => {
+const BODY_SCROLL_LOCK_CLEANUP_WINDOW_MS = 30;
+
+async function settleBodyScrollLockCleanup(): Promise<void> {
+  await new Promise((resolve) => window.setTimeout(resolve, BODY_SCROLL_LOCK_CLEANUP_WINDOW_MS));
+}
+
+afterEach(async () => {
   cleanup();
+  await settleBodyScrollLockCleanup();
   document.body.removeAttribute("style");
 });
 
@@ -72,6 +79,7 @@ describe("shadcn-svelte interaction contract", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 
     cleanup();
+    await settleBodyScrollLockCleanup();
     document.body.style.pointerEvents = "";
     render(UiInteractionHarness);
     const confirmUser = userEvent.setup();

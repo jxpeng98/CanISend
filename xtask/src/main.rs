@@ -7782,7 +7782,7 @@ fn check_approval_broker() -> Result<(), String> {
         &bridge,
     )?;
     println!(
-        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, MCP + 4 desktop families)"
+        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 4 desktop families; MCP clean-v4 read-only)"
     );
     Ok(())
 }
@@ -7811,16 +7811,42 @@ fn validate_approval_broker_sources(
             ));
         }
     }
-    for required in [
-        "ApprovalBroker<PendingMutation>",
-        "approval_disposition_for_application_error",
-        "remaining_ttl_seconds",
-        "expires_at_unix_ms",
-    ] {
-        if !mcp.contains(required) {
-            return Err(format!(
-                "MCP approval adapter is missing shared broker evidence: {required}"
-            ));
+    if mcp.contains("This Alpha.7 MCP surface is read-only") {
+        for required in [
+            "This Alpha.7 MCP surface is read-only",
+            "read_only_hint = true",
+            "destructive_hint = false",
+        ] {
+            if !mcp.contains(required) {
+                return Err(format!(
+                    "clean-v4 read-only MCP source is missing boundary evidence: {required}"
+                ));
+            }
+        }
+        for forbidden in [
+            "ApprovalBroker<PendingMutation>",
+            "fn mutation_result",
+            "fn insert_preview",
+            "fn take_preview",
+        ] {
+            if mcp.contains(forbidden) {
+                return Err(format!(
+                    "clean-v4 read-only MCP source retains mutation evidence: {forbidden}"
+                ));
+            }
+        }
+    } else {
+        for required in [
+            "ApprovalBroker<PendingMutation>",
+            "approval_disposition_for_application_error",
+            "remaining_ttl_seconds",
+            "expires_at_unix_ms",
+        ] {
+            if !mcp.contains(required) {
+                return Err(format!(
+                    "MCP approval adapter is missing shared broker evidence: {required}"
+                ));
+            }
         }
     }
     for required in [
@@ -18944,7 +18970,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 10);
+        assert_eq!(current.shared_operations, 9);
         assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 

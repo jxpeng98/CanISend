@@ -10,7 +10,7 @@ use std::{
 
 use canisend_app::{
     Application, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, PrivateReadConsent,
+    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
 };
 use serde_json::{Value, json};
 
@@ -116,7 +116,7 @@ impl Drop for McpProcess {
 }
 
 #[test]
-fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
+fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
     let root = temporary_root("list");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
     let mut mcp = McpProcess::start(&root);
@@ -145,34 +145,13 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS);
+    assert!(CANISEND_MCP_GUARDED_WRITE_TOOLS.is_empty());
     for tool in tools {
-        let name = tool["name"].as_str().expect("tool name");
-        let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
-        assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.contains(&name), !read_only);
-        let idempotent = matches!(
-            name,
-            "canisend_workspace_status"
-                | "canisend_workspace_check"
-                | "canisend_application_list"
-                | "canisend_application_show"
-                | "canisend_agent_v3_capabilities"
-                | "canisend_agent_v3_context"
-                | "canisend_applications_list"
-                | "canisend_capabilities"
-                | "canisend_context"
-                | "canisend_job_detail"
-                | "canisend_jobs_list"
-                | "canisend_profile_sources"
-                | "canisend_task_latest"
-                | "canisend_workflow_status"
-        );
-        assert_eq!(tool["annotations"]["readOnlyHint"], json!(read_only));
+        assert_eq!(tool["annotations"]["readOnlyHint"], json!(true));
         assert_eq!(tool["annotations"]["destructiveHint"], json!(false));
-        assert_eq!(tool["annotations"]["idempotentHint"], json!(idempotent));
-        assert_eq!(
-            tool["annotations"]["openWorldHint"],
-            json!(name == "canisend_job_intake_preview")
-        );
+        assert_eq!(tool["annotations"]["idempotentHint"], json!(true));
+        assert_eq!(tool["annotations"]["openWorldHint"], json!(false));
     }
 
     drop(mcp);
@@ -180,7 +159,7 @@ fn negotiates_current_protocol_and_lists_guarded_tools_deterministically() {
 }
 
 #[test]
-fn returns_structured_facade_results_and_rejects_malformed_arguments() {
+fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     let root = temporary_root("calls");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
     let before = Application::workspace_status_v4(&root)
@@ -193,44 +172,29 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
     let listed = mcp.request(
         2,
         "tools/call",
-        json!({
-            "name": "canisend_application_list",
-            "arguments": {}
-        }),
+        json!({"name": "canisend_application_list", "arguments": {}}),
     );
+    assert_eq!(listed["result"]["isError"], json!(false));
     assert_eq!(
         listed["result"]["structuredContent"]["operation"],
         json!("application.list")
     );
-    assert_eq!(
-        listed["result"]["structuredContent"]["data"]
-            .as_array()
-            .expect("Applications")
-            .len(),
-        0
-    );
-    assert_eq!(listed["result"]["isError"], json!(false));
 
     let status = mcp.request(
         3,
         "tools/call",
-        json!({
-            "name": "canisend_workspace_status",
-            "arguments": {}
-        }),
+        json!({"name": "canisend_workspace_status", "arguments": {}}),
     );
     assert_eq!(status["result"]["isError"], json!(false));
     assert_eq!(
         status["result"]["structuredContent"]["data"]["status"]["workspace_format"],
         json!(canisend_contracts::WORKSPACE_V4_FORMAT)
     );
+
     let check = mcp.request(
         4,
         "tools/call",
-        json!({
-            "name": "canisend_workspace_check",
-            "arguments": {}
-        }),
+        json!({"name": "canisend_workspace_check", "arguments": {}}),
     );
     assert_eq!(check["result"]["isError"], json!(false));
     assert_eq!(
@@ -238,8 +202,40 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
         json!(true)
     );
 
+    for (id, legacy) in [
+        (5, "canisend_agent_v3_context"),
+        (6, "canisend_application_create"),
+        (7, "canisend_job_intake_commit"),
+    ] {
+        let refused = mcp.request(id, "tools/call", json!({"name": legacy, "arguments": {}}));
+        assert!(
+            refused["error"].is_object() || refused["result"]["isError"] == json!(true),
+            "legacy MCP tool must be unavailable: {refused}"
+        );
+    }
+
+    drop(mcp);
+    let after = Application::workspace_status_v4(&root)
+        .expect("workspace after")
+        .data
+        .status;
+    assert_eq!(before, after);
+    fs::remove_dir_all(root).expect("remove workspace");
+}
+
+#[test]
+fn rejects_malformed_v4_arguments_without_mutation() {
+    let root = temporary_root("malformed");
+    Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+    let before = Application::workspace_status_v4(&root)
+        .expect("workspace before")
+        .data
+        .status;
+    let mut mcp = McpProcess::start(&root);
+    mcp.initialize();
+
     let malformed = mcp.request(
-        5,
+        2,
         "tools/call",
         json!({
             "name": "canisend_application_show",
@@ -261,354 +257,4 @@ fn returns_structured_facade_results_and_rejects_malformed_arguments() {
         .status;
     assert_eq!(before, after);
     fs::remove_dir_all(root).expect("remove workspace");
-}
-
-#[test]
-#[ignore = "retired Alpha.7 Agent v3 MCP surface"]
-fn exposes_body_free_generic_agent_v3_context_over_stdio() {
-    let root = temporary_root("agent-v3-context");
-    Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
-    let mut mcp = McpProcess::start(&root);
-    mcp.initialize();
-
-    let empty = mcp.request(
-        2,
-        "tools/call",
-        json!({
-            "name": "canisend_agent_v3_context",
-            "arguments": {}
-        }),
-    );
-    assert_eq!(empty["result"]["isError"], json!(false));
-    assert_eq!(
-        empty["result"]["structuredContent"]["data"]["protocol"],
-        json!("canisend.agent/v3")
-    );
-    assert_eq!(
-        empty["result"]["structuredContent"]["data"]["next_actions"][0]["action"],
-        json!("canisend_application_create")
-    );
-
-    let source = "MCP-V3-PRIVATE-SOURCE must produce one primary narrative.";
-    let created = mcp.request(
-        3,
-        "tools/call",
-        json!({
-            "name": "canisend_application_create",
-            "arguments": {
-                "title": "Neutral MCP fixture",
-                "opportunity_metadata": {
-                    "organization": {"type": "short-text", "value": "Example Organization"}
-                },
-                "application_metadata": {},
-                "source_text": source,
-                "requirements": [{
-                    "category": "format",
-                    "statement": source,
-                    "priority": "mandatory",
-                    "start_byte": 0,
-                    "end_byte": source.len()
-                }]
-            }
-        }),
-    );
-    assert_eq!(created["result"]["isError"], json!(false));
-    let application_id =
-        created["result"]["structuredContent"]["data"]["stored"]["snapshot"]["application"]["id"]
-            .as_str()
-            .expect("Application ID")
-            .to_owned();
-
-    let resumed = mcp.request(
-        4,
-        "tools/call",
-        json!({
-            "name": "canisend_agent_v3_context",
-            "arguments": {"application_id": application_id}
-        }),
-    );
-    assert_eq!(resumed["result"]["isError"], json!(false));
-    let structured = &resumed["result"]["structuredContent"];
-    let encoded = serde_json::to_string(structured).expect("context JSON");
-    assert!(!encoded.contains("MCP-V3-PRIVATE-SOURCE"));
-    assert!(!encoded.contains("Example Organization"));
-    assert_eq!(
-        structured["data"]["next_actions"][0]["action"],
-        json!("canisend_application_plan")
-    );
-    assert_eq!(structured["data"]["submission_supported"], json!(false));
-
-    drop(mcp);
-    fs::remove_dir_all(root).expect("remove workspace");
-}
-
-#[test]
-#[ignore = "retired Alpha.7 job MCP surface"]
-fn previews_and_commits_exact_job_intake_with_a_single_use_token() {
-    let root = temporary_root("job-intake");
-    let source = temporary_root("private-advert").with_extension("txt");
-    let sentinel = "MCP-JOB-INTAKE-PRIVATE-SENTINEL";
-    fs::write(&source, format!("Lecturer advert\n{sentinel}\n")).expect("write source");
-    Application::initialize_workspace(&root).expect("initialize workspace");
-    let job = Application::create_job(&root, "Lecturer", "University X")
-        .expect("create job")
-        .data;
-    let mut mcp = McpProcess::start(&root);
-    mcp.initialize();
-
-    let previewed = mcp.request(
-        2,
-        "tools/call",
-        json!({
-            "name": "canisend_job_intake_preview",
-            "arguments": {
-                "job_id": job.id,
-                "source_kind": "local-file",
-                "locator": source,
-                "confirmed_private_read": true
-            }
-        }),
-    );
-    assert_eq!(previewed["result"]["isError"], json!(false));
-    let structured = &previewed["result"]["structuredContent"];
-    let encoded = serde_json::to_string(structured).expect("serialize preview");
-    assert!(!encoded.contains(sentinel));
-    let token = structured["preview_token"]
-        .as_str()
-        .expect("preview token")
-        .to_owned();
-    assert!(
-        Application::job_detail(&root, job.id.as_str())
-            .expect("job before commit")
-            .data
-            .sources
-            .is_empty()
-    );
-
-    let committed = mcp.request(
-        3,
-        "tools/call",
-        json!({
-            "name": "canisend_job_intake_commit",
-            "arguments": {"preview_token": token}
-        }),
-    );
-    assert_eq!(committed["result"]["isError"], json!(false));
-    assert_eq!(
-        committed["result"]["structuredContent"]["operation"],
-        json!("job.intake.commit")
-    );
-    assert_eq!(
-        Application::job_detail(&root, job.id.as_str())
-            .expect("job after commit")
-            .data
-            .sources
-            .len(),
-        1
-    );
-
-    let reused = mcp.request(
-        4,
-        "tools/call",
-        json!({
-            "name": "canisend_job_intake_commit",
-            "arguments": {"preview_token": token}
-        }),
-    );
-    assert!(
-        reused["error"].is_object() || reused["result"]["isError"] == json!(true),
-        "single-use token must be rejected: {reused}"
-    );
-
-    drop(mcp);
-    fs::remove_dir_all(root).expect("remove workspace");
-    fs::remove_file(source).expect("remove source");
-}
-
-#[test]
-#[ignore = "retired Alpha.7 task MCP surface"]
-fn prepares_and_exports_versioned_task_inputs_through_the_same_adapter() {
-    let root = temporary_root("task");
-    let source = temporary_root("task-advert").with_extension("txt");
-    let destination = temporary_root("task-inputs");
-    let completion = temporary_root("task-completion").with_extension("json");
-    fs::write(&source, "Lecturer advert").expect("write source");
-    Application::initialize_workspace(&root).expect("initialize workspace");
-    let job = Application::create_job(&root, "Lecturer", "University X")
-        .expect("create job")
-        .data;
-    Application::import_local_job_source(
-        &root,
-        job.id.as_str(),
-        &source,
-        PrivateReadConsent::granted_by_user(),
-    )
-    .expect("import source");
-    let mut mcp = McpProcess::start(&root);
-    mcp.initialize();
-
-    let prepared = mcp.request(
-        2,
-        "tools/call",
-        json!({
-            "name": "canisend_task_prepare",
-            "arguments": {
-                "job_id": job.id,
-                "operation": "job-parse",
-                "mode": "host-agent"
-            }
-        }),
-    );
-    assert_eq!(prepared["result"]["isError"], json!(false));
-    assert_eq!(
-        prepared["result"]["structuredContent"]["operation"],
-        json!("task.prepare")
-    );
-    let task_id = prepared["result"]["structuredContent"]["data"]["id"]
-        .as_str()
-        .expect("task ID")
-        .to_owned();
-    let descriptor = prepared["result"]["structuredContent"]["data"].clone();
-
-    let latest = mcp.request(
-        3,
-        "tools/call",
-        json!({
-            "name": "canisend_task_latest",
-            "arguments": {"job_id": job.id}
-        }),
-    );
-    assert_eq!(
-        latest["result"]["structuredContent"]["data"]["descriptor"]["id"],
-        json!(task_id)
-    );
-
-    let exported = mcp.request(
-        4,
-        "tools/call",
-        json!({
-            "name": "canisend_task_inputs",
-            "arguments": {
-                "task_id": task_id,
-                "destination": destination,
-                "confirmed_private_read": true
-            }
-        }),
-    );
-    assert_eq!(exported["result"]["isError"], json!(false));
-    assert_eq!(
-        exported["result"]["structuredContent"]["operation"],
-        json!("task.inputs")
-    );
-    assert!(destination.join("canisend-task-inputs.json").is_file());
-
-    let unapproved_completion = mcp.request(
-        5,
-        "tools/call",
-        json!({
-            "name": "canisend_task_completion_preview",
-            "arguments": {
-                "file": "/tmp/private-completion.json",
-                "confirmed_private_read": false
-            }
-        }),
-    );
-    assert!(
-        unapproved_completion["error"].is_object()
-            || unapproved_completion["result"]["isError"] == json!(true),
-        "missing consent must be rejected: {unapproved_completion}"
-    );
-
-    let input = descriptor["input_artifacts"][0].clone();
-    let completion_document = json!({
-        "task_id": task_id,
-        "lease_id": descriptor["lease"]["id"],
-        "expected_job_revision": descriptor["job_revision"],
-        "expected_inputs": [{
-            "artifact_id": input["id"],
-            "revision": input["revision"],
-            "sha256": input["sha256"]
-        }],
-        "candidate": {
-            "id": "019f2f55-7c00-7000-8000-000000000701",
-            "job_id": descriptor["job_id"],
-            "title": "Lecturer",
-            "institution": "University X",
-            "summary": "Lecturer advert",
-            "responsibilities": ["Lecturer advert"],
-            "criteria": [{
-                "id": "019f2f55-7c00-7000-8000-000000000702",
-                "job_id": descriptor["job_id"],
-                "kind": "teaching",
-                "requirement": "Lecturer advert",
-                "importance": "essential",
-                "source_quote": "Lecturer advert",
-                "source_span": {
-                    "source": input,
-                    "start_byte": 0,
-                    "end_byte": 15
-                },
-                "confidence_milli": 950,
-                "confirmed": false,
-                "revision": 1
-            }],
-            "revision": 1
-        }
-    });
-    fs::write(
-        &completion,
-        serde_json::to_vec_pretty(&completion_document).expect("completion JSON"),
-    )
-    .expect("write completion");
-    let previewed = mcp.request(
-        6,
-        "tools/call",
-        json!({
-            "name": "canisend_task_completion_preview",
-            "arguments": {
-                "file": completion,
-                "confirmed_private_read": true
-            }
-        }),
-    );
-    assert_eq!(previewed["result"]["isError"], json!(false));
-    let preview = &previewed["result"]["structuredContent"];
-    assert_eq!(preview["remaining_ttl_seconds"], json!(600));
-    assert!(preview["expires_at_unix_ms"].as_u64().is_some());
-    let preview_token = preview["preview_token"]
-        .as_str()
-        .expect("task completion preview token")
-        .to_owned();
-
-    let committed = mcp.request(
-        7,
-        "tools/call",
-        json!({
-            "name": "canisend_task_completion_commit",
-            "arguments": {"preview_token": preview_token}
-        }),
-    );
-    assert_eq!(committed["result"]["isError"], json!(false));
-    assert_eq!(
-        committed["result"]["structuredContent"]["data"]["status"],
-        json!("committed")
-    );
-    let replayed = mcp.request(
-        8,
-        "tools/call",
-        json!({
-            "name": "canisend_task_completion_commit",
-            "arguments": {"preview_token": preview_token}
-        }),
-    );
-    assert!(
-        replayed["error"].is_object() || replayed["result"]["isError"] == json!(true),
-        "approval replay must be rejected: {replayed}"
-    );
-
-    drop(mcp);
-    fs::remove_dir_all(root).expect("remove workspace");
-    fs::remove_dir_all(destination).expect("remove task inputs");
-    fs::remove_file(source).expect("remove source");
-    fs::remove_file(completion).expect("remove completion");
 }

@@ -614,7 +614,7 @@ mod tests {
     use super::*;
     use crate::{
         ApplicationFlowDeliverableDraftV3, ApplicationFlowPlannedDeliverableV3,
-        ApplicationFlowRequirementDraftV3, WorkspaceV3MigrationRequest,
+        ApplicationFlowRequirementDraftV3,
     };
 
     fn root(label: &str) -> PathBuf {
@@ -751,66 +751,29 @@ mod tests {
     }
 
     #[test]
-    fn agent_v3_requires_v3_authority_then_uses_the_exact_academic_pack() {
-        let backup = root("academic-pack-backup");
+    fn retired_agent_v3_capabilities_fail_closed_without_a_public_mcp_binding() {
         let root = root("academic-pack");
-        Application::initialize_workspace(&root).expect("academic workspace");
-        Application::create_job(&root, "Research Fellow", "Example University")
-            .expect("legacy academic Application");
-        let error = Application::agent_v3_context(&root, None).expect_err("Workspace v2");
-        assert!(matches!(
-            error,
-            ApplicationError::CompatibilityUnavailable { .. }
-        ));
+        Application::initialize_workspace_v3(&root).expect("Workspace v3");
+        let before = Application::workspace_status(&root)
+            .expect("status before")
+            .data
+            .status;
 
-        let preview = Application::preview_workspace_v3_migration(&root)
-            .expect("migration preview")
-            .data;
-        Application::migrate_workspace_v3(
-            &root,
-            WorkspaceV3MigrationRequest {
-                expected_plan_sha256: preview.migration_plan_sha256,
-                backup_destination: backup.clone(),
-            },
-        )
-        .expect("migration");
+        let error = Application::agent_v3_capabilities(&root).expect_err("retired capabilities");
+        assert!(matches!(error, ApplicationError::ResourceIntegrity(_)));
+        assert!(error.to_string().contains("no exact MCP binding"));
 
-        let capabilities = Application::agent_v3_capabilities(&root)
-            .expect("academic capabilities")
-            .data;
-        assert_eq!(capabilities.pack.id.as_str(), "org.canisend.academic-job");
-        let migrated = Application::agent_v3_context(&root, None)
-            .expect("academic v3 context")
-            .data;
-        assert_eq!(migrated.pack, capabilities.pack);
-        assert_eq!(migrated.applications.len(), 1);
-
-        let source = "Applicants must hold a relevant doctorate.";
-        let created = Application::agent_v3_create_application(
-            &root,
-            ApplicationFlowCreateRequestV3 {
-                title: "Synthetic academic Application".to_owned(),
-                opportunity_metadata: BTreeMap::from([(
-                    item("institution"),
-                    ApplicationFieldValueV3::ShortText("Example University".to_owned()),
-                )]),
-                application_metadata: BTreeMap::new(),
-                source_text: source.to_owned(),
-                requirements: vec![ApplicationFlowRequirementDraftV3 {
-                    category: item("qualification"),
-                    statement: source.to_owned(),
-                    priority: RequirementPriorityV3::Mandatory,
-                    start_byte: 0,
-                    end_byte: source.len() as u64,
-                }],
-            },
-        )
-        .expect("new academic v3 Application")
-        .data;
-        assert_eq!(created.stored.snapshot.pack, capabilities.pack);
-        assert_eq!(created.stored.snapshot.requirements.len(), 1);
+        let internal_context =
+            Application::agent_v3_context(&root, None).expect("internal transitional context");
+        assert_eq!(internal_context.data.protocol, "canisend.agent/v3");
+        assert_eq!(
+            Application::workspace_status(&root)
+                .expect("status after")
+                .data
+                .status,
+            before
+        );
 
         fs::remove_dir_all(root).expect("remove workspace");
-        fs::remove_dir_all(backup).expect("remove backup");
     }
 }

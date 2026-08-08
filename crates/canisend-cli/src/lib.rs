@@ -3,6 +3,7 @@
 mod app_adapter;
 
 use std::{
+    ffi::OsString,
     fs,
     io::IsTerminal,
     path::{Path, PathBuf},
@@ -50,10 +51,30 @@ struct Cli {
 /// drift from the cross-surface operation contract.
 #[must_use]
 pub fn clap_leaf_paths() -> Vec<String> {
-    fn collect(command: &clap::Command, prefix: &[String], leaves: &mut Vec<String>) {
+    collect_clap_leaf_paths(true)
+}
+
+/// Return only the command leaves advertised by the clean-v4 public help surface.
+///
+/// Historical command implementations remain temporarily compiled while their neutral v4
+/// replacements land, but hidden legacy leaves are rejected before parsing or Workspace access
+/// and are not part of the Alpha.7 supported inventory.
+#[must_use]
+pub fn public_clap_leaf_paths() -> Vec<String> {
+    collect_clap_leaf_paths(false)
+}
+
+fn collect_clap_leaf_paths(include_hidden: bool) -> Vec<String> {
+    fn collect(
+        command: &clap::Command,
+        prefix: &[String],
+        leaves: &mut Vec<String>,
+        include_hidden: bool,
+    ) {
         let subcommands = command
             .get_subcommands()
             .filter(|subcommand| subcommand.get_name() != "help")
+            .filter(|subcommand| include_hidden || !subcommand.is_hide_set())
             .collect::<Vec<_>>();
         if subcommands.is_empty() {
             if !prefix.is_empty() {
@@ -64,13 +85,13 @@ pub fn clap_leaf_paths() -> Vec<String> {
         for subcommand in subcommands {
             let mut path = prefix.to_vec();
             path.push(subcommand.get_name().to_owned());
-            collect(subcommand, &path, leaves);
+            collect(subcommand, &path, leaves, include_hidden);
         }
     }
 
     let command = Cli::command();
     let mut leaves = Vec::new();
-    collect(&command, &[], &mut leaves);
+    collect(&command, &[], &mut leaves, include_hidden);
     leaves.sort();
     leaves
 }
@@ -81,12 +102,13 @@ enum Command {
     Version(OutputArgs),
     /// Check the native binary's embedded foundation.
     Doctor(OutputArgs),
-    /// Inspect interfaces intended for agent hosts.
+    /// Retired Agent v2 host interface; Alpha.7 refuses this legacy surface.
+    #[command(hide = true)]
     Agent {
         #[command(subcommand)]
         command: AgentCommand,
     },
-    /// Serve the read-only CanISend tool surface over Model Context Protocol.
+    /// Serve the canonical CanISend v4 tool surface over Model Context Protocol.
     Mcp {
         #[command(subcommand)]
         command: McpCommand,
@@ -106,7 +128,8 @@ enum Command {
         #[command(subcommand)]
         command: WorkspaceCommand,
     },
-    /// Create, import, inspect, list, or archive jobs.
+    /// Retired academic job aliases; Alpha.7 uses Pack-bound Applications.
+    #[command(hide = true)]
     Job {
         #[command(subcommand)]
         command: JobCommand,
@@ -116,62 +139,74 @@ enum Command {
         #[command(subcommand)]
         command: ApplicationCommand,
     },
-    /// Browse and search the body-free content catalog or explicitly approved private text.
+    /// Retired content aliases; Alpha.7 uses Source and Evidence operations.
+    #[command(hide = true)]
     Content {
         #[command(subcommand)]
         command: ContentCommand,
     },
-    /// Import and inspect reusable profile evidence sources.
+    /// Retired Profile v2 aliases; Alpha.7 uses neutral v4 Profile and Evidence operations.
+    #[command(hide = true)]
     Profile {
         #[command(subcommand)]
         command: ProfileCommand,
     },
-    /// Import, inspect, compare, or promote discovered job leads.
+    /// Retired discovery aliases; Alpha.7 uses neutral Source intake.
+    #[command(hide = true)]
     Discovery {
         #[command(subcommand)]
         command: DiscoveryCommand,
     },
-    /// Prepare, inspect, complete, or cancel bounded agent tasks.
+    /// Retired Agent v2 task aliases; Alpha.7 uses Agent v4 operation tasks.
+    #[command(hide = true)]
     Task {
         #[command(subcommand)]
         command: TaskCommand,
     },
-    /// Inspect, correct, and explicitly confirm parsed job criteria.
+    /// Retired criteria aliases; Alpha.7 uses Requirement operations.
+    #[command(hide = true)]
     Criteria {
         #[command(subcommand)]
         command: CriteriaCommand,
     },
-    /// Inspect validated criterion-to-evidence matches.
+    /// Retired match alias; Alpha.7 uses Evidence association and Plan operations.
+    #[command(hide = true)]
     Match {
         #[command(subcommand)]
         command: MatchCommand,
     },
-    /// Choose whether to apply and confirm the revision-bound document plan.
+    /// Retired Plan v2 aliases; Alpha.7 uses v4 preview/commit operations.
+    #[command(hide = true)]
     Plan {
         #[command(subcommand)]
         command: PlanCommand,
     },
-    /// Inspect current structured drafts and their complete revision-bound set.
+    /// Retired document aliases; Alpha.7 uses Deliverable operations.
+    #[command(hide = true)]
     Document {
         #[command(subcommand)]
         command: DocumentCommand,
     },
-    /// Inspect review findings and record explicit user dispositions.
+    /// Retired Review v2 aliases; Alpha.7 uses v4 preview/commit operations.
+    #[command(hide = true)]
     Review {
         #[command(subcommand)]
         command: ReviewCommand,
     },
-    /// Compute and inspect deterministic package readiness without submitting.
+    /// Retired package aliases; Alpha.7 uses Export operations.
+    #[command(hide = true)]
     Package {
         #[command(subcommand)]
         command: PackageCommand,
     },
-    /// Build, inspect, or explicitly export validated PDFs without submitting.
+    /// Retired render aliases; Alpha.7 uses Deliverable and Export operations.
+    #[command(hide = true)]
     Render {
         #[command(subcommand)]
         command: RenderCommand,
     },
-    /// Start, inspect, advance, or rerun the durable application workflow.
+    /// Retired job workflow aliases; Alpha.7 uses Pack-bound Application operations.
+    #[command(hide = true)]
     Workflow {
         #[command(subcommand)]
         command: WorkflowCommand,
@@ -266,12 +301,16 @@ enum ApplicationCommand {
     /// Create a Pack-bound Application in Workspace v4 from a reviewed JSON request.
     Create(ApplicationV3CreateArgs),
     /// Confirm Requirements and commit an exact-Pack v3 Plan from JSON.
+    #[command(hide = true)]
     GenericPlan(ApplicationV3CandidateArgs),
     /// Commit exact-Pack v3 Deliverables for review from JSON.
+    #[command(hide = true)]
     GenericCompose(ApplicationV3CandidateArgs),
     /// Approve every current exact-Pack v3 Deliverable.
+    #[command(hide = true)]
     GenericApprove(ApplicationV3ApproveArgs),
     /// Render and export approved exact-Pack v3 Deliverables without submitting.
+    #[command(hide = true)]
     GenericExport(ApplicationV3ExportArgs),
 }
 
@@ -1547,7 +1586,16 @@ impl CommandFailure {
 /// eventually ship one native executable without duplicating command or MCP behavior.
 #[must_use]
 pub fn run() -> ExitCode {
-    let cli = Cli::parse();
+    let arguments = std::env::args_os().collect::<Vec<_>>();
+    if let Some(legacy_surface) = unsupported_legacy_surface(arguments.iter().cloned()) {
+        return render_unsupported_legacy_surface(
+            &legacy_surface,
+            arguments
+                .iter()
+                .any(|argument| argument.to_str() == Some("--json")),
+        );
+    }
+    let cli = Cli::parse_from(arguments);
     if matches!(
         &cli.command,
         Command::Mcp {
@@ -1567,6 +1615,99 @@ pub fn run() -> ExitCode {
         Ok(output) => render_success(output, json_output),
         Err(failure) => render_failure(*failure, json_output),
     }
+}
+
+const LEGACY_TOP_LEVEL_COMMANDS: &[&str] = &[
+    "agent",
+    "job",
+    "content",
+    "profile",
+    "discovery",
+    "task",
+    "criteria",
+    "match",
+    "plan",
+    "document",
+    "review",
+    "package",
+    "render",
+    "workflow",
+];
+
+fn unsupported_legacy_surface(arguments: impl IntoIterator<Item = OsString>) -> Option<String> {
+    let mut arguments = arguments.into_iter();
+    let _executable = arguments.next();
+    let mut command_path = Vec::with_capacity(2);
+    while let Some(argument) = arguments.next() {
+        let argument = argument.to_str()?;
+        if argument == "--workspace" {
+            let _workspace = arguments.next();
+            continue;
+        }
+        if argument.starts_with("--workspace=") || argument.starts_with('-') {
+            continue;
+        }
+        command_path.push(argument.to_owned());
+        if command_path.len() == 2 {
+            break;
+        }
+    }
+
+    let top_level = command_path.first()?;
+    if LEGACY_TOP_LEVEL_COMMANDS.contains(&top_level.as_str()) {
+        return Some(top_level.clone());
+    }
+    if top_level == "application"
+        && command_path
+            .get(1)
+            .is_some_and(|leaf| leaf.starts_with("generic-"))
+    {
+        return Some(command_path.join(" "));
+    }
+    None
+}
+
+fn render_unsupported_legacy_surface(surface: &str, json_output: bool) -> ExitCode {
+    let message = format!(
+        "unsupported Alpha.6-era command `{surface}`; Alpha.7 accepts only clean Workspace v4 and neutral operation names"
+    );
+    if json_output {
+        let response = json!({
+            "protocol": "canisend.agent/v4",
+            "operation": "compatibility.refuse",
+            "ok": false,
+            "status": "unsupported-legacy-surface",
+            "error": {
+                "code": ErrorCode::CompatibilityUnavailable.as_str(),
+                "message": message,
+                "retryable": false,
+                "details": {
+                    "legacy_surface": surface,
+                    "required_workspace_format": "canisend.workspace/v4",
+                    "required_agent_protocol": "canisend.agent/v4",
+                    "mutation_attempted": false
+                }
+            },
+            "next_actions": [{
+                "action": "initialize a clean Workspace v4",
+                "description": "Use `canisend workspace init` in a new or empty directory, then use the neutral v4 Application and MCP operations; no legacy migration or compatibility negotiation is performed"
+            }],
+            "submission_performed": false
+        });
+        match serde_json::to_string(&response) {
+            Ok(serialized) => println!("{serialized}"),
+            Err(error) => {
+                eprintln!("canisend: failed to serialize legacy refusal: {error}");
+                return ExitCode::from(ExitClass::Internal.code());
+            }
+        }
+    } else {
+        eprintln!("canisend: {message}");
+        eprintln!(
+            "next: initialize a clean Workspace v4 with `canisend workspace init`; no legacy migration is performed"
+        );
+    }
+    ExitCode::from(ExitClass::Conflict.code())
 }
 
 fn execute(cli: Cli) -> CommandResult<CommandOutput> {
@@ -2235,12 +2376,12 @@ fn workspace_backup(
     workspace_path: Option<PathBuf>,
     destination: PathBuf,
 ) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.backup")?;
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.backup.commit")?;
     let result = Application::backup_workspace_v4(&root, &destination)
-        .map_err(|error| app_adapter::failure("workspace.backup", error))?
+        .map_err(|error| app_adapter::failure("workspace.backup.commit", error))?
         .data;
     success(
-        "workspace.backup",
+        "workspace.backup.commit",
         "verified",
         &result.manifest,
         vec![
@@ -2252,11 +2393,11 @@ fn workspace_backup(
 
 fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<CommandOutput> {
     let data = Application::restore_workspace_v4(&backup, &destination)
-        .map_err(|error| app_adapter::failure("workspace.restore", error))?
+        .map_err(|error| app_adapter::failure("workspace.restore.commit", error))?
         .data
         .workspace;
     success(
-        "workspace.restore",
+        "workspace.restore.commit",
         "restored",
         &data,
         vec![
@@ -2267,13 +2408,13 @@ fn workspace_restore(backup: PathBuf, destination: PathBuf) -> CommandResult<Com
 }
 
 fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
-    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.repair")?;
+    let root = app_adapter::workspace_root_v4(workspace_path, "workspace.repair.commit")?;
     let repaired = Application::repair_workspace_v4(&root)
-        .map_err(|error| app_adapter::failure("workspace.repair", error))?
+        .map_err(|error| app_adapter::failure("workspace.repair.commit", error))?
         .data
         .repaired_projections;
     success(
-        "workspace.repair",
+        "workspace.repair.commit",
         "repaired",
         &json!({"repaired_projections": repaired}),
         vec![format!("Repaired projections: {repaired}")],
@@ -4488,6 +4629,7 @@ mod tests {
         JobCommand, JobListArgs, OutputArgs, TaskExecutionModeName, TaskOperationName,
         WorkspaceCommand, WorkspaceInitArgs, agent_assets_export, assistance, capabilities,
         clap_leaf_paths, context, execute, human_failure_lines, human_success_lines,
+        public_clap_leaf_paths, unsupported_legacy_surface,
     };
 
     fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
@@ -4504,7 +4646,7 @@ mod tests {
     }
 
     #[test]
-    fn compiled_clap_leaves_match_the_typed_operation_registry_exactly() {
+    fn compiled_transitional_leaves_remain_accounted_for_until_source_deletion() {
         let actual = clap_leaf_paths()
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
@@ -4517,7 +4659,36 @@ mod tests {
     }
 
     #[test]
-    fn canonical_v4_commands_parse_with_neutral_workspace_and_revision_boundaries() {
+    fn public_clap_inventory_contains_only_the_current_clean_v4_slice() {
+        let actual = public_clap_leaf_paths()
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = [
+            "version",
+            "doctor",
+            "mcp serve",
+            "schema list",
+            "schema show",
+            "resource list",
+            "workspace init",
+            "workspace status",
+            "workspace check",
+            "workspace backup",
+            "workspace restore",
+            "workspace repair",
+            "application list",
+            "application show",
+            "application archive",
+            "application create",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn canonical_v4_commands_parse_and_legacy_paths_are_preflight_rejected() {
         let initialized = Cli::try_parse_from([
             "canisend",
             "--workspace",
@@ -4530,24 +4701,6 @@ mod tests {
             initialized.command,
             Command::Workspace {
                 command: WorkspaceCommand::Init(_)
-            }
-        ));
-
-        let compose = Cli::try_parse_from([
-            "canisend",
-            "application",
-            "generic-compose",
-            "--application",
-            "019f3e88-6630-7000-8000-000000000001",
-            "--candidate",
-            "/tmp/compose.json",
-            "--json",
-        ])
-        .expect("generic compose command");
-        assert!(matches!(
-            compose.command,
-            Command::Application {
-                command: ApplicationCommand::GenericCompose(_)
             }
         ));
 
@@ -4579,6 +4732,36 @@ mod tests {
             "/tmp/canisend-v2-backup",
         ]);
         assert!(migrate.is_err(), "retired migration command must not parse");
+
+        assert_eq!(
+            unsupported_legacy_surface(
+                [
+                    "canisend",
+                    "--workspace",
+                    "/tmp/legacy",
+                    "job",
+                    "list",
+                    "--json",
+                ]
+                .into_iter()
+                .map(Into::into)
+            ),
+            Some("job".to_owned())
+        );
+        assert_eq!(
+            unsupported_legacy_surface(
+                [
+                    "canisend",
+                    "application",
+                    "generic-compose",
+                    "--application",
+                    "019f3e88-6630-7000-8000-000000000001",
+                ]
+                .into_iter()
+                .map(Into::into)
+            ),
+            Some("application generic-compose".to_owned())
+        );
     }
 
     #[test]

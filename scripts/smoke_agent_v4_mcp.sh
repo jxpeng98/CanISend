@@ -131,6 +131,12 @@ write_initialize() {
       arguments: {application_id: $application_id}
     }
   }'
+  jq -nc '{
+    jsonrpc: "2.0",
+    id: 8,
+    method: "tools/call",
+    params: {name: "canisend_agent_v3_context", arguments: {}}
+  }'
 } > "$smoke_root/requests.jsonl"
 
 if ! "$binary" --workspace "$workspace" mcp serve \
@@ -142,13 +148,20 @@ fi
 
 if ! jq -s -e '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 26) and
+  (map(select(.id == 2))[0].result.tools | length == 4) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
-  (map(select(.id == 2))[0].result.tools | map(.name) |
-    index("canisend_workspace_status") != null and
-    index("canisend_workspace_check") != null and
-    index("canisend_application_list") != null and
-    index("canisend_application_show") != null) and
+  (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
+    "canisend_application_list",
+    "canisend_application_show",
+    "canisend_workspace_check",
+    "canisend_workspace_status"
+  ]) and
+  (map(select(.id == 2))[0].result.tools |
+    all(.[];
+      .annotations.readOnlyHint == true and
+      .annotations.destructiveHint == false and
+      .annotations.idempotentHint == true and
+      .annotations.openWorldHint == false)) and
   (map(select(.id == 3))[0].result.structuredContent.operation == "workspace.status") and
   (map(select(.id == 3))[0].result.structuredContent.data.status.workspace_format ==
     "canisend.workspace/v4") and
@@ -169,7 +182,9 @@ if ! jq -s -e '
   (map(select(.id == 6))[0].result.structuredContent.data.snapshot.pack.id ==
     "org.canisend.generic-application") and
   (map(select(.id == 7))[0].result.structuredContent.data.snapshot.pack.id ==
-    "org.canisend.academic-job")
+    "org.canisend.academic-job") and
+  (map(select(.id == 8))[0].error.code == -32602) and
+  (map(select(.id == 8))[0].error.message == "tool not found")
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '
