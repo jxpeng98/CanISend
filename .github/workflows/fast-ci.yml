@@ -133,12 +133,12 @@ jobs:
       - name: Test core, Store, IO, CLI, and MCP contracts
         run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
 
-      - name: Smoke Agent v3 MCP through the built CLI
+      - name: Smoke Agent v4 MCP through the built CLI
         shell: bash
         run: >-
-          ./scripts/smoke_agent_v3_mcp.sh
+          ./scripts/smoke_agent_v4_mcp.sh
           "${{ matrix.binary }}"
-          "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v3-mcp-workflow"
+          "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v4-mcp-workflow"
 
   macos-quality:
     name: macos-quality

@@ -125,7 +125,7 @@ grep -q '"runtime_package_downloads":false' "$smoke_root/doctor.json"
 
 "$script_dir/smoke_documented_quickstart.sh" "$executable" "$smoke_root/documented-workflow"
 "$script_dir/smoke_host_agent.sh" "$executable" "$smoke_root/host-agent-workflow"
-"$script_dir/smoke_agent_v3_mcp.sh" "$executable" "$smoke_root/agent-v3-mcp-workflow"
+"$script_dir/smoke_agent_v4_mcp.sh" "$executable" "$smoke_root/agent-v4-mcp-workflow"
 
 install_root="$smoke_root/user-install"
 lifecycle_workspace="$smoke_root/uninstall-workspace"
