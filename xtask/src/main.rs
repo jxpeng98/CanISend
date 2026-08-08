@@ -18970,7 +18970,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 9);
+        assert_eq!(current.shared_operations, 5);
         assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 
@@ -18986,18 +18986,18 @@ mod tests {
             Value::String("fn removed_semantic_fixture_marker()".to_owned());
         assert!(validate_semantic_parity_policy(&missing_marker, &registry, &root).is_err());
 
-        let mut missing_stale = policy.clone();
-        let plan = missing_stale["shared_operations"]
+        let mut missing_no_mutation = policy.clone();
+        let create = missing_no_mutation["shared_operations"]
             .as_array_mut()
             .expect("shared operations")
             .iter_mut()
-            .find(|entry| entry["operation"] == "application.plan")
-            .expect("Plan coverage");
-        plan["outcomes"]
+            .find(|entry| entry["operation"] == "application.create")
+            .expect("Application create coverage");
+        create["outcomes"]
             .as_array_mut()
-            .expect("Plan outcomes")
-            .retain(|outcome| outcome != "stale");
-        assert!(validate_semantic_parity_policy(&missing_stale, &registry, &root).is_err());
+            .expect("Application create outcomes")
+            .retain(|outcome| outcome != "no-mutation");
+        assert!(validate_semantic_parity_policy(&missing_no_mutation, &registry, &root).is_err());
 
         let mut missing_surface_binding = policy;
         for cli in missing_surface_binding["pack_surface_cases"]

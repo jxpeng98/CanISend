@@ -8,8 +8,8 @@ Authority: `crates/canisend-contracts/operation-registry-v1.json`
 
 The registry is the single leaf-level identity authority for the compiled CLI, Tauri, and MCP
 adapters. It separates callable leaves from presentation families and records the exact boundary
-between canonical generic v3 operations, bounded academic v2 compatibility aliases, and
-adapter-only behavior.
+between clean Workspace v4 operations, the remaining desktop-only academic compatibility
+aliases, and adapter-only behavior.
 
 The older `cli-gui-parity-v1.json` and `svelte-parity-v1.json` files remain UI evidence ledgers.
 Their composite and wildcard families are not callable operation IDs and cannot replace this
@@ -52,17 +52,20 @@ The built-in registry currently owns:
 
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
-| CLI | Compiled Clap command tree | 86 |
+| CLI | Compiled Clap command tree | 16 |
 | Tauri | `tauri::generate_handler!` | 116 |
-| MCP | `#[tool_router]` `canisend_*` methods | 22 |
+| MCP | `#[tool_router]` `canisend_*` methods | 4 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
 `adapter-only` ID. Overrides may target only a declared canonical operation or academic v2
 compatibility alias, so an arbitrary or Pack-incompatible shared mapping cannot be introduced.
 
-Canonical Agent v3 capability output resolves its nine MCP tool names from this registry. The
-legacy Rust compatibility enum is also tested one-for-one against the registry's 19 alias and
-canonical-target pairs.
+The CLI graph contains only product inspection, Schema/resource inspection, Workspace v4
+lifecycle, Pack-bound Application create/list/show/archive, and the read-only MCP server. The MCP
+router contains only Workspace status/check and Application list/show. Alpha.6-era CLI families
+are refused before parsing or Workspace discovery and have no compiled command implementation.
+The remaining 17 compatibility bindings are owned by the current Tauri surface and are scheduled
+for removal with the mixed-Workspace desktop cutover.
 
 ## Source gate
 
