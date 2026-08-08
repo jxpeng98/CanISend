@@ -20,6 +20,7 @@ mod document;
 mod dossier;
 mod error;
 mod intake;
+mod intake_v4;
 mod job;
 mod migration_v3;
 mod package;
@@ -121,6 +122,10 @@ pub use intake::{
     IntakeExtractionReadModel, IntakeMutationReadModel, IntakeReviewReadModel,
     IntakeSourceIdentityReadModel, IntakeSourceKind, IntakeTargetKind, IntakeTargetReadModel,
     discovery_intake_review, job_intake_review,
+};
+pub use intake_v4::{
+    PastedTextIntakeCommitRequestV4, PastedTextIntakePreviewReadModelV4,
+    PastedTextIntakePreviewRequestV4,
 };
 pub use job::{
     JobDetailReadModel, JobIntakeExtractionReadModel, JobIntakeIssueSeverity,

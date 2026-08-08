@@ -359,7 +359,7 @@ fn resolve_exact_pack(
         })
 }
 
-fn requested_built_in_pack(
+pub(crate) fn requested_built_in_pack(
     pack_id: &WorkflowPackId,
 ) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
     match pack_id.as_str() {
