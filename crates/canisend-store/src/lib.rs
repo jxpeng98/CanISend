@@ -43,7 +43,7 @@ pub use application_flow_v3::{
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
     ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
-    MAX_APPLICATION_FLOW_SOURCE_BYTES_V3,
+    MAX_APPLICATION_FLOW_SOURCE_BYTES_V3, validate_application_flow_create_request,
 };
 pub use application_projection_v3::{
     APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,

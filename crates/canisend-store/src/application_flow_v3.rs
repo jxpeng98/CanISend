@@ -4,16 +4,16 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ApplicationFieldValueV3, ApplicationId, ApplicationLifecycleV3,
-    ApplicationModelFormatV3, ApplicationModelSnapshotV3, ApplicationPackBindingV3,
-    ApplicationRecordV3, ContentRevisionReferenceV3, ContentSpanV3, DeliverableId,
-    DeliverableKindId, DeliverableRecordV3, DeliverableStateV3, EntityRevisionReferenceV3,
-    ExecutionMode, OpportunityId, OpportunityRecordV3, PlanId, PlanRecordV3,
-    PlanRevisionReferenceV3, PlanStateV3, PlannedDeliverableDispositionV3, PlannedDeliverableV3,
-    PrivacyClassification, RequirementConfirmationV3, RequirementId, RequirementPriorityV3,
-    RequirementRecordV3, RequirementRevisionReferenceV3, Revision, SafeRelativePath, Sha256Digest,
-    StageId, WorkflowPackFieldDefinition, WorkflowPackFieldType, WorkflowPackItemId,
-    WorkflowPackStageOutput, WorkspaceSourceKindV4,
+    APPLICATION_MODEL_V3_MAX_REQUIREMENTS, ActorKind, ApplicationFieldValueV3, ApplicationId,
+    ApplicationLifecycleV3, ApplicationModelFormatV3, ApplicationModelSnapshotV3,
+    ApplicationPackBindingV3, ApplicationRecordV3, ContentRevisionReferenceV3, ContentSpanV3,
+    DeliverableId, DeliverableKindId, DeliverableRecordV3, DeliverableStateV3,
+    EntityRevisionReferenceV3, ExecutionMode, OpportunityId, OpportunityRecordV3, PlanId,
+    PlanRecordV3, PlanRevisionReferenceV3, PlanStateV3, PlannedDeliverableDispositionV3,
+    PlannedDeliverableV3, PrivacyClassification, RequirementConfirmationV3, RequirementId,
+    RequirementPriorityV3, RequirementRecordV3, RequirementRevisionReferenceV3, Revision,
+    SafeRelativePath, Sha256Digest, StageId, WorkflowPackFieldDefinition, WorkflowPackFieldType,
+    WorkflowPackItemId, WorkflowPackStageOutput, WorkspaceSourceKindV4,
 };
 use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime};
 use canisend_io::{EmbeddedTypstCompiler, project_deliverable_typst_v3};
@@ -184,6 +184,29 @@ pub struct ApplicationFlowServiceV3<'a> {
     workspace_root: &'a Path,
 }
 
+pub fn validate_application_flow_create_request(
+    pack: &VerifiedWorkflowPackBundle,
+    request: &ApplicationFlowCreateRequestV3,
+) -> Result<(), StoreError> {
+    if request.title.trim().is_empty()
+        || request.title.len() > 512
+        || request.title.chars().any(char::is_control)
+    {
+        return Err(StoreError::InvalidInput(
+            "Application title must contain 1 to 512 non-control bytes".to_owned(),
+        ));
+    }
+    validate_metadata(
+        pack.manifest().application.opportunity_fields.as_slice(),
+        &request.opportunity_metadata,
+    )?;
+    validate_metadata(
+        pack.manifest().application.application_fields.as_slice(),
+        &request.application_metadata,
+    )?;
+    validate_source_and_requirements(pack, &request.source_text, &request.requirements)
+}
+
 impl<'a> ApplicationFlowServiceV3<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore, workspace_root: &'a Path) -> Self {
@@ -208,15 +231,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         request: ApplicationFlowCreateRequestV3,
         actor: ActorKind,
     ) -> Result<ApplicationFlowReadModelV3, StoreError> {
-        validate_metadata(
-            pack.manifest().application.opportunity_fields.as_slice(),
-            &request.opportunity_metadata,
-        )?;
-        validate_metadata(
-            pack.manifest().application.application_fields.as_slice(),
-            &request.application_metadata,
-        )?;
-        validate_source_and_requirements(pack, &request.source_text, &request.requirements)?;
+        validate_application_flow_create_request(pack, &request)?;
         ApplicationModelRepository::new(self.database).authority()?;
 
         let binding = pack_binding(pack);
@@ -803,6 +818,11 @@ fn validate_source_and_requirements(
             "at least one Requirement draft is required".to_owned(),
         ));
     }
+    if requirements.len() > APPLICATION_MODEL_V3_MAX_REQUIREMENTS {
+        return Err(StoreError::InvalidInput(format!(
+            "an Application may propose at most {APPLICATION_MODEL_V3_MAX_REQUIREMENTS} Requirements"
+        )));
+    }
     let categories = pack
         .manifest()
         .requirements
@@ -811,6 +831,14 @@ fn validate_source_and_requirements(
         .map(|category| &category.id)
         .collect::<BTreeSet<_>>();
     for requirement in requirements {
+        if requirement.statement.trim().is_empty()
+            || requirement.statement.len() > 16_384
+            || requirement.statement.chars().any(char::is_control)
+        {
+            return Err(StoreError::InvalidInput(
+                "Requirement statement must contain 1 to 16384 non-control bytes".to_owned(),
+            ));
+        }
         if !categories.contains(&requirement.category) {
             return Err(StoreError::InvalidInput(
                 "Requirement category is not declared by the verified Pack".to_owned(),
@@ -1199,7 +1227,7 @@ mod tests {
                     },
                 )
                 .expect_err("malformed create");
-        assert!(matches!(malformed, StoreError::CandidateSemantic(_)));
+        assert!(matches!(malformed, StoreError::InvalidInput(_)));
         assert_eq!(
             workspace
                 .blobs
