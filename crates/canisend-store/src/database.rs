@@ -9,7 +9,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 18;
+pub const DATABASE_SCHEMA_VERSION: u32 = 19;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -33,6 +33,8 @@ const APPLICATION_PACK_MIGRATIONS_V3_MIGRATION: &str =
     include_str!("../migrations/0017_application_pack_migrations_v3.sql");
 const APPLICATION_ASSOCIATIONS_V4_MIGRATION: &str =
     include_str!("../migrations/0018_application_associations_v4.sql");
+const WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION: &str =
+    include_str!("../migrations/0019_workspace_source_provenance_v4.sql");
 
 pub struct Database {
     connection: Connection,
@@ -151,6 +153,11 @@ impl Database {
         if version == 17 {
             let applied_at = now_utc()?;
             self.apply_migration(18, APPLICATION_ASSOCIATIONS_V4_MIGRATION, &applied_at)?;
+            version = 18;
+        }
+        if version == 18 {
+            let applied_at = now_utc()?;
+            self.apply_migration(19, WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -643,6 +650,16 @@ mod tests {
             )
             .expect("export heads table");
         assert_eq!(export_heads_table, 1);
+        let source_provenance_columns: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('workspace_source_v4_revisions')
+                 WHERE name IN ('final_locator', 'redirect_chain_json')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Workspace Source provenance columns");
+        assert_eq!(source_provenance_columns, 2);
         drop(database);
         let _ = fs::remove_file(path);
     }

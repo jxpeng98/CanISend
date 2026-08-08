@@ -22,6 +22,8 @@ pub struct WorkspaceSourceRevisionV4 {
     pub revision: Revision,
     pub kind: WorkspaceSourceKindV4,
     pub locator: String,
+    pub final_locator: Option<String>,
+    pub redirect_chain: Vec<String>,
     pub content_type: String,
     pub original_sha256: Sha256Digest,
     pub normalized_sha256: Sha256Digest,

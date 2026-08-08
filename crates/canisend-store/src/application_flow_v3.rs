@@ -238,6 +238,8 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             NewWorkspaceSourceV4 {
                 kind: WorkspaceSourceKindV4::PastedText,
                 locator: "pasted-text".to_owned(),
+                final_locator: None,
+                redirect_chain: Vec::new(),
                 content_type: "text/plain; charset=utf-8".to_owned(),
                 original_bytes: normalized_text.as_bytes().to_vec(),
                 normalized_text,
@@ -1136,6 +1138,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
         fs,
+        sync::atomic::{AtomicU64, Ordering},
     };
 
     use canisend_core::{
@@ -1148,6 +1151,8 @@ mod tests {
 
     use super::*;
     use crate::Workspace;
+
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(1);
 
     fn item(value: &str) -> WorkflowPackItemId {
         WorkflowPackItemId::try_new(value).expect("Pack item ID")
@@ -1172,8 +1177,9 @@ mod tests {
 
     fn root() -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
-            "canisend-application-flow-v3-{}-{}",
+            "canisend-application-flow-v3-{}-{}-{}",
             std::process::id(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("time")
@@ -1358,7 +1364,7 @@ mod tests {
     }
 
     #[test]
-    fn private_local_source_requires_consent_before_blob_or_authority_mutation() {
+    fn local_and_new_url_sources_require_consent_before_blob_or_authority_mutation() {
         let root = root();
         let mut workspace = Workspace::init(&root).expect("Workspace");
         ApplicationModelRepository::new(&mut workspace.database)
@@ -1379,6 +1385,7 @@ mod tests {
                 end_byte: u64::try_from(text.len()).expect("text length"),
             }],
         };
+        let url_request = request.clone();
         let before = workspace.blobs.audit(&BTreeSet::new()).expect("blob audit");
         let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
             .create_with_source(
@@ -1387,6 +1394,8 @@ mod tests {
                 NewWorkspaceSourceV4 {
                     kind: WorkspaceSourceKindV4::LocalFile,
                     locator: "requirements.txt".to_owned(),
+                    final_locator: None,
+                    redirect_chain: Vec::new(),
                     content_type: "text/plain; charset=utf-8".to_owned(),
                     original_bytes: text.as_bytes().to_vec(),
                     normalized_text: text.to_owned(),
@@ -1397,6 +1406,28 @@ mod tests {
             .expect_err("private local Source consent");
         assert!(matches!(
             error,
+            StoreError::ApplicationAssociationConsentRequired(_)
+        ));
+        let url_error =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .create_with_source(
+                    &generic,
+                    url_request,
+                    NewWorkspaceSourceV4 {
+                        kind: WorkspaceSourceKindV4::Url,
+                        locator: "https://example.invalid/start".to_owned(),
+                        final_locator: Some("https://example.invalid/final".to_owned()),
+                        redirect_chain: vec!["https://example.invalid/final".to_owned()],
+                        content_type: "text/plain; charset=utf-8".to_owned(),
+                        original_bytes: text.as_bytes().to_vec(),
+                        normalized_text: text.to_owned(),
+                        privacy: PrivacyClassification::Public,
+                    },
+                    None,
+                )
+                .expect_err("new URL Source consent");
+        assert!(matches!(
+            url_error,
             StoreError::ApplicationAssociationConsentRequired(_)
         ));
         assert!(

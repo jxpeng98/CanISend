@@ -24,8 +24,10 @@ A polymorphic resource name is not an authority and cannot substitute one family
 
 Pasted text is already an explicit user input and can be attached as part of the Application
 creation transaction. Reading a private local file, Profile Source, or Evidence revision requires
-the exact private-input consent before its association is inserted. A denied or mismatched consent
-leaves the association and audit tables unchanged.
+the exact private-input consent before its association is inserted. Creating a newly fetched URL
+Source requires the exact user-supplied-URL network consent; associating an already stored URL
+Source does not perform another fetch. A denied or mismatched consent leaves Source, association,
+Blob, and audit authority unchanged.
 
 Queries always begin with one selected Application ID. A Workspace-level record that has no link
 to that Application is not returned, even when another Application links the same record.
@@ -47,3 +49,7 @@ The current neutral Application flow stores its pasted Source, exact Requirement
 Application snapshot, Blob references, typed Source association, and audit event in one database
 transaction after the prepared Blob digest is verified. Validation failures occur before Blob or
 database mutation, and database failures cannot leave a partial Application association.
+
+URL Source revisions additionally preserve the validated source URL, final URL, and bounded
+redirect chain. Schema migration 19 adds this provenance without rewriting migration 18. Non-URL
+Sources reject remote final-locator or redirect fields so provenance cannot silently change type.

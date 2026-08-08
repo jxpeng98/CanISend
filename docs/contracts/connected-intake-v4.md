@@ -47,9 +47,24 @@ matching digest atomically stores the original and normalized Blobs, a `LocalFil
 Source revision, the `ReadPrivateInputs` consent-bound Application link, and exact normalized-text
 Requirement spans.
 
-## Remaining adapters
+## URL preview and commit
 
-The URL adapter must reuse this prepared Source/Application boundary while preserving bounded
-network policy, redirects, provenance, duplicate signals, and exact network-fetch consent. Desktop,
-CLI, and Agent v4 bindings remain separate surface work. Scanned-document OCR remains outside the
-1.0 scope.
+URL intake requires explicit user-supplied-URL fetch consent before Workspace or network access.
+The existing bounded HTTP adapter permits only HTTP(S), strips fragments, rejects embedded
+credentials and non-public DNS destinations, pins each request to validated resolved addresses,
+disables ambient proxies and automatic redirects, forbids HTTPS downgrade, limits redirect count
+and response bytes, rejects unsupported encodings and misleading content types, and accepts only
+HTML, UTF-8 text, or text-based PDFs.
+
+Preview preserves the validated source URL, final URL, redirect chain, canonical content type,
+original response bytes, normalized text, both digests, PDF page count where applicable, exact
+Requirement spans, and exact-revision duplicate signals. Commit refetches through the same policy
+and rejects any changed bytes, normalized text, redirect provenance, duplicate review state, or
+Application request before mutation. A match atomically records the URL Source and its
+`FetchUserSuppliedUrl` consent-bound Application link. It never sends credentials, logs in,
+uploads, or submits an Application.
+
+## Remaining surface work
+
+Desktop, CLI, and Agent v4 bindings remain separate surface work. Scanned-document OCR remains
+outside the 1.0 scope.

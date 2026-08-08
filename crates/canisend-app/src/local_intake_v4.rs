@@ -229,6 +229,8 @@ fn prepare_local_file_intake(
         source: NewWorkspaceSourceV4 {
             kind,
             locator: locator.to_owned(),
+            final_locator: None,
+            redirect_chain: Vec::new(),
             content_type,
             original_bytes,
             normalized_text,
@@ -302,6 +304,22 @@ mod tests {
             )]),
             path,
             requirement_category: item("format"),
+            requirement_priority: RequirementPriorityV3::Mandatory,
+        }
+    }
+
+    fn academic_request(path: PathBuf) -> LocalFileIntakePreviewRequestV4 {
+        LocalFileIntakePreviewRequestV4 {
+            pack_id: WorkflowPackId::try_new(crate::ACADEMIC_JOB_WORKFLOW_PACK_ID)
+                .expect("Pack ID"),
+            title: "Research fellowship".to_owned(),
+            opportunity_metadata: BTreeMap::from([(
+                item("institution"),
+                ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+            )]),
+            application_metadata: BTreeMap::new(),
+            path,
+            requirement_category: item("qualification"),
             requirement_priority: RequirementPriorityV3::Mandatory,
         }
     }
@@ -387,7 +405,7 @@ mod tests {
             .expect("render text PDF")
             .into_bytes();
         fs::write(&source_path, &pdf).expect("write PDF Source");
-        let request = request(source_path);
+        let request = academic_request(source_path);
         let consent = PrivateReadConsent::granted_by_user();
         let preview =
             Application::preview_local_file_intake_v4(&root, request.clone(), Some(consent))

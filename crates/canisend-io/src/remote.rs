@@ -75,8 +75,9 @@ impl HttpFetcher {
         }
     }
 
-    #[cfg(test)]
-    const fn allowing_loopback_for_tests(request_timeout: Duration) -> Self {
+    #[cfg(any(test, feature = "test-loopback"))]
+    #[must_use]
+    pub const fn for_bounded_loopback_tests(request_timeout: Duration) -> Self {
         Self {
             allow_loopback_for_tests: true,
             connect_timeout: Duration::from_secs(1),
@@ -633,7 +634,7 @@ mod tests {
                 body.len()
             ),
         ]);
-        let fetched = HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1))
+        let fetched = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
             .fetch(&format!("{url}/start"))
             .expect("redirected HTML fetch");
         server.join().expect("redirect server");
@@ -657,7 +658,7 @@ mod tests {
             MAX_REMOTE_SOURCE_BYTES + 1
         )]);
         assert!(
-            HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
                 .fetch(&url)
                 .is_err()
         );
@@ -669,7 +670,7 @@ mod tests {
             body.len()
         )]);
         assert!(
-            HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
                 .fetch(&url)
                 .is_err()
         );
@@ -680,7 +681,7 @@ mod tests {
                 .to_owned(),
         ]);
         assert!(
-            HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
                 .fetch(&url)
                 .is_err()
         );
@@ -693,7 +694,7 @@ mod tests {
             thread::sleep(Duration::from_millis(200));
         });
         assert!(
-            HttpFetcher::allowing_loopback_for_tests(Duration::from_millis(25))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_millis(25))
                 .fetch(&format!("http://{address}/slow"))
                 .is_err()
         );
@@ -714,7 +715,7 @@ mod tests {
                 xml.len()
             ),
         ]);
-        let fetcher = HttpFetcher::allowing_loopback_for_tests(Duration::from_secs(1));
+        let fetcher = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1));
         assert_eq!(
             fetcher
                 .fetch_discovery(&format!("{url}/jobs.json"))
