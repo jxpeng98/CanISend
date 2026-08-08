@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use canisend_contracts::{
     ApplicationId, ApplicationPackBindingV3, EntityId, SemanticVersion, Sha256Digest,
-    WorkflowPackId,
+    WORKSPACE_V4_FORMAT, WorkflowPackId,
 };
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use crate::{Database, StoreError};
 pub enum LegacyCompatibilityAuthority {
     WorkspaceV2,
     WorkspaceV3,
+    WorkspaceV4,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,9 +43,10 @@ impl<'a> LegacyCompatibilityService<'a> {
     }
 
     pub fn workspace_context(&self) -> Result<LegacyCompatibilityContextV3, StoreError> {
-        if !authority_is_active(self.database)? {
+        let authority = compatibility_authority(self.database)?;
+        if authority != LegacyCompatibilityAuthority::WorkspaceV3 {
             return Ok(LegacyCompatibilityContextV3 {
-                authority: LegacyCompatibilityAuthority::WorkspaceV2,
+                authority,
                 bindings: Vec::new(),
             });
         }
@@ -121,9 +123,10 @@ impl<'a> LegacyCompatibilityService<'a> {
         &self,
         legacy_job_id: &EntityId,
     ) -> Result<LegacyCompatibilityContextV3, StoreError> {
-        if !authority_is_active(self.database)? {
+        let authority = compatibility_authority(self.database)?;
+        if authority != LegacyCompatibilityAuthority::WorkspaceV3 {
             return Ok(LegacyCompatibilityContextV3 {
-                authority: LegacyCompatibilityAuthority::WorkspaceV2,
+                authority,
                 bindings: Vec::new(),
             });
         }
@@ -170,6 +173,12 @@ impl<'a> LegacyCompatibilityService<'a> {
         &self,
         task_id: &EntityId,
     ) -> Result<LegacyCompatibilityContextV3, StoreError> {
+        if compatibility_authority(self.database)? == LegacyCompatibilityAuthority::WorkspaceV4 {
+            return Ok(LegacyCompatibilityContextV3 {
+                authority: LegacyCompatibilityAuthority::WorkspaceV4,
+                bindings: Vec::new(),
+            });
+        }
         let legacy_job_id = self
             .database
             .connection()
@@ -184,8 +193,18 @@ impl<'a> LegacyCompatibilityService<'a> {
     }
 }
 
-fn authority_is_active(database: &Database) -> Result<bool, StoreError> {
-    Ok(database
+fn compatibility_authority(
+    database: &Database,
+) -> Result<LegacyCompatibilityAuthority, StoreError> {
+    let workspace_format: String = database.connection().query_row(
+        "SELECT workspace_format FROM workspace_metadata WHERE singleton = 1",
+        [],
+        |row| row.get(0),
+    )?;
+    if workspace_format == WORKSPACE_V4_FORMAT {
+        return Ok(LegacyCompatibilityAuthority::WorkspaceV4);
+    }
+    let v3_active = database
         .connection()
         .query_row(
             "SELECT 1 FROM workspace_v3_authority WHERE singleton = 1",
@@ -193,7 +212,12 @@ fn authority_is_active(database: &Database) -> Result<bool, StoreError> {
             |_| Ok(()),
         )
         .optional()?
-        .is_some())
+        .is_some();
+    Ok(if v3_active {
+        LegacyCompatibilityAuthority::WorkspaceV3
+    } else {
+        LegacyCompatibilityAuthority::WorkspaceV2
+    })
 }
 
 fn parse_binding(
@@ -222,7 +246,9 @@ fn parse_binding(
 mod tests {
     use canisend_contracts::ActorKind;
 
-    use crate::{JobService, Workspace, application_v3::activate_workspace_v3_authority};
+    use crate::{
+        JobService, Workspace, application_v3::activate_workspace_v3_authority, generate_id,
+    };
 
     use super::*;
 
@@ -237,6 +263,27 @@ mod tests {
             .expect("context");
         assert_eq!(context.authority, LegacyCompatibilityAuthority::WorkspaceV2);
         assert!(context.bindings.is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn v4_workspace_is_identified_before_any_legacy_entity_lookup() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-compatibility-v4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let workspace = Workspace::init_v4(&root).expect("Workspace v4");
+        let service = LegacyCompatibilityService::new(&workspace.database);
+        let missing = generate_id().expect("synthetic ID");
+
+        for context in [
+            service.workspace_context().expect("Workspace context"),
+            service.job_context(&missing).expect("Job context"),
+            service.task_context(&missing).expect("task context"),
+        ] {
+            assert_eq!(context.authority, LegacyCompatibilityAuthority::WorkspaceV4);
+            assert!(context.bindings.is_empty());
+        }
+
         let _ = std::fs::remove_dir_all(root);
     }
 
