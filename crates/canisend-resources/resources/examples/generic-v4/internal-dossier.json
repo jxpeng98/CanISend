@@ -1,0 +1,65 @@
+{
+  "format": "canisend.generic-application-example/v1",
+  "scenario_id": "synthetic-internal-governance-dossier",
+  "family": "internal-dossier",
+  "synthetic": true,
+  "data_policy": "fictional-only-no-real-personal-data",
+  "synthetic_notice": "All names, organizations, identifiers, and Application content in this example are fictional test data.",
+  "pack_id": "org.canisend.generic-application",
+  "title": "Synthetic internal governance dossier Application",
+  "opportunity_metadata": {
+    "organization": {"type": "short-text", "value": "Fictional Lantern Cooperative"},
+    "reference": {"type": "short-text", "value": "SYN-DOSSIER-001"},
+    "deadline": {"type": "date", "value": "2031-02-15"}
+  },
+  "application_metadata": {
+    "tracking-id": {"type": "short-text", "value": "SYN-TRACK-DOSSIER-001"},
+    "status": {"type": "choice", "value": "planning"},
+    "notes": {"type": "long-text", "value": "Offline fictional internal-dossier scenario for deterministic testing."}
+  },
+  "source_text": "Fictional Lantern Cooperative requests a synthetic internal governance dossier for a local planning exercise. The primary dossier must map reviewed evidence to governance responsibilities, documented decisions, and measurable follow-up actions. A supporting chronology must distinguish fictional observations from approved conclusions without identifying any person, organization relationship, or live event.",
+  "requirements": [
+    {
+      "category": "evaluation",
+      "statement": "The primary dossier must map reviewed evidence to governance responsibilities, documented decisions, and measurable follow-up actions.",
+      "priority": "mandatory"
+    },
+    {
+      "category": "compliance",
+      "statement": "A supporting chronology must distinguish fictional observations from approved conclusions without identifying any person, organization relationship, or live event.",
+      "priority": "mandatory"
+    }
+  ],
+  "decision": "proceed",
+  "planned_deliverables": [
+    {
+      "kind": "primary-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a primary internal dossier.",
+      "constraints": ["Map only reviewed evidence to responsibilities, decisions, and follow-up actions."],
+      "execution_mode": "host-agent"
+    },
+    {
+      "kind": "supporting-document",
+      "disposition": "required",
+      "rationale": "The reviewed source requires a supporting chronology.",
+      "constraints": ["Separate fictional observations from approved conclusions without identifiers."],
+      "execution_mode": "host-agent"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "primary-document",
+      "title": "Synthetic internal governance dossier",
+      "media_type": "text/markdown",
+      "content": "# Synthetic internal governance dossier\n\nThis fictional dossier maps reviewed example evidence to governance responsibilities, documented decisions, and measurable follow-up actions. It contains no real role, person, organization relationship, event, authority, or performance claim."
+    },
+    {
+      "kind": "supporting-document",
+      "title": "Synthetic supporting chronology",
+      "media_type": "text/markdown",
+      "content": "# Synthetic supporting chronology\n\nObservation one is a fictional agenda review. Observation two is a fictional follow-up checkpoint. Both remain separate from the fictional approved conclusion and contain no identifying or live-event data."
+    }
+  ],
+  "export_slug": "internal-dossier"
+}
