@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
@@ -11,12 +12,23 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ApplicationDecision, ArtifactKind, ArtifactReference, DocumentKind, DocumentRecord,
-    EntityId, ExecutionMode, ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification,
-    ProfileSourceKind, Revision, SafeRelativePath, Sha256Digest, SourceKind, StageExecutionStatus,
-    TaskCompletionRequest, TaskStatus, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT, WorkflowStage,
+    ActorKind, ApplicationDecision, ApplicationFieldValueV3, ApplicationId, ArtifactKind,
+    ArtifactReference, BackupManifestData, DocumentKind, DocumentRecord, EntityId, ExecutionMode,
+    ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification, ProfileSourceKind,
+    RequirementPriorityV3, Revision, SafeRelativePath, Sha256Digest, SourceKind,
+    StageExecutionStatus, TaskCompletionRequest, TaskStatus, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT,
+    WorkflowPackItemId, WorkflowStage,
+};
+use canisend_core::{
+    VerifiedWorkflowPackBundle, WorkflowPackByteLoader, WorkflowPackCapabilityRegistry,
+    WorkflowPackOrigin, WorkflowPackRuntime,
+};
+use canisend_resources::{
+    EmbeddedWorkflowPack, academic_job_workflow_pack, generic_application_workflow_pack,
 };
 use canisend_store::{
+    ApplicationFlowCreateRequestV3, ApplicationFlowRequirementDraftV3, ApplicationFlowServiceV3,
+    ApplicationModelRepository, ApplicationProjectionKindV3, ApplicationProjectionService,
     ArtifactService, CriteriaService, DATABASE_SCHEMA_VERSION, DEFAULT_MAX_BLOB_BYTES,
     DocumentService, EmbeddedRenderExecutor, EvidenceService, JobService, MatchService,
     NewProfileSource, NewSource, PackageService, PlanService, ProfileService, ProjectionService,
@@ -25,6 +37,7 @@ use canisend_store::{
 };
 use rusqlite::{Connection, params};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -82,6 +95,97 @@ fn workspace_file_snapshot(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     snapshot
 }
 
+fn workflow_pack_item(value: &str) -> WorkflowPackItemId {
+    WorkflowPackItemId::try_new(value).expect("Workflow Pack item ID")
+}
+
+fn verified_workflow_pack(embedded: EmbeddedWorkflowPack) -> VerifiedWorkflowPackBundle {
+    WorkflowPackByteLoader::verify(
+        embedded.manifest_bytes(),
+        embedded.into_resources(),
+        WorkflowPackOrigin::BuiltIn,
+        &WorkflowPackRuntime::parse(env!("CARGO_PKG_VERSION"), "3.0.0-alpha.1", "3.0.0-alpha.1")
+            .expect("Workflow Pack runtime"),
+        &WorkflowPackCapabilityRegistry::built_in(),
+    )
+    .expect("verified embedded Workflow Pack")
+    .into_bundle()
+}
+
+fn create_workspace_v4_application(
+    workspace: &mut Workspace,
+    pack: &VerifiedWorkflowPackBundle,
+    title: &str,
+    source_text: &str,
+    requirement_category: &str,
+    opportunity_metadata: BTreeMap<WorkflowPackItemId, ApplicationFieldValueV3>,
+    application_metadata: BTreeMap<WorkflowPackItemId, ApplicationFieldValueV3>,
+) -> ApplicationId {
+    let root = workspace.paths.root.clone();
+    ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+        .create(
+            pack,
+            ApplicationFlowCreateRequestV3 {
+                title: title.to_owned(),
+                opportunity_metadata,
+                application_metadata,
+                source_text: source_text.to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: workflow_pack_item(requirement_category),
+                    statement: source_text.to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: u64::try_from(source_text.len()).expect("source length"),
+                }],
+            },
+        )
+        .expect("create Workspace v4 Application")
+        .stored
+        .snapshot
+        .application
+        .id
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkspaceV4AuthorityCounts {
+    application_heads: i64,
+    application_revisions: i64,
+    source_heads: i64,
+    source_revisions: i64,
+    source_associations: i64,
+    projection_manifests: i64,
+    blob_references: i64,
+    audit_events: i64,
+}
+
+fn workspace_v4_authority_counts(database_path: &Path) -> WorkspaceV4AuthorityCounts {
+    let connection = Connection::open(database_path).expect("open Workspace v4 authority");
+    let count = |table: &str| {
+        connection
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .expect("count Workspace v4 authority rows")
+    };
+    WorkspaceV4AuthorityCounts {
+        application_heads: count("application_v4_heads"),
+        application_revisions: count("application_v4_revisions"),
+        source_heads: count("workspace_source_v4_heads"),
+        source_revisions: count("workspace_source_v4_revisions"),
+        source_associations: count("application_source_v4_associations"),
+        projection_manifests: count("application_projection_v4_manifests"),
+        blob_references: count("blob_references"),
+        audit_events: count("audit_events"),
+    }
+}
+
+fn sha256_file(path: &Path) -> Sha256Digest {
+    Sha256Digest::try_new(hex::encode(Sha256::digest(
+        fs::read(path).expect("read digest fixture"),
+    )))
+    .expect("SHA-256 digest")
+}
+
 #[test]
 fn v4_open_rejects_legacy_format_before_database_migration_or_mutation() {
     let root = TestDirectory::new("v4-open-fail-closed");
@@ -134,6 +238,17 @@ fn v4_open_rejects_retired_storage_bridge_before_migration_or_mutation() {
             .expect("mark pre-native v4 schema");
     }
     let before = workspace_file_snapshot(root.path());
+
+    let shared_open_error = match Workspace::open_from(Some(root.path()), root.path()) {
+        Ok(_) => panic!("shared App/CLI open must reject pre-native Workspace v4"),
+        Err(error) => error,
+    };
+    assert!(matches!(
+        shared_open_error,
+        StoreError::WorkspaceV4StorageUnsupported { found, required }
+            if found == DATABASE_SCHEMA_VERSION - 1 && required == DATABASE_SCHEMA_VERSION
+    ));
+    assert_eq!(workspace_file_snapshot(root.path()), before);
 
     let error = match Workspace::open_v4_from(Some(root.path()), root.path()) {
         Ok(_) => panic!("pre-native Workspace v4 must be rejected"),
@@ -2529,6 +2644,222 @@ fn artifact_commit_stales_dependents_and_projection_repairs() {
         b"derived v1"
     );
     assert!(!check.unreferenced_blobs.contains(&source.sha256));
+}
+
+#[test]
+fn workspace_v4_recovery_preserves_mixed_pack_authority_and_fails_closed() {
+    let root = TestDirectory::new("v4-recovery-source");
+    let backup = TestDirectory::new("v4-recovery-backup");
+    let restore = TestDirectory::new("v4-recovery-restore");
+    let occupied = TestDirectory::new("v4-recovery-occupied");
+    let rejected = TestDirectory::new("v4-recovery-rejected");
+    let backup_path = backup.path().join("snapshot");
+    let restore_path = restore.path().join("workspace");
+    let rejected_path = rejected.path().join("workspace");
+    let mut workspace = Workspace::init_v4(root.path()).expect("clean Workspace v4");
+    let generic_pack = verified_workflow_pack(generic_application_workflow_pack());
+    let academic_pack = verified_workflow_pack(academic_job_workflow_pack());
+    let generic_id = create_workspace_v4_application(
+        &mut workspace,
+        &generic_pack,
+        "Community programme",
+        "Provide a project narrative.",
+        "format",
+        BTreeMap::from([
+            (
+                workflow_pack_item("organization"),
+                ApplicationFieldValueV3::ShortText("Example Foundation".to_owned()),
+            ),
+            (
+                workflow_pack_item("reference"),
+                ApplicationFieldValueV3::ShortText("RECOVERY-001".to_owned()),
+            ),
+        ]),
+        BTreeMap::from([(
+            workflow_pack_item("status"),
+            ApplicationFieldValueV3::Choice(workflow_pack_item("planning")),
+        )]),
+    );
+    let academic_id = create_workspace_v4_application(
+        &mut workspace,
+        &academic_pack,
+        "Research fellowship",
+        "Applicants must provide an academic CV.",
+        "qualification",
+        BTreeMap::from([(
+            workflow_pack_item("institution"),
+            ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+        )]),
+        BTreeMap::new(),
+    );
+
+    let root_path = workspace.paths.root.clone();
+    let (generic_projection, academic_projection) = {
+        let mut projections = ApplicationProjectionService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &root_path,
+        );
+        let generic = projections
+            .project(&generic_id)
+            .expect("project generic Application");
+        let academic = projections
+            .project(&academic_id)
+            .expect("project academic Application");
+        let application_model_path = |catalog: &canisend_store::ApplicationProjectionCatalogV3| {
+            catalog
+                .projections
+                .iter()
+                .find(|projection| {
+                    projection.kind == ApplicationProjectionKindV3::ApplicationModelJson
+                })
+                .expect("Application model projection")
+                .relative_path
+                .clone()
+        };
+        (
+            application_model_path(&generic),
+            application_model_path(&academic),
+        )
+    };
+    let academic_projection_before =
+        fs::read(root.path().join(academic_projection.as_str())).expect("academic projection");
+    let (generic_before, academic_before) = {
+        let repository = ApplicationModelRepository::new(&mut workspace.database);
+        (
+            repository.get(&generic_id).expect("generic authority"),
+            repository.get(&academic_id).expect("academic authority"),
+        )
+    };
+    let authority_before_fault = workspace_v4_authority_counts(&workspace.paths.database);
+
+    let mut pack_substitution = generic_before.snapshot.clone();
+    pack_substitution.pack = academic_before.snapshot.pack.clone();
+    assert!(matches!(
+        ApplicationModelRepository::new(&mut workspace.database).commit(
+            &generic_id,
+            generic_before.snapshot.application.revision,
+            pack_substitution,
+            ActorKind::User,
+            "fault-injected-pack-substitution",
+        ),
+        Err(StoreError::ApplicationModelConflict(_))
+    ));
+    assert_eq!(
+        workspace_v4_authority_counts(&workspace.paths.database),
+        authority_before_fault,
+        "failed Pack substitution must roll back every authority table"
+    );
+    assert_eq!(
+        ApplicationModelRepository::new(&mut workspace.database)
+            .get(&academic_id)
+            .expect("academic after generic fault"),
+        academic_before
+    );
+
+    fs::remove_file(root.path().join(generic_projection.as_str()))
+        .expect("remove generic projection fixture");
+    assert_eq!(
+        ApplicationProjectionService::new(&mut workspace.database, &workspace.blobs, &root_path,)
+            .repair_all()
+            .expect("repair Workspace v4 projections"),
+        1
+    );
+    assert_eq!(
+        fs::read(root.path().join(academic_projection.as_str()))
+            .expect("academic projection after generic repair"),
+        academic_projection_before,
+        "repairing one Application must not rewrite another Pack's projection"
+    );
+    assert_eq!(
+        ApplicationModelRepository::new(&mut workspace.database)
+            .get(&generic_id)
+            .expect("generic after projection repair"),
+        generic_before,
+        "projection repair must not change authoritative Application state"
+    );
+    assert!(workspace.check().expect("source Workspace v4 check").ok);
+
+    let authority_before_backup = workspace_v4_authority_counts(&workspace.paths.database);
+    let backup_result = workspace.backup(&backup_path).expect("Workspace v4 backup");
+    assert!(backup_result.manifest.blobs.len() >= 2);
+    verify_backup(&backup_path).expect("verify Workspace v4 backup");
+
+    fs::create_dir_all(occupied.path()).expect("occupied restore destination");
+    fs::write(occupied.path().join("user-file.txt"), b"preserve me").expect("occupied marker");
+    let occupied_before = workspace_file_snapshot(occupied.path());
+    assert!(Workspace::restore(&backup_path, occupied.path()).is_err());
+    assert_eq!(
+        workspace_file_snapshot(occupied.path()),
+        occupied_before,
+        "rejected restore must not alter an occupied destination"
+    );
+
+    let mut restored =
+        Workspace::restore(&backup_path, &restore_path).expect("restore Workspace v4");
+    assert_eq!(restored.config.format, WORKSPACE_V4_FORMAT);
+    assert!(restored.check().expect("restored Workspace v4 check").ok);
+    assert_eq!(
+        workspace_v4_authority_counts(&restored.paths.database),
+        authority_before_backup,
+        "backup and restore must preserve revisions, associations, Blobs, and audit records"
+    );
+    {
+        let restored_repository = ApplicationModelRepository::new(&mut restored.database);
+        assert_eq!(
+            restored_repository
+                .get(&generic_id)
+                .expect("restored generic Application"),
+            generic_before
+        );
+        assert_eq!(
+            restored_repository
+                .get(&academic_id)
+                .expect("restored academic Application"),
+            academic_before
+        );
+    }
+    assert_eq!(
+        restored
+            .check()
+            .expect("restored referenced Blob check")
+            .checked_referenced_blobs,
+        u64::try_from(backup_result.manifest.blobs.len()).expect("Blob count")
+    );
+
+    {
+        let backup_database = backup_path.join(".canisend/state.sqlite3");
+        let connection = Connection::open(&backup_database).expect("open v4 backup fault fixture");
+        connection
+            .pragma_update(None, "user_version", DATABASE_SCHEMA_VERSION - 1)
+            .expect("mark backup as retired pre-native v4 storage");
+        drop(connection);
+        let manifest_path = backup_path.join("backup-manifest.json");
+        let mut manifest: BackupManifestData =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("read backup manifest"))
+                .expect("parse backup manifest");
+        manifest.database_sha256 = sha256_file(&backup_database);
+        let mut manifest_bytes = serde_json::to_vec_pretty(&manifest).expect("serialize manifest");
+        manifest_bytes.push(b'\n');
+        fs::write(&manifest_path, manifest_bytes).expect("write fault manifest");
+    }
+    assert!(matches!(
+        verify_backup(&backup_path),
+        Err(StoreError::BackupInvalid(message))
+            if message.contains("retired storage schema")
+    ));
+    assert!(Workspace::restore(&backup_path, &rejected_path).is_err());
+    assert!(!rejected_path.exists());
+    assert_eq!(
+        workspace_v4_authority_counts(&workspace.paths.database),
+        authority_before_backup,
+        "invalid backup recovery must not mutate source authority"
+    );
+    assert_eq!(
+        workspace_v4_authority_counts(&restored.paths.database),
+        authority_before_backup,
+        "invalid backup recovery must not mutate an existing restored Workspace"
+    );
 }
 
 #[test]

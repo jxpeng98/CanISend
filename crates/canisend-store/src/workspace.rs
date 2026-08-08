@@ -203,7 +203,11 @@ impl Workspace {
                 "workspace configuration format is unsupported".to_owned(),
             ));
         }
-        if required_format == Some(WORKSPACE_V4_FORMAT) {
+        // A v4 configuration always selects the native v4 storage boundary, including through
+        // format-neutral callers such as backup restore and shared App/CLI workspace discovery.
+        // Checking before `Database::open` prevents the migration runner from upgrading a retired
+        // pre-native v4 bridge as a side effect of opening it.
+        if config.format == WORKSPACE_V4_FORMAT {
             let found = read_sqlite_schema_version(&paths.database)?;
             if found < NATIVE_APPLICATION_V4_SCHEMA_VERSION {
                 return Err(StoreError::WorkspaceV4StorageUnsupported {

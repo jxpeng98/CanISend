@@ -2178,17 +2178,33 @@ mod tests {
 
     #[test]
     fn concurrent_writers_cannot_commit_the_same_expected_revision_twice() {
-        let mut fixture = TestDatabase::new("concurrent");
-        activate(fixture.database());
+        let mut fixture = TestDatabase::new_v4("concurrent");
         let snapshot = draft_snapshot(801);
         let application_id = snapshot.application.id.clone();
-        ApplicationModelRepository::new(fixture.database())
-            .create(
-                snapshot.clone(),
-                ActorKind::User,
-                "create-generic-application",
-            )
-            .expect("create model");
+        let mut other = draft_snapshot(901);
+        let other_id = other.application.id.clone();
+        let academic_pack = ApplicationPackBindingV3 {
+            id: WorkflowPackId::try_new("org.canisend.academic-job").expect("pack ID"),
+            version: SemanticVersion::try_new("1.0.0").expect("version"),
+            content_digest: Sha256Digest::try_new("c".repeat(64)).expect("digest"),
+        };
+        other.pack = academic_pack.clone();
+        other.opportunity.pack = academic_pack.clone();
+        other.application.pack = academic_pack;
+        let other_before = {
+            let mut repository = ApplicationModelRepository::new(fixture.database());
+            repository
+                .create(
+                    snapshot.clone(),
+                    ActorKind::User,
+                    "create-generic-application",
+                )
+                .expect("create model");
+            repository
+                .create(other, ActorKind::User, "create-academic-application")
+                .expect("create other model");
+            repository.get(&other_id).expect("other Application")
+        };
         let path = fixture.path.clone();
         fixture.close();
         let barrier = Arc::new(Barrier::new(2));
@@ -2227,12 +2243,15 @@ mod tests {
             1
         );
         let mut database = Database::open(&path).expect("final database");
+        let repository = ApplicationModelRepository::new(&mut database);
         assert_eq!(
-            ApplicationModelRepository::new(&mut database)
-                .history(&application_id)
-                .expect("history")
-                .len(),
+            repository.history(&application_id).expect("history").len(),
             2
+        );
+        assert_eq!(
+            repository.get(&other_id).expect("other after concurrency"),
+            other_before,
+            "concurrent writers for one v4 Application must not expose or mutate another Pack"
         );
     }
 }

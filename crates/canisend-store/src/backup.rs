@@ -5,13 +5,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use canisend_contracts::{BackupBlobEntry, BackupManifestData, EntityId, Sha256Digest};
+use canisend_contracts::{
+    BackupBlobEntry, BackupManifestData, EntityId, Sha256Digest, WORKSPACE_V4_FORMAT,
+};
 use rusqlite::{Connection, MAIN_DB, OpenFlags};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    BACKUP_FORMAT, DEFAULT_MAX_BLOB_BYTES, StoreError, Workspace, WorkspaceConfig, generate_id,
-    io_error, now_utc,
+    BACKUP_FORMAT, DEFAULT_MAX_BLOB_BYTES, NATIVE_APPLICATION_V4_SCHEMA_VERSION, StoreError,
+    Workspace, WorkspaceConfig, generate_id, io_error, now_utc,
 };
 
 const MANIFEST_FILE: &str = "backup-manifest.json";
@@ -208,15 +210,30 @@ pub fn verify_backup(root: &Path) -> Result<BackupManifestData, StoreError> {
             "database integrity check failed: {integrity}"
         )));
     }
-    let database_id: String = connection.query_row(
-        "SELECT workspace_id FROM workspace_metadata WHERE singleton = 1",
+    let (database_id, database_format): (String, String) = connection.query_row(
+        "SELECT workspace_id, workspace_format
+         FROM workspace_metadata WHERE singleton = 1",
         [],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     if EntityId::try_new(database_id)? != manifest.workspace_id {
         return Err(StoreError::BackupInvalid(
             "database workspace identity mismatch".to_owned(),
         ));
+    }
+    if database_format != config.format {
+        return Err(StoreError::BackupInvalid(
+            "database workspace format mismatch".to_owned(),
+        ));
+    }
+    if config.format == WORKSPACE_V4_FORMAT {
+        let schema_version: u32 =
+            connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        if schema_version < NATIVE_APPLICATION_V4_SCHEMA_VERSION {
+            return Err(StoreError::BackupInvalid(format!(
+                "Workspace v4 backup uses retired storage schema {schema_version}; native v4 requires schema {NATIVE_APPLICATION_V4_SCHEMA_VERSION}"
+            )));
+        }
     }
     let referenced = {
         let mut statement = connection.prepare("SELECT DISTINCT sha256 FROM blob_references")?;

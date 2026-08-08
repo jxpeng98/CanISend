@@ -75,3 +75,17 @@ Workspace check, backup, restore-to-new-path, and projection repair operate over
 selected by the authoritative Workspace format. Immutable bodies remain content-addressed Blobs
 registered in the shared Blob-reference ledger. Unsupported Workspace formats and retired bridge
 storage return stable, body-free remediation before the v4 database opener runs.
+
+Every opener, including format-neutral App/CLI discovery and restore staging, treats a v4
+configuration as a request for native v4 storage and verifies the minimum native schema from the
+SQLite header before opening the database. Backup verification binds the manifest, configuration,
+database Workspace ID, database Workspace format, native v4 schema, and exact referenced-Blob set.
+Restore accepts only a verified backup and a new or empty destination, rebuilds managed projections,
+and then reopens under the same v4 gate.
+
+The recovery fixture stores academic and generic Applications together, repairs damage to one
+projection without rewriting the other, verifies a backup, restores it to a new path, and compares
+both complete Application snapshots plus authority row counts. Pack-substitution, occupied-target,
+and internally re-digested pre-native-v4 backup faults must leave source and restored authority
+unchanged. Concurrent same-revision writers produce exactly one commit and one deterministic stale
+result while another Pack-bound Application remains unchanged.
