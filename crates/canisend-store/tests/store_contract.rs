@@ -2863,6 +2863,30 @@ fn workspace_v4_recovery_preserves_mixed_pack_authority_and_fails_closed() {
 }
 
 #[test]
+fn workspace_v4_restore_rejects_a_verified_legacy_backup_before_writing() {
+    let source = TestDirectory::new("v4-reject-legacy-source");
+    let backup = TestDirectory::new("v4-reject-legacy-backup");
+    let restore = TestDirectory::new("v4-reject-legacy-restore");
+    let backup_path = backup.path().join("snapshot");
+    let restore_path = restore.path().join("workspace");
+    let mut workspace = Workspace::init(source.path()).expect("legacy Workspace fixture");
+    workspace
+        .backup(&backup_path)
+        .expect("verified legacy Workspace backup");
+    let source_before = workspace_file_snapshot(source.path());
+    let backup_before = workspace_file_snapshot(&backup_path);
+
+    assert!(matches!(
+        Workspace::restore_v4(&backup_path, &restore_path),
+        Err(StoreError::WorkspaceFormatUnsupported { found, required })
+            if found == WORKSPACE_FORMAT && required == WORKSPACE_V4_FORMAT
+    ));
+    assert!(!restore_path.exists());
+    assert_eq!(workspace_file_snapshot(source.path()), source_before);
+    assert_eq!(workspace_file_snapshot(&backup_path), backup_before);
+}
+
+#[test]
 fn recovery_verified_backup_restores_into_new_workspace() {
     let root = TestDirectory::new("backup-source");
     let backup = TestDirectory::new("backup-destination");

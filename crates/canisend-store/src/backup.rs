@@ -100,6 +100,28 @@ impl Workspace {
 
     pub fn restore(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
         verify_backup(backup)?;
+        Self::restore_verified(backup, destination)
+    }
+
+    pub fn restore_v4(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
+        verify_backup(backup)?;
+        let config_path = backup.join("canisend.toml");
+        let config: WorkspaceConfig = toml::from_str(
+            std::str::from_utf8(
+                &fs::read(&config_path).map_err(|source| io_error(&config_path, source))?,
+            )
+            .map_err(|error| StoreError::BackupInvalid(error.to_string()))?,
+        )?;
+        if config.format != WORKSPACE_V4_FORMAT {
+            return Err(StoreError::WorkspaceFormatUnsupported {
+                found: config.format,
+                required: WORKSPACE_V4_FORMAT.to_owned(),
+            });
+        }
+        Self::restore_verified(backup, destination)
+    }
+
+    fn restore_verified(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
         ensure_destination_available(destination)?;
         let staging = destination.with_extension(format!("partial-{}", generate_id()?));
         let mut staging_guard = TemporaryDirectory::create(staging)?;

@@ -414,6 +414,15 @@ fn revision(value: u64) -> Result<Revision, ApplicationError> {
 
 impl CanISendMcpServer {
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
+        let workspace = Application::resolve_workspace_root_v4(Some(workspace))?;
+        Ok(Self {
+            workspace: Arc::new(workspace),
+            previews: Arc::new(ApprovalBroker::default()),
+        })
+    }
+
+    #[cfg(test)]
+    fn open_legacy(workspace: &Path) -> Result<Self, ApplicationError> {
         let workspace = Application::resolve_workspace_root(Some(workspace))?;
         Ok(Self {
             workspace: Arc::new(workspace),
@@ -590,7 +599,7 @@ impl CanISendMcpServer {
 }
 
 pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
-    let workspace = Application::resolve_workspace_root(workspace)?;
+    let workspace = Application::resolve_workspace_root_v4(workspace)?;
     let server = CanISendMcpServer::open(&workspace)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -613,6 +622,69 @@ pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
 
 #[tool_router]
 impl CanISendMcpServer {
+    #[tool(
+        description = "Return authoritative Workspace v4 status without private bodies",
+        annotations(
+            title = "Inspect Workspace status",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_workspace_status(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::application_result(Application::workspace_status_v4(self.workspace()))
+    }
+
+    #[tool(
+        description = "Check Workspace v4 database, Blob, freshness, and projection invariants",
+        annotations(
+            title = "Check Workspace integrity",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_workspace_check(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::application_result(Application::check_workspace_v4(self.workspace()))
+    }
+
+    #[tool(
+        description = "List Pack-bound Applications from authoritative Workspace v4 state",
+        annotations(
+            title = "List Workspace Applications",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::application_result(Application::list_application_models_v4(self.workspace()))
+    }
+
+    #[tool(
+        description = "Show one Pack-bound Application from authoritative Workspace v4 state",
+        annotations(
+            title = "Show Workspace Application",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_show(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        Self::application_result(Application::application_model_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
     #[tool(
         description = "Return the canonical neutral Agent v3 operation registry and exact Workspace Pack binding",
         annotations(
@@ -1267,7 +1339,7 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "Canonical Agent v3 tools resolve the exact Workspace/Application Pack binding and use Application, Requirement, Plan, and Deliverable nouns. Routine context is body-free. Guarded mutations require host approval and exact expected revisions. Plan confirmation, private review, approval, and export require explicit user authorization; approval accepts only a session-local single-use token bound to the exact reviewed revision and snapshot digest. CanISend never uploads or submits an Application. Agent v2 tools remain a deprecated compatibility surface bounded to the exact academic Pack. Never edit .canisend, SQLite, immutable blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded mutations require preview, host approval, and exact expected revisions. Private review, approval, and export require explicit user authorization. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {}
 
@@ -1292,11 +1364,11 @@ mod tests {
 
     use super::{
         AgentV3ContextParameters, ApplicationApprovalParameters, ApplicationComposeParameters,
-        ApplicationCreateParameters, ApplicationDeliverableParameters, ApplicationExportParameters,
-        ApplicationPlanParameters, ApplicationPlannedDeliverableParameters,
-        ApplicationRequirementParameters, ApplicationReviewParameters, CanISendMcpServer,
-        ContextParameters, JobListParameters, JobParameters, MAX_JOB_ID_BYTES,
-        MAX_TOOL_RESULT_BYTES,
+        ApplicationCreateParameters, ApplicationDeliverableParameters, ApplicationError,
+        ApplicationExportParameters, ApplicationPlanParameters,
+        ApplicationPlannedDeliverableParameters, ApplicationRequirementParameters,
+        ApplicationReviewParameters, CanISendMcpServer, ContextParameters, JobListParameters,
+        JobParameters, MAX_JOB_ID_BYTES, MAX_TOOL_RESULT_BYTES,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -1312,7 +1384,7 @@ mod tests {
     #[test]
     fn tool_output_schemas_are_object_shaped_for_strict_clients() {
         let tools = CanISendMcpServer::tool_router().list_all();
-        assert_eq!(tools.len(), 22);
+        assert_eq!(tools.len(), 26);
         for tool in tools {
             let schema = tool.output_schema.expect("tool output schema");
             assert_eq!(
@@ -1322,6 +1394,49 @@ mod tests {
                 tool.name
             );
         }
+    }
+
+    #[test]
+    fn canonical_v4_reads_open_clean_workspaces_and_reject_legacy_state() {
+        let root = temporary_root("canonical-v4-reads");
+        Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+        let server = CanISendMcpServer::open(&root).expect("open canonical MCP server");
+
+        let status = server
+            .canisend_workspace_status()
+            .expect("Workspace v4 status")
+            .0;
+        assert_eq!(status["operation"], "workspace.status");
+        assert_eq!(
+            status["data"]["status"]["workspace_format"],
+            canisend_contracts::WORKSPACE_V4_FORMAT
+        );
+        let check = server
+            .canisend_workspace_check()
+            .expect("Workspace v4 check")
+            .0;
+        assert_eq!(check["operation"], "workspace.check");
+        assert_eq!(check["data"]["check"]["ok"], true);
+        let applications = server
+            .canisend_application_list()
+            .expect("Workspace v4 Applications")
+            .0;
+        assert_eq!(applications["operation"], "application.list");
+        assert_eq!(applications["data"].as_array().map(Vec::len), Some(0));
+        fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
+
+        let legacy = temporary_root("canonical-v4-reject-legacy");
+        Application::initialize_workspace(&legacy).expect("initialize legacy Workspace fixture");
+        let config_before = fs::read(legacy.join("canisend.toml")).expect("read legacy config");
+        assert!(matches!(
+            CanISendMcpServer::open(&legacy),
+            Err(ApplicationError::CompatibilityUnavailable { .. })
+        ));
+        assert_eq!(
+            fs::read(legacy.join("canisend.toml")).expect("legacy config remains readable"),
+            config_before
+        );
+        fs::remove_dir_all(legacy).expect("remove legacy fixture");
     }
 
     #[test]
@@ -1358,7 +1473,7 @@ mod tests {
             .expect("workspace before")
             .data
             .status;
-        let server = CanISendMcpServer::open(&root).expect("open MCP server");
+        let server = CanISendMcpServer::open_legacy(&root).expect("open legacy MCP fixture");
         let responses = [
             server.canisend_capabilities().expect("capabilities").0,
             server
@@ -1433,7 +1548,7 @@ mod tests {
     fn agent_v3_runs_new_resume_review_approval_and_stale_recovery() {
         let root = temporary_root("agent-v3-lifecycle");
         Application::initialize_workspace_v3(&root).expect("initialize v3 workspace");
-        let server = CanISendMcpServer::open(&root).expect("open MCP server");
+        let server = CanISendMcpServer::open_legacy(&root).expect("open legacy MCP fixture");
         let capabilities = server
             .canisend_agent_v3_capabilities()
             .expect("Agent v3 capabilities")
@@ -1710,7 +1825,8 @@ mod tests {
             .expect("academic status before")
             .data
             .status;
-        let academic_server = CanISendMcpServer::open(&academic).expect("open academic MCP");
+        let academic_server =
+            CanISendMcpServer::open_legacy(&academic).expect("open legacy academic MCP fixture");
         let wrong_pack_source = "Wrong Pack request must not persist.";
         assert!(
             academic_server
@@ -1760,7 +1876,8 @@ mod tests {
         )
         .expect("migration");
 
-        let server = CanISendMcpServer::open(&root).expect("academic MCP server");
+        let server =
+            CanISendMcpServer::open_legacy(&root).expect("open migrated academic MCP fixture");
         let capabilities = server
             .canisend_agent_v3_capabilities()
             .expect("academic capabilities")

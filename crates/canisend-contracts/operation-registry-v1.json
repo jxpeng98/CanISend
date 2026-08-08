@@ -7,6 +7,8 @@
     {"status": "deferred-beta", "allowed_classes": ["canonical-leaf", "shared-leaf", "adapter-only"]}
   ],
   "operations": [
+    {"id": "workspace.status", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "workspace.check", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "agent-v3.capabilities", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "agent-v3.context", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "application.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
@@ -57,7 +59,6 @@
     {"id": "workflow.status", "canonical_operation": "application.workflow.status", "status": "deprecated", "pack_scope": "academic-job"}
   ],
   "presentation_aliases": [
-    {"id": "application.dossier", "class": "composite", "status": "implemented", "members": ["cli.application.list", "cli.application.show"]},
     {"id": "content.*", "class": "wildcard-alias", "status": "implemented", "members": ["cli.content.list", "cli.content.search"]},
     {"id": "profile.*", "class": "wildcard-alias", "status": "implemented", "members": ["cli.profile.source.add", "profile.source.list", "cli.profile.source.show", "cli.profile.evidence.proposed", "cli.profile.evidence.export", "cli.profile.evidence.confirm", "cli.profile.evidence.show"]},
     {"id": "discovery.*", "class": "wildcard-alias", "status": "implemented", "members": ["cli.discovery.import", "cli.discovery.adapters", "cli.discovery.refresh", "cli.discovery.sources", "cli.discovery.list", "cli.discovery.show", "cli.discovery.suggest", "cli.discovery.promote"]},
@@ -85,9 +86,9 @@
         "mcp serve",
         "schema list", "schema show",
         "resource list",
-        "workspace init", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair", "workspace migration-preview", "workspace migrate",
+        "workspace init", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair",
         "job create", "job import", "job list", "job show", "job archive",
-        "application list", "application show", "application v3-list", "application v3-show", "application archive", "application generic-create", "application generic-plan", "application generic-compose", "application generic-approve", "application generic-export",
+        "application list", "application show", "application archive", "application create", "application generic-plan", "application generic-compose", "application generic-approve", "application generic-export",
         "content list", "content search",
         "profile source add", "profile source list", "profile source show", "profile evidence proposed", "profile evidence export", "profile evidence confirm", "profile evidence show",
         "discovery import", "discovery adapters", "discovery refresh", "discovery sources", "discovery list", "discovery show", "discovery suggest", "discovery promote",
@@ -102,10 +103,12 @@
         "workflow start", "workflow status", "workflow begin", "workflow complete", "workflow rerun"
       ],
       "bindings": [
-        {"leaf": "application v3-list", "operation": "application.list", "pack_scope": "any"},
-        {"leaf": "application v3-show", "operation": "application.show", "pack_scope": "any"},
+        {"leaf": "workspace status", "operation": "workspace.status", "pack_scope": "any"},
+        {"leaf": "workspace check", "operation": "workspace.check", "pack_scope": "any"},
+        {"leaf": "application list", "operation": "application.list", "pack_scope": "any"},
+        {"leaf": "application show", "operation": "application.show", "pack_scope": "any"},
         {"leaf": "application archive", "operation": "application.archive", "pack_scope": "any"},
-        {"leaf": "application generic-create", "operation": "application.create", "pack_scope": "any"},
+        {"leaf": "application create", "operation": "application.create", "pack_scope": "any"},
         {"leaf": "application generic-plan", "operation": "application.plan", "pack_scope": "any"},
         {"leaf": "application generic-compose", "operation": "application.compose", "pack_scope": "any"},
         {"leaf": "application generic-approve", "operation": "application.approve", "pack_scope": "any"},
@@ -180,10 +183,13 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
+        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show",
         "canisend_agent_v3_capabilities", "canisend_agent_v3_context", "canisend_application_approve", "canisend_application_compose", "canisend_application_create", "canisend_application_export", "canisend_application_plan", "canisend_application_review", "canisend_applications_list",
         "canisend_capabilities", "canisend_context", "canisend_job_detail", "canisend_job_intake_commit", "canisend_job_intake_preview", "canisend_jobs_list", "canisend_profile_sources", "canisend_task_completion_commit", "canisend_task_completion_preview", "canisend_task_inputs", "canisend_task_latest", "canisend_task_prepare", "canisend_workflow_status"
       ],
       "bindings": [
+        {"leaf": "canisend_workspace_status", "operation": "workspace.status", "pack_scope": "any"},
+        {"leaf": "canisend_workspace_check", "operation": "workspace.check", "pack_scope": "any"},
         {"leaf": "canisend_agent_v3_capabilities", "operation": "agent-v3.capabilities", "pack_scope": "any"},
         {"leaf": "canisend_agent_v3_context", "operation": "agent-v3.context", "pack_scope": "any"},
         {"leaf": "canisend_applications_list", "operation": "application.list", "pack_scope": "any"},

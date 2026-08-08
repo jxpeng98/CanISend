@@ -84,6 +84,22 @@ impl Application {
         ))
     }
 
+    pub fn application_model_v4(
+        workspace_root: &Path,
+        application_id: &str,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationError> {
+        let application_id = parse_application_id(application_id)?;
+        let mut workspace = open_workspace_v4(workspace_root)?;
+        let stored =
+            ApplicationModelRepository::new(&mut workspace.database).get(&application_id)?;
+        Ok(ActionReceipt::new(
+            "application.show",
+            "current",
+            "Loaded the current Application model",
+            stored,
+        ))
+    }
+
     pub fn list_application_models_v3(
         workspace_root: &Path,
     ) -> Result<ActionReceipt<Vec<StoredApplicationModelV3>>, ApplicationError> {
@@ -93,6 +109,19 @@ impl Application {
             "application-v3.list",
             "current",
             format!("Loaded {} neutral Application model(s)", applications.len()),
+            applications,
+        ))
+    }
+
+    pub fn list_application_models_v4(
+        workspace_root: &Path,
+    ) -> Result<ActionReceipt<Vec<StoredApplicationModelV3>>, ApplicationError> {
+        let mut workspace = open_workspace_v4(workspace_root)?;
+        let applications = ApplicationModelRepository::new(&mut workspace.database).list()?;
+        Ok(ActionReceipt::new(
+            "application.list",
+            "current",
+            format!("Loaded {} Application model(s)", applications.len()),
             applications,
         ))
     }
@@ -192,5 +221,27 @@ mod tests {
             ApplicationError::Store(canisend_store::StoreError::ApplicationModelUnavailable)
         ));
         fs::remove_dir_all(root).expect("remove workspace");
+    }
+
+    #[test]
+    fn v4_application_reads_are_neutral_and_fail_closed_on_legacy_workspaces() {
+        let root = temporary_root();
+        Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+        let receipt = Application::list_application_models_v4(&root).expect("list v4 Applications");
+        assert_eq!(receipt.operation, "application.list");
+        assert!(receipt.data.is_empty());
+        fs::remove_dir_all(&root).expect("remove Workspace v4");
+
+        Application::initialize_workspace(&root).expect("initialize legacy Workspace");
+        let config_before = fs::read(root.join("canisend.toml")).expect("read legacy config");
+        assert!(matches!(
+            Application::list_application_models_v4(&root),
+            Err(ApplicationError::CompatibilityUnavailable { .. })
+        ));
+        assert_eq!(
+            fs::read(root.join("canisend.toml")).expect("legacy config remains readable"),
+            config_before
+        );
+        fs::remove_dir_all(root).expect("remove legacy Workspace");
     }
 }

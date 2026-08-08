@@ -54,6 +54,12 @@ impl Application {
     ) -> Result<std::path::PathBuf, ApplicationError> {
         Ok(Workspace::open(explicit)?.paths.root)
     }
+
+    pub fn resolve_workspace_root_v4(
+        explicit: Option<&Path>,
+    ) -> Result<std::path::PathBuf, ApplicationError> {
+        Ok(open_workspace_v4_discovered(explicit)?.paths.root)
+    }
 }
 
 pub(crate) fn open_workspace(root: &Path) -> Result<Workspace, StoreError> {
@@ -61,7 +67,11 @@ pub(crate) fn open_workspace(root: &Path) -> Result<Workspace, StoreError> {
 }
 
 pub(crate) fn open_workspace_v4(root: &Path) -> Result<Workspace, ApplicationError> {
-    match Workspace::open_v4(Some(root)) {
+    open_workspace_v4_discovered(Some(root))
+}
+
+fn open_workspace_v4_discovered(explicit: Option<&Path>) -> Result<Workspace, ApplicationError> {
+    match Workspace::open_v4(explicit) {
         Ok(workspace) => Ok(workspace),
         Err(StoreError::WorkspaceFormatUnsupported { found, required }) => {
             Err(ApplicationError::CompatibilityUnavailable {
