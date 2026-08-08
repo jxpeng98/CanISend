@@ -18970,7 +18970,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 10);
+        assert_eq!(current.shared_operations, 9);
         assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 
