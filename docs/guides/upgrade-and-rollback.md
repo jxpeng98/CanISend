@@ -94,26 +94,14 @@ canisend --workspace ./applications workspace check --json
 Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
 binary. It does not silently perform the separately approved semantic v2→v3 transition. Migration
 history, exact Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
-regenerate any exported host pack so its
-manifest, schemas, prompts, examples, and product version come from the installed binary:
+regenerate any exported host pack or update project Skills from the desktop Agent setup journey.
+Use a new export directory; do not overwrite a pack used by an active host session.
 
-```console
-canisend agent assets export --host codex \
-  --destination ./canisend-codex-pack-VERSION --json
-```
-
-Export to a new directory; do not overwrite a pack that an active host session may still be using.
-For project-discoverable skills, run the idempotent installer instead. It upgrades only unchanged
-CanISend-managed files and refuses to replace local edits:
-
-```console
-canisend --workspace ./applications agent assets install --host codex --json
-canisend --workspace ./applications agent assets install --host claude --json
-```
-
-Inspect the managed state before or after an upgrade with `agent assets status`. To remove the
-project integration, use `agent assets uninstall`; it deletes only unchanged files recorded in the
-CanISend manifest and refuses to remove user-modified or unmanaged skills.
+Alpha.7 installs the clean Agent v4 resources under `.agents/skills` for Codex or `.claude/skills`
+for Claude Code. Their ownership manifests are `.agents/canisend-agent-v4.json` and
+`.claude/canisend-agent-v4.json`. Install and update replace only unchanged manifest-owned files;
+uninstall performs a complete digest preflight and refuses user-modified or unmanaged files.
+Pre-v4 layouts are not upgraded in place: remove them explicitly, then perform a clean v4 install.
 
 The Application Dossier, Content Catalog, contextual Agent guidance, and metadata/private search
 indexes do not add a migration. They are rebuilt from current SQLite rows and immutable artifact

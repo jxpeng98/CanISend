@@ -195,20 +195,20 @@ only operations ready under the authoritative stage graph:
 5. Cancel a prepared task when necessary. Expired or stale tasks provide a prepare-again recovery
    action; a replacement receives a new lease and rechecks every revision.
 
-Task state is stored in the Academic Workspace, so the GUI, CLI, Codex, Claude, or another Agent v2 host sees
-the same prepared, committed, cancelled, or stale state after reopening.
+Task state is stored by CanISend, so the GUI, CLI, Codex, Claude Code, or another Agent v4 host
+sees the same revision-bound state after reopening.
 
 ## Inspect Agent integration and export resources
 
-Open **Agent integration** to inspect the protocol selected by the exact Workspace Pack without
-exposing source bodies. Generic Workspaces use the nine canonical Agent v3 operations; Academic
-Workspaces use the thirteen Agent v2 compatibility tools. The page shows product and format
-versions, capability and stage registries, discovery
-adapters, and either a workspace summary or one optional active-job summary. Blockers and bounded
-next actions are plain text with copy controls; copying never executes a command.
+Open **Agent integration** to inspect the clean Agent v4 boundary without exposing private bodies.
+One Workspace may contain Applications using different Packs, so select an exact Application and
+verify its Pack identity, revision, and snapshot digest. The page shows product and format
+versions, current capabilities, Workspace health, Applications, blockers, and bounded next
+actions. Copying text never executes a command.
 
 The **Built-in Skills** card follows the current workspace and selected Codex, Claude, or generic
-host. It lists the four version-matched CanISend workflow skills, install state, managed-file
+host. It lists the four version-matched `canisend-workspace`, `canisend-intake`,
+`canisend-materials`, and `canisend-review-export` Skills, install state, managed-file
 counts, discovery directory, and ownership manifest. **Install Skills** and **Update or repair**
 write only new or unchanged manifest-owned files. **Remove managed Skills** first verifies every
 remaining file and stops without deleting anything if a user edit or unmanaged file is present.

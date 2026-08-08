@@ -1,52 +1,44 @@
 # Agent integration
 
-CanISend owns validation, Pack identity, revisions, consent, storage, review, rendering, and audit
-state. Codex, Claude, or another Agent host owns conversation and bounded semantic reasoning. The
-host must never edit `.canisend`, SQLite, immutable blobs, or managed projections directly.
+CanISend owns validation, Pack identity, revisions, consent, storage, review, rendering, recovery,
+and audit state. Codex, Claude Code, or another Agent host owns conversation and bounded semantic
+reasoning. A host must never edit `.canisend`, SQLite, immutable Blobs, or managed projections.
 
-## Select the protocol from the Workspace Pack
+## Clean v4 boundary
 
-Inspect the Workspace before exposing tools:
+Alpha.7 host resources require `canisend.workspace/v4` and `canisend.agent/v4`. One Workspace can
+contain academic, generic, or other Pack-bound Applications together. Select one exact Application
+and preserve its Pack ID, Pack version, Pack digest, revision, and snapshot digest; never select a
+Workspace mode.
 
-```console
-canisend --workspace ./applications workspace status
-```
+Earlier Skills, protocol requests, command aliases, and host-resource layouts are unsupported.
+CanISend detects those resources before installation and returns clean-install guidance without
+modifying either the old files or authoritative Workspace state.
 
-| Exact Pack | Authority | Agent surface |
-| --- | --- | --- |
-| `org.canisend.generic-application` | Workspace v3 | canonical Agent v3, nine MCP tools |
-| `org.canisend.academic-job` | Workspace v2 compatibility, or migrated v3 with preserved academic authority | bounded Agent v2, thirteen MCP tools |
+## Install the v4 host resources
 
-Generic Agent v3 operations fail closed on the Academic Pack. Agent v2 academic aliases fail
-closed on the Generic Pack. Do not route by filenames, labels, or guessed content; use the exact
-Pack ID shown by Workspace status and the exact binding returned by Agent capabilities.
+The desktop initialization and Agent setup journey installs four version-matched Skills from one
+embedded, integrity-checked source:
 
-## Recommended external-host handoff
+| Skill | Canonical Agent v4 tasks |
+| --- | --- |
+| `canisend-workspace` | orientation, Profile/Evidence, Application creation, recovery |
+| `canisend-intake` | Source intake and Requirements |
+| `canisend-materials` | fit/Plan and Deliverable drafting |
+| `canisend-review-export` | review and local export |
 
-The desktop Agent screen or CLI installs four version-matched, manifest-owned workflow skills in
-the selected project:
+Codex receives the Skills under `.agents/skills` with generated `agents/openai.yaml` metadata.
+Claude Code receives the same `SKILL.md` bytes under `.claude/skills`. The host-specific manifest
+is `.agents/canisend-agent-v4.json` or `.claude/canisend-agent-v4.json`; it binds the product,
+protocol, Workspace format, task-model digest, every file path, and every file digest.
 
-```console
-canisend --workspace ./applications agent assets status --host codex --json
-canisend --workspace ./applications agent assets install --host codex --json
-canisend --workspace ./applications agent assets install --host claude --json
-```
-
-The managed skills cover orchestration, intake, materials, and review. Installation updates only
-unchanged CanISend-owned files and refuses to overwrite local edits. Removal performs a complete
-digest preflight:
-
-```console
-canisend --workspace ./applications agent assets uninstall --host codex --json
-```
-
-The handoff contains public IDs, canonical paths, body-free state, commands, and blockers. It does
-not contain source, Profile, Evidence, draft, review, token, or credential bodies. Codex or Claude
-retains its own transcript, tools, search, plugins, connectors, provider policy, and approvals.
+Install and update are idempotent within v4. CanISend replaces only bytes recorded by the current
+manifest, refuses user-modified or unmanaged paths, and performs a complete digest preflight before
+uninstalling. Host setup never writes inside `.canisend`.
 
 ## Connect the MCP adapter
 
-The version-matched binary serves MCP `2025-11-25` over stdio:
+The native binary serves MCP `2025-11-25` over stdio and does not require the App to be open:
 
 ```console
 canisend --workspace /absolute/path/to/workspace mcp serve
@@ -62,7 +54,7 @@ enabled = true
 default_tools_approval_mode = "writes"
 ```
 
-Claude project configuration:
+Claude Code project configuration:
 
 ```json
 {
@@ -76,100 +68,43 @@ Claude project configuration:
 }
 ```
 
-Start every session by listing tools and reading capabilities/context. Never infer a mutation from
-prose when the current context reports a blocker or a different `next_action`.
+List tools at the start of every session. The current clean-v4 MCP adapter exposes these body-free
+read operations:
 
-## Canonical Generic Agent v3 tools
+- `canisend_workspace_status`;
+- `canisend_workspace_check`;
+- `canisend_application_list`; and
+- `canisend_application_show`.
 
-The Generic Pack exposes nine deterministic operations:
+Do not infer that an operation from the canonical registry is callable when it is absent from the
+runtime tool list. Use a native CLI operation only when it exposes the same operation ID, or stop
+with the missing capability as a blocker.
 
-- `canisend_agent_v3_capabilities`
-- `canisend_agent_v3_context`
-- `canisend_applications_list`
-- `canisend_application_create`
-- `canisend_application_plan`
-- `canisend_application_compose`
-- `canisend_application_review`
-- `canisend_application_approve`
-- `canisend_application_export`
+## Canonical task sequence
 
-Capabilities, context, list, and review are read-only. Review requires explicit private-read
-consent. Create, Plan, compose, approve, and export are host-approval-gated writes; export also
-requires private-export consent. Every mutation is exact-Pack and expected-revision bound.
+Orientation is read-only and follows `orient -> verify`. Every mutation follows:
 
-Approval uses the shared App-owned broker. A successful review creates a cryptographically random,
-single-use token bound to the canonical Workspace, exact Pack digest, Application, operation,
-reviewed snapshot, and expected revision. It has a ten-minute monotonic lifetime and exists only in
-the current process. Expiry, replay, wrong context, changed revision, or capacity exhaustion causes
-no mutation. Only a classified transient commit failure may restore the same reservation for an
-explicit retry; restarting MCP requires a new review.
-
-The generic lifecycle is create → confirm Requirements and Plan → compose Deliverables → privately
-review → approve → privately export. Export renders locally and returns
-`submission_performed: false`.
-
-## Academic Agent v2 compatibility tools
-
-The Academic Pack exposes thirteen deterministic operations:
-
-- `canisend_capabilities`
-- `canisend_context`
-- `canisend_job_detail`
-- `canisend_job_intake_preview`
-- `canisend_job_intake_commit`
-- `canisend_jobs_list`
-- `canisend_profile_sources`
-- `canisend_task_completion_preview`
-- `canisend_task_completion_commit`
-- `canisend_task_inputs`
-- `canisend_task_latest`
-- `canisend_task_prepare`
-- `canisend_workflow_status`
-
-Routine inspection is body-free. Intake preview holds the reviewed local/URL/PDF bytes in the MCP
-process and returns metadata, digest, duplicate notice, target revision, and intended mutation—not
-the source body. Intake commit consumes that exact single-use preview. Task preparation freezes
-revisions into a lease; `task inputs` exports only declared private inputs after consent; completion
-preview validates candidate JSON; completion commit consumes the matching preview.
-
-These names remain compatibility aliases for the academic journey. They do not define the Generic
-Pack ontology and must not become fallback writes when Agent v3 rejects a Pack mismatch.
-
-## CLI task loop for the Academic Pack
-
-```console
-canisend --workspace ./academic-applications task prepare \
-  --job JOB_ID --operation job-parse --mode host-agent --json
-canisend --workspace ./academic-applications task inputs TASK_ID \
-  --destination ./agent-work/TASK_ID --allow-private-read --json
-canisend --workspace ./academic-applications task complete \
-  --file ./agent-work/TASK_ID/completion.json --json
+```text
+orient -> propose -> preview -> approve -> commit -> verify
 ```
 
-Candidate validation is schema-first and semantic. Invalid output leaves the lease prepared and
-returns stable violation codes and JSON pointers. An identical accepted replay is idempotent. If a
-source, Profile, input, or lease revision changes, prepare again and do not reuse the old bundle.
+The proposal and preview bind the exact Workspace, Application, Pack, revision, snapshot, schema,
+operation, candidate digest, required consents, and expiry. Approval belongs to the user and binds
+the exact preview digest. Commit consumes one opaque, process-bounded token. Expiry, replay, stale
+revision, wrong Pack, denied consent, or host restart requires a fresh orientation and preview.
 
-## Optional in-App bridge
-
-The desktop may discover an installed `codex` or `claude` executable and run a consent-gated
-read-only turn. It uses standard input, bounded output, and a fixed executable-discovery policy.
-CanISend stores only a body-free binding for `(Workspace, runtime, optional Application)`; it does
-not store prompts, responses, transcripts, tokens, or credentials. The selected host remains the
-transcript and provider authority. This bridge cannot mutate CanISend state and does not inherit
-tools that exist only in another desktop product.
+The canonical task model, operation registry, seven schemas, two examples, host guide, and Skills
+ship in the Agent v4 export pack. The Codex pack has 20 files; Claude and generic-host packs have
+16 because OpenAI UI metadata is Codex-specific.
 
 ## User-only boundaries
 
 An Agent may propose Requirements, Evidence relationships, Plans, Deliverables, and review
-findings. The user remains responsible for confirming sources and Evidence, making the proceed/hold
-decision, approving private/provider/export scopes, resolving unsupported claims, reviewing final
-artifacts, and submitting outside CanISend. No tool, host pack, approval token, or capability
-authorizes login, upload, portal automation, or submission.
+findings. The user confirms sources and Evidence, chooses whether to proceed, grants private,
+provider, network, and export consent, approves exact previews, reviews final artifacts, and
+submits outside CanISend. No tool, Skill, receipt, export, or readiness state authorizes login,
+upload, portal automation, or submission. Every export receipt confirms that
+`submission_performed` is `false`.
 
-JSON commands return one versioned envelope on stdout. Preserve the stable operation, status,
-error code, retryable flag, expected revision, and remediation when diagnosing failures. See
-[Privacy and consent](privacy-and-consent.md) and the
-[Agent v3/MCP contract](../contracts/agent-v3-mcp.md) or
-[Agent protocol v2 compatibility contract](../contracts/agent-protocol-v2.md), as selected by the
-Workspace Pack.
+See [Agent v4](../contracts/agent-v4.md) and
+[Privacy and consent](privacy-and-consent.md).

@@ -1833,12 +1833,13 @@ fn check_documentation() -> Result<(), String> {
         (
             "agent-integration.md",
             &[
-                "canisend_agent_v3_capabilities",
-                "canisend_application_approve",
-                "canisend_capabilities",
-                "thirteen MCP tools",
+                "canisend_workspace_status",
+                "canisend_application_show",
+                "canisend-workspace",
+                "canisend-agent-v4.json",
+                "orient -> propose -> preview -> approve -> commit -> verify",
                 "must never edit `.canisend`",
-                "ten-minute monotonic lifetime",
+                "submission_performed` is `false",
             ],
         ),
         (

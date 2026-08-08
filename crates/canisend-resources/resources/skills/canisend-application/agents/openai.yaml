@@ -1,5 +1,0 @@
-interface:
-  display_name: "CanISend Application"
-  short_description: "Route a Pack-bound Application to its next safe step"
-  brand_color: "#2563EB"
-  default_prompt: "Use $canisend-application to continue this Pack-bound CanISend Application from its current Agent v3 next action."

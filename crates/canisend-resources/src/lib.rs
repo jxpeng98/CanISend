@@ -9,12 +9,15 @@ use std::{
     str::FromStr,
 };
 
-use canisend_contracts::{AGENT_PROTOCOL, RESOURCE_FORMAT, SafeRelativePath};
+use canisend_contracts::{
+    AGENT_V4_PROTOCOL, RESOURCE_FORMAT, SafeRelativePath, WORKSPACE_V4_FORMAT,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const RESOURCE_VERSION: &str = "canisend.resources/v2";
+pub const AGENT_HOST_RESOURCE_FORMAT: &str = "canisend.agent-host-resources/v4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -58,6 +61,10 @@ pub enum ResourceError {
     ManagedSkillModified(PathBuf),
     #[error("Agent skill files are not owned by a CanISend manifest: {0}")]
     UnmanagedSkillFiles(PathBuf),
+    #[error(
+        "unsupported pre-v4 host resources detected at {0}; remove them explicitly and perform a clean Agent v4 install"
+    )]
+    UnsupportedHostResources(PathBuf),
     #[error("resource export failed at {path}: {source}")]
     ExportIo {
         path: PathBuf,
@@ -101,7 +108,9 @@ pub struct AgentPackManifest {
     pub format: String,
     pub product_version: String,
     pub protocol: String,
+    pub workspace_format: String,
     pub resource_format: String,
+    pub task_resource_model_sha256: String,
     pub host: AgentHost,
     pub files: Vec<AgentPackFile>,
 }
@@ -127,7 +136,10 @@ pub enum AgentSkillsInstallState {
 pub struct AgentSkillsManifest {
     pub format: String,
     pub product_version: String,
+    pub protocol: String,
+    pub workspace_format: String,
     pub resource_format: String,
+    pub task_resource_model_sha256: String,
     pub host: AgentHost,
     pub files: Vec<AgentPackFile>,
 }
@@ -477,122 +489,49 @@ pub fn export_agent_pack(
     };
     let mut resources = vec![
         (guide.0, guide.1.to_owned()),
-        ("prompt.job-parse", "prompts/job-parse.md".to_owned()),
         (
-            "prompt.evidence-normalize",
-            "prompts/evidence-normalize.md".to_owned(),
+            "agent.v4.task-resource-model",
+            "agent/v4/task-resource-model.json".to_owned(),
         ),
         (
-            "prompt.evidence-match",
-            "prompts/evidence-match.md".to_owned(),
+            "agent.v4.operation-registry",
+            "operations/v4/registry.json".to_owned(),
         ),
         (
-            "prompt.document-draft",
-            "prompts/document-draft.md".to_owned(),
+            "schema.agent-v4.task-request",
+            "schemas/agent/v4/task-request.schema.json".to_owned(),
         ),
         (
-            "prompt.document-review",
-            "prompts/document-review.md".to_owned(),
+            "schema.agent-v4.operation-registry",
+            "schemas/agent/v4/operation-registry.schema.json".to_owned(),
         ),
         (
-            "example.task-complete",
-            "examples/task-complete.json".to_owned(),
+            "schema.agent-v4.proposal",
+            "schemas/agent/v4/proposal.schema.json".to_owned(),
         ),
         (
-            "schema.task-descriptor",
-            "schemas/v2/task-descriptor.schema.json".to_owned(),
+            "schema.agent-v4.mutation-preview",
+            "schemas/agent/v4/mutation-preview.schema.json".to_owned(),
         ),
         (
-            "schema.task-completion",
-            "schemas/v2/task-completion.schema.json".to_owned(),
+            "schema.agent-v4.approval",
+            "schemas/agent/v4/approval.schema.json".to_owned(),
         ),
         (
-            "schema.parsed-job",
-            "schemas/v2/parsed-job.schema.json".to_owned(),
+            "schema.agent-v4.commit-request",
+            "schemas/agent/v4/commit-request.schema.json".to_owned(),
         ),
         (
-            "schema.criterion",
-            "schemas/v2/criterion.schema.json".to_owned(),
+            "schema.agent-v4.receipt",
+            "schemas/agent/v4/receipt.schema.json".to_owned(),
         ),
         (
-            "schema.criteria",
-            "schemas/v2/criteria.schema.json".to_owned(),
+            "example.agent-v4.orientation-request",
+            "examples/agent-v4/orientation-request.json".to_owned(),
         ),
         (
-            "schema.evidence-proposals",
-            "schemas/v2/evidence-proposals.schema.json".to_owned(),
-        ),
-        (
-            "schema.evidence-catalog",
-            "schemas/v2/evidence-catalog.schema.json".to_owned(),
-        ),
-        (
-            "schema.evidence",
-            "schemas/v2/evidence.schema.json".to_owned(),
-        ),
-        (
-            "schema.evidence-match-proposals",
-            "schemas/v2/evidence-match-proposals.schema.json".to_owned(),
-        ),
-        (
-            "schema.evidence-matches",
-            "schemas/v2/evidence-matches.schema.json".to_owned(),
-        ),
-        (
-            "schema.application-plan-candidate",
-            "schemas/v2/application-plan-candidate.schema.json".to_owned(),
-        ),
-        (
-            "schema.application-plan",
-            "schemas/v2/application-plan.schema.json".to_owned(),
-        ),
-        (
-            "schema.document-candidate",
-            "schemas/v2/document-candidate.schema.json".to_owned(),
-        ),
-        (
-            "schema.document",
-            "schemas/v2/document.schema.json".to_owned(),
-        ),
-        (
-            "schema.document-set",
-            "schemas/v2/document-set.schema.json".to_owned(),
-        ),
-        (
-            "schema.review-candidate",
-            "schemas/v2/review-candidate.schema.json".to_owned(),
-        ),
-        (
-            "schema.review-findings",
-            "schemas/v2/review-findings.schema.json".to_owned(),
-        ),
-        (
-            "schema.review-disposition-candidate",
-            "schemas/v2/review-disposition-candidate.schema.json".to_owned(),
-        ),
-        (
-            "schema.package-manifest",
-            "schemas/v2/package-manifest.schema.json".to_owned(),
-        ),
-        (
-            "schema.package-export-manifest",
-            "schemas/v2/package-export-manifest.schema.json".to_owned(),
-        ),
-        (
-            "schema.projection",
-            "schemas/v2/projection.schema.json".to_owned(),
-        ),
-        (
-            "schema.projection-reconcile",
-            "schemas/v2/projection-reconcile.schema.json".to_owned(),
-        ),
-        (
-            "schema.rendered-document",
-            "schemas/v2/rendered-document.schema.json".to_owned(),
-        ),
-        (
-            "schema.render-manifest",
-            "schemas/v2/render-manifest.schema.json".to_owned(),
+            "example.agent-v4.source-intake-commit",
+            "examples/agent-v4/source-intake-commit.json".to_owned(),
         ),
     ];
     resources.extend(agent_skill_resource_paths(host));
@@ -611,10 +550,15 @@ pub fn export_agent_pack(
         });
     }
     let manifest = AgentPackManifest {
-        format: "canisend.agent-pack/v2".to_owned(),
+        format: "canisend.agent-pack/v4".to_owned(),
         product_version: env!("CARGO_PKG_VERSION").to_owned(),
-        protocol: AGENT_PROTOCOL.to_owned(),
-        resource_format: RESOURCE_FORMAT.to_owned(),
+        protocol: AGENT_V4_PROTOCOL.to_owned(),
+        workspace_format: WORKSPACE_V4_FORMAT.to_owned(),
+        resource_format: AGENT_HOST_RESOURCE_FORMAT.to_owned(),
+        task_resource_model_sha256: get(ResourceId::AgentV4TaskResourceModel)
+            .descriptor
+            .sha256
+            .to_owned(),
         host,
         files,
     };
@@ -636,11 +580,12 @@ pub fn install_agent_skills(
 ) -> Result<AgentSkillsInstallData, ResourceError> {
     verify().map_err(ResourceError::Integrity)?;
     ensure_managed_workspace(workspace)?;
+    ensure_no_unsupported_host_resources(host, workspace)?;
     let resources = agent_skill_resource_paths(host);
     let manifest_relative_path = match host {
-        AgentHost::Codex => ".agents/canisend-skills.json",
-        AgentHost::Claude => ".claude/canisend-skills.json",
-        AgentHost::Generic => "canisend-skills.json",
+        AgentHost::Codex => ".agents/canisend-agent-v4.json",
+        AgentHost::Claude => ".claude/canisend-agent-v4.json",
+        AgentHost::Generic => "canisend-agent-v4.json",
     };
     let manifest_path = workspace.join(manifest_relative_path);
     ensure_managed_parent_chain(workspace, &manifest_path)?;
@@ -726,9 +671,15 @@ pub fn install_agent_skills(
     }
 
     let manifest = AgentSkillsManifest {
-        format: "canisend.agent-skills/v1".to_owned(),
+        format: AGENT_HOST_RESOURCE_FORMAT.to_owned(),
         product_version: env!("CARGO_PKG_VERSION").to_owned(),
-        resource_format: RESOURCE_FORMAT.to_owned(),
+        protocol: AGENT_V4_PROTOCOL.to_owned(),
+        workspace_format: WORKSPACE_V4_FORMAT.to_owned(),
+        resource_format: AGENT_HOST_RESOURCE_FORMAT.to_owned(),
+        task_resource_model_sha256: get(ResourceId::AgentV4TaskResourceModel)
+            .descriptor
+            .sha256
+            .to_owned(),
         host,
         files: files.clone(),
     };
@@ -767,6 +718,7 @@ pub fn inspect_agent_skills(
 ) -> Result<AgentSkillsStatusData, ResourceError> {
     verify().map_err(ResourceError::Integrity)?;
     ensure_managed_workspace(workspace)?;
+    ensure_no_unsupported_host_resources(host, workspace)?;
     let resources = agent_skill_resource_paths(host);
     let (directory, manifest_path) = agent_skills_paths(host, workspace);
     ensure_managed_parent_chain(workspace, &manifest_path)?;
@@ -786,7 +738,12 @@ pub fn inspect_agent_skills(
         .as_ref()
         .map(|manifest| manifest.product_version.clone());
     let version_changed = existing.as_ref().is_some_and(|manifest| {
-        manifest.product_version != bundled_version || manifest.resource_format != RESOURCE_FORMAT
+        manifest.product_version != bundled_version
+            || manifest.protocol != AGENT_V4_PROTOCOL
+            || manifest.workspace_format != WORKSPACE_V4_FORMAT
+            || manifest.resource_format != AGENT_HOST_RESOURCE_FORMAT
+            || manifest.task_resource_model_sha256
+                != get(ResourceId::AgentV4TaskResourceModel).descriptor.sha256
     });
     let expected_files = resources
         .iter()
@@ -988,24 +945,24 @@ pub fn uninstall_agent_skills(
 
 const AGENT_SKILLS: [(&str, &str, &str); 4] = [
     (
-        "canisend-application",
-        "skill.canisend-application",
-        "skill.canisend-application.openai",
+        "canisend-workspace",
+        "skill.canisend-workspace",
+        "skill.canisend-workspace.openai",
     ),
     (
-        "canisend-job-intake",
-        "skill.canisend-job-intake",
-        "skill.canisend-job-intake.openai",
+        "canisend-intake",
+        "skill.canisend-intake",
+        "skill.canisend-intake.openai",
     ),
     (
-        "canisend-application-materials",
-        "skill.canisend-application-materials",
-        "skill.canisend-application-materials.openai",
+        "canisend-materials",
+        "skill.canisend-materials",
+        "skill.canisend-materials.openai",
     ),
     (
-        "canisend-application-review",
-        "skill.canisend-application-review",
-        "skill.canisend-application-review.openai",
+        "canisend-review-export",
+        "skill.canisend-review-export",
+        "skill.canisend-review-export.openai",
     ),
 ];
 
@@ -1029,17 +986,46 @@ fn agent_skills_paths(host: AgentHost, workspace: &Path) -> (PathBuf, PathBuf) {
     match host {
         AgentHost::Codex => (
             workspace.join(".agents/skills"),
-            workspace.join(".agents/canisend-skills.json"),
+            workspace.join(".agents/canisend-agent-v4.json"),
         ),
         AgentHost::Claude => (
             workspace.join(".claude/skills"),
-            workspace.join(".claude/canisend-skills.json"),
+            workspace.join(".claude/canisend-agent-v4.json"),
         ),
         AgentHost::Generic => (
             workspace.join("skills"),
-            workspace.join("canisend-skills.json"),
+            workspace.join("canisend-agent-v4.json"),
         ),
     }
+}
+
+fn ensure_no_unsupported_host_resources(
+    host: AgentHost,
+    workspace: &Path,
+) -> Result<(), ResourceError> {
+    let (host_root, old_manifest) = match host {
+        AgentHost::Codex => (workspace.join(".agents"), "canisend-skills.json"),
+        AgentHost::Claude => (workspace.join(".claude"), "canisend-skills.json"),
+        AgentHost::Generic => (workspace.to_path_buf(), "canisend-skills.json"),
+    };
+    let old_skill_root = match host {
+        AgentHost::Codex | AgentHost::Claude => host_root.join("skills"),
+        AgentHost::Generic => workspace.join("skills"),
+    };
+    let unsupported = [
+        host_root.join(old_manifest),
+        old_skill_root.join("canisend-application"),
+        old_skill_root.join("canisend-job-intake"),
+        old_skill_root.join("canisend-application-materials"),
+        old_skill_root.join("canisend-application-review"),
+    ];
+    if let Some(path) = unsupported
+        .into_iter()
+        .find(|path| fs::symlink_metadata(path).is_ok())
+    {
+        return Err(ResourceError::UnsupportedHostResources(path));
+    }
+    Ok(())
 }
 
 fn skill_id_for_resource(resource_id: &str) -> Result<&'static str, ResourceError> {
@@ -1163,7 +1149,12 @@ fn read_agent_skills_manifest(
     })?;
     let manifest: AgentSkillsManifest = serde_json::from_slice(&bytes)
         .map_err(|_| ResourceError::UnsafeExportPath(manifest_path.to_path_buf()))?;
-    if manifest.format != "canisend.agent-skills/v1" || manifest.host != host {
+    if manifest.format != AGENT_HOST_RESOURCE_FORMAT
+        || manifest.protocol != AGENT_V4_PROTOCOL
+        || manifest.workspace_format != WORKSPACE_V4_FORMAT
+        || manifest.resource_format != AGENT_HOST_RESOURCE_FORMAT
+        || manifest.host != host
+    {
         return Err(ResourceError::UnsafeExportPath(manifest_path.to_path_buf()));
     }
     let mut paths = BTreeSet::new();

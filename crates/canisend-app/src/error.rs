@@ -147,6 +147,13 @@ fn classify_resource(error: &ResourceError) -> Classification {
         | ResourceError::UnmanagedSkillFiles(_) => {
             ("invalid", ErrorCode::InputPathRejected, false, None, None)
         }
+        ResourceError::UnsupportedHostResources(_) => (
+            "unsupported",
+            ErrorCode::CompatibilityUnavailable,
+            false,
+            None,
+            None,
+        ),
         ResourceError::ExportIo { .. } => {
             ("io-failed", ErrorCode::ExternalIoFailed, true, None, None)
         }
