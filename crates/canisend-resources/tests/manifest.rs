@@ -1,4 +1,4 @@
-use std::{fs, str::FromStr};
+use std::{collections::BTreeMap, fs, str::FromStr};
 
 use canisend_contracts::{
     AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, AGENT_V4_TASK_MODEL_FORMAT, AgentCommitRequestV4,
@@ -6,12 +6,12 @@ use canisend_contracts::{
     OperationRegistryV4, SemanticValidate, validate_external_candidate,
 };
 use canisend_resources::{
-    ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackManifest, AgentSkillsInstallState,
-    AgentSkillsManifest, AgentSkillsStatusState, AgentSkillsUninstallState,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID, ResourceCatalogManifest, ResourceId, ResourceKind,
-    academic_job_workflow_pack, export_agent_pack, export_all, export_catalog,
-    generic_application_workflow_pack, get, inspect_agent_skills, install_agent_skills, manifest,
-    uninstall_agent_skills, verify,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, AGENT_HOST_RESOURCE_FORMAT, AgentHost, AgentPackManifest,
+    AgentSkillsInstallState, AgentSkillsManifest, AgentSkillsStatusState,
+    AgentSkillsUninstallState, GENERIC_APPLICATION_WORKFLOW_PACK_ID, ResourceCatalogManifest,
+    ResourceId, ResourceKind, academic_job_workflow_pack, export_agent_pack, export_all,
+    export_catalog, generic_application_workflow_pack, get, inspect_agent_skills,
+    install_agent_skills, manifest, uninstall_agent_skills, verify,
 };
 use sha2::{Digest, Sha256};
 
@@ -375,9 +375,15 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
             serde_json::from_slice(&fs::read(&exported.manifest_path).expect("manifest bytes"))
                 .expect("manifest JSON");
         assert_eq!(manifest, exported.manifest);
-        assert_eq!(manifest.format, "canisend.agent-pack/v2");
-        assert_eq!(manifest.protocol, "canisend.agent/v2");
-        let expected_files = if host == AgentHost::Codex { 39 } else { 35 };
+        assert_eq!(manifest.format, "canisend.agent-pack/v4");
+        assert_eq!(manifest.protocol, "canisend.agent/v4");
+        assert_eq!(manifest.workspace_format, "canisend.workspace/v4");
+        assert_eq!(manifest.resource_format, AGENT_HOST_RESOURCE_FORMAT);
+        assert_eq!(
+            manifest.task_resource_model_sha256,
+            get(ResourceId::AgentV4TaskResourceModel).descriptor.sha256
+        );
+        let expected_files = if host == AgentHost::Codex { 20 } else { 16 };
         assert_eq!(manifest.files.len(), expected_files);
         let skill_root = match host {
             AgentHost::Codex => ".agents/skills",
@@ -386,12 +392,12 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
         };
         assert!(
             root.join(skill_root)
-                .join("canisend-application/SKILL.md")
+                .join("canisend-workspace/SKILL.md")
                 .is_file()
         );
         assert_eq!(
             root.join(skill_root)
-                .join("canisend-application/agents/openai.yaml")
+                .join("canisend-workspace/agents/openai.yaml")
                 .is_file(),
             host == AgentHost::Codex
         );
@@ -407,6 +413,97 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
 }
 
 #[test]
+fn agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift() {
+    let model: AgentTaskResourceModelV4 =
+        serde_json::from_slice(get(ResourceId::AgentV4TaskResourceModel).bytes)
+            .expect("Agent v4 task model");
+    let skills = BTreeMap::from([
+        (
+            "canisend-workspace",
+            get(ResourceId::SkillCanisendWorkspace).bytes,
+        ),
+        (
+            "canisend-intake",
+            get(ResourceId::SkillCanisendIntake).bytes,
+        ),
+        (
+            "canisend-materials",
+            get(ResourceId::SkillCanisendMaterials).bytes,
+        ),
+        (
+            "canisend-review-export",
+            get(ResourceId::SkillCanisendReviewExport).bytes,
+        ),
+    ]);
+    let openai_metadata = BTreeMap::from([
+        (
+            "canisend-workspace",
+            get(ResourceId::SkillCanisendWorkspaceOpenai).bytes,
+        ),
+        (
+            "canisend-intake",
+            get(ResourceId::SkillCanisendIntakeOpenai).bytes,
+        ),
+        (
+            "canisend-materials",
+            get(ResourceId::SkillCanisendMaterialsOpenai).bytes,
+        ),
+        (
+            "canisend-review-export",
+            get(ResourceId::SkillCanisendReviewExportOpenai).bytes,
+        ),
+    ]);
+    let expected = BTreeMap::from([
+        (
+            "canisend-workspace",
+            vec![
+                "orientation",
+                "profile-evidence",
+                "application-create",
+                "recovery",
+            ],
+        ),
+        ("canisend-intake", vec!["intake", "requirements"]),
+        ("canisend-materials", vec!["fit-plan", "drafting"]),
+        ("canisend-review-export", vec!["review", "export"]),
+    ]);
+
+    let mut coverage = BTreeMap::<String, usize>::new();
+    for (skill, tasks) in &expected {
+        let body = String::from_utf8_lossy(skills[skill]);
+        let metadata = String::from_utf8_lossy(openai_metadata[skill]);
+        assert!(body.contains("canisend.workspace/v4"));
+        assert!(body.contains("canisend.agent/v4"));
+        assert!(body.contains("orient -> propose -> preview -> approve -> commit -> verify"));
+        assert!(!body.contains("canisend.agent/v2"));
+        assert!(!body.contains("canisend.agent/v3"));
+        assert!(!body.contains("canisend-job-intake"));
+        assert!(!body.contains("canisend-application-materials"));
+        assert!(metadata.contains(&format!("default_prompt: \"Use ${skill} ")));
+        for task in tasks {
+            assert!(body.contains(&format!("`{task}`")), "{skill} omits {task}");
+            *coverage.entry((*task).to_owned()).or_default() += 1;
+        }
+    }
+
+    let canonical_tasks = model
+        .tasks
+        .iter()
+        .map(|task| {
+            serde_json::to_value(task.task)
+                .expect("serialize task")
+                .as_str()
+                .expect("task string")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(coverage.len(), canonical_tasks.len());
+    for task in canonical_tasks {
+        assert_eq!(coverage.get(&task), Some(&1), "task coverage drift: {task}");
+    }
+}
+
+#[test]
 fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     let root =
         std::env::temp_dir().join(format!("canisend-agent-skills-test-{}", std::process::id()));
@@ -417,18 +514,31 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     assert_eq!(installed.state, AgentSkillsInstallState::Installed);
     assert_eq!(installed.files.len(), 8);
     assert!(
-        root.join(".agents/skills/canisend-application/SKILL.md")
+        root.join(".agents/skills/canisend-workspace/SKILL.md")
             .is_file()
     );
     assert!(
-        root.join(".agents/skills/canisend-application/agents/openai.yaml")
+        root.join(".agents/skills/canisend-workspace/agents/openai.yaml")
             .is_file()
+    );
+    assert!(!root.join(".claude").exists());
+    assert!(!root.join(".canisend").exists());
+    let installed_manifest: AgentSkillsManifest = serde_json::from_slice(
+        &fs::read(&installed.manifest_path).expect("installed manifest bytes"),
+    )
+    .expect("installed manifest JSON");
+    assert_eq!(installed_manifest.format, AGENT_HOST_RESOURCE_FORMAT);
+    assert_eq!(installed_manifest.protocol, AGENT_V4_PROTOCOL);
+    assert_eq!(installed_manifest.workspace_format, "canisend.workspace/v4");
+    assert_eq!(
+        installed_manifest.task_resource_model_sha256,
+        get(ResourceId::AgentV4TaskResourceModel).descriptor.sha256
     );
 
     let unchanged = install_agent_skills(AgentHost::Codex, &root).expect("check skills");
     assert_eq!(unchanged.state, AgentSkillsInstallState::UpToDate);
 
-    let managed_path = root.join(".agents/skills/canisend-job-intake/SKILL.md");
+    let managed_path = root.join(".agents/skills/canisend-intake/SKILL.md");
     let old_bytes = b"previous managed skill";
     fs::write(&managed_path, old_bytes).expect("old managed bytes");
     let mut old_manifest: AgentSkillsManifest =
@@ -437,7 +547,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     let entry = old_manifest
         .files
         .iter_mut()
-        .find(|file| file.path.ends_with("canisend-job-intake/SKILL.md"))
+        .find(|file| file.path.ends_with("canisend-intake/SKILL.md"))
         .expect("managed entry");
     entry.sha256 = hex::encode(Sha256::digest(old_bytes));
     fs::write(
@@ -462,7 +572,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     assert!(install_agent_skills(AgentHost::Codex, &root).is_err());
     assert!(uninstall_agent_skills(AgentHost::Codex, &root).is_err());
     assert!(
-        root.join(".agents/skills/canisend-application/SKILL.md")
+        root.join(".agents/skills/canisend-workspace/SKILL.md")
             .is_file(),
         "uninstall preflight must not partially remove earlier managed files"
     );
@@ -478,12 +588,12 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     assert_eq!(claude.files.len(), 4);
     assert!(
         claude_root
-            .join(".claude/skills/canisend-application/SKILL.md")
+            .join(".claude/skills/canisend-workspace/SKILL.md")
             .is_file()
     );
     assert!(
         !claude_root
-            .join(".claude/skills/canisend-application/agents/openai.yaml")
+            .join(".claude/skills/canisend-workspace/agents/openai.yaml")
             .exists()
     );
     let claude_status =
@@ -510,10 +620,10 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     );
 
     let unmanaged_root = root.join("unmanaged-workspace");
-    fs::create_dir_all(unmanaged_root.join("skills/canisend-application"))
+    fs::create_dir_all(unmanaged_root.join("skills/canisend-workspace"))
         .expect("unmanaged skill directory");
     fs::write(
-        unmanaged_root.join("skills/canisend-application/SKILL.md"),
+        unmanaged_root.join("skills/canisend-workspace/SKILL.md"),
         b"unmanaged",
     )
     .expect("unmanaged skill");
@@ -526,6 +636,35 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     assert!(uninstall_agent_skills(AgentHost::Generic, &unmanaged_root).is_err());
 
     fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn pre_v4_host_resources_fail_before_a_clean_install_mutates_files() {
+    let root = std::env::temp_dir().join(format!(
+        "canisend-agent-v4-legacy-refusal-test-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    let old_skill = root.join(".agents/skills/canisend-application/SKILL.md");
+    fs::create_dir_all(old_skill.parent().expect("old skill parent")).expect("old skill directory");
+    fs::write(&old_skill, b"pre-v4 fixture").expect("old skill fixture");
+
+    let status_error = inspect_agent_skills(AgentHost::Codex, &root)
+        .expect_err("pre-v4 status must fail closed")
+        .to_string();
+    assert!(status_error.contains("unsupported pre-v4 host resources"));
+    let install_error = install_agent_skills(AgentHost::Codex, &root)
+        .expect_err("pre-v4 install must fail closed")
+        .to_string();
+    assert!(install_error.contains("clean Agent v4 install"));
+    assert_eq!(
+        fs::read(&old_skill).expect("old fixture preserved"),
+        b"pre-v4 fixture"
+    );
+    assert!(!root.join(".agents/canisend-agent-v4.json").exists());
+    assert!(!root.join(".agents/skills/canisend-workspace").exists());
+
+    fs::remove_dir_all(root).expect("cleanup pre-v4 fixture");
 }
 
 #[cfg(unix)]

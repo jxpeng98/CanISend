@@ -1,0 +1,5 @@
+interface:
+  display_name: "CanISend Workspace"
+  short_description: "Orient, configure, and recover a Workspace v4"
+  brand_color: "#2563EB"
+  default_prompt: "Use $canisend-workspace to inspect this Workspace v4 and continue its next safe task."

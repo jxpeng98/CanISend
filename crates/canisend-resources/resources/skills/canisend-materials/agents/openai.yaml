@@ -1,0 +1,5 @@
+interface:
+  display_name: "CanISend Materials"
+  short_description: "Plan and draft evidence-bound Deliverables"
+  brand_color: "#2563EB"
+  default_prompt: "Use $canisend-materials to plan or draft the next evidence-bound Deliverable."

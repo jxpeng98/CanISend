@@ -1,0 +1,5 @@
+interface:
+  display_name: "CanISend Review and Export"
+  short_description: "Review and export evidence-bound Deliverables"
+  brand_color: "#2563EB"
+  default_prompt: "Use $canisend-review-export to review and export this Application without submitting it."

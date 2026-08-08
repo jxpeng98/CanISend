@@ -201,7 +201,7 @@ impl Application {
 fn recommendation(dossier: &ApplicationDossierReadModel) -> AgentRecommendationReadModel {
     let (skill_id, section, reason) = match dossier.current_stage {
         Some(WorkflowStage::Intake | WorkflowStage::Parse | WorkflowStage::Criteria) => (
-            "canisend-job-intake",
+            "canisend-intake",
             AgentWorkspaceSection::JobCriteria,
             "The application still needs source interpretation or reviewed selection criteria.",
         ),
@@ -211,7 +211,7 @@ fn recommendation(dossier: &ApplicationDossierReadModel) -> AgentRecommendationR
             | WorkflowStage::Plan
             | WorkflowStage::Draft,
         ) => (
-            "canisend-application-materials",
+            "canisend-materials",
             if dossier.current_stage == Some(WorkflowStage::Draft) {
                 AgentWorkspaceSection::Materials
             } else {
@@ -220,12 +220,12 @@ fn recommendation(dossier: &ApplicationDossierReadModel) -> AgentRecommendationR
             "The next bounded work converts confirmed evidence and fit decisions into application materials.",
         ),
         Some(WorkflowStage::Review | WorkflowStage::Package | WorkflowStage::Render) => (
-            "canisend-application-review",
+            "canisend-review-export",
             AgentWorkspaceSection::ReviewExport,
             "The application is in validation, packaging, or export preparation.",
         ),
         None => (
-            "canisend-application",
+            "canisend-workspace",
             AgentWorkspaceSection::Overview,
             "No narrower unfinished workflow stage is available.",
         ),
@@ -494,10 +494,7 @@ mod tests {
 
         let assistance = Application::agent_assistance(&root, job.id.as_str()).expect("assistance");
         assert_eq!(assistance.operation, "agent.assistance");
-        assert_eq!(
-            assistance.data.recommendation.skill_id,
-            "canisend-job-intake"
-        );
+        assert_eq!(assistance.data.recommendation.skill_id, "canisend-intake");
         assert_eq!(assistance.data.proposal_targets.len(), 5);
         assert!(
             !assistance

@@ -1,5 +1,0 @@
-interface:
-  display_name: "CanISend Application Review"
-  short_description: "Review and export an academic application package"
-  brand_color: "#2563EB"
-  default_prompt: "Use $canisend-application-review to review and prepare this CanISend application package for export."

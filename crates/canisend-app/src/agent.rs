@@ -302,7 +302,7 @@ impl Application {
             |assistance| Ok(assistance.context.clone()),
         )?;
         let recommended_skill = assistance.as_ref().map_or_else(
-            || "canisend-application".to_owned(),
+            || "canisend-workspace".to_owned(),
             |assistance| assistance.recommendation.skill_id.clone(),
         );
         let quoted_workspace = shell_quote_path(&workspace)?;
@@ -876,9 +876,9 @@ mod tests {
             handoff
                 .data
                 .start_command
-                .contains("&& codex 'Use $canisend-job-intake")
+                .contains("&& codex 'Use $canisend-intake")
         );
-        assert_eq!(handoff.data.recommended_skill, "canisend-job-intake");
+        assert_eq!(handoff.data.recommended_skill, "canisend-intake");
         assert!(handoff.data.context_command.contains(job.id.as_str()));
         assert!(
             handoff
@@ -908,7 +908,7 @@ mod tests {
         assert_eq!(installed.status, "installed");
         assert_eq!(installed.data.files.len(), 8);
         assert!(
-            root.join(".agents/skills/canisend-application/SKILL.md")
+            root.join(".agents/skills/canisend-workspace/SKILL.md")
                 .is_file()
         );
         let unchanged = Application::install_agent_skills(&AgentSkillsInstallRequest {
@@ -949,7 +949,7 @@ mod tests {
             assert_eq!(exported.data.manifest.host, host);
             assert_eq!(
                 exported.data.manifest.files.len(),
-                if host == AgentHost::Codex { 39 } else { 35 }
+                if host == AgentHost::Codex { 20 } else { 16 }
             );
             let exported_round_trip: ActionReceipt<AgentPackExportReadModel> =
                 serde_json::from_slice(
