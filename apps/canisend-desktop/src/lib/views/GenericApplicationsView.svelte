@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { CheckCircle2, FileCheck2, Plus, RefreshCw, ShieldCheck } from "@lucide/svelte";
+  import {
+    CheckCircle2,
+    FileCheck2,
+    FileUp,
+    Link,
+    Plus,
+    RefreshCw,
+    ShieldCheck,
+  } from "@lucide/svelte";
 
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -12,17 +20,25 @@
   import { Label } from "$lib/components/ui/label/index.js";
   import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Progress } from "$lib/components/ui/progress/index.js";
+  import * as Tabs from "$lib/components/ui/tabs/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import {
     approveGenericApplication,
+    chooseApplicationSource,
     commandErrorMessage,
+    commitApplicationIntakePreview,
     composeGenericApplication,
-    createGenericApplication,
+    discardApplicationIntakePreview,
     exportGenericApplication,
     listGenericApplications,
     planGenericApplication,
+    previewLocalApplicationIntake,
+    previewPastedApplicationIntake,
+    previewUrlApplicationIntake,
     reviewGenericApplication,
     showGenericApplication,
+    type ApplicationIntakeBaseRequestV4,
+    type ApplicationIntakePreviewTokenReadModelV4,
     type ApplicationFieldValueV3,
     type ApplicationFlowDeliverableDraftV3,
     type ApplicationFlowReviewReadModelV3,
@@ -34,7 +50,6 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
-  import { exactUtf8Span } from "$lib/generic-application-form";
 
   type Props = {
     copy: Messages;
@@ -58,9 +73,14 @@
 
   let title = $state("");
   let sourceText = $state("");
-  let requirementStatement = $state("");
   let requirementCategory = $state("");
   let requirementPriority = $state<"mandatory" | "recommended" | "informational">("mandatory");
+  let intakeMode = $state<"pasted" | "local" | "url">("pasted");
+  let localSource = $state("");
+  let sourceUrl = $state("");
+  let privateReadConfirmed = $state(false);
+  let networkFetchConfirmed = $state(false);
+  let intakePreview = $state<ApplicationIntakePreviewTokenReadModelV4 | null>(null);
   let opportunityValues = $state<Record<string, string>>({});
   let applicationValues = $state<Record<string, string>>({});
   let deliverableSelections = $state<Record<string, boolean>>({});
@@ -83,7 +103,17 @@
     const workspace = activeWorkspace.path;
     const collection = `${workspace}\u0000${packId}`;
     if (!workspace || collection === loadedCollection) return;
+    const pendingPreview = intakePreview;
+    if (pendingPreview) {
+      const pendingWorkspace = loadedCollection.split("\u0000", 1)[0] || workspace;
+      void discardApplicationIntakePreview(
+        pendingWorkspace,
+        pendingPreview.preview.data.pack_id,
+        pendingPreview.preview_token,
+      );
+    }
     loadedCollection = collection;
+    intakePreview = null;
     selected = null;
     stages = [];
     review = null;
@@ -216,39 +246,97 @@
     }
   }
 
-  async function submitCreate(): Promise<void> {
-    const statement = requirementStatement.trim();
-    const source = sourceText.trim();
-    const span = exactUtf8Span(source, statement);
-    if (!title.trim() || !source || !statement || !requirementCategory || !span) {
+  function intakeBase(): ApplicationIntakeBaseRequestV4 | null {
+    if (!title.trim() || !requirementCategory) {
+      error = copy.requirementMustMatchSource;
+      return null;
+    }
+    return {
+      pack_id: packId,
+      title: title.trim(),
+      opportunity_metadata: metadata(presentation?.opportunity_fields ?? [], opportunityValues),
+      application_metadata: metadata(presentation?.application_fields ?? [], applicationValues),
+      requirement_category: requirementCategory,
+      requirement_priority: requirementPriority,
+    };
+  }
+
+  async function chooseLocalSource(): Promise<void> {
+    localSource = (await chooseApplicationSource()) ?? localSource;
+  }
+
+  async function submitIntakePreview(): Promise<void> {
+    const base = intakeBase();
+    if (!base) return;
+    if (intakeMode === "pasted" && !sourceText.trim()) {
       error = copy.requirementMustMatchSource;
       return;
     }
+    if (intakeMode === "local" && (!localSource || !privateReadConfirmed)) {
+      error = privateReadConfirmed ? copy.chooseFile : copy.privateReadConsent;
+      return;
+    }
+    if (intakeMode === "url" && (!sourceUrl.trim() || !networkFetchConfirmed)) {
+      error = networkFetchConfirmed ? copy.sourceUrl : copy.networkFetchConsent;
+      return;
+    }
     await run(async () => {
-      const receipt = await createGenericApplication(activeWorkspace.path, packId, {
-        title: title.trim(),
-        opportunity_metadata: metadata(presentation?.opportunity_fields ?? [], opportunityValues),
-        application_metadata: metadata(presentation?.application_fields ?? [], applicationValues),
-        source_text: source,
-        requirements: [
-          {
-            category: requirementCategory,
-            statement,
-            priority: requirementPriority,
-            start_byte: span[0],
-            end_byte: span[1],
-          },
-        ],
-      });
+      if (intakeMode === "pasted") {
+        intakePreview = await previewPastedApplicationIntake(activeWorkspace.path, {
+          ...base,
+          source_text: sourceText,
+        });
+      } else if (intakeMode === "local") {
+        intakePreview = await previewLocalApplicationIntake(
+          activeWorkspace.path,
+          { ...base, path: localSource },
+          privateReadConfirmed,
+        );
+      } else {
+        intakePreview = await previewUrlApplicationIntake(
+          activeWorkspace.path,
+          { ...base, url: sourceUrl.trim() },
+          networkFetchConfirmed,
+        );
+      }
+      notice = intakePreview.preview.summary;
+    });
+  }
+
+  async function commitIntakePreview(): Promise<void> {
+    if (!intakePreview) return;
+    await run(async () => {
+      const receipt = await commitApplicationIntakePreview(
+        activeWorkspace.path,
+        intakePreview!.preview.data.pack_id,
+        intakePreview!.preview_token,
+      );
+      intakePreview = null;
       selected = receipt.data.stored;
       stages = receipt.data.stages;
-      applications = [receipt.data.stored, ...applications];
       notice = receipt.summary;
       title = "";
       sourceText = "";
-      requirementStatement = "";
+      localSource = "";
+      sourceUrl = "";
+      privateReadConfirmed = false;
+      networkFetchConfirmed = false;
       opportunityValues = {};
       applicationValues = {};
+      await refresh(selected.snapshot.application.id);
+    });
+  }
+
+  async function discardIntakePreview(): Promise<void> {
+    if (!intakePreview) return;
+    await run(async () => {
+      await discardApplicationIntakePreview(
+        activeWorkspace.path,
+        intakePreview!.preview.data.pack_id,
+        intakePreview!.preview_token,
+      );
+      intakePreview = null;
+      notice = copy.discardPreview;
     });
   }
 
@@ -442,105 +530,256 @@
           <Card.Title>{copy.createApplication}</Card.Title>
           <Card.Description>{presentation?.pack.id}</Card.Description>
         </Card.Header>
-        <Card.Content>
-          <form
-            class="space-y-4"
-            onsubmit={(event) => {
-              event.preventDefault();
-              submitCreate();
-            }}
-          >
-            <div class="space-y-2">
-              <Label for="generic-title">{copy.genericApplicationTitle}</Label>
-              <Input id="generic-title" bind:value={title} required />
-            </div>
-            {#each presentation?.opportunity_fields ?? [] as field (field.id)}
-              <div class="space-y-2">
-                <Label for={`generic-opportunity-${field.id}`}>{field.label.value}</Label>
-                <Input
-                  id={`generic-opportunity-${field.id}`}
-                  type={fieldInputType(field)}
-                  value={opportunityValues[field.id] ?? ""}
-                  required={field.required}
-                  oninput={(event) => (opportunityValues[field.id] = event.currentTarget.value)}
-                />
-              </div>
-            {/each}
-            {#each presentation?.application_fields ?? [] as field (field.id)}
-              <div class="space-y-2">
-                <Label for={`generic-application-${field.id}`}>{field.label.value}</Label>
-                {#if field.field_type === "choice"}
-                  <NativeSelect.Root
-                    id={`generic-application-${field.id}`}
-                    value={applicationValues[field.id] ?? ""}
-                    onchange={(event) => (applicationValues[field.id] = event.currentTarget.value)}
+        <Card.Content class="space-y-4">
+          {#if intakePreview}
+            <div class="space-y-4" aria-live="polite" aria-atomic="true">
+              <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
                   >
-                    <NativeSelect.Option value="">—</NativeSelect.Option>
-                    {#each field.options as option (option.id)}
-                      <NativeSelect.Option value={option.id}
-                        >{option.label.value}</NativeSelect.Option
+                    <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p class="text-sm font-semibold">{copy.sourcePreviewTitle}</p>
+                    <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                      {intakePreview.preview.summary}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="secondary">{intakePreview.preview.data.source_kind}</Badge>
+              </div>
+
+              <dl class="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2">
+                <div class="min-w-0 space-y-1">
+                  <dt class="text-xs font-medium text-muted-foreground">
+                    {presentation?.vocabulary.requirement_plural}
+                  </dt>
+                  <dd>{intakePreview.preview.data.requirement_count}</dd>
+                </div>
+                <div class="min-w-0 space-y-1">
+                  <dt class="text-xs font-medium text-muted-foreground">
+                    {copy.intakeDuplicateSignal}
+                  </dt>
+                  <dd>{intakePreview.preview.data.duplicate_count}</dd>
+                </div>
+                <div class="min-w-0 space-y-1">
+                  <dt class="text-xs font-medium text-muted-foreground">
+                    {copy.intakeNormalizedText}
+                  </dt>
+                  <dd>
+                    {intakePreview.preview.data.normalized_text_bytes} B ·
+                    {intakePreview.preview.data.normalized_lines}
+                  </dd>
+                </div>
+                <div class="min-w-0 space-y-1">
+                  <dt class="text-xs font-medium text-muted-foreground">
+                    {copy.intakeDetectedType}
+                  </dt>
+                  <dd class="truncate" title={intakePreview.preview.data.content_type}>
+                    {intakePreview.preview.data.content_type}
+                  </dd>
+                </div>
+                {#if intakePreview.preview.data.requested_locator}
+                  <div class="min-w-0 space-y-1 sm:col-span-2">
+                    <dt class="text-xs font-medium text-muted-foreground">
+                      {copy.intakeSourceIdentity}
+                    </dt>
+                    <dd
+                      class="truncate font-mono text-xs"
+                      title={intakePreview.preview.data.final_locator ??
+                        intakePreview.preview.data.requested_locator}
+                    >
+                      {intakePreview.preview.data.final_locator ??
+                        intakePreview.preview.data.requested_locator}
+                    </dd>
+                  </div>
+                {/if}
+                <div class="min-w-0 space-y-1 sm:col-span-2">
+                  <dt class="text-xs font-medium text-muted-foreground">SHA-256</dt>
+                  <dd
+                    class="truncate font-mono text-xs"
+                    title={intakePreview.preview.data.preview_sha256}
+                  >
+                    {intakePreview.preview.data.preview_sha256}
+                  </dd>
+                </div>
+              </dl>
+
+              <Alert.Root>
+                <ShieldCheck size={16} strokeWidth={1.8} aria-hidden="true" />
+                <Alert.Description>
+                  {copy.reviewBeforeCommit} · {copy.submissionBoundary}
+                </Alert.Description>
+              </Alert.Root>
+
+              <div class="flex flex-col gap-2 sm:flex-row">
+                <Button disabled={busy} onclick={commitIntakePreview}>
+                  {busy ? copy.working : copy.commitPreview}
+                </Button>
+                <Button variant="outline" disabled={busy} onclick={discardIntakePreview}>
+                  {copy.discardPreview}
+                </Button>
+              </div>
+            </div>
+          {:else}
+            <form
+              class="space-y-4"
+              onsubmit={(event) => {
+                event.preventDefault();
+                submitIntakePreview();
+              }}
+            >
+              <div class="space-y-2">
+                <Label for="generic-title">{copy.genericApplicationTitle}</Label>
+                <Input id="generic-title" bind:value={title} required />
+              </div>
+              {#each presentation?.opportunity_fields ?? [] as field (field.id)}
+                <div class="space-y-2">
+                  <Label for={`generic-opportunity-${field.id}`}>{field.label.value}</Label>
+                  <Input
+                    id={`generic-opportunity-${field.id}`}
+                    type={fieldInputType(field)}
+                    value={opportunityValues[field.id] ?? ""}
+                    required={field.required}
+                    oninput={(event) => (opportunityValues[field.id] = event.currentTarget.value)}
+                  />
+                </div>
+              {/each}
+              {#each presentation?.application_fields ?? [] as field (field.id)}
+                <div class="space-y-2">
+                  <Label for={`generic-application-${field.id}`}>{field.label.value}</Label>
+                  {#if field.field_type === "choice"}
+                    <NativeSelect.Root
+                      id={`generic-application-${field.id}`}
+                      value={applicationValues[field.id] ?? ""}
+                      onchange={(event) =>
+                        (applicationValues[field.id] = event.currentTarget.value)}
+                    >
+                      <NativeSelect.Option value="">—</NativeSelect.Option>
+                      {#each field.options as option (option.id)}
+                        <NativeSelect.Option value={option.id}
+                          >{option.label.value}</NativeSelect.Option
+                        >
+                      {/each}
+                    </NativeSelect.Root>
+                  {:else if field.field_type === "long-text"}
+                    <Textarea
+                      id={`generic-application-${field.id}`}
+                      value={applicationValues[field.id] ?? ""}
+                      oninput={(event) => (applicationValues[field.id] = event.currentTarget.value)}
+                    />
+                  {:else}
+                    <Input
+                      id={`generic-application-${field.id}`}
+                      type={fieldInputType(field)}
+                      value={applicationValues[field.id] ?? ""}
+                      oninput={(event) => (applicationValues[field.id] = event.currentTarget.value)}
+                    />
+                  {/if}
+                </div>
+              {/each}
+              <Tabs.Root bind:value={intakeMode}>
+                <Tabs.List class="responsive-tabs" data-columns="3" aria-label={copy.sourceIntake}>
+                  <Tabs.Trigger value="pasted">{copy.sourceText}</Tabs.Trigger>
+                  <Tabs.Trigger value="local">
+                    <FileUp size={16} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.localFile}
+                  </Tabs.Trigger>
+                  <Tabs.Trigger value="url">
+                    <Link size={16} strokeWidth={1.8} aria-hidden="true" />
+                    {copy.sourceUrl}
+                  </Tabs.Trigger>
+                </Tabs.List>
+                <Tabs.Content value="pasted" class="space-y-2 pt-4">
+                  <Label for="generic-source">{copy.sourceText}</Label>
+                  <Textarea
+                    id="generic-source"
+                    bind:value={sourceText}
+                    rows={8}
+                    aria-describedby="generic-source-help"
+                    required={intakeMode === "pasted"}
+                  />
+                  <p id="generic-source-help" class="text-xs text-muted-foreground">
+                    {copy.applicationIntakeSourceHelp}
+                  </p>
+                </Tabs.Content>
+                <Tabs.Content value="local" class="space-y-4 pt-4">
+                  <div class="space-y-2">
+                    <Label for="generic-local-source">{copy.sourceFile}</Label>
+                    <div class="flex flex-col gap-2 sm:flex-row">
+                      <Input id="generic-local-source" bind:value={localSource} readonly />
+                      <Button type="button" variant="outline" onclick={chooseLocalSource}>
+                        {copy.chooseFile}
+                      </Button>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                    <Checkbox
+                      id="generic-private-read-consent"
+                      bind:checked={privateReadConfirmed}
+                      class="mt-0.5"
+                    />
+                    <Label for="generic-private-read-consent" class="text-xs leading-5 font-normal">
+                      {copy.privateReadConsent}
+                    </Label>
+                  </div>
+                </Tabs.Content>
+                <Tabs.Content value="url" class="space-y-4 pt-4">
+                  <div class="space-y-2">
+                    <Label for="generic-source-url">{copy.sourceUrl}</Label>
+                    <Input
+                      id="generic-source-url"
+                      type="url"
+                      bind:value={sourceUrl}
+                      placeholder={copy.sourceUrlPlaceholder}
+                      autocomplete="url"
+                    />
+                  </div>
+                  <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                    <Checkbox
+                      id="generic-network-fetch-consent"
+                      bind:checked={networkFetchConfirmed}
+                      class="mt-0.5"
+                    />
+                    <Label
+                      for="generic-network-fetch-consent"
+                      class="text-xs leading-5 font-normal"
+                    >
+                      {copy.networkFetchConsent}
+                    </Label>
+                  </div>
+                </Tabs.Content>
+              </Tabs.Root>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div class="space-y-2">
+                  <Label for="generic-category">{copy.requirementCategory}</Label>
+                  <NativeSelect.Root id="generic-category" bind:value={requirementCategory}>
+                    {#each presentation?.requirement_categories ?? [] as category (category.id)}
+                      <NativeSelect.Option value={category.id}
+                        >{category.label.value}</NativeSelect.Option
                       >
                     {/each}
                   </NativeSelect.Root>
-                {:else if field.field_type === "long-text"}
-                  <Textarea
-                    id={`generic-application-${field.id}`}
-                    value={applicationValues[field.id] ?? ""}
-                    oninput={(event) => (applicationValues[field.id] = event.currentTarget.value)}
-                  />
-                {:else}
-                  <Input
-                    id={`generic-application-${field.id}`}
-                    type={fieldInputType(field)}
-                    value={applicationValues[field.id] ?? ""}
-                    oninput={(event) => (applicationValues[field.id] = event.currentTarget.value)}
-                  />
-                {/if}
-              </div>
-            {/each}
-            <div class="space-y-2">
-              <Label for="generic-source">{copy.sourceText}</Label>
-              <Textarea id="generic-source" bind:value={sourceText} rows={6} required />
-            </div>
-            <div class="space-y-2">
-              <Label for="generic-requirement">{copy.requirementStatement}</Label>
-              <Textarea
-                id="generic-requirement"
-                bind:value={requirementStatement}
-                aria-describedby="generic-requirement-help"
-                required
-              />
-              <p id="generic-requirement-help" class="text-xs text-muted-foreground">
-                {copy.requirementMustMatchSource}
-              </p>
-            </div>
-            <div class="grid gap-4 sm:grid-cols-2">
-              <div class="space-y-2">
-                <Label for="generic-category">{copy.requirementCategory}</Label>
-                <NativeSelect.Root id="generic-category" bind:value={requirementCategory}>
-                  {#each presentation?.requirement_categories ?? [] as category (category.id)}
-                    <NativeSelect.Option value={category.id}
-                      >{category.label.value}</NativeSelect.Option
+                </div>
+                <div class="space-y-2">
+                  <Label for="generic-priority">{copy.priority}</Label>
+                  <NativeSelect.Root id="generic-priority" bind:value={requirementPriority}>
+                    <NativeSelect.Option value="mandatory">{copy.mandatory}</NativeSelect.Option>
+                    <NativeSelect.Option value="recommended">{copy.recommended}</NativeSelect.Option
                     >
-                  {/each}
-                </NativeSelect.Root>
+                    <NativeSelect.Option value="informational"
+                      >{copy.informational}</NativeSelect.Option
+                    >
+                  </NativeSelect.Root>
+                </div>
               </div>
-              <div class="space-y-2">
-                <Label for="generic-priority">{copy.priority}</Label>
-                <NativeSelect.Root id="generic-priority" bind:value={requirementPriority}>
-                  <NativeSelect.Option value="mandatory">{copy.mandatory}</NativeSelect.Option>
-                  <NativeSelect.Option value="recommended">{copy.recommended}</NativeSelect.Option>
-                  <NativeSelect.Option value="informational"
-                    >{copy.informational}</NativeSelect.Option
-                  >
-                </NativeSelect.Root>
-              </div>
-            </div>
-            <Button type="submit" disabled={!desktopRuntime || busy || !presentation}>
-              <Plus size={17} strokeWidth={1.8} aria-hidden="true" />
-              {busy ? copy.working : copy.createApplication}
-            </Button>
-          </form>
+              <Button type="submit" disabled={!desktopRuntime || busy || !presentation}>
+                <Plus size={17} strokeWidth={1.8} aria-hidden="true" />
+                {busy ? copy.working : copy.reviewBeforeCommit}
+              </Button>
+            </form>
+          {/if}
         </Card.Content>
       </Card.Root>
     </div>

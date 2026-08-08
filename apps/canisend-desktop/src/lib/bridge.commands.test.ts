@@ -18,6 +18,7 @@ import {
   beginWorkflowStage,
   approveGenericApplication,
   cancelAgentTurn,
+  commitApplicationIntakePreview,
   commitJobSourcePreview,
   confirmPlan,
   configureCliPath,
@@ -41,10 +42,12 @@ import {
   prepareAgentHandoff,
   prepareAgentMcpConfiguration,
   previewDiscoveryFile,
+  previewLocalApplicationIntake,
   previewLocalJobSource,
   previewWorkspaceV3Migration,
   previewRender,
   previewUrlJobSource,
+  previewUrlApplicationIntake,
   runAgentTurn,
   searchContent,
   uninstallAgentSkills,
@@ -179,6 +182,54 @@ describe("typed Tauri command requests", () => {
         workspace: "/tmp/workspace",
         application_id: "application-id",
         expected_revision: 3,
+      },
+    });
+  });
+
+  it("uses body-free reviewed tokens for pack-bound Application intake", async () => {
+    const base = {
+      pack_id: GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+      title: "Connected application",
+      opportunity_metadata: {},
+      application_metadata: {},
+      requirement_category: "format",
+      requirement_priority: "mandatory" as const,
+    };
+    await previewLocalApplicationIntake(
+      "/tmp/workspace",
+      { ...base, path: "/tmp/source.pdf" },
+      true,
+    );
+    await previewUrlApplicationIntake(
+      "/tmp/workspace",
+      { ...base, url: "https://example.com/source" },
+      true,
+    );
+    await commitApplicationIntakePreview(
+      "/tmp/workspace",
+      GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+      "application-intake-preview-123",
+    );
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "preview_local_application_intake", {
+      request: {
+        workspace: "/tmp/workspace",
+        preview: { ...base, path: "/tmp/source.pdf" },
+        confirmed_private_read: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "preview_url_application_intake", {
+      request: {
+        workspace: "/tmp/workspace",
+        preview: { ...base, url: "https://example.com/source" },
+        confirmed_network_fetch: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "commit_application_intake_preview", {
+      request: {
+        workspace: "/tmp/workspace",
+        pack_id: GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        preview_token: "application-intake-preview-123",
       },
     });
   });

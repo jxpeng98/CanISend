@@ -7,7 +7,8 @@ use std::{
 };
 
 use canisend_contracts::{
-    ApplicationPackBindingV3, EntityId, Revision, Sha256Digest, WorkflowPackManifest,
+    ApplicationPackBindingV3, EntityId, Revision, Sha256Digest, WorkflowPackId,
+    WorkflowPackManifest,
 };
 use canisend_store::StoreError;
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,7 @@ const APPROVAL_TOKEN_GENERATION_ATTEMPTS: usize = 16;
 #[serde(rename_all = "kebab-case")]
 pub enum ApprovalKind {
     ApplicationApproval,
+    ApplicationIntake,
     DiscoveryImport,
     DiscoveryRefresh,
     JobIntake,
@@ -55,6 +57,27 @@ pub struct ApprovalScope {
 }
 
 impl ApprovalScope {
+    pub fn for_workspace_pack(
+        workspace: &Path,
+        pack_id: &WorkflowPackId,
+    ) -> Result<Self, ApplicationError> {
+        let status = Application::workspace_status_v4(workspace)?.data;
+        let pack = match pack_id.as_str() {
+            crate::ACADEMIC_JOB_WORKFLOW_PACK_ID => built_in_academic_job_pack()?,
+            crate::GENERIC_APPLICATION_WORKFLOW_PACK_ID => built_in_generic_application_pack()?,
+            unknown => {
+                return Err(ApplicationError::InvalidInput(format!(
+                    "approval scope cannot resolve unknown workflow Pack {unknown}"
+                )));
+            }
+        };
+        Ok(Self {
+            workspace: status.path,
+            workspace_id: status.status.workspace_id,
+            pack: pack_binding(pack.manifest()),
+        })
+    }
+
     pub fn for_workspace(workspace: &Path) -> Result<Self, ApplicationError> {
         let status = Application::workspace_status(workspace)?.data;
         let pack = match status.pack_id.as_str() {

@@ -6,6 +6,7 @@ use canisend_app::{
 };
 use canisend_contracts::{DiscoveryImportReport, TaskCompletionRequest};
 
+use crate::application_intake::PreparedApplicationIntakeV4;
 use crate::commands::DesktopCommandError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +17,7 @@ pub(crate) enum DesktopDiscoveryKind {
 
 #[derive(Debug, Clone)]
 pub(crate) enum DesktopPendingApproval {
+    ApplicationIntake(Box<PreparedApplicationIntakeV4>),
     Discovery {
         workspace: PathBuf,
         kind: DesktopDiscoveryKind,
