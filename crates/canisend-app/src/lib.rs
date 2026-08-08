@@ -62,9 +62,9 @@ pub use application::{
 pub use application_flow_v3::{
     APPLICATION_FLOW_EXPORT_FORMAT_V3, ApplicationFlowApproveRequestV3,
     ApplicationFlowCommitReadModelV3, ApplicationFlowComposeRequestV3,
-    ApplicationFlowCreateRequestV3, ApplicationFlowDeliverableDraftV3,
-    ApplicationFlowExportManifestV3, ApplicationFlowExportReadModelV3,
-    ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
+    ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4,
+    ApplicationFlowDeliverableDraftV3, ApplicationFlowExportManifestV3,
+    ApplicationFlowExportReadModelV3, ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
     ApplicationFlowPlannedDeliverableV3, ApplicationFlowReadModelV3,
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
     ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3,

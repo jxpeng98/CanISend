@@ -2,7 +2,7 @@ use std::path::Path;
 
 use canisend_contracts::{
     ApplicationId, ApplicationPackBindingV3, NextAction, Revision, SafeRelativePath,
-    WORKSPACE_V3_FORMAT,
+    WORKSPACE_V3_FORMAT, WorkflowPackId,
 };
 use canisend_core::VerifiedWorkflowPackBundle;
 use canisend_store::ApplicationFlowServiceV3;
@@ -33,6 +33,13 @@ pub struct ApplicationFlowExportRequestV3 {
     pub destination: SafeRelativePath,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationFlowCreateRequestV4 {
+    pub pack_id: WorkflowPackId,
+    pub application: ApplicationFlowCreateRequestV3,
+}
+
 impl ApplicationFlowExportRequestV3 {
     pub fn try_new(
         application_id: &str,
@@ -50,6 +57,25 @@ impl ApplicationFlowExportRequestV3 {
 }
 
 impl Application {
+    pub fn create_application_flow_v4(
+        workspace_root: &Path,
+        request: ApplicationFlowCreateRequestV4,
+    ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, ApplicationError> {
+        Self::workspace_status_v4(workspace_root)?;
+        let pack = requested_built_in_pack(&request.pack_id)?;
+        let mut workspace = open_workspace(workspace_root)?;
+        let root = workspace.paths.root.clone();
+        let result =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .create(&pack, request.application)?;
+        Ok(ActionReceipt::new(
+            "application.create",
+            "created",
+            "Created an Application with an exact Application-level Pack binding",
+            result,
+        ))
+    }
+
     pub fn application_flow_v3(
         workspace_root: &Path,
         application_id: &str,
@@ -333,6 +359,18 @@ fn resolve_exact_pack(
         })
 }
 
+fn requested_built_in_pack(
+    pack_id: &WorkflowPackId,
+) -> Result<VerifiedWorkflowPackBundle, ApplicationError> {
+    match pack_id.as_str() {
+        crate::ACADEMIC_JOB_WORKFLOW_PACK_ID => built_in_academic_job_pack(),
+        crate::GENERIC_APPLICATION_WORKFLOW_PACK_ID => built_in_generic_application_pack(),
+        _ => Err(ApplicationError::InvalidInput(format!(
+            "unknown built-in workflow Pack: {pack_id}"
+        ))),
+    }
+}
+
 fn parse_application_id(value: &str) -> Result<ApplicationId, ApplicationError> {
     ApplicationId::try_new(value)
         .map_err(|error| ApplicationError::InvalidEntityId(error.to_string()))
@@ -578,6 +616,121 @@ mod tests {
                 .data
                 .len(),
             4
+        );
+
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn workspace_v4_creates_both_built_in_application_flows() {
+        let root = temporary_root("v4-mixed-pack");
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
+
+        let generic_source = "Applicants must provide a project narrative.";
+        let generic = Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new(crate::GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+                    .expect("generic Pack ID"),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: "Synthetic community project".to_owned(),
+                    opportunity_metadata: BTreeMap::from([
+                        (
+                            item("organization"),
+                            ApplicationFieldValueV3::ShortText("Example Foundation".to_owned()),
+                        ),
+                        (
+                            item("reference"),
+                            ApplicationFieldValueV3::ShortText("SYN-V4-001".to_owned()),
+                        ),
+                    ]),
+                    application_metadata: BTreeMap::from([(
+                        item("status"),
+                        ApplicationFieldValueV3::Choice(item("planning")),
+                    )]),
+                    source_text: generic_source.to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: item("format"),
+                        statement: generic_source.to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: u64::try_from(generic_source.len()).expect("source length"),
+                    }],
+                },
+            },
+        )
+        .expect("generic v4 Application");
+
+        let academic_source = "Applicants must submit a cover letter and academic CV.";
+        let academic = Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new(crate::ACADEMIC_JOB_WORKFLOW_PACK_ID)
+                    .expect("academic Pack ID"),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: "Synthetic academic opportunity".to_owned(),
+                    opportunity_metadata: BTreeMap::from([(
+                        item("institution"),
+                        ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                    )]),
+                    application_metadata: BTreeMap::new(),
+                    source_text: academic_source.to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: item("qualification"),
+                        statement: academic_source.to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: u64::try_from(academic_source.len()).expect("source length"),
+                    }],
+                },
+            },
+        )
+        .expect("academic v4 Application");
+
+        assert_eq!(
+            generic.data.stored.snapshot.pack.id.as_str(),
+            crate::GENERIC_APPLICATION_WORKFLOW_PACK_ID
+        );
+        assert_eq!(
+            academic.data.stored.snapshot.pack.id.as_str(),
+            crate::ACADEMIC_JOB_WORKFLOW_PACK_ID
+        );
+        let applications = Application::list_application_models_v3(&root)
+            .expect("mixed Application collection")
+            .data;
+        assert_eq!(applications.len(), 2);
+        assert_eq!(
+            Application::workspace_status_v4(&root)
+                .expect("v4 status")
+                .data
+                .status
+                .application_count,
+            2
+        );
+
+        let unknown_pack = Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new("org.example.unavailable")
+                    .expect("synthetic Pack ID"),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: "Must not be created".to_owned(),
+                    opportunity_metadata: BTreeMap::new(),
+                    application_metadata: BTreeMap::new(),
+                    source_text: "No mutation.".to_owned(),
+                    requirements: Vec::new(),
+                },
+            },
+        )
+        .expect_err("unknown Pack must fail before Application mutation");
+        assert!(matches!(unknown_pack, ApplicationError::InvalidInput(_)));
+        assert_eq!(
+            Application::workspace_status_v4(&root)
+                .expect("unchanged v4 status")
+                .data
+                .status
+                .application_count,
+            2
         );
 
         fs::remove_dir_all(root).expect("remove fixture");
