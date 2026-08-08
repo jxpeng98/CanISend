@@ -6,9 +6,9 @@ use canisend_app::{
     ContentCatalogFilter, ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest,
     DoctorSummary, JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
     ProductSummary, SourceImportReadModel, WorkflowPackPresentationLocale,
-    WorkflowPackPresentationReadModel, WorkspaceHealthReadModel, WorkspaceReadModel,
-    WorkspaceRegistry, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
-    WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
+    WorkflowPackPresentationReadModel, WorkspaceHealthReadModel, WorkspaceRegistry,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel, WorkspaceV3MigrationPreview,
+    WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest, WorkspaceV4ReadModel,
     default_registry_path, validate_workspace_alias,
 };
 use canisend_contracts::{JobRecord, Sha256Digest};
@@ -109,8 +109,6 @@ pub(crate) struct RegisteredAction<T> {
 pub(crate) struct WorkspaceCreateRequest {
     alias: String,
     path: PathBuf,
-    #[serde(default)]
-    pack_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -255,16 +253,10 @@ fn save_registry(
 fn create_workspace_impl(
     registry_path: &Path,
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
     validate_workspace_alias(request.alias.trim()).map_err(DesktopCommandError::registry)?;
-    let action = Application::initialize_workspace_for_pack(
-        &request.path,
-        request
-            .pack_id
-            .as_deref()
-            .unwrap_or(ACADEMIC_JOB_WORKFLOW_PACK_ID),
-    )
-    .map_err(DesktopCommandError::application)?;
+    let action = Application::initialize_workspace_v4(&request.path)
+        .map_err(DesktopCommandError::application)?;
     let mut registry =
         WorkspaceRegistry::load(registry_path).map_err(DesktopCommandError::registry)?;
     registry
@@ -277,10 +269,10 @@ fn create_workspace_impl(
 fn connect_workspace_impl(
     registry_path: &Path,
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
     validate_workspace_alias(request.alias.trim()).map_err(DesktopCommandError::registry)?;
-    let action =
-        Application::workspace_status(&request.path).map_err(DesktopCommandError::application)?;
+    let action = Application::workspace_status_v4(&request.path)
+        .map_err(DesktopCommandError::application)?;
     let mut registry =
         WorkspaceRegistry::load(registry_path).map_err(DesktopCommandError::registry)?;
     registry
@@ -293,9 +285,9 @@ fn connect_workspace_impl(
 fn select_workspace_impl(
     registry_path: &Path,
     request: WorkspacePathRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
-    let action =
-        Application::workspace_status(&request.path).map_err(DesktopCommandError::application)?;
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
+    let action = Application::workspace_status_v4(&request.path)
+        .map_err(DesktopCommandError::application)?;
     let mut registry =
         WorkspaceRegistry::load(registry_path).map_err(DesktopCommandError::registry)?;
     registry
@@ -460,21 +452,21 @@ pub(crate) async fn list_workspaces() -> Result<RegistrySnapshot, DesktopCommand
 #[tauri::command]
 pub(crate) async fn create_workspace(
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
     run_worker(move || create_workspace_impl(&default_registry_path(), request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn connect_workspace(
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
     run_worker(move || connect_workspace_impl(&default_registry_path(), request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn select_workspace(
     request: WorkspacePathRequest,
-) -> Result<RegisteredAction<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
     run_worker(move || select_workspace_impl(&default_registry_path(), request)).await
 }
 
@@ -488,9 +480,9 @@ pub(crate) async fn remove_workspace(
 #[tauri::command]
 pub(crate) async fn workspace_status(
     request: WorkspacePathRequest,
-) -> Result<ActionReceipt<WorkspaceReadModel>, DesktopCommandError> {
+) -> Result<ActionReceipt<WorkspaceV4ReadModel>, DesktopCommandError> {
     run_worker(move || {
-        Application::workspace_status(&request.path).map_err(DesktopCommandError::application)
+        Application::workspace_status_v4(&request.path).map_err(DesktopCommandError::application)
     })
     .await
 }
@@ -707,9 +699,9 @@ mod tests {
     }
 
     #[test]
-    fn desktop_pack_selection_creates_v3_and_resolves_generic_labels() {
-        let root = temporary_root("generic-workspace");
-        let registry_path = temporary_root("generic-registry").join("workspaces.json");
+    fn desktop_creates_neutral_workspace_v4_and_resolves_both_pack_presentations() {
+        let root = temporary_root("neutral-workspace");
+        let registry_path = temporary_root("neutral-registry").join("workspaces.json");
         let presentation = workflow_pack_presentation_impl(WorkflowPackPresentationRequest {
             locale: WorkflowPackPresentationLocale::English,
             pack_id: Some(canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned()),
@@ -724,34 +716,24 @@ mod tests {
         let created = create_workspace_impl(
             &registry_path,
             WorkspaceCreateRequest {
-                alias: "Generic applications".to_owned(),
+                alias: "Mixed applications".to_owned(),
                 path: root.clone(),
-                pack_id: Some(canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID.to_owned()),
             },
         )
-        .expect("generic v3 Workspace");
+        .expect("neutral Workspace v4");
         assert_eq!(
             created.action.data.status.workspace_format,
-            "canisend.workspace/v3"
+            canisend_contracts::WORKSPACE_V4_FORMAT
         );
-        let before = Application::workspace_status(&root)
-            .expect("generic status before compatibility command")
-            .data
-            .status;
-        assert!(
-            create_job_impl(JobCreateRequest {
-                workspace: root.clone(),
-                title: "Wrong Pack job".to_owned(),
-                institution: "Must not persist".to_owned(),
-            })
-            .is_err()
-        );
+        assert_eq!(created.action.data.status.application_count, 0);
+        let academic = workflow_pack_presentation_impl(WorkflowPackPresentationRequest {
+            locale: WorkflowPackPresentationLocale::English,
+            pack_id: Some(canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID.to_owned()),
+        })
+        .expect("academic Pack presentation");
         assert_eq!(
-            Application::workspace_status(&root)
-                .expect("generic status after compatibility command")
-                .data
-                .status,
-            before
+            academic.data.pack.id.as_str(),
+            canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID
         );
 
         fs::remove_dir_all(root).expect("remove Workspace");
@@ -774,87 +756,37 @@ mod tests {
     }
 
     #[test]
-    fn shared_registry_and_job_commands_cover_the_local_ts2_slice() {
+    fn shared_registry_commands_create_and_reopen_neutral_workspace_v4() {
         let root = temporary_root("workspace");
         let registry_path = temporary_root("registry").join("workspaces.json");
-        let source = temporary_root("advert").with_extension("txt");
-        fs::write(&source, "Lecturer in Economics").expect("write source fixture");
 
         let created = create_workspace_impl(
             &registry_path,
             WorkspaceCreateRequest {
-                alias: "Academic applications".to_owned(),
+                alias: "Mixed applications".to_owned(),
                 path: root.clone(),
-                pack_id: None,
             },
         )
         .expect("create registered workspace");
         assert_eq!(created.registry.registry.entries.len(), 1);
 
-        let job = create_job_impl(JobCreateRequest {
-            workspace: root.clone(),
-            title: "Lecturer".to_owned(),
-            institution: "University".to_owned(),
-        })
-        .expect("create job")
-        .data;
-        let imported = import_local_job_source_impl(LocalSourceImportRequest {
-            workspace: root.clone(),
-            job_id: job.id.to_string(),
-            source: source.clone(),
-            confirmed_private_read: true,
-        })
-        .expect("import local source");
-        assert_eq!(imported.data.job.source_ids.len(), 1);
-        let shown = show_job_impl(JobRequest {
-            workspace: root.clone(),
-            job_id: job.id.to_string(),
-        })
-        .expect("show job");
-        assert_eq!(shown.data.job.id, job.id);
-        let listed = list_jobs_impl(JobListRequest {
-            workspace: root.clone(),
-            include_archived: false,
-        })
-        .expect("list jobs");
-        assert_eq!(listed.data.jobs.len(), 1);
-        let dossier = application_dossier_impl(JobRequest {
-            workspace: root.clone(),
-            job_id: job.id.to_string(),
-        })
-        .expect("application dossier");
-        assert_eq!(dossier.data.source_count, 1);
-        let dossiers = list_application_dossiers_impl(JobListRequest {
-            workspace: root.clone(),
-            include_archived: false,
-        })
-        .expect("application dossiers");
-        assert_eq!(dossiers.data.applications.len(), 1);
-
         let selected =
             select_workspace_impl(&registry_path, WorkspacePathRequest { path: root.clone() })
                 .expect("select workspace");
-        assert_eq!(selected.action.data.status.job_count, 1);
-        archive_job_impl(JobRequest {
-            workspace: root.clone(),
-            job_id: job.id.to_string(),
-        })
-        .expect("archive job");
-        assert!(
-            list_jobs_impl(JobListRequest {
-                workspace: root.clone(),
-                include_archived: false,
-            })
-            .expect("list active jobs")
-            .data
-            .jobs
-            .is_empty()
+        assert_eq!(
+            selected.action.data.status.workspace_format,
+            canisend_contracts::WORKSPACE_V4_FORMAT
+        );
+        assert_eq!(selected.action.data.status.application_count, 0);
+        let canonical_root = fs::canonicalize(&root).expect("canonical Workspace path");
+        assert_eq!(
+            selected.registry.registry.default_path.as_deref(),
+            Some(canonical_root.as_path())
         );
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_dir_all(registry_path.parent().expect("registry parent"))
             .expect("remove registry");
-        fs::remove_file(source).expect("remove source fixture");
     }
 
     #[test]

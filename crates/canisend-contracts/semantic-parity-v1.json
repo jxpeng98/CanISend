@@ -93,14 +93,14 @@
       "marker": "fn agent_commands_preserve_body_free_shared_contracts()"
     },
     {
-      "id": "academic-tauri-jobs",
+      "id": "neutral-tauri-registry",
       "path": "crates/canisend-desktop/src/commands.rs",
-      "marker": "fn shared_registry_and_job_commands_cover_the_local_ts2_slice()"
+      "marker": "fn shared_registry_commands_create_and_reopen_neutral_workspace_v4()"
     },
     {
-      "id": "academic-tauri-pack-boundary",
+      "id": "mixed-tauri-workspace",
       "path": "crates/canisend-desktop/src/commands.rs",
-      "marker": "fn desktop_pack_selection_creates_v3_and_resolves_generic_labels()"
+      "marker": "fn desktop_creates_neutral_workspace_v4_and_resolves_both_pack_presentations()"
     },
     {
       "id": "academic-tauri-profile",
@@ -240,7 +240,7 @@
       "pack": "academic-job",
       "surface": "tauri",
       "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.create", "job.list", "job.show", "job.intake.commit", "profile.source.list", "task.latest", "task.prepare", "task.inputs", "task.complete.preview", "task.complete", "workflow.status"],
-      "fixtures": ["academic-tauri-agent", "academic-tauri-jobs", "academic-tauri-profile", "academic-tauri-task-workflow", "academic-tauri-job-intake", "academic-tauri-pack-boundary", "academic-v3-tauri-lifecycle", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
+      "fixtures": ["academic-tauri-agent", "neutral-tauri-registry", "academic-tauri-profile", "academic-tauri-task-workflow", "academic-tauri-job-intake", "mixed-tauri-workspace", "academic-v3-tauri-lifecycle", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
     },
     {
       "pack": "academic-job",
@@ -325,7 +325,7 @@
     {
       "id": "academic-application",
       "operations": ["agent.capabilities", "agent.context", "agent-v3.capabilities", "agent-v3.context", "application.list", "application.show", "job.list", "job.show"],
-      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-tauri-agent", "academic-tauri-jobs", "academic-mcp-read", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle"]
+      "fixtures": ["academic-cli-agent", "academic-cli-jobs", "academic-tauri-agent", "neutral-tauri-registry", "academic-mcp-read", "academic-v3-cli-lifecycle", "academic-v3-tauri-lifecycle", "academic-v3-mcp-lifecycle"]
     },
     {
       "id": "evidence-source",

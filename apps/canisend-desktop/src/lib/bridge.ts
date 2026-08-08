@@ -153,7 +153,6 @@ export interface WorkspaceStatus {
 
 export interface WorkspaceReadModel {
   path: string;
-  pack_id: BuiltInWorkflowPackId;
   status: WorkspaceStatus;
 }
 
@@ -1348,10 +1347,9 @@ export async function listWorkspaces(): Promise<RegistrySnapshot> {
 export async function createWorkspace(
   alias: string,
   path: string,
-  packId: BuiltInWorkflowPackId = ACADEMIC_JOB_WORKFLOW_PACK_ID,
 ): Promise<RegisteredAction<WorkspaceReadModel>> {
   return invoke("create_workspace", {
-    request: { alias, path, pack_id: packId },
+    request: { alias, path },
   });
 }
 
@@ -1486,10 +1484,11 @@ export async function showGenericApplication(
 
 export async function createGenericApplication(
   workspace: string,
+  packId: BuiltInWorkflowPackId,
   request: ApplicationFlowCreateRequestV3,
 ): Promise<ActionReceipt<ApplicationFlowReadModelV3>> {
   return invoke("create_generic_application", {
-    request: { workspace, request },
+    request: { workspace, pack_id: packId, request },
   });
 }
 

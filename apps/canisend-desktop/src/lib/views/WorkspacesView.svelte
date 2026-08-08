@@ -26,7 +26,6 @@
   import { Input } from "$lib/components/ui/input/index.js";
   import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import {
@@ -34,9 +33,6 @@
     commandErrorMessage,
     migrateWorkspaceV3,
     previewWorkspaceV3Migration,
-    ACADEMIC_JOB_WORKFLOW_PACK_ID,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID,
-    type BuiltInWorkflowPackId,
     type RegistrySnapshot,
     type WorkspaceHealthReadModel,
     type WorkspaceReadModel,
@@ -54,7 +50,7 @@
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onSelect: (path: string) => Promise<boolean>;
-    onCreate: (alias: string, path: string, packId: BuiltInWorkflowPackId) => Promise<boolean>;
+    onCreate: (alias: string, path: string) => Promise<boolean>;
     onConnect: (alias: string, path: string) => Promise<boolean>;
     onRemove: (path: string) => Promise<boolean>;
     onCheck: () => Promise<boolean>;
@@ -88,7 +84,6 @@
   let restoreOpen = $state(false);
   let createAlias = $state("");
   let createPath = $state("");
-  let createPackId = $state<BuiltInWorkflowPackId>(GENERIC_APPLICATION_WORKFLOW_PACK_ID);
   let connectAlias = $state("");
   let connectPath = $state("");
   let pendingRemove = $state<string | null>(null);
@@ -121,7 +116,7 @@
       formError = copy.pathRequired;
       return;
     }
-    if (await onCreate(createAlias.trim(), createPath, createPackId)) {
+    if (await onCreate(createAlias.trim(), createPath)) {
       createOpen = false;
       createAlias = "";
       createPath = "";
@@ -512,24 +507,9 @@
         <Label for="create-workspace-alias">{copy.workspaceName}</Label>
         <Input id="create-workspace-alias" bind:value={createAlias} autocomplete="off" />
       </div>
-      <div class="space-y-2">
-        <Label for="create-workspace-pack">{copy.workflowPack}</Label>
-        <NativeSelect.Root
-          id="create-workspace-pack"
-          bind:value={createPackId}
-          aria-describedby="create-workspace-pack-description"
-        >
-          <NativeSelect.Option value={GENERIC_APPLICATION_WORKFLOW_PACK_ID}>
-            {copy.genericApplicationPack}
-          </NativeSelect.Option>
-          <NativeSelect.Option value={ACADEMIC_JOB_WORKFLOW_PACK_ID}>
-            {copy.academicJobPack}
-          </NativeSelect.Option>
-        </NativeSelect.Root>
-        <p id="create-workspace-pack-description" class="text-xs text-muted-foreground">
-          {copy.workflowPackDescription}
-        </p>
-      </div>
+      <Alert.Root>
+        <Alert.Description>{copy.workflowPackDescription}</Alert.Description>
+      </Alert.Root>
       <div class="space-y-2">
         <Label for="create-workspace-path">{copy.workspacePath}</Label>
         <div class="flex gap-2">
