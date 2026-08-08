@@ -7,9 +7,10 @@ use rusqlite::{
     Connection, OpenFlags, OptionalExtension, Transaction, TransactionBehavior, params,
 };
 
-use crate::{StoreError, now_utc};
+use crate::{StoreError, application_storage::ApplicationStorage, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 19;
+pub const DATABASE_SCHEMA_VERSION: u32 = 20;
+pub const NATIVE_APPLICATION_V4_SCHEMA_VERSION: u32 = 20;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -35,6 +36,8 @@ const APPLICATION_ASSOCIATIONS_V4_MIGRATION: &str =
     include_str!("../migrations/0018_application_associations_v4.sql");
 const WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION: &str =
     include_str!("../migrations/0019_workspace_source_provenance_v4.sql");
+const NATIVE_APPLICATION_V4_MIGRATION: &str =
+    include_str!("../migrations/0020_native_application_v4.sql");
 
 pub struct Database {
     connection: Connection,
@@ -158,6 +161,11 @@ impl Database {
         if version == 18 {
             let applied_at = now_utc()?;
             self.apply_migration(19, WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION, &applied_at)?;
+            version = 19;
+        }
+        if version == 19 {
+            let applied_at = now_utc()?;
+            self.apply_migration(20, NATIVE_APPLICATION_V4_MIGRATION, &applied_at)?;
         }
         Ok(())
     }
@@ -218,23 +226,6 @@ impl Database {
         Ok(())
     }
 
-    /// Establishes the constrained storage bridge required by the existing Application tables.
-    ///
-    /// Workspace v4 authority remains the `workspace_metadata` row. The legacy-named singleton is
-    /// not exposed as Workspace identity and will be replaced when the Application tables move to
-    /// their v4 schema in M3-MODEL-001.
-    pub fn initialize_workspace_v4_application_storage(
-        &mut self,
-        created_at: &UtcTimestamp,
-    ) -> Result<(), StoreError> {
-        self.connection.execute(
-            "INSERT INTO workspace_v3_authority(singleton, workspace_format, activated_at, reason)
-             VALUES (1, 'canisend.workspace/v3', ?1, 'workspace-v4-storage-bridge')",
-            [created_at.as_str()],
-        )?;
-        Ok(())
-    }
-
     pub fn workspace_identity(&self) -> Result<(EntityId, UtcTimestamp), StoreError> {
         let (id, _, created_at) = self.workspace_identity_with_format()?;
         Ok((id, created_at))
@@ -259,6 +250,7 @@ impl Database {
 
     pub fn status(&self) -> Result<WorkspaceStatusData, StoreError> {
         let (workspace_id, metadata_format, created_at) = self.workspace_identity_with_format()?;
+        let application_storage = ApplicationStorage::detect(&self.connection)?;
         let workspace_format = if metadata_format == WORKSPACE_V4_FORMAT {
             metadata_format
         } else {
@@ -285,7 +277,7 @@ impl Database {
                 .connection
                 .pragma_query_value(None, "journal_mode", |row| row.get(0))?,
             job_count: self.count("jobs")?,
-            application_count: self.count("application_model_v3_heads")?,
+            application_count: self.count(application_storage.heads())?,
             artifact_count: self.count("artifacts")?,
             referenced_blob_count: self.count("blob_references")?,
         })
@@ -295,6 +287,7 @@ impl Database {
         let sql = match table {
             "jobs" => "SELECT COUNT(*) FROM jobs",
             "application_model_v3_heads" => "SELECT COUNT(*) FROM application_model_v3_heads",
+            "application_v4_heads" => "SELECT COUNT(*) FROM application_v4_heads",
             "artifacts" => "SELECT COUNT(*) FROM artifacts",
             "blob_references" => "SELECT COUNT(DISTINCT sha256) FROM blob_references",
             _ => return Err(StoreError::Invariant("unsupported count table".to_owned())),
@@ -331,14 +324,15 @@ impl Database {
     }
 
     pub(crate) fn projection_repairs(&self) -> Result<Vec<String>, StoreError> {
-        let mut statement = self.connection.prepare(
+        let storage = ApplicationStorage::detect(&self.connection)?;
+        let mut statement = self.connection.prepare(&format!(
             "SELECT subject_id FROM (
                  SELECT artifact_id AS subject_id FROM projection_manifests
                  WHERE status = 'repair-required'
                  UNION
                  SELECT manifest.application_id AS subject_id
-                 FROM application_projection_v3_manifests AS manifest
-                 JOIN application_model_v3_heads AS head
+                 FROM {} AS manifest
+                 JOIN {} AS head
                    ON head.application_id = manifest.application_id
                   AND head.head_revision = manifest.application_revision
                   AND head.pack_id = manifest.pack_id
@@ -346,7 +340,9 @@ impl Database {
                   AND head.pack_digest = manifest.pack_digest
                  WHERE manifest.status = 'repair-required'
              ) ORDER BY subject_id",
-        )?;
+            storage.projections(),
+            storage.heads()
+        ))?;
         statement
             .query_map([], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()

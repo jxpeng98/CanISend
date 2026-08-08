@@ -237,6 +237,12 @@ fn validate_context(
                 expected,
             ))
         }
+        LegacyCompatibilityAuthority::WorkspaceV4 => Err(unavailable(
+            operation,
+            "workspace-v4-legacy-surface-retired",
+            "Legacy Agent, Job, Task, and Workflow compatibility is not supported in Workspace v4",
+            Vec::new(),
+        )),
     }
 }
 
@@ -371,6 +377,35 @@ mod tests {
             failure.remediation.expect("remediation").action,
             "application.show"
         );
+    }
+
+    #[test]
+    fn every_legacy_operation_fails_closed_on_workspace_v4() {
+        for operation in LegacyCompatibilityOperation::ALL {
+            for access in [
+                LegacyCompatibilityAccess::Read,
+                LegacyCompatibilityAccess::Write,
+            ] {
+                let error = validate_context(
+                    operation,
+                    access,
+                    LegacyCompatibilityContextV3 {
+                        authority: LegacyCompatibilityAuthority::WorkspaceV4,
+                        bindings: Vec::new(),
+                    },
+                )
+                .expect_err("Workspace v4 must reject every legacy operation")
+                .classify();
+                assert_eq!(
+                    error.code,
+                    canisend_contracts::ErrorCode::CompatibilityUnavailable
+                );
+                let details = error.details.expect("body-free compatibility details");
+                assert_eq!(details["reason"], "workspace-v4-legacy-surface-retired");
+                assert_eq!(details["workspace_mutated"], false);
+                assert_eq!(details["detected_packs"], serde_json::json!([]));
+            }
+        }
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use std::{
     env, fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -10,7 +11,8 @@ use canisend_contracts::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, StoreError, generate_id, io_error, now_utc,
+    BlobStore, DEFAULT_MAX_BLOB_BYTES, Database, NATIVE_APPLICATION_V4_SCHEMA_VERSION, StoreError,
+    generate_id, io_error, now_utc,
 };
 
 const CONFIG_FILE: &str = "canisend.toml";
@@ -135,9 +137,6 @@ impl Workspace {
         };
         let mut database = Database::open(&paths.database)?;
         database.initialize_workspace_with_format(&workspace_id, &created_at, workspace_format)?;
-        if workspace_format == WORKSPACE_V4_FORMAT {
-            database.initialize_workspace_v4_application_storage(&created_at)?;
-        }
         write_config(&paths.config, &config)?;
         Ok(Self {
             blobs: BlobStore::new(paths.blobs.clone(), paths.temporary.clone()),
@@ -203,6 +202,15 @@ impl Workspace {
             return Err(StoreError::Invariant(
                 "workspace configuration format is unsupported".to_owned(),
             ));
+        }
+        if required_format == Some(WORKSPACE_V4_FORMAT) {
+            let found = read_sqlite_schema_version(&paths.database)?;
+            if found < NATIVE_APPLICATION_V4_SCHEMA_VERSION {
+                return Err(StoreError::WorkspaceV4StorageUnsupported {
+                    found,
+                    required: NATIVE_APPLICATION_V4_SCHEMA_VERSION,
+                });
+            }
         }
         let database = Database::open(&paths.database)?;
         if !database.metadata_exists()? {
@@ -307,6 +315,24 @@ impl Workspace {
             issues,
         })
     }
+}
+
+fn read_sqlite_schema_version(path: &Path) -> Result<u32, StoreError> {
+    const HEADER_BYTES: usize = 64;
+    const USER_VERSION_OFFSET: usize = 60;
+    let mut bytes = [0_u8; HEADER_BYTES];
+    fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut bytes))
+        .map_err(|source| io_error(path, source))?;
+    if !bytes.starts_with(b"SQLite format 3\0") {
+        return Err(StoreError::Invariant(
+            "workspace database has an invalid SQLite header".to_owned(),
+        ));
+    }
+    let encoded: [u8; 4] = bytes[USER_VERSION_OFFSET..HEADER_BYTES]
+        .try_into()
+        .map_err(|_| StoreError::Invariant("SQLite user_version header is invalid".to_owned()))?;
+    Ok(u32::from_be_bytes(encoded))
 }
 
 fn validate_workspace_paths(paths: &WorkspacePaths) -> Result<(), StoreError> {

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use crate::{Database, StoreError, generate_id, now_utc};
+use crate::{Database, StoreError, application_storage::ApplicationStorage, generate_id, now_utc};
 use crate::{PreparedWorkspaceSourceV4, association_v4::insert_prepared_source_association};
 
 pub use canisend_contracts::WORKSPACE_V3_FORMAT;
@@ -134,9 +134,13 @@ impl<'a> ApplicationModelRepository<'a> {
         let event_id = generate_id()?;
         let transaction = self.database.immediate_transaction()?;
         ensure_authority(&transaction)?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         let exists = transaction
             .query_row(
-                "SELECT 1 FROM application_model_v3_heads WHERE application_id = ?1",
+                &format!(
+                    "SELECT 1 FROM {} WHERE application_id = ?1",
+                    storage.heads()
+                ),
                 [snapshot.application.id.as_str()],
                 |_| Ok(()),
             )
@@ -149,10 +153,13 @@ impl<'a> ApplicationModelRepository<'a> {
             )));
         }
         transaction.execute(
-            "INSERT INTO application_model_v3_heads(
+            &format!(
+                "INSERT INTO {}(
                 application_id, opportunity_id, pack_id, pack_version, pack_digest,
                 head_revision, created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+                storage.heads()
+            ),
             params![
                 snapshot.application.id.as_str(),
                 snapshot.opportunity.id.as_str(),
@@ -186,7 +193,10 @@ impl<'a> ApplicationModelRepository<'a> {
             &transaction,
             event_id.as_str(),
             &actor_name,
-            "application-v3.create",
+            match storage {
+                ApplicationStorage::V3 => "application-v3.create",
+                ApplicationStorage::V4 => "application-v4.create",
+            },
             &snapshot.application.id,
             snapshot.application.revision,
             &reason,
@@ -214,10 +224,11 @@ impl<'a> ApplicationModelRepository<'a> {
 
     pub fn list(&self) -> Result<Vec<StoredApplicationModelV3>, StoreError> {
         ensure_authority(self.database.connection())?;
-        let mut statement = self.database.connection().prepare(
-            "SELECT application_id FROM application_model_v3_heads
-             ORDER BY created_at, application_id",
-        )?;
+        let storage = ApplicationStorage::detect(self.database.connection())?;
+        let mut statement = self.database.connection().prepare(&format!(
+            "SELECT application_id FROM {} ORDER BY created_at, application_id",
+            storage.heads()
+        ))?;
         let ids = statement
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -234,11 +245,15 @@ impl<'a> ApplicationModelRepository<'a> {
         application_id: &ApplicationId,
     ) -> Result<Vec<ApplicationModelRevisionV3>, StoreError> {
         ensure_authority(self.database.connection())?;
+        let storage = ApplicationStorage::detect(self.database.connection())?;
         let exists = self
             .database
             .connection()
             .query_row(
-                "SELECT 1 FROM application_model_v3_heads WHERE application_id = ?1",
+                &format!(
+                    "SELECT 1 FROM {} WHERE application_id = ?1",
+                    storage.heads()
+                ),
                 [application_id.as_str()],
                 |_| Ok(()),
             )
@@ -249,11 +264,11 @@ impl<'a> ApplicationModelRepository<'a> {
                 application_id.to_string(),
             ));
         }
-        let mut statement = self.database.connection().prepare(
+        let mut statement = self.database.connection().prepare(&format!(
             "SELECT revision, snapshot_sha256, actor, reason, created_at
-             FROM application_model_v3_revisions
-             WHERE application_id = ?1 ORDER BY revision",
-        )?;
+             FROM {} WHERE application_id = ?1 ORDER BY revision",
+            storage.revisions()
+        ))?;
         statement
             .query_map([application_id.as_str()], |row| {
                 Ok((
@@ -297,6 +312,7 @@ impl<'a> ApplicationModelRepository<'a> {
         let event_id = generate_id()?;
         let transaction = self.database.immediate_transaction()?;
         ensure_authority(&transaction)?;
+        let storage = ApplicationStorage::detect(&transaction)?;
         let current = load_current(&transaction, application_id)?;
         if current.snapshot.application.revision != expected_revision {
             return Err(StoreError::ApplicationModelConflict(format!(
@@ -320,10 +336,13 @@ impl<'a> ApplicationModelRepository<'a> {
         )?;
         insert_content_blob_references(&transaction, &snapshot, &committed_at)?;
         let updated = transaction.execute(
-            "UPDATE application_model_v3_heads
+            &format!(
+                "UPDATE {}
              SET opportunity_id = ?2, head_revision = ?3, updated_at = ?4
              WHERE application_id = ?1 AND head_revision = ?5
                AND pack_id = ?6 AND pack_version = ?7 AND pack_digest = ?8",
+                storage.heads()
+            ),
             params![
                 application_id.as_str(),
                 snapshot.opportunity.id.as_str(),
@@ -345,7 +364,10 @@ impl<'a> ApplicationModelRepository<'a> {
             &transaction,
             event_id.as_str(),
             &actor_name,
-            "application-v3.commit",
+            match storage {
+                ApplicationStorage::V3 => "application-v3.commit",
+                ApplicationStorage::V4 => "application-v4.commit",
+            },
             application_id,
             snapshot.application.revision,
             &reason,
@@ -404,9 +426,11 @@ fn ensure_workspace_has_no_product_data(connection: &Connection) -> Result<(), S
         "discovery_sources",
         "job_leads",
         "application_model_v3_heads",
+        "application_v4_heads",
         "workspace_v3_migrations",
         "workspace_v3_application_links",
         "application_projection_v3_manifests",
+        "application_projection_v4_manifests",
         "application_pack_v3_migrations",
     ];
     for table in PRODUCT_TABLES {
@@ -509,11 +533,15 @@ pub(crate) fn insert_migrated_application_model(
     let reason = validate_reason(reason)?;
     let actor = enum_name(actor)?;
     let (snapshot_json, snapshot_sha256) = serialize_snapshot(snapshot)?;
+    let storage = ApplicationStorage::detect(transaction)?;
     transaction.execute(
-        "INSERT INTO application_model_v3_heads(
+        &format!(
+            "INSERT INTO {}(
             application_id, opportunity_id, pack_id, pack_version, pack_digest,
             head_revision, created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+            storage.heads()
+        ),
         params![
             snapshot.application.id.as_str(),
             snapshot.opportunity.id.as_str(),
@@ -926,17 +954,22 @@ pub(crate) fn load_current(
     connection: &Connection,
     application_id: &ApplicationId,
 ) -> Result<StoredApplicationModelV3, StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     type CurrentRow = (i64, String, String, String, String, String, String, String);
     let row: Option<CurrentRow> = connection
         .query_row(
-            "SELECT head.head_revision, revision.snapshot_json, revision.snapshot_sha256,
+            &format!(
+                "SELECT head.head_revision, revision.snapshot_json, revision.snapshot_sha256,
                     revision.created_at, head.opportunity_id, head.pack_id,
                     head.pack_version, head.pack_digest
-             FROM application_model_v3_heads AS head
-             JOIN application_model_v3_revisions AS revision
+             FROM {} AS head
+             JOIN {} AS revision
                ON revision.application_id = head.application_id
               AND revision.revision = head.head_revision
              WHERE head.application_id = ?1",
+                storage.heads(),
+                storage.revisions()
+            ),
             [application_id.as_str()],
             |row| {
                 Ok((
@@ -1000,11 +1033,14 @@ pub(crate) fn load_application_model_revision(
     application_id: &ApplicationId,
     revision: Revision,
 ) -> Result<StoredApplicationModelV3, StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
     let row: Option<(String, String, String)> = connection
         .query_row(
-            "SELECT snapshot_json, snapshot_sha256, created_at
-             FROM application_model_v3_revisions
-             WHERE application_id = ?1 AND revision = ?2",
+            &format!(
+                "SELECT snapshot_json, snapshot_sha256, created_at
+             FROM {} WHERE application_id = ?1 AND revision = ?2",
+                storage.revisions()
+            ),
             params![application_id.as_str(), to_i64(revision.get())?],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
@@ -1048,10 +1084,14 @@ pub(crate) fn insert_revision(
     reason: &str,
     committed_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(transaction)?;
     transaction.execute(
-        "INSERT INTO application_model_v3_revisions(
+        &format!(
+            "INSERT INTO {}(
             application_id, revision, snapshot_json, snapshot_sha256, actor, reason, created_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            storage.revisions()
+        ),
         params![
             snapshot.application.id.as_str(),
             to_i64(snapshot.application.revision.get())?,
@@ -1070,12 +1110,18 @@ pub(crate) fn insert_content_blob_references(
     snapshot: &ApplicationModelSnapshotV3,
     committed_at: &UtcTimestamp,
 ) -> Result<(), StoreError> {
+    let owner_prefix = match ApplicationStorage::detect(transaction)? {
+        ApplicationStorage::V3 => "application-v3",
+        ApplicationStorage::V4 => "application-v4",
+    };
     for requirement in &snapshot.requirements {
         let content = &requirement.source_span.content;
         transaction.execute(
-            "INSERT OR IGNORE INTO blob_references(
+            &format!(
+                "INSERT OR IGNORE INTO blob_references(
                 sha256, owner_type, owner_id, owner_revision, created_at
-             ) VALUES (?1, 'application-v3-source', ?2, ?3, ?4)",
+             ) VALUES (?1, '{owner_prefix}-source', ?2, ?3, ?4)"
+            ),
             params![
                 content.sha256.as_str(),
                 content.id.as_str(),
@@ -1089,9 +1135,11 @@ pub(crate) fn insert_content_blob_references(
             continue;
         };
         transaction.execute(
-            "INSERT OR IGNORE INTO blob_references(
+            &format!(
+                "INSERT OR IGNORE INTO blob_references(
                 sha256, owner_type, owner_id, owner_revision, created_at
-             ) VALUES (?1, 'application-v3-content', ?2, ?3, ?4)",
+             ) VALUES (?1, '{owner_prefix}-content', ?2, ?3, ?4)"
+            ),
             params![
                 content.sha256.as_str(),
                 content.id.as_str(),
@@ -1107,11 +1155,13 @@ pub(crate) fn insert_dependencies(
     transaction: &Transaction<'_>,
     snapshot: &ApplicationModelSnapshotV3,
 ) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(transaction)?;
     let application_revision = to_i64(snapshot.application.revision.get())?;
     if let Some(plan) = &snapshot.plan {
         for requirement in &plan.requirement_inputs {
             insert_dependency(
                 transaction,
+                storage,
                 snapshot.application.id.as_str(),
                 application_revision,
                 "plan",
@@ -1126,6 +1176,7 @@ pub(crate) fn insert_dependencies(
             if let Some(requirement) = &blocker.requirement {
                 insert_dependency(
                     transaction,
+                    storage,
                     snapshot.application.id.as_str(),
                     application_revision,
                     "plan",
@@ -1141,6 +1192,7 @@ pub(crate) fn insert_dependencies(
     for deliverable in &snapshot.deliverables {
         insert_dependency(
             transaction,
+            storage,
             snapshot.application.id.as_str(),
             application_revision,
             "deliverable",
@@ -1153,6 +1205,7 @@ pub(crate) fn insert_dependencies(
         for evidence in &deliverable.evidence_inputs {
             insert_dependency(
                 transaction,
+                storage,
                 snapshot.application.id.as_str(),
                 application_revision,
                 "deliverable",
@@ -1170,6 +1223,7 @@ pub(crate) fn insert_dependencies(
 #[allow(clippy::too_many_arguments)]
 fn insert_dependency(
     transaction: &Transaction<'_>,
+    storage: ApplicationStorage,
     application_id: &str,
     application_revision: i64,
     dependent_kind: &str,
@@ -1180,10 +1234,13 @@ fn insert_dependency(
     upstream_revision: Revision,
 ) -> Result<(), StoreError> {
     transaction.execute(
-        "INSERT OR IGNORE INTO application_model_v3_dependencies(
+        &format!(
+            "INSERT OR IGNORE INTO {}(
             application_id, application_revision, dependent_kind, dependent_id,
             dependent_revision, upstream_kind, upstream_id, upstream_revision
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            storage.dependencies()
+        ),
         params![
             application_id,
             application_revision,
@@ -1335,9 +1392,6 @@ mod tests {
                     WORKSPACE_V4_FORMAT,
                 )
                 .expect("Workspace v4 identity");
-            database
-                .initialize_workspace_v4_application_storage(&timestamp("2026-08-08T10:00:00Z"))
-                .expect("Workspace v4 Application storage");
             Self {
                 path,
                 database: Some(database),
@@ -1497,6 +1551,7 @@ mod tests {
             version: SemanticVersion::try_new("1.0.0").expect("version"),
             content_digest: Sha256Digest::try_new("b".repeat(64)).expect("digest"),
         };
+        let expected_academic_pack = academic_pack.clone();
         academic.pack = academic_pack.clone();
         academic.opportunity.pack = academic_pack.clone();
         academic.application.pack = academic_pack;
@@ -1553,12 +1608,102 @@ mod tests {
                     .revision,
                 revision(1)
             );
+            let current_generic = repository.get(&generic_id).expect("current generic");
+            let mut substituted = current_generic.snapshot.clone();
+            substituted.application.revision = revision(3);
+            substituted.application.updated_at = timestamp("2026-08-08T10:02:00Z");
+            substituted.pack = expected_academic_pack.clone();
+            substituted.application.pack = expected_academic_pack.clone();
+            substituted.opportunity.pack = expected_academic_pack.clone();
+            assert!(matches!(
+                repository.commit(
+                    &generic_id,
+                    revision(2),
+                    substituted,
+                    ActorKind::User,
+                    "substitute-pack"
+                ),
+                Err(StoreError::ApplicationModelConflict(_))
+            ));
+            assert_eq!(
+                repository
+                    .get(&generic_id)
+                    .expect("generic unchanged")
+                    .snapshot
+                    .pack
+                    .id
+                    .as_str(),
+                "org.canisend.generic-application"
+            );
+            assert_eq!(
+                repository
+                    .history(&generic_id)
+                    .expect("generic history")
+                    .len(),
+                2
+            );
         }
         assert_eq!(
             fixture
                 .database()
                 .status()
                 .expect("v4 status")
+                .application_count,
+            2
+        );
+        let native_heads: i64 = fixture
+            .database()
+            .connection()
+            .query_row("SELECT COUNT(*) FROM application_v4_heads", [], |row| {
+                row.get(0)
+            })
+            .expect("native v4 head count");
+        let native_revisions: i64 = fixture
+            .database()
+            .connection()
+            .query_row("SELECT COUNT(*) FROM application_v4_revisions", [], |row| {
+                row.get(0)
+            })
+            .expect("native v4 revision count");
+        let legacy_heads: i64 = fixture
+            .database()
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM application_model_v3_heads",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy v3 head count");
+        let legacy_authority: i64 = fixture
+            .database()
+            .connection()
+            .query_row("SELECT COUNT(*) FROM workspace_v3_authority", [], |row| {
+                row.get(0)
+            })
+            .expect("legacy authority count");
+        assert_eq!(native_heads, 2);
+        assert_eq!(native_revisions, 3);
+        assert_eq!(legacy_heads, 0);
+        assert_eq!(legacy_authority, 0);
+        let missing_pack = fixture.database().connection().execute(
+            "INSERT INTO application_v4_heads(
+                application_id, opportunity_id, head_revision, created_at, updated_at
+             ) VALUES (?1, ?2, 1, ?3, ?3)",
+            params![
+                application_id(999).as_str(),
+                opportunity_id(998).as_str(),
+                timestamp("2026-08-08T10:03:00Z").as_str()
+            ],
+        );
+        assert!(
+            missing_pack.is_err(),
+            "SQLite must require an exact Pack binding"
+        );
+        assert_eq!(
+            fixture
+                .database()
+                .status()
+                .expect("unchanged v4 status")
                 .application_count,
             2
         );

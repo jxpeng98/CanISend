@@ -111,6 +111,43 @@ fn v4_open_rejects_legacy_format_before_database_migration_or_mutation() {
     assert_eq!(workspace_file_snapshot(root.path()), before);
 }
 
+#[test]
+fn v4_open_rejects_retired_storage_bridge_before_migration_or_mutation() {
+    let root = TestDirectory::new("v4-native-storage-boundary");
+    let database_path = {
+        let workspace = Workspace::init_v4(root.path()).expect("native Workspace v4 fixture");
+        workspace.paths.database.clone()
+    };
+    {
+        let connection = Connection::open(&database_path).expect("open retired bridge fixture");
+        connection
+            .execute(
+                "INSERT INTO workspace_v3_authority(
+                    singleton, workspace_format, activated_at, reason
+                 ) VALUES (1, 'canisend.workspace/v3', '2026-08-08T00:00:00Z',
+                           'workspace-v4-storage-bridge')",
+                [],
+            )
+            .expect("insert retired storage bridge marker");
+        connection
+            .pragma_update(None, "user_version", DATABASE_SCHEMA_VERSION - 1)
+            .expect("mark pre-native v4 schema");
+    }
+    let before = workspace_file_snapshot(root.path());
+
+    let error = match Workspace::open_v4_from(Some(root.path()), root.path()) {
+        Ok(_) => panic!("pre-native Workspace v4 must be rejected"),
+        Err(error) => error,
+    };
+
+    assert!(matches!(
+        error,
+        StoreError::WorkspaceV4StorageUnsupported { found, required }
+            if found == DATABASE_SCHEMA_VERSION - 1 && required == DATABASE_SCHEMA_VERSION
+    ));
+    assert_eq!(workspace_file_snapshot(root.path()), before);
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct RenderAuthoritySnapshot {
     artifacts: i64,
