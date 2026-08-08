@@ -56,6 +56,19 @@ stale revision, wrong association digest, consent denial, projection conflict, o
 rolls back the complete write. Queries start from one selected Application ID, so a failure cannot
 fall through to another Application or expose another Application's associations.
 
+## Application removal
+
+Workspace v4 uses an audited logical deletion instead of physically deleting Application history.
+The dedicated `application.archive` boundary requires the exact current revision and atomically
+commits a new immutable snapshot in which both the Application lifecycle and its Opportunity are
+archived. Ordinary model commits cannot enter the archived state or revive it; repeating the same
+archive at the current revision is idempotent and does not add another revision or audit event.
+
+Archival preserves immutable revisions, Pack identity, Blob references, projections, and explicit
+Source/Profile/Evidence associations for recovery and audit. It never deletes Workspace-scoped or
+shared data. Mixed-Pack tests archive each Application in turn and compare the other Application's
+complete stored snapshot, digest, revision, lifecycle, and Pack binding before and after.
+
 ## Recovery and compatibility
 
 Workspace check, backup, restore-to-new-path, and projection repair operate over the table family
