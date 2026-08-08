@@ -4,7 +4,9 @@ use std::{
 };
 
 use canisend_contracts::ActorKind;
-use canisend_contracts::{BackupManifestData, WorkspaceCheckData, WorkspaceStatusData};
+use canisend_contracts::{
+    BackupManifestData, WORKSPACE_V4_FORMAT, WorkspaceCheckData, WorkspaceStatusData,
+};
 use canisend_store::{
     ApplicationModelRepository, BACKUP_FORMAT, BackupResult, ProjectionService, Workspace,
 };
@@ -18,6 +20,13 @@ use crate::{ActionReceipt, Application, ApplicationError, application::open_work
 pub struct WorkspaceReadModel {
     pub path: PathBuf,
     pub pack_id: String,
+    pub status: WorkspaceStatusData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceV4ReadModel {
+    pub path: PathBuf,
     pub status: WorkspaceStatusData,
 }
 
@@ -60,6 +69,61 @@ pub enum WorkspaceInitPolicy {
 }
 
 impl Application {
+    pub fn initialize_workspace_v4(
+        root: &Path,
+    ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {
+        require_new_or_empty_directory(root)?;
+        let workspace = Workspace::init_v4(root)?;
+        let status = workspace.status()?;
+        Ok(ActionReceipt::new(
+            "workspace-v4.init",
+            "initialized",
+            format!(
+                "Initialized neutral Workspace v4 at {}",
+                workspace.paths.root.display()
+            ),
+            WorkspaceV4ReadModel {
+                path: workspace.paths.root,
+                status,
+            },
+        ))
+    }
+
+    pub fn workspace_status_v4(
+        root: &Path,
+    ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {
+        let workspace = open_workspace(root)?;
+        let status = workspace.status()?;
+        if status.workspace_format != WORKSPACE_V4_FORMAT {
+            return Err(ApplicationError::CompatibilityUnavailable {
+                message: format!(
+                    "Workspace format {} is unsupported by the v4 surface",
+                    status.workspace_format
+                ),
+                details: serde_json::json!({
+                    "found": status.workspace_format,
+                    "required": WORKSPACE_V4_FORMAT,
+                }),
+                remediation: canisend_contracts::NextAction {
+                    action: "initialize a clean Workspace v4".to_owned(),
+                    description: "Choose a new or empty directory; this operation does not migrate or mutate the unsupported Workspace".to_owned(),
+                },
+            });
+        }
+        Ok(ActionReceipt::new(
+            "workspace-v4.status",
+            "available",
+            format!(
+                "Workspace contains {} Application(s)",
+                status.application_count
+            ),
+            WorkspaceV4ReadModel {
+                path: workspace.paths.root,
+                status,
+            },
+        ))
+    }
+
     pub fn initialize_workspace_for_pack(
         root: &Path,
         pack_id: &str,
@@ -308,6 +372,30 @@ mod tests {
 
         fs::remove_dir_all(generic).expect("remove generic fixture");
         fs::remove_dir_all(migrated).expect("remove migrated fixture");
+    }
+
+    #[test]
+    fn neutral_workspace_v4_has_no_workspace_pack_selection() {
+        let root = temporary_root("neutral-v4");
+        let initialized = Application::initialize_workspace_v4(&root)
+            .expect("initialize neutral Workspace v4")
+            .data;
+        assert_eq!(
+            initialized.status.workspace_format,
+            canisend_contracts::WORKSPACE_V4_FORMAT
+        );
+        assert_eq!(initialized.status.application_count, 0);
+
+        let reopened = Application::workspace_status_v4(&root)
+            .expect("reopen neutral Workspace v4")
+            .data;
+        assert_eq!(
+            reopened.status.workspace_id,
+            initialized.status.workspace_id
+        );
+        assert_eq!(reopened.status.application_count, 0);
+
+        fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
     }
 
     #[test]

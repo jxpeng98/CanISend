@@ -3,6 +3,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "application_count": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "artifact_count": {
       "format": "uint64",
       "minimum": 0,
@@ -47,6 +52,7 @@
     "sqlite_version",
     "journal_mode",
     "job_count",
+    "application_count",
     "artifact_count",
     "referenced_blob_count"
   ],

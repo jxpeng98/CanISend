@@ -1,6 +1,8 @@
 use std::{collections::BTreeSet, path::Path, time::Duration};
 
-use canisend_contracts::{EntityId, UtcTimestamp, WORKSPACE_FORMAT, WorkspaceStatusData};
+use canisend_contracts::{
+    EntityId, UtcTimestamp, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT, WorkspaceStatusData,
+};
 use rusqlite::{
     Connection, OpenFlags, OptionalExtension, Transaction, TransactionBehavior, params,
 };
@@ -185,34 +187,76 @@ impl Database {
         workspace_id: &EntityId,
         created_at: &UtcTimestamp,
     ) -> Result<(), StoreError> {
+        self.initialize_workspace_with_format(workspace_id, created_at, WORKSPACE_FORMAT)
+    }
+
+    pub fn initialize_workspace_with_format(
+        &mut self,
+        workspace_id: &EntityId,
+        created_at: &UtcTimestamp,
+        workspace_format: &str,
+    ) -> Result<(), StoreError> {
         self.connection.execute(
             "INSERT INTO workspace_metadata(singleton, workspace_id, workspace_format, created_at)
              VALUES (1, ?1, ?2, ?3)",
-            params![workspace_id.as_str(), WORKSPACE_FORMAT, created_at.as_str()],
+            params![workspace_id.as_str(), workspace_format, created_at.as_str()],
+        )?;
+        Ok(())
+    }
+
+    /// Establishes the constrained storage bridge required by the existing Application tables.
+    ///
+    /// Workspace v4 authority remains the `workspace_metadata` row. The legacy-named singleton is
+    /// not exposed as Workspace identity and will be replaced when the Application tables move to
+    /// their v4 schema in M3-MODEL-001.
+    pub fn initialize_workspace_v4_application_storage(
+        &mut self,
+        created_at: &UtcTimestamp,
+    ) -> Result<(), StoreError> {
+        self.connection.execute(
+            "INSERT INTO workspace_v3_authority(singleton, workspace_format, activated_at, reason)
+             VALUES (1, 'canisend.workspace/v3', ?1, 'workspace-v4-storage-bridge')",
+            [created_at.as_str()],
         )?;
         Ok(())
     }
 
     pub fn workspace_identity(&self) -> Result<(EntityId, UtcTimestamp), StoreError> {
-        let (id, created_at): (String, String) = self.connection.query_row(
-            "SELECT workspace_id, created_at FROM workspace_metadata WHERE singleton = 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        Ok((EntityId::try_new(id)?, UtcTimestamp::try_new(created_at)?))
+        let (id, _, created_at) = self.workspace_identity_with_format()?;
+        Ok((id, created_at))
+    }
+
+    pub fn workspace_identity_with_format(
+        &self,
+    ) -> Result<(EntityId, String, UtcTimestamp), StoreError> {
+        let (id, workspace_format, created_at): (String, String, String) =
+            self.connection.query_row(
+                "SELECT workspace_id, workspace_format, created_at
+             FROM workspace_metadata WHERE singleton = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+        Ok((
+            EntityId::try_new(id)?,
+            workspace_format,
+            UtcTimestamp::try_new(created_at)?,
+        ))
     }
 
     pub fn status(&self) -> Result<WorkspaceStatusData, StoreError> {
-        let (workspace_id, created_at) = self.workspace_identity()?;
-        let workspace_format = self
-            .connection
-            .query_row(
-                "SELECT workspace_format FROM workspace_v3_authority WHERE singleton = 1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?
-            .unwrap_or_else(|| WORKSPACE_FORMAT.to_owned());
+        let (workspace_id, metadata_format, created_at) = self.workspace_identity_with_format()?;
+        let workspace_format = if metadata_format == WORKSPACE_V4_FORMAT {
+            metadata_format
+        } else {
+            self.connection
+                .query_row(
+                    "SELECT workspace_format FROM workspace_v3_authority WHERE singleton = 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .unwrap_or(metadata_format)
+        };
         Ok(WorkspaceStatusData {
             workspace_id,
             workspace_format,
@@ -227,6 +271,7 @@ impl Database {
                 .connection
                 .pragma_query_value(None, "journal_mode", |row| row.get(0))?,
             job_count: self.count("jobs")?,
+            application_count: self.count("application_model_v3_heads")?,
             artifact_count: self.count("artifacts")?,
             referenced_blob_count: self.count("blob_references")?,
         })
@@ -235,6 +280,7 @@ impl Database {
     fn count(&self, table: &str) -> Result<u64, StoreError> {
         let sql = match table {
             "jobs" => "SELECT COUNT(*) FROM jobs",
+            "application_model_v3_heads" => "SELECT COUNT(*) FROM application_model_v3_heads",
             "artifacts" => "SELECT COUNT(*) FROM artifacts",
             "blob_references" => "SELECT COUNT(DISTINCT sha256) FROM blob_references",
             _ => return Err(StoreError::Invariant("unsupported count table".to_owned())),
