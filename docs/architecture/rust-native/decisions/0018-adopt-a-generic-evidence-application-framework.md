@@ -95,6 +95,10 @@ write `.canisend` directly, or introduce a second application engine.
 
 ## Compatibility and version boundary
 
+> **Historical Alpha.6 boundary:** ADR-RN-0020 supersedes this section for Alpha.7 and later. The
+> v2/v3 migration and bounded adapters below remain the immutable explanation of the published
+> Alpha.6 checkpoint; they are not compatibility commitments of the v4 product.
+
 This scope change is intentionally made before Beta. The generic contract cannot truthfully fit
 inside the current job-specific Agent v2 and Workspace v2 surfaces.
 

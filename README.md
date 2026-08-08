@@ -17,18 +17,26 @@ with user-controlled sources to support Requirements, confirmed Evidence, fit, p
 Pack-defined Deliverables, review, rendering, export, backup, recovery, and auditable Agent
 collaboration through one set of application services.
 
-The source includes two embedded Packs. `org.canisend.generic-application` is the canonical
-Workspace/Agent v3 default; `org.canisend.academic-job` preserves the established academic journey
-through bounded Workspace/Agent v2 compatibility. A Workspace is bound to one exact Pack identity
-and digest. The latest publicly qualified checkpoint is `v1.0.0-alpha.5`; post-tag changes on
-`main` are not a published Alpha.6 or Alpha.7 until their exact artifacts pass release gates.
+The public Alpha.6 source includes two embedded Packs. `org.canisend.generic-application` is the
+canonical Workspace/Agent v3 default; `org.canisend.academic-job` preserves the established
+academic journey through bounded Workspace/Agent v2 compatibility. That historical v3 checkpoint
+binds a Workspace to one exact Pack identity and digest. The latest publicly qualified checkpoint is `v1.0.0-alpha.6`;
+later changes on `main` are not Alpha.7 until their exact artifacts pass the release gates.
+
+Alpha.7 deliberately replaces that compatibility-era boundary with a clean Workspace v4 and
+Agent v4 design: one neutral Workspace may contain academic and generic Applications at the same
+time, each Application owns its exact Pack binding, and newly generated Codex/Claude Code Skills
+share one canonical MCP/CLI workflow. Earlier Skills, Agent v2/v3 requests, aliases, and Workspace
+v2/v3 migration are not part of the new supported contract.
 
 The active product no longer uses Python or Pytest. The final Python implementation remains available only through
 the Git tag `archive/python-v0.6.0b1-final`.
 
 The [generic framework 1.0 roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md) is the
-top-level execution authority. The [transition plan](docs/superpowers/plans/2026-08-02-generic-framework-transition-plan.md)
-defines the pack, migration, compatibility, and dual-pack implementation slices.
+top-level execution authority. [ADR-RN-0020](docs/architecture/rust-native/decisions/0020-adopt-a-neutral-multi-application-workspace-and-new-agent-surface.md)
+defines the Workspace v4 and Agent v4 boundary. The earlier
+[transition plan](docs/superpowers/plans/2026-08-02-generic-framework-transition-plan.md) is retained
+only as Alpha.6 implementation history.
 
 ## User guides
 
@@ -50,12 +58,13 @@ defines the pack, migration, compatibility, and dual-pack implementation slices.
 ## Current status
 
 The checked-in source version is `1.0.0-alpha.6`; public identity remains separately controlled by
-the exact tag, package manifest, and qualification evidence. The working `main` line contains
-additional unqualified post-tag product bytes. The `0.7` evidence and every published Alpha.5
-artifact remain immutable history. The current source contains the domain-neutral Pack kernel,
-canonical Generic and Academic Packs, neutral Application contracts, Workspace v2→v3 migration,
-bounded academic compatibility, and shared CLI/MCP/Tauri application services. This is candidate
-readiness work, not an Alpha.6 support claim.
+the exact tag, package manifest, and qualification evidence. The exact Alpha.6 tag is the current
+public checkpoint, while later working changes remain unqualified Alpha.7 development. The `0.7`
+evidence and every earlier published Alpha artifact remain immutable history. Alpha.6 contains the
+domain-neutral Pack kernel, canonical Generic and Academic Packs, neutral Application contracts,
+Workspace v2→v3 migration, bounded academic compatibility, and shared CLI/MCP/Tauri application
+services. Workspace v4 and the new Skills/Agent flow are Roadmap work, not current Alpha.6
+capabilities.
 
 The desktop supports persistent English and Simplified Chinese interfaces, system CJK font
 fallback, localized native accessibility names, exact Pack-driven vocabulary, and safe management
@@ -269,14 +278,14 @@ cargo build --release --locked
 
 No Python interpreter, virtual environment, PyPI package, or Pytest runner participates in these checks.
 
-## Target architecture
+## 1.0 target architecture
 
 ```text
 Codex / Claude / user / custom host
                  │
-       CLI / GUI / MCP surfaces
+       App / CLI / MCP surfaces
                  │
-     Agent v3 │ Agent v2 compatibility
+       Agent v4 + generated Skills
                  │
 ┌──────────────────────────────────────┐
 │ canisend-app shared application API  │
@@ -289,15 +298,15 @@ Codex / Claude / user / custom host
 └──────────────────────────────────────┘
 ```
 
-The accepted architecture uses SQLite plus immutable content-addressed blobs for authoritative
-local state. User documents are exported projections. Rust types generate the v3 canonical and v2
-compatibility contracts, every surface calls the same application API, and Typst compilation is
-embedded in the standalone executable.
+The accepted 1.0 target uses SQLite plus immutable content-addressed blobs for authoritative local
+state. User documents are exported projections. Rust types generate the v4 contracts and canonical
+host resources, every surface calls the same application API, and Typst compilation is embedded in
+the standalone executable. The published Alpha.6 v2/v3 compatibility contracts remain historical
+checkpoint facts and do not constrain the Alpha.7 target.
 
-Accepted decisions are under `docs/architecture/rust-native/decisions/`.
-The Academic compatibility machine interface is documented in
-[Agent Protocol v2](docs/contracts/agent-protocol-v2.md); Generic Agent v3 capabilities and context
-are discovered from the exact Pack-bound binary at runtime.
+Accepted decisions are under `docs/architecture/rust-native/decisions/`. Alpha.7 work defines the
+new Agent v4 machine interface and generates Codex and Claude Code Skills from one canonical
+resource model; no earlier Skill or Agent protocol is a supported adapter for that surface.
 
 ## Product boundary
 
