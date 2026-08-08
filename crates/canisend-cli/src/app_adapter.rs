@@ -18,14 +18,6 @@ pub(super) fn failure(operation: &'static str, error: ApplicationError) -> Box<C
     failure
 }
 
-pub(super) fn workspace_root(
-    explicit: Option<PathBuf>,
-    operation: &'static str,
-) -> CommandResult<PathBuf> {
-    Application::resolve_workspace_root(explicit.as_deref())
-        .map_err(|error| failure(operation, error))
-}
-
 pub(super) fn workspace_root_v4(
     explicit: Option<PathBuf>,
     operation: &'static str,

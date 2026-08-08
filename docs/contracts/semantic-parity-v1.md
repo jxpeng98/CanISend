@@ -30,8 +30,9 @@ The closed outcome vocabulary is:
 - `recovery` for an explicitly recoverable preview/commit failure.
 
 Every shared operation must have success coverage. Every shared mutation must prove a rejected
-path leaves authority unchanged, every revision-bound shared operation must prove stale rejection,
-and the generic approval commit must cover the complete outcome vocabulary.
+path leaves authority unchanged, and every revision-bound shared operation must prove stale
+rejection. Revision-bound Tauri-only operations and approval commits remain qualified through the
+separate revision and preview/commit matrices.
 
 ## Qualified matrix
 
@@ -40,18 +41,18 @@ The current source contract covers:
 | Dimension | Required inventory |
 |---|---:|
 | Built-in Pack/surface cases | 6 |
-| Shared operations | 8 |
+| Shared operations | 5 |
 | Revision-bound operations | 8 |
 | Preview/commit families | 6 |
 | Read families | 5 |
-| Qualified adapter bindings | 75 |
+| Qualified adapter bindings | 41 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
-`academic-job` with CLI, Tauri, and MCP. Generic fixtures run the canonical create, resume, plan,
-compose, review, approve, and export lifecycle where the surface supports it. Academic fixtures
-exercise the bounded v2 compatibility families. Cross-linked fixtures prove both directions of
-the Pack boundary: canonical generic operations fail on the academic Pack, and academic
-compatibility operations fail on the generic Pack without mutation.
+`academic-job` with CLI, Tauri, and MCP. The clean CLI qualifies Workspace recovery and neutral
+Application create/list/show for both Packs; MCP qualifies the same Pack-neutral reads. Tauri
+fixtures run the full create, resume, plan, compose, review, approve, and export lifecycle and
+still exercise the bounded academic compatibility families. Cross-linked fixtures prove the Pack
+boundary without treating retired CLI mutations as supported operations.
 
 The six preview/commit families are generic Application review, v4 desktop Application intake,
 academic job intake, academic task completion, desktop discovery, and desktop workflow rerun.
@@ -64,7 +65,7 @@ text/PDF, and URL previews against one neutral Workspace and either built-in Pac
 An operation binding absent from the qualified minimum is never silently treated as equivalent.
 The validator permits only the typed `canonical-leaf`, `compatibility-alias`, and `adapter-only`
 classes to remain explicitly uncovered. Shared leaves may not be uncovered. The current inventory
-machine-lists 149 such bindings with surface, leaf, operation, class, and Pack scope.
+machine-lists 95 such bindings with surface, leaf, operation, class, and Pack scope.
 
 Run:
 

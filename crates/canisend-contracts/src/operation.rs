@@ -689,7 +689,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn built_in_registry_has_exact_transitional_cli_tauri_and_clean_v4_mcp_surfaces() {
+    fn built_in_registry_has_exact_clean_v4_cli_and_mcp_surfaces() {
         let registry = OperationRegistry::built_in().expect("built-in operation registry");
         let bindings = registry.resolved_bindings().expect("resolved bindings");
         assert_eq!(
@@ -697,7 +697,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            83
+            16
         );
         assert_eq!(
             bindings
@@ -713,8 +713,9 @@ mod tests {
                 .count(),
             4
         );
-        assert!(registry.presentation_aliases.iter().any(|alias| {
-            alias.id.as_str() == "content.*" && alias.class == OperationClass::WildcardAlias
+        assert!(registry.presentation_aliases.iter().all(|alias| {
+            matches!(alias.id.as_str(), "schema.*" | "resource.*")
+                && alias.class == OperationClass::WildcardAlias
         }));
         assert!(
             registry
