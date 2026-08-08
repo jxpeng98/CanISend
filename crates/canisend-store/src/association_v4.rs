@@ -1120,6 +1120,7 @@ mod tests {
         assert_eq!(source.kind, WorkspaceSourceKindV4::PastedText);
         assert_eq!(source.normalized_sha256, generic[0].source.sha256);
         assert_eq!(source.locator, "pasted-text");
+        drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -1226,6 +1227,7 @@ mod tests {
             service.source(&imported.id, imported.revision),
             Err(StoreError::ApplicationAssociationNotFound(_))
         ));
+        drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -1360,6 +1362,7 @@ mod tests {
                 .expect("Evidence links after unlink")
                 .is_empty()
         );
+        drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -1428,6 +1431,7 @@ mod tests {
                 .len(),
             initial_count
         );
+        drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
