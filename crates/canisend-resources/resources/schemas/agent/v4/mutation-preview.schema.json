@@ -1,0 +1,144 @@
+{
+  "$defs": {
+    "AgentApplicationBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/AgentPackBindingV4"
+        },
+        "snapshot_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "pack",
+        "expected_revision",
+        "snapshot_sha256"
+      ],
+      "type": "object"
+    },
+    "AgentContextBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentApplicationBindingV4"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_format": {
+          "$ref": "#/$defs/AgentWorkspaceFormatV4"
+        },
+        "workspace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "workspace_format"
+      ],
+      "type": "object"
+    },
+    "AgentPackBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "AgentProtocolV4": {
+      "enum": [
+        "canisend.agent/v4"
+      ],
+      "type": "string"
+    },
+    "AgentWorkspaceFormatV4": {
+      "enum": [
+        "canisend.workspace/v4"
+      ],
+      "type": "string"
+    },
+    "ConsentScope": {
+      "enum": [
+        "read-private-inputs",
+        "send-to-configured-provider",
+        "fetch-user-supplied-url",
+        "export-private-artifacts",
+        "use-system-fonts"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/agent/v4/mutation-preview.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "context": {
+      "$ref": "#/$defs/AgentContextBindingV4"
+    },
+    "expires_at": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "preview_sha256": {
+      "type": "string"
+    },
+    "proposal_sha256": {
+      "type": "string"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolV4"
+    },
+    "required_consents": {
+      "items": {
+        "$ref": "#/$defs/ConsentScope"
+      },
+      "type": "array"
+    },
+    "task_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol",
+    "task_id",
+    "operation",
+    "context",
+    "proposal_sha256",
+    "preview_sha256",
+    "required_consents",
+    "expires_at"
+  ],
+  "title": "AgentMutationPreviewV4",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-mutation-preview/v4",
+  "x-canisend-version": "4.0.0"
+}

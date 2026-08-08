@@ -1,0 +1,13 @@
+{
+  "protocol": "canisend.agent/v4",
+  "task_id": "019f2f55-7c00-7000-8000-000000000101",
+  "task": "orientation",
+  "operation": "workspace.status",
+  "context": {
+    "workspace_id": "019f2f55-7c00-7000-8000-000000000001",
+    "workspace_format": "canisend.workspace/v4",
+    "application": null
+  },
+  "resources": [],
+  "requested_consents": []
+}

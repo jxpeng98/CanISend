@@ -1,5 +1,10 @@
 use std::{fs, str::FromStr};
 
+use canisend_contracts::{
+    AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, AGENT_V4_TASK_MODEL_FORMAT, AgentCommitRequestV4,
+    AgentTaskRequestV4, AgentTaskResourceModelV4, AgentV4SchemaId, SemanticValidate,
+    validate_external_candidate,
+};
 use canisend_resources::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackManifest, AgentSkillsInstallState,
     AgentSkillsManifest, AgentSkillsStatusState, AgentSkillsUninstallState,
@@ -72,6 +77,58 @@ fn five_fictional_generic_application_examples_are_embedded_and_offline() {
         assert!(!encoded.contains("http://"));
         assert!(!encoded.contains('@'));
     }
+}
+
+#[test]
+fn agent_v4_model_schemas_and_examples_share_one_clean_contract() {
+    let model_resource = get(ResourceId::AgentV4TaskResourceModel);
+    assert_eq!(model_resource.descriptor.kind, ResourceKind::Agent);
+    assert_eq!(model_resource.descriptor.version, AGENT_V4_SCHEMA_VERSION);
+    let model: AgentTaskResourceModelV4 =
+        serde_json::from_slice(model_resource.bytes).expect("Agent v4 task-resource model JSON");
+    assert_eq!(model.format, AGENT_V4_TASK_MODEL_FORMAT);
+    assert_eq!(model.protocol, AGENT_V4_PROTOCOL);
+    assert!(model.validate_semantics().is_empty());
+
+    let schema_resources = [
+        (
+            ResourceId::SchemaAgentV4TaskRequest,
+            AgentV4SchemaId::TaskRequest,
+        ),
+        (ResourceId::SchemaAgentV4Proposal, AgentV4SchemaId::Proposal),
+        (
+            ResourceId::SchemaAgentV4MutationPreview,
+            AgentV4SchemaId::MutationPreview,
+        ),
+        (ResourceId::SchemaAgentV4Approval, AgentV4SchemaId::Approval),
+        (
+            ResourceId::SchemaAgentV4CommitRequest,
+            AgentV4SchemaId::CommitRequest,
+        ),
+        (ResourceId::SchemaAgentV4Receipt, AgentV4SchemaId::Receipt),
+    ];
+    for (resource_id, schema_id) in schema_resources {
+        let resource = get(resource_id);
+        assert_eq!(resource.descriptor.kind, ResourceKind::Schema);
+        assert_eq!(resource.descriptor.version, AGENT_V4_SCHEMA_VERSION);
+        let schema: serde_json::Value =
+            serde_json::from_slice(resource.bytes).expect("Agent v4 JSON Schema");
+        assert_eq!(schema["$id"], schema_id.canonical_uri());
+        assert_eq!(schema["x-canisend-id"], schema_id.as_str());
+        assert_eq!(schema["x-canisend-version"], AGENT_V4_SCHEMA_VERSION);
+    }
+
+    let orientation: serde_json::Value =
+        serde_json::from_slice(get(ResourceId::ExampleAgentV4OrientationRequest).bytes)
+            .expect("orientation example JSON");
+    validate_external_candidate::<AgentTaskRequestV4>(&orientation)
+        .expect("valid Agent v4 orientation request");
+
+    let commit: serde_json::Value =
+        serde_json::from_slice(get(ResourceId::ExampleAgentV4SourceIntakeCommit).bytes)
+            .expect("commit example JSON");
+    validate_external_candidate::<AgentCommitRequestV4>(&commit)
+        .expect("valid Agent v4 source intake commit");
 }
 
 #[test]

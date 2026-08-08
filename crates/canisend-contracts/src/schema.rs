@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::{
-    AgentContextData, AgentResponse, ApplicationModelSnapshotV3, ApplicationPackBindingV3,
-    ApplicationPlanCandidate, ApplicationPlanRecord, ApplicationRecordV3, BackupManifestData,
-    CapabilitiesData, CriteriaSetRecord, CriterionRecord, DeliverableRecordV3, DiscoveryBatch,
-    DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
+    AgentApprovalV4, AgentCommitRequestV4, AgentContextData, AgentMutationPreviewV4,
+    AgentProposalV4, AgentReceiptV4, AgentResponse, AgentTaskRequestV4, ApplicationModelSnapshotV3,
+    ApplicationPackBindingV3, ApplicationPlanCandidate, ApplicationPlanRecord, ApplicationRecordV3,
+    BackupManifestData, CapabilitiesData, CriteriaSetRecord, CriterionRecord, DeliverableRecordV3,
+    DiscoveryBatch, DiscoveryLeadRecord, DocumentCandidate, DocumentRecord, DocumentSetRecord,
     EvidenceCatalogRecord, EvidenceMatchProposalSet, EvidenceMatchRecord, EvidenceMatchSetRecord,
     EvidenceProposalSet, EvidenceRecord, FindingRecord, JobRecord, OpportunityRecordV3,
     PackageExportManifestRecord, PackageManifestRecord, ParsedJobRecord, PlanRecordV3,
@@ -24,6 +25,64 @@ pub const PUBLIC_SCHEMA_VERSION: &str = "2.0.0";
 pub const PUBLIC_SCHEMA_BASE: &str = "https://schemas.canisend.dev/v2";
 pub const APPLICATION_MODEL_SCHEMA_VERSION: &str = "3.0.0";
 pub const APPLICATION_MODEL_SCHEMA_BASE: &str = "https://schemas.canisend.dev/v3";
+pub const AGENT_V4_SCHEMA_VERSION: &str = "4.0.0";
+pub const AGENT_V4_SCHEMA_BASE: &str = "https://schemas.canisend.dev/agent/v4";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentV4SchemaId {
+    TaskRequest,
+    Proposal,
+    MutationPreview,
+    Approval,
+    CommitRequest,
+    Receipt,
+}
+
+impl AgentV4SchemaId {
+    pub const ALL: [Self; 6] = [
+        Self::TaskRequest,
+        Self::Proposal,
+        Self::MutationPreview,
+        Self::Approval,
+        Self::CommitRequest,
+        Self::Receipt,
+    ];
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TaskRequest => "canisend.agent-task-request/v4",
+            Self::Proposal => "canisend.agent-proposal/v4",
+            Self::MutationPreview => "canisend.agent-mutation-preview/v4",
+            Self::Approval => "canisend.agent-approval/v4",
+            Self::CommitRequest => "canisend.agent-commit-request/v4",
+            Self::Receipt => "canisend.agent-receipt/v4",
+        }
+    }
+
+    #[must_use]
+    pub const fn slug(self) -> &'static str {
+        match self {
+            Self::TaskRequest => "task-request",
+            Self::Proposal => "proposal",
+            Self::MutationPreview => "mutation-preview",
+            Self::Approval => "approval",
+            Self::CommitRequest => "commit-request",
+            Self::Receipt => "receipt",
+        }
+    }
+
+    #[must_use]
+    pub fn file_name(self) -> String {
+        format!("{}.schema.json", self.slug())
+    }
+
+    #[must_use]
+    pub fn canonical_uri(self) -> String {
+        format!("{AGENT_V4_SCHEMA_BASE}/{}", self.file_name())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -290,6 +349,12 @@ pub struct GeneratedApplicationModelSchema {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedAgentV4Schema {
+    pub id: AgentV4SchemaId,
+    pub document: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneratedWorkflowPackSchema {
     pub document: Value,
 }
@@ -324,6 +389,16 @@ impl GeneratedApplicationModelSchema {
     pub fn canonical_json(&self) -> String {
         let mut output = serde_json::to_string_pretty(&sort_json(self.document.clone()))
             .expect("generated application-model schema serializes");
+        output.push('\n');
+        output
+    }
+}
+
+impl GeneratedAgentV4Schema {
+    #[must_use]
+    pub fn canonical_json(&self) -> String {
+        let mut output = serde_json::to_string_pretty(&sort_json(self.document.clone()))
+            .expect("generated Agent v4 schema serializes");
         output.push('\n');
         output
     }
@@ -400,6 +475,50 @@ pub fn verify_public_schemas() -> Result<(), String> {
         {
             return Err(format!(
                 "generated schema metadata is incomplete: {}",
+                schema.id.as_str()
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[must_use]
+pub fn generate_agent_v4_schemas() -> Vec<GeneratedAgentV4Schema> {
+    vec![
+        generate_agent_v4::<AgentTaskRequestV4>(AgentV4SchemaId::TaskRequest),
+        generate_agent_v4::<AgentProposalV4>(AgentV4SchemaId::Proposal),
+        generate_agent_v4::<AgentMutationPreviewV4>(AgentV4SchemaId::MutationPreview),
+        generate_agent_v4::<AgentApprovalV4>(AgentV4SchemaId::Approval),
+        generate_agent_v4::<AgentCommitRequestV4>(AgentV4SchemaId::CommitRequest),
+        generate_agent_v4::<AgentReceiptV4>(AgentV4SchemaId::Receipt),
+    ]
+}
+
+pub fn verify_agent_v4_schemas() -> Result<(), String> {
+    let schemas = generate_agent_v4_schemas();
+    if schemas.len() != AgentV4SchemaId::ALL.len() {
+        return Err("Agent v4 schema registry length does not match its ID registry".to_owned());
+    }
+    let mut ids = BTreeSet::new();
+    for schema in schemas {
+        if !ids.insert(schema.id) {
+            return Err(format!(
+                "duplicate Agent v4 schema ID: {}",
+                schema.id.as_str()
+            ));
+        }
+        if !jsonschema::meta::is_valid(&schema.document) {
+            return Err(format!(
+                "generated Agent v4 schema does not satisfy its meta-schema: {}",
+                schema.id.as_str()
+            ));
+        }
+        if schema.document["$id"] != schema.id.canonical_uri()
+            || schema.document["x-canisend-id"] != schema.id.as_str()
+            || schema.document["x-canisend-version"] != AGENT_V4_SCHEMA_VERSION
+        {
+            return Err(format!(
+                "generated Agent v4 schema metadata is incomplete: {}",
                 schema.id.as_str()
             ));
         }
@@ -500,6 +619,12 @@ fn generate_application_model<T: JsonSchema>(
     GeneratedApplicationModelSchema { id, document }
 }
 
+fn generate_agent_v4<T: JsonSchema>(id: AgentV4SchemaId) -> GeneratedAgentV4Schema {
+    let document =
+        generate_schema_document::<T>(&id.canonical_uri(), id.as_str(), AGENT_V4_SCHEMA_VERSION);
+    GeneratedAgentV4Schema { id, document }
+}
+
 fn generate_schema_document<T: JsonSchema>(uri: &str, id: &str, version: &str) -> Value {
     let mut document = serde_json::to_value(schemars::schema_for!(T))
         .expect("generated schema serializes to JSON");
@@ -537,9 +662,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        ApplicationModelSchemaId, PublicSchemaId, generate_application_model_schemas,
-        generate_public_schemas, generate_workflow_pack_schema, verify_application_model_schemas,
-        verify_public_schemas, verify_workflow_pack_schema,
+        AgentV4SchemaId, ApplicationModelSchemaId, PublicSchemaId, generate_agent_v4_schemas,
+        generate_application_model_schemas, generate_public_schemas, generate_workflow_pack_schema,
+        verify_agent_v4_schemas, verify_application_model_schemas, verify_public_schemas,
+        verify_workflow_pack_schema,
     };
 
     #[test]
@@ -567,6 +693,27 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.file_name(), "manifest.schema.json");
         assert_eq!(first.canonical_json(), second.canonical_json());
+    }
+
+    #[test]
+    fn agent_v4_schema_registry_is_complete_and_deterministic() {
+        verify_agent_v4_schemas().expect("Agent v4 schemas verify");
+        let first = generate_agent_v4_schemas();
+        let second = generate_agent_v4_schemas();
+        assert_eq!(first, second);
+        assert_eq!(first.len(), AgentV4SchemaId::ALL.len());
+        assert_eq!(
+            first
+                .iter()
+                .map(|schema| schema.id.file_name())
+                .collect::<BTreeSet<_>>()
+                .len(),
+            first.len()
+        );
+        assert!(first.iter().all(|schema| {
+            let canonical = schema.canonical_json();
+            !canonical.contains("canisend.agent/v3") && !canonical.contains("canisend.workspace/v3")
+        }));
     }
 
     #[test]

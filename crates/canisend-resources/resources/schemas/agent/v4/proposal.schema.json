@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "AgentApplicationBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/AgentPackBindingV4"
+        },
+        "snapshot_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "pack",
+        "expected_revision",
+        "snapshot_sha256"
+      ],
+      "type": "object"
+    },
+    "AgentContextBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentApplicationBindingV4"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_format": {
+          "$ref": "#/$defs/AgentWorkspaceFormatV4"
+        },
+        "workspace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "workspace_format"
+      ],
+      "type": "object"
+    },
+    "AgentPackBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "AgentProtocolV4": {
+      "enum": [
+        "canisend.agent/v4"
+      ],
+      "type": "string"
+    },
+    "AgentWorkspaceFormatV4": {
+      "enum": [
+        "canisend.workspace/v4"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/agent/v4/proposal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_schema": {
+      "type": "string"
+    },
+    "candidate_sha256": {
+      "type": "string"
+    },
+    "context": {
+      "$ref": "#/$defs/AgentContextBindingV4"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolV4"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol",
+    "task_id",
+    "operation",
+    "context",
+    "request_sha256",
+    "candidate_schema",
+    "candidate_sha256",
+    "summary"
+  ],
+  "title": "AgentProposalV4",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-proposal/v4",
+  "x-canisend-version": "4.0.0"
+}

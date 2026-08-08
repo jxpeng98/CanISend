@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "AgentConsentBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "granted_by_user": {
+          "type": "boolean"
+        },
+        "scope": {
+          "$ref": "#/$defs/ConsentScope"
+        }
+      },
+      "required": [
+        "scope",
+        "granted_by_user"
+      ],
+      "type": "object"
+    },
+    "AgentProtocolV4": {
+      "enum": [
+        "canisend.agent/v4"
+      ],
+      "type": "string"
+    },
+    "ConsentScope": {
+      "enum": [
+        "read-private-inputs",
+        "send-to-configured-provider",
+        "fetch-user-supplied-url",
+        "export-private-artifacts",
+        "use-system-fonts"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/agent/v4/approval.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approved": {
+      "type": "boolean"
+    },
+    "consents": {
+      "items": {
+        "$ref": "#/$defs/AgentConsentBindingV4"
+      },
+      "type": "array"
+    },
+    "preview_sha256": {
+      "type": "string"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolV4"
+    },
+    "task_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol",
+    "task_id",
+    "preview_sha256",
+    "approved",
+    "consents"
+  ],
+  "title": "AgentApprovalV4",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-approval/v4",
+  "x-canisend-version": "4.0.0"
+}

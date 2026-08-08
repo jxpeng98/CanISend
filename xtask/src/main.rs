@@ -10,9 +10,10 @@ use std::{
 
 use canisend_contracts::{
     AGENT_PROTOCOL, OperationClass, OperationPackScope, OperationRegistry, OperationSurface,
-    PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_application_model_schemas,
-    generate_public_schemas, generate_workflow_pack_schema, verify_application_model_schemas,
-    verify_public_schemas, verify_workflow_pack_schema,
+    PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_agent_v4_schemas,
+    generate_application_model_schemas, generate_public_schemas, generate_workflow_pack_schema,
+    verify_agent_v4_schemas, verify_application_model_schemas, verify_public_schemas,
+    verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -423,6 +424,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
 
 fn check_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_agent_v4_schemas()?;
     verify_application_model_schemas()?;
     verify_workflow_pack_schema()?;
     let expected = generate_public_schemas();
@@ -446,6 +448,32 @@ fn check_schemas() -> Result<(), String> {
     if actual_names != expected_names {
         return Err(format!(
             "generated schema file set differs: expected {expected_names:?}, found {actual_names:?}"
+        ));
+    }
+    let agent_v4 = generate_agent_v4_schemas();
+    let agent_v4_directory = agent_v4_schema_directory();
+    let mut expected_agent_v4_names = BTreeSet::new();
+    for schema in agent_v4 {
+        let file_name = schema.id.file_name();
+        expected_agent_v4_names.insert(file_name.clone());
+        let path = agent_v4_directory.join(file_name);
+        let actual = fs::read_to_string(&path).map_err(|error| {
+            format!(
+                "generated Agent v4 schema is missing at {}: {error}",
+                path.display()
+            )
+        })?;
+        if actual != schema.canonical_json() {
+            return Err(format!(
+                "generated Agent v4 schema drift at {}; run `cargo run -p xtask -- schemas write`",
+                path.display()
+            ));
+        }
+    }
+    let actual_agent_v4_names = json_files(&agent_v4_directory)?;
+    if actual_agent_v4_names != expected_agent_v4_names {
+        return Err(format!(
+            "generated Agent v4 schema file set differs: expected {expected_agent_v4_names:?}, found {actual_agent_v4_names:?}"
         ));
     }
     let application_model = generate_application_model_schemas();
@@ -497,8 +525,9 @@ fn check_schemas() -> Result<(), String> {
         ));
     }
     println!(
-        "schemas: ok ({} public + {} application-v3 + 1 workflow-pack)",
+        "schemas: ok ({} public + {} Agent v4 + {} application-v3 + 1 workflow-pack)",
         expected_names.len(),
+        expected_agent_v4_names.len(),
         expected_application_model_names.len()
     );
     Ok(())
@@ -506,6 +535,7 @@ fn check_schemas() -> Result<(), String> {
 
 fn write_schemas() -> Result<(), String> {
     verify_public_schemas()?;
+    verify_agent_v4_schemas()?;
     verify_application_model_schemas()?;
     verify_workflow_pack_schema()?;
     let directory = schema_directory();
@@ -522,6 +552,23 @@ fn write_schemas() -> Result<(), String> {
     }
     for schema in schemas {
         let path = directory.join(schema.id.file_name());
+        fs::write(&path, schema.canonical_json()).map_err(|error| error.to_string())?;
+    }
+    let agent_v4_directory = agent_v4_schema_directory();
+    fs::create_dir_all(&agent_v4_directory).map_err(|error| error.to_string())?;
+    let agent_v4 = generate_agent_v4_schemas();
+    let expected_agent_v4_names = agent_v4
+        .iter()
+        .map(|schema| schema.id.file_name())
+        .collect::<BTreeSet<_>>();
+    for existing in json_files(&agent_v4_directory)? {
+        if !expected_agent_v4_names.contains(&existing) {
+            fs::remove_file(agent_v4_directory.join(existing))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    for schema in agent_v4 {
+        let path = agent_v4_directory.join(schema.id.file_name());
         fs::write(&path, schema.canonical_json()).map_err(|error| error.to_string())?;
     }
     let application_model_directory = application_model_schema_directory();
@@ -556,8 +603,9 @@ fn write_schemas() -> Result<(), String> {
     )
     .map_err(|error| error.to_string())?;
     println!(
-        "schemas: wrote {} public + {} application-v3 + 1 workflow-pack",
+        "schemas: wrote {} public + {} Agent v4 + {} application-v3 + 1 workflow-pack",
         expected_names.len(),
+        expected_agent_v4_names.len(),
         expected_application_model_names.len()
     );
     Ok(())
@@ -569,6 +617,10 @@ fn schema_directory() -> PathBuf {
 
 fn application_model_schema_directory() -> PathBuf {
     repository_root().join("crates/canisend-resources/resources/schemas/v3")
+}
+
+fn agent_v4_schema_directory() -> PathBuf {
+    repository_root().join("crates/canisend-resources/resources/schemas/agent/v4")
 }
 
 fn workflow_pack_schema_directory() -> PathBuf {
