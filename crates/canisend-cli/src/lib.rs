@@ -11,8 +11,8 @@ use std::{
 
 use canisend_app::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, AgentSkillsInstallState,
-    AgentSkillsStatusState, AgentSkillsUninstallState, Application, ApplicationError,
-    ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    AgentSkillsStatusState, AgentSkillsUninstallState, Application, ApplicationArchiveRequest,
+    ApplicationError, ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
     ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4, ApplicationFlowExportRequestV3,
     ApplicationFlowPlanRequestV3, ContentCatalogFilter, ContentCatalogStatus, ContentCategory,
     ContentSearchRequest, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
@@ -270,6 +270,8 @@ enum ApplicationCommand {
     V3List(OutputArgs),
     /// Show one canonical v3 Application.
     V3Show(ApplicationV3IdArgs),
+    /// Archive one Workspace v4 Application without deleting history or shared data.
+    Archive(ApplicationV3ArchiveArgs),
     /// Create an exact-Pack v3 Application from a reviewed JSON request.
     GenericCreate(ApplicationV3CreateArgs),
     /// Confirm Requirements and commit an exact-Pack v3 Plan from JSON.
@@ -662,6 +664,16 @@ struct ApplicationV3CandidateArgs {
 
 #[derive(Debug, Args)]
 struct ApplicationV3ApproveArgs {
+    #[arg(long)]
+    application: String,
+    #[arg(long)]
+    expected_revision: u64,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ApplicationV3ArchiveArgs {
     #[arg(long)]
     application: String,
     #[arg(long)]
@@ -1443,6 +1455,7 @@ impl Cli {
                 ApplicationCommand::Show(arguments) => arguments.output.json,
                 ApplicationCommand::V3List(output) => output.json,
                 ApplicationCommand::V3Show(arguments) => arguments.output.json,
+                ApplicationCommand::Archive(arguments) => arguments.output.json,
                 ApplicationCommand::GenericCreate(arguments) => arguments.output.json,
                 ApplicationCommand::GenericPlan(arguments)
                 | ApplicationCommand::GenericCompose(arguments) => arguments.output.json,
@@ -1716,6 +1729,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Application {
             command: ApplicationCommand::V3Show(arguments),
         } => application_v3_show(workspace, &arguments.application),
+        Command::Application {
+            command: ApplicationCommand::Archive(arguments),
+        } => application_archive(workspace, arguments),
         Command::Application {
             command: ApplicationCommand::GenericCreate(arguments),
         } => application_v3_create(workspace, arguments),
@@ -2725,6 +2741,46 @@ fn application_v3_create(
                 model.stored.snapshot.application.revision.get()
             ),
             "Next: confirm Requirements and commit a Plan".to_owned(),
+        ],
+    )
+}
+
+fn application_archive(
+    workspace_path: Option<PathBuf>,
+    arguments: ApplicationV3ArchiveArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "application.archive";
+    let root = app_adapter::workspace_root(workspace_path, operation)?;
+    let expected_revision = Revision::try_new(arguments.expected_revision).map_err(|error| {
+        CommandFailure::new(
+            operation,
+            "invalid",
+            ErrorCode::InputInvalid,
+            error.to_string(),
+            false,
+        )
+    })?;
+    let archived = Application::archive_application(
+        &root,
+        &arguments.application,
+        ApplicationArchiveRequest {
+            expected_revision,
+            reason: "archive-application".to_owned(),
+        },
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?
+    .data;
+    success(
+        operation,
+        "archived",
+        &archived,
+        vec![
+            format!("Application: {}", archived.stored.snapshot.application.id),
+            format!(
+                "Revision: {}",
+                archived.stored.snapshot.application.revision.get()
+            ),
+            "History and shared Workspace data were preserved".to_owned(),
         ],
     )
 }
@@ -4652,11 +4708,11 @@ mod tests {
 
     use super::{
         AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3ApproveArgs,
-        ApplicationV3CandidateArgs, ApplicationV3CreateArgs, ApplicationV3ExportArgs,
-        ApplicationV3IdArgs, Cli, Command, CommandFailure, ExitClass, JobCommand, JobListArgs,
-        OutputArgs, TaskExecutionModeName, TaskOperationName, WorkspaceCommand, WorkspaceInitArgs,
-        agent_assets_export, assistance, capabilities, clap_leaf_paths, context, execute,
-        human_failure_lines, human_success_lines,
+        ApplicationV3ArchiveArgs, ApplicationV3CandidateArgs, ApplicationV3CreateArgs,
+        ApplicationV3ExportArgs, ApplicationV3IdArgs, Cli, Command, CommandFailure, ExitClass,
+        JobCommand, JobListArgs, OutputArgs, TaskExecutionModeName, TaskOperationName,
+        WorkspaceCommand, WorkspaceInitArgs, agent_assets_export, assistance, capabilities,
+        clap_leaf_paths, context, execute, human_failure_lines, human_success_lines,
     };
 
     fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
@@ -4682,7 +4738,7 @@ mod tests {
             .surface_leaves(OperationSurface::Cli)
             .expect("CLI leaves");
         assert_eq!(actual, expected);
-        assert_eq!(actual.len(), 86);
+        assert_eq!(actual.len(), 87);
     }
 
     #[test]
@@ -4717,6 +4773,24 @@ mod tests {
             compose.command,
             Command::Application {
                 command: ApplicationCommand::GenericCompose(_)
+            }
+        ));
+
+        let archive = Cli::try_parse_from([
+            "canisend",
+            "application",
+            "archive",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+            "--expected-revision",
+            "4",
+            "--json",
+        ])
+        .expect("Application archive command");
+        assert!(matches!(
+            archive.command,
+            Command::Application {
+                command: ApplicationCommand::Archive(_)
             }
         ));
 
@@ -4988,7 +5062,7 @@ mod tests {
             workspace: Some(root.clone()),
             command: Command::Application {
                 command: ApplicationCommand::GenericExport(ApplicationV3ExportArgs {
-                    application: application_id,
+                    application: application_id.clone(),
                     expected_revision: 4,
                     destination,
                     allow_private_export: true,
@@ -5004,6 +5078,42 @@ mod tests {
                 .as_ref()
                 .and_then(|data| data["render"]["submission_performed"].as_bool()),
             Some(false)
+        );
+
+        assert!(
+            execute(Cli {
+                workspace: Some(root.clone()),
+                command: Command::Application {
+                    command: ApplicationCommand::Archive(ApplicationV3ArchiveArgs {
+                        application: application_id.clone(),
+                        expected_revision: 3,
+                        output: OutputArgs { json: true },
+                    }),
+                },
+            })
+            .is_err(),
+            "stale Application archive must not mutate authority"
+        );
+        let archived = command_ok(execute(Cli {
+            workspace: Some(root.clone()),
+            command: Command::Application {
+                command: ApplicationCommand::Archive(ApplicationV3ArchiveArgs {
+                    application: application_id.clone(),
+                    expected_revision: 4,
+                    output: OutputArgs { json: true },
+                }),
+            },
+        }));
+        assert_eq!(archived.response.operation, "application.archive");
+        assert_eq!(archived.response.status, "archived");
+        assert_eq!(
+            Application::application_model_v3(&root, &application_id)
+                .expect("archived Application")
+                .data
+                .snapshot
+                .application
+                .lifecycle,
+            canisend_contracts::ApplicationLifecycleV3::Archived
         );
 
         let generic_before = Application::workspace_status(&root)

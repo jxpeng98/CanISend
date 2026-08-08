@@ -74,7 +74,7 @@ pub use application_flow_v3::{
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
 };
 pub use application_v3::{
-    ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,
+    ApplicationArchiveRequest, ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,
     ApplicationModelCreateRequestV3, ApplicationModelRevisionV3, StoredApplicationModelV3,
     WorkspaceV3AuthorityState,
 };

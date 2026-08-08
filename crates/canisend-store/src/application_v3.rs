@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use canisend_contracts::{
-    ActorKind, ApplicationId, ApplicationModelSnapshotV3, ConsentScope, DeliverableId,
-    DeliverableRecordV3, DeliverableStateV3, OpportunityRecordV3, PlanId, PlanRecordV3,
-    PlanStateV3, RequirementRecordV3, Revision, SemanticValidate, Sha256Digest, UtcTimestamp,
-    WORKSPACE_V4_FORMAT, WorkflowPackItemId, validate_application_model_snapshot_v3,
+    ActorKind, ApplicationId, ApplicationLifecycleV3, ApplicationModelSnapshotV3, ConsentScope,
+    DeliverableId, DeliverableRecordV3, DeliverableStateV3, OpportunityRecordV3, PlanId,
+    PlanRecordV3, PlanStateV3, RequirementRecordV3, Revision, SemanticValidate, Sha256Digest,
+    UtcTimestamp, WORKSPACE_V4_FORMAT, WorkflowPackItemId, validate_application_model_snapshot_v3,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -53,6 +53,12 @@ pub struct ApplicationModelCommitResultV3 {
 
 pub struct ApplicationModelRepository<'a> {
     database: &'a mut Database,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApplicationMutation {
+    Commit,
+    Archive,
 }
 
 impl<'a> ApplicationModelRepository<'a> {
@@ -306,6 +312,68 @@ impl<'a> ApplicationModelRepository<'a> {
         actor: ActorKind,
         reason: &str,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        self.commit_internal(
+            application_id,
+            expected_revision,
+            candidate,
+            actor,
+            reason,
+            ApplicationMutation::Commit,
+        )
+    }
+
+    pub fn archive(
+        &mut self,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        actor: ActorKind,
+        reason: &str,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        let current = self.get(application_id)?;
+        if current.snapshot.application.revision != expected_revision {
+            return Err(StoreError::ApplicationModelConflict(format!(
+                "expected Application revision {}, found {}",
+                expected_revision.get(),
+                current.snapshot.application.revision.get()
+            )));
+        }
+        if current.snapshot.application.lifecycle == ApplicationLifecycleV3::Archived
+            && current.snapshot.opportunity.archived
+        {
+            return Ok(ApplicationModelCommitResultV3 {
+                stored: current,
+                stale_plan_ids: Vec::new(),
+                stale_deliverable_ids: Vec::new(),
+            });
+        }
+
+        let mut candidate = current.snapshot.clone();
+        candidate.application.lifecycle = ApplicationLifecycleV3::Archived;
+        candidate.application.revision = next_revision(candidate.application.revision)?;
+        candidate.application.updated_at = now_utc()?;
+        if !candidate.opportunity.archived {
+            candidate.opportunity.archived = true;
+            candidate.opportunity.revision = next_revision(candidate.opportunity.revision)?;
+        }
+        self.commit_internal(
+            application_id,
+            expected_revision,
+            candidate,
+            actor,
+            reason,
+            ApplicationMutation::Archive,
+        )
+    }
+
+    fn commit_internal(
+        &mut self,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        candidate: ApplicationModelSnapshotV3,
+        actor: ActorKind,
+        reason: &str,
+        mutation: ApplicationMutation,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
         let reason = validate_reason(reason)?.to_owned();
         let actor_name = enum_name(actor)?;
         let committed_at = now_utc()?;
@@ -321,8 +389,11 @@ impl<'a> ApplicationModelRepository<'a> {
                 current.snapshot.application.revision.get()
             )));
         }
-        let (snapshot, stale_plan_ids, stale_deliverable_ids) =
-            prepare_update(&current.snapshot, candidate)?;
+        let (snapshot, stale_plan_ids, stale_deliverable_ids) = prepare_update(
+            &current.snapshot,
+            candidate,
+            mutation == ApplicationMutation::Archive,
+        )?;
         validate_snapshot(&snapshot)?;
         let (snapshot_json, snapshot_sha256) = serialize_snapshot(&snapshot)?;
         insert_revision(
@@ -364,9 +435,11 @@ impl<'a> ApplicationModelRepository<'a> {
             &transaction,
             event_id.as_str(),
             &actor_name,
-            match storage {
-                ApplicationStorage::V3 => "application-v3.commit",
-                ApplicationStorage::V4 => "application-v4.commit",
+            match (storage, mutation) {
+                (ApplicationStorage::V3, ApplicationMutation::Commit) => "application-v3.commit",
+                (ApplicationStorage::V4, ApplicationMutation::Commit) => "application-v4.commit",
+                (ApplicationStorage::V3, ApplicationMutation::Archive) => "application-v3.archive",
+                (ApplicationStorage::V4, ApplicationMutation::Archive) => "application-v4.archive",
             },
             application_id,
             snapshot.application.revision,
@@ -657,6 +730,7 @@ fn validate_initial_revisions(snapshot: &ApplicationModelSnapshotV3) -> Result<(
 fn prepare_update(
     current: &ApplicationModelSnapshotV3,
     mut candidate: ApplicationModelSnapshotV3,
+    allow_archive_transition: bool,
 ) -> Result<(ApplicationModelSnapshotV3, Vec<PlanId>, Vec<DeliverableId>), StoreError> {
     if candidate.application.id != current.application.id {
         return Err(StoreError::ApplicationModelConflict(
@@ -680,6 +754,26 @@ fn prepare_update(
     {
         return Err(StoreError::ApplicationModelConflict(
             "entity creation timestamps are immutable".to_owned(),
+        ));
+    }
+    let current_fully_archived = current.application.lifecycle == ApplicationLifecycleV3::Archived
+        && current.opportunity.archived;
+    if current_fully_archived {
+        return Err(StoreError::ApplicationModelConflict(
+            "an archived Application is terminal and cannot be revised".to_owned(),
+        ));
+    }
+    let candidate_application_archived =
+        candidate.application.lifecycle == ApplicationLifecycleV3::Archived;
+    if allow_archive_transition {
+        if !candidate_application_archived || !candidate.opportunity.archived {
+            return Err(StoreError::ApplicationModelConflict(
+                "the archive boundary must retire both Application and Opportunity".to_owned(),
+            ));
+        }
+    } else if candidate_application_archived || candidate.opportunity.archived {
+        return Err(StoreError::ApplicationModelConflict(
+            "Application archival requires the dedicated archive boundary".to_owned(),
         ));
     }
     if !timestamp_after(
@@ -1642,6 +1736,97 @@ mod tests {
                     .len(),
                 2
             );
+
+            let academic_before_generic_archive = repository
+                .get(&academic_id)
+                .expect("academic before generic archive");
+            let current_generic = repository.get(&generic_id).expect("generic before archive");
+            let mut bypass_archive = current_generic.snapshot.clone();
+            bypass_archive.application.lifecycle = ApplicationLifecycleV3::Archived;
+            bypass_archive.application.revision = revision(3);
+            bypass_archive.application.updated_at = timestamp("2026-08-08T10:03:00Z");
+            bypass_archive.opportunity.archived = true;
+            bypass_archive.opportunity.revision = revision(2);
+            assert!(matches!(
+                repository.commit(
+                    &generic_id,
+                    revision(2),
+                    bypass_archive,
+                    ActorKind::User,
+                    "bypass-archive"
+                ),
+                Err(StoreError::ApplicationModelConflict(_))
+            ));
+            assert_eq!(
+                repository
+                    .history(&generic_id)
+                    .expect("history after rejected bypass")
+                    .len(),
+                2
+            );
+
+            let archived_generic = repository
+                .archive(&generic_id, revision(2), ActorKind::User, "archive-generic")
+                .expect("archive generic Application");
+            assert_eq!(
+                archived_generic.stored.snapshot.application.lifecycle,
+                ApplicationLifecycleV3::Archived
+            );
+            assert!(archived_generic.stored.snapshot.opportunity.archived);
+            assert_eq!(
+                archived_generic.stored.snapshot.application.revision,
+                revision(3)
+            );
+            assert_eq!(
+                repository
+                    .get(&academic_id)
+                    .expect("academic after generic archive"),
+                academic_before_generic_archive
+            );
+            let idempotent_generic = repository
+                .archive(&generic_id, revision(3), ActorKind::User, "archive-generic")
+                .expect("idempotent generic archive");
+            assert_eq!(idempotent_generic.stored, archived_generic.stored);
+            assert_eq!(
+                repository
+                    .history(&generic_id)
+                    .expect("generic archive history")
+                    .len(),
+                3
+            );
+
+            let generic_before_academic_archive = repository
+                .get(&generic_id)
+                .expect("generic before academic archive");
+            repository
+                .archive(
+                    &academic_id,
+                    revision(1),
+                    ActorKind::User,
+                    "archive-academic",
+                )
+                .expect("archive academic Application");
+            assert_eq!(
+                repository
+                    .get(&generic_id)
+                    .expect("generic after academic archive"),
+                generic_before_academic_archive
+            );
+            assert_eq!(
+                repository
+                    .get(&academic_id)
+                    .expect("archived academic")
+                    .snapshot
+                    .pack,
+                expected_academic_pack
+            );
+            assert_eq!(
+                repository
+                    .history(&academic_id)
+                    .expect("academic archive history")
+                    .len(),
+                2
+            );
         }
         assert_eq!(
             fixture
@@ -1682,9 +1867,19 @@ mod tests {
             })
             .expect("legacy authority count");
         assert_eq!(native_heads, 2);
-        assert_eq!(native_revisions, 3);
+        assert_eq!(native_revisions, 5);
         assert_eq!(legacy_heads, 0);
         assert_eq!(legacy_authority, 0);
+        let archive_events: i64 = fixture
+            .database()
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-v4.archive'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("archive audit count");
+        assert_eq!(archive_events, 2);
         let missing_pack = fixture.database().connection().execute(
             "INSERT INTO application_v4_heads(
                 application_id, opportunity_id, head_revision, created_at, updated_at

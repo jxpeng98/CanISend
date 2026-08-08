@@ -696,7 +696,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            86
+            87
         );
         assert_eq!(
             bindings

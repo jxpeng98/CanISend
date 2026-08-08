@@ -4,7 +4,10 @@ use canisend_contracts::{ApplicationId, ApplicationModelSnapshotV3, Revision};
 use canisend_store::ApplicationModelRepository;
 use serde::{Deserialize, Serialize};
 
-use crate::{ActionReceipt, Application, ApplicationError, application::open_workspace};
+use crate::{
+    ActionReceipt, Application, ApplicationError,
+    application::{open_workspace, open_workspace_v4},
+};
 
 pub use canisend_store::{
     ApplicationModelCommitResultV3, ApplicationModelRevisionV3, StoredApplicationModelV3,
@@ -23,6 +26,13 @@ pub struct ApplicationModelCreateRequestV3 {
 pub struct ApplicationModelCommitRequestV3 {
     pub expected_revision: Revision,
     pub snapshot: ApplicationModelSnapshotV3,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationArchiveRequest {
+    pub expected_revision: Revision,
     pub reason: String,
 }
 
@@ -121,6 +131,27 @@ impl Application {
             "application-v3.commit",
             "committed",
             "Committed the next neutral Application revision",
+            result,
+        ))
+    }
+
+    pub fn archive_application(
+        workspace_root: &Path,
+        application_id: &str,
+        request: ApplicationArchiveRequest,
+    ) -> Result<ActionReceipt<ApplicationModelCommitResultV3>, ApplicationError> {
+        let application_id = parse_application_id(application_id)?;
+        let mut workspace = open_workspace_v4(workspace_root)?;
+        let result = ApplicationModelRepository::new(&mut workspace.database).archive(
+            &application_id,
+            request.expected_revision,
+            canisend_contracts::ActorKind::User,
+            &request.reason,
+        )?;
+        Ok(ActionReceipt::new(
+            "application.archive",
+            "archived",
+            "Archived the selected Application without deleting history or shared Workspace data",
             result,
         ))
     }
