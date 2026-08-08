@@ -22,6 +22,7 @@ mod error;
 mod intake;
 mod intake_v4;
 mod job;
+mod local_intake_v4;
 mod migration_v3;
 mod package;
 mod plan;
@@ -132,6 +133,10 @@ pub use job::{
     JobIntakeMutationReadModel, JobIntakePreviewReadModel, JobIntakeProvenanceReadModel,
     JobIntakeSourceKind, JobIntakeValidationIssue, JobListReadModel, PreparedJobSource,
     SourceImportReadModel,
+};
+pub use local_intake_v4::{
+    LocalFileIntakeCommitRequestV4, LocalFileIntakePreviewReadModelV4,
+    LocalFileIntakePreviewRequestV4, SourceDuplicateSignalV4,
 };
 pub use migration_v3::{
     WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
