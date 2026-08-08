@@ -234,6 +234,15 @@ fn classify_store(error: &StoreError) -> Classification {
         StoreError::ApplicationModelUnavailable | StoreError::ApplicationModelConflict(_) => {
             ("conflict", ErrorCode::WorkspaceConflict, false)
         }
+        StoreError::ApplicationAssociationNotFound(_) => {
+            ("not-found", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ApplicationAssociationConflict(_) => {
+            ("conflict", ErrorCode::WorkspaceConflict, false)
+        }
+        StoreError::ApplicationAssociationConsentRequired(_) => {
+            ("consent-required", ErrorCode::ConsentRequired, false)
+        }
         StoreError::WorkspaceMigrationConflict(_) => {
             ("conflict", ErrorCode::WorkspaceConflict, false)
         }
@@ -339,6 +348,14 @@ fn classify_store(error: &StoreError) -> Classification {
                 description:
                     "Do not modify the newer Workspace or attempt an in-place database downgrade"
                         .to_owned(),
+            }),
+        ),
+        StoreError::ApplicationAssociationConsentRequired(_) => (
+            None,
+            Some(NextAction {
+                action: "grant the exact requested association consent".to_owned(),
+                description: "Review the private Workspace resource and approve its explicit use by the selected Application"
+                    .to_owned(),
             }),
         ),
         _ => (None, None),

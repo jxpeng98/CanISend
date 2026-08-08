@@ -9,7 +9,7 @@ use rusqlite::{
 
 use crate::{StoreError, now_utc};
 
-pub const DATABASE_SCHEMA_VERSION: u32 = 17;
+pub const DATABASE_SCHEMA_VERSION: u32 = 18;
 const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
 const INTAKE_MIGRATION: &str = include_str!("../migrations/0002_job_intake.sql");
 const DISCOVERY_MIGRATION: &str = include_str!("../migrations/0003_discovery.sql");
@@ -31,6 +31,8 @@ const APPLICATION_PROJECTIONS_V3_MIGRATION: &str =
     include_str!("../migrations/0016_application_projections_v3.sql");
 const APPLICATION_PACK_MIGRATIONS_V3_MIGRATION: &str =
     include_str!("../migrations/0017_application_pack_migrations_v3.sql");
+const APPLICATION_ASSOCIATIONS_V4_MIGRATION: &str =
+    include_str!("../migrations/0018_application_associations_v4.sql");
 
 pub struct Database {
     connection: Connection,
@@ -144,6 +146,11 @@ impl Database {
         if version == 16 {
             let applied_at = now_utc()?;
             self.apply_migration(17, APPLICATION_PACK_MIGRATIONS_V3_MIGRATION, &applied_at)?;
+            version = 17;
+        }
+        if version == 17 {
+            let applied_at = now_utc()?;
+            self.apply_migration(18, APPLICATION_ASSOCIATIONS_V4_MIGRATION, &applied_at)?;
         }
         Ok(())
     }

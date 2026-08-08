@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{Database, StoreError, generate_id, now_utc};
+use crate::{PreparedWorkspaceSourceV4, association_v4::insert_prepared_source_association};
 
 pub use canisend_contracts::WORKSPACE_V3_FORMAT;
 
@@ -92,6 +93,27 @@ impl<'a> ApplicationModelRepository<'a> {
         actor: ActorKind,
         reason: &str,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        self.create_internal(snapshot, None, actor, reason)
+    }
+
+    pub fn create_with_source(
+        &mut self,
+        snapshot: ApplicationModelSnapshotV3,
+        source: PreparedWorkspaceSourceV4,
+        actor: ActorKind,
+        reason: &str,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        validate_prepared_source_binding(&snapshot, &source)?;
+        self.create_internal(snapshot, Some(source), actor, reason)
+    }
+
+    fn create_internal(
+        &mut self,
+        snapshot: ApplicationModelSnapshotV3,
+        source: Option<PreparedWorkspaceSourceV4>,
+        actor: ActorKind,
+        reason: &str,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
         validate_initial_revisions(&snapshot)?;
         validate_snapshot(&snapshot)?;
         let reason = validate_reason(reason)?.to_owned();
@@ -139,6 +161,14 @@ impl<'a> ApplicationModelRepository<'a> {
             &reason,
             &committed_at,
         )?;
+        if let Some(source) = &source {
+            insert_prepared_source_association(
+                &transaction,
+                &snapshot.application.id,
+                source,
+                None,
+            )?;
+        }
         insert_content_blob_references(&transaction, &snapshot, &committed_at)?;
         insert_dependencies(&transaction, &snapshot)?;
         insert_audit(
@@ -321,6 +351,34 @@ impl<'a> ApplicationModelRepository<'a> {
             stale_deliverable_ids,
         })
     }
+}
+
+fn validate_prepared_source_binding(
+    snapshot: &ApplicationModelSnapshotV3,
+    prepared: &PreparedWorkspaceSourceV4,
+) -> Result<(), StoreError> {
+    let source = &prepared.record;
+    if source.revision.get() != 1 {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "an intake Source must begin at revision one".to_owned(),
+        ));
+    }
+    if !snapshot.opportunity.source_ids.contains(&source.id) {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Opportunity does not reference the prepared Source".to_owned(),
+        ));
+    }
+    if snapshot.requirements.iter().any(|requirement| {
+        let reference = &requirement.source_span.content;
+        reference.id != source.id
+            || reference.revision != source.revision
+            || reference.sha256 != source.normalized_sha256
+    }) {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Requirement span does not bind the exact prepared Source revision".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn ensure_workspace_has_no_product_data(connection: &Connection) -> Result<(), StoreError> {

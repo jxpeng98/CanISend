@@ -4,6 +4,7 @@ mod application_flow_v3;
 mod application_projection_v3;
 mod application_v3;
 mod artifact;
+mod association_v4;
 mod backup;
 mod blob;
 mod catalog;
@@ -54,6 +55,9 @@ pub use application_v3::{
     StoredApplicationModelV3, WORKSPACE_V3_FORMAT, WorkspaceV3AuthorityState,
 };
 pub use artifact::ArtifactService;
+pub use association_v4::{
+    ApplicationAssociationServiceV4, NewWorkspaceSourceV4, PreparedWorkspaceSourceV4,
+};
 pub use backup::{BackupResult, verify_backup};
 pub use blob::{BlobAudit, BlobStore, DEFAULT_MAX_BLOB_BYTES};
 pub use catalog::{
@@ -155,6 +159,12 @@ pub enum StoreError {
     ApplicationModelConflict(String),
     #[error("application model integrity verification failed: {0}")]
     ApplicationModelIntegrity(String),
+    #[error("application association was not found: {0}")]
+    ApplicationAssociationNotFound(String),
+    #[error("application association conflicts with current state: {0}")]
+    ApplicationAssociationConflict(String),
+    #[error("application association requires consent scope {0}")]
+    ApplicationAssociationConsentRequired(String),
     #[error("Workspace v2 to v3 migration conflicts with current state: {0}")]
     WorkspaceMigrationConflict(String),
     #[error("Workspace v2 to v3 migration integrity verification failed: {0}")]
