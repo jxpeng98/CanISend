@@ -4,7 +4,7 @@ use canisend_contracts::{
     ActorKind, ApplicationId, ApplicationModelSnapshotV3, DeliverableId, DeliverableRecordV3,
     DeliverableStateV3, OpportunityRecordV3, PlanId, PlanRecordV3, PlanStateV3,
     RequirementRecordV3, Revision, SemanticValidate, Sha256Digest, UtcTimestamp,
-    WorkflowPackItemId, validate_application_model_snapshot_v3,
+    WORKSPACE_V4_FORMAT, WorkflowPackItemId, validate_application_model_snapshot_v3,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -72,6 +72,16 @@ impl<'a> ApplicationModelRepository<'a> {
         actor: ActorKind,
         reason: &str,
     ) -> Result<WorkspaceV3AuthorityState, StoreError> {
+        match load_authority(self.database.connection()) {
+            Ok(authority) => {
+                return Err(StoreError::ApplicationModelConflict(format!(
+                    "Application authority is already active for {}",
+                    authority.workspace_format
+                )));
+            }
+            Err(StoreError::ApplicationModelUnavailable) => {}
+            Err(error) => return Err(error),
+        }
         ensure_workspace_has_no_product_data(self.database.connection())?;
         activate_workspace_v3_authority(self.database, actor, reason)
     }
@@ -473,6 +483,19 @@ pub(crate) fn insert_migrated_application_model(
 }
 
 fn load_authority(connection: &Connection) -> Result<WorkspaceV3AuthorityState, StoreError> {
+    let (workspace_format, created_at): (String, String) = connection.query_row(
+        "SELECT workspace_format, created_at FROM workspace_metadata WHERE singleton = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if workspace_format == WORKSPACE_V4_FORMAT {
+        return Ok(WorkspaceV3AuthorityState {
+            workspace_format,
+            activated_at: UtcTimestamp::try_new(created_at)?,
+            reason: "clean-workspace-v4".to_owned(),
+        });
+    }
+
     let row = connection
         .query_row(
             "SELECT workspace_format, activated_at, reason
@@ -496,7 +519,7 @@ fn load_authority(connection: &Connection) -> Result<WorkspaceV3AuthorityState, 
     }
     if WorkflowPackItemId::try_new(&reason).is_err() {
         return Err(StoreError::ApplicationModelIntegrity(
-            "Workspace v3 activation reason is not a body-free code".to_owned(),
+            "Workspace Application-authority reason is not a body-free code".to_owned(),
         ));
     }
     Ok(WorkspaceV3AuthorityState {
@@ -1229,6 +1252,29 @@ mod tests {
             }
         }
 
+        fn new_v4(label: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "canisend-application-v4-{label}-{}-{}.sqlite3",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let mut database = Database::open(&path).expect("database");
+            database
+                .initialize_workspace_with_format(
+                    &entity_id(901),
+                    &timestamp("2026-08-08T10:00:00Z"),
+                    WORKSPACE_V4_FORMAT,
+                )
+                .expect("Workspace v4 identity");
+            database
+                .initialize_workspace_v4_application_storage(&timestamp("2026-08-08T10:00:00Z"))
+                .expect("Workspace v4 Application storage");
+            Self {
+                path,
+                database: Some(database),
+            }
+        }
+
         fn database(&mut self) -> &mut Database {
             self.database.as_mut().expect("database remains open")
         }
@@ -1368,6 +1414,84 @@ mod tests {
             plan: None,
             deliverables: Vec::new(),
         }
+    }
+
+    #[test]
+    fn clean_workspace_v4_holds_independent_pack_bound_applications() {
+        let mut fixture = TestDatabase::new_v4("mixed-pack");
+        let generic = draft_snapshot(701);
+        let generic_id = generic.application.id.clone();
+        let mut academic = draft_snapshot(801);
+        let academic_id = academic.application.id.clone();
+        let academic_pack = ApplicationPackBindingV3 {
+            id: WorkflowPackId::try_new("org.canisend.academic-job").expect("pack ID"),
+            version: SemanticVersion::try_new("1.0.0").expect("version"),
+            content_digest: Sha256Digest::try_new("b".repeat(64)).expect("digest"),
+        };
+        academic.pack = academic_pack.clone();
+        academic.opportunity.pack = academic_pack.clone();
+        academic.application.pack = academic_pack;
+
+        let mut repository = ApplicationModelRepository::new(fixture.database());
+        assert_eq!(
+            repository
+                .authority()
+                .expect("v4 authority")
+                .workspace_format,
+            WORKSPACE_V4_FORMAT
+        );
+        repository
+            .create(generic.clone(), ActorKind::User, "create-generic")
+            .expect("generic Application");
+        repository
+            .create(academic.clone(), ActorKind::User, "create-academic")
+            .expect("academic Application");
+
+        let applications = repository.list().expect("mixed Application collection");
+        assert_eq!(applications.len(), 2);
+        assert!(applications.iter().any(|stored| {
+            stored.snapshot.application.id == generic_id
+                && stored.snapshot.pack.id.as_str() == "org.canisend.generic-application"
+        }));
+        assert!(applications.iter().any(|stored| {
+            stored.snapshot.application.id == academic_id
+                && stored.snapshot.pack.id.as_str() == "org.canisend.academic-job"
+        }));
+
+        let mut revised_generic = generic;
+        revised_generic.application.revision = revision(2);
+        revised_generic.application.updated_at = timestamp("2026-08-08T10:01:00Z");
+        revised_generic.application.metadata.insert(
+            item("tracking-note"),
+            ApplicationFieldValueV3::ShortText("independent".to_owned()),
+        );
+        repository
+            .commit(
+                &generic_id,
+                revision(1),
+                revised_generic,
+                ActorKind::User,
+                "revise-generic",
+            )
+            .expect("revise generic Application");
+        assert_eq!(
+            repository
+                .get(&academic_id)
+                .expect("academic remains")
+                .snapshot
+                .application
+                .revision,
+            revision(1)
+        );
+        drop(repository);
+        assert_eq!(
+            fixture
+                .database()
+                .status()
+                .expect("v4 status")
+                .application_count,
+            2
+        );
     }
 
     fn confirmed_snapshot() -> ApplicationModelSnapshotV3 {

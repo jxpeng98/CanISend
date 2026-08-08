@@ -4,8 +4,8 @@ use std::{
 };
 
 use canisend_contracts::{
-    CheckSeverity, EntityId, UtcTimestamp, WORKSPACE_FORMAT, WorkspaceCheckData,
-    WorkspaceCheckIssue, WorkspaceStatusData,
+    CheckSeverity, EntityId, UtcTimestamp, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT,
+    WorkspaceCheckData, WorkspaceCheckIssue, WorkspaceStatusData,
 };
 use serde::{Deserialize, Serialize};
 
@@ -91,6 +91,14 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn init(root: &Path) -> Result<Self, StoreError> {
+        Self::init_with_format(root, WORKSPACE_FORMAT)
+    }
+
+    pub fn init_v4(root: &Path) -> Result<Self, StoreError> {
+        Self::init_with_format(root, WORKSPACE_V4_FORMAT)
+    }
+
+    fn init_with_format(root: &Path, workspace_format: &str) -> Result<Self, StoreError> {
         if root.exists() {
             validate_directory(root)?;
         } else {
@@ -117,7 +125,7 @@ impl Workspace {
         let workspace_id = generate_id()?;
         let created_at = now_utc()?;
         let config = WorkspaceConfig {
-            format: WORKSPACE_FORMAT.to_owned(),
+            format: workspace_format.to_owned(),
             workspace_id: workspace_id.clone(),
             created_at: created_at.clone(),
             storage: StorageConfig {
@@ -126,7 +134,10 @@ impl Workspace {
             },
         };
         let mut database = Database::open(&paths.database)?;
-        database.initialize_workspace(&workspace_id, &created_at)?;
+        database.initialize_workspace_with_format(&workspace_id, &created_at, workspace_format)?;
+        if workspace_format == WORKSPACE_V4_FORMAT {
+            database.initialize_workspace_v4_application_storage(&created_at)?;
+        }
         write_config(&paths.config, &config)?;
         Ok(Self {
             blobs: BlobStore::new(paths.blobs.clone(), paths.temporary.clone()),
@@ -147,12 +158,14 @@ impl Workspace {
         let config_text =
             fs::read_to_string(&paths.config).map_err(|source| io_error(&paths.config, source))?;
         let config: WorkspaceConfig = toml::from_str(&config_text)?;
-        if config.format != WORKSPACE_FORMAT
-            || config.storage.database != ".canisend/state.sqlite3"
+        if !matches!(
+            config.format.as_str(),
+            WORKSPACE_FORMAT | WORKSPACE_V4_FORMAT
+        ) || config.storage.database != ".canisend/state.sqlite3"
             || config.storage.blob_root != ".canisend/blobs/sha256"
         {
             return Err(StoreError::Invariant(
-                "workspace configuration format or storage paths do not match v2".to_owned(),
+                "workspace configuration format or storage paths are unsupported".to_owned(),
             ));
         }
         let database = Database::open(&paths.database)?;
@@ -161,8 +174,12 @@ impl Workspace {
                 "workspace database has no identity metadata".to_owned(),
             ));
         }
-        let (database_id, database_created_at) = database.workspace_identity()?;
-        if database_id != config.workspace_id || database_created_at != config.created_at {
+        let (database_id, database_format, database_created_at) =
+            database.workspace_identity_with_format()?;
+        if database_id != config.workspace_id
+            || database_format != config.format
+            || database_created_at != config.created_at
+        {
             return Err(StoreError::Invariant(
                 "workspace configuration and database identity differ".to_owned(),
             ));

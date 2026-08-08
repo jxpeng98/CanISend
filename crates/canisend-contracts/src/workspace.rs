@@ -13,6 +13,7 @@ pub struct WorkspaceStatusData {
     pub sqlite_version: String,
     pub journal_mode: String,
     pub job_count: u64,
+    pub application_count: u64,
     pub artifact_count: u64,
     pub referenced_blob_count: u64,
 }

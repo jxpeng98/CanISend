@@ -164,7 +164,7 @@ pub use workflow_pack_presentation::{
 };
 pub use workspace::{
     BackupReadModel, WorkspaceHealthReadModel, WorkspaceInitPolicy, WorkspaceReadModel,
-    WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel, WorkspaceV4ReadModel,
 };
 
 #[cfg(test)]

@@ -146,6 +146,7 @@ export interface WorkspaceStatus {
   sqlite_version: string;
   journal_mode: string;
   job_count: number;
+  application_count: number;
   artifact_count: number;
   referenced_blob_count: number;
 }
