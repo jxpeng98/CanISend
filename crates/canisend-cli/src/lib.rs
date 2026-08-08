@@ -13,9 +13,9 @@ use canisend_app::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, AgentHost, AgentPackExportRequest, AgentSkillsInstallState,
     AgentSkillsStatusState, AgentSkillsUninstallState, Application, ApplicationError,
     ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
-    ApplicationFlowCreateRequestV3, ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3,
-    ContentCatalogFilter, ContentCatalogStatus, ContentCategory, ContentSearchRequest,
-    DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
+    ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4, ApplicationFlowExportRequestV3,
+    ApplicationFlowPlanRequestV3, ContentCatalogFilter, ContentCatalogStatus, ContentCategory,
+    ContentSearchRequest, DiscoveryImportRequest, DiscoveryNetworkAdapter, DiscoveryRefreshRequest,
     GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PackageExportRequest,
     PrivateExportConsent, PrivateReadConsent, ProjectionCopyAsNewRequest, ProjectionReplaceRequest,
     ProviderSendConsent, RenderExportRequest, TaskExecutionMode, TaskInputExportRequest,
@@ -25,7 +25,7 @@ use canisend_app::{
 use canisend_contracts::{
     AgentError, AgentResponse, CompatibilityNotice, CompatibilitySurface, DocumentKind, EntityId,
     ErrorCode, ExecutionMode, ExitClass, NextAction, PrivacyClassification, PublicSchemaId,
-    Revision, SemanticVersion, Sha256Digest, VersionData, WorkflowStage,
+    Revision, SemanticVersion, Sha256Digest, VersionData, WorkflowPackId, WorkflowStage,
 };
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -536,9 +536,9 @@ impl BuiltInPackName {
 
 #[derive(Debug, Args)]
 struct WorkspaceInitArgs {
-    /// Select the exact built-in workflow Pack and Workspace authority generation.
-    #[arg(long, value_enum, default_value_t = BuiltInPackName::GenericApplication)]
-    pack: BuiltInPackName,
+    /// Transitional legacy Workspace selection; omit to initialize neutral Workspace v4.
+    #[arg(long, value_enum)]
+    pack: Option<BuiltInPackName>,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -2227,21 +2227,28 @@ fn resource_list() -> CommandResult<CommandOutput> {
 
 fn workspace_init(
     workspace_path: Option<PathBuf>,
-    pack: BuiltInPackName,
+    pack: Option<BuiltInPackName>,
 ) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
     let receipt = match pack {
-        BuiltInPackName::AcademicJob => Application::initialize_workspace_with_policy(
+        Some(BuiltInPackName::AcademicJob) => Application::initialize_workspace_with_policy(
             &root,
             WorkspaceInitPolicy::PreserveExistingFiles,
-        ),
-        BuiltInPackName::GenericApplication => {
-            Application::initialize_workspace_for_pack(&root, pack.id())
-        }
+        )
+        .map(|receipt| (receipt.data.path, receipt.data.status)),
+        Some(BuiltInPackName::GenericApplication) => Application::initialize_workspace_for_pack(
+            &root,
+            BuiltInPackName::GenericApplication.id(),
+        )
+        .map(|receipt| (receipt.data.path, receipt.data.status)),
+        None => Application::initialize_workspace_v4_with_policy(
+            &root,
+            WorkspaceInitPolicy::PreserveExistingFiles,
+        )
+        .map(|receipt| (receipt.data.path, receipt.data.status)),
     }
     .map_err(|error| app_adapter::failure("workspace.init", error))?;
-    let path = receipt.data.path;
-    let data = receipt.data.status;
+    let (path, data) = receipt;
     success(
         "workspace.init",
         "initialized",
@@ -2249,18 +2256,24 @@ fn workspace_init(
         vec![
             format!("Initialized CanISend workspace at {}", path.display()),
             format!("Workspace ID: {}", data.workspace_id),
-            format!("Workflow Pack: {}", pack.id()),
+            format!("Workspace format: {}", data.workspace_format),
+            "Workflow Packs bind to individual Applications".to_owned(),
         ],
     )
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
     let root = app_adapter::workspace_root(workspace_path, "workspace.status")?;
-    let model = Application::workspace_status(&root)
-        .map_err(|error| app_adapter::failure("workspace.status", error))?
-        .data;
-    let pack_id = model.pack_id;
-    let data = model.status;
+    let data = match Application::workspace_status_v4(&root) {
+        Ok(receipt) => receipt.data.status,
+        Err(ApplicationError::CompatibilityUnavailable { .. }) => {
+            Application::workspace_status(&root)
+                .map_err(|error| app_adapter::failure("workspace.status", error))?
+                .data
+                .status
+        }
+        Err(error) => return Err(app_adapter::failure("workspace.status", error)),
+    };
     success(
         "workspace.status",
         "available",
@@ -2268,7 +2281,7 @@ fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
         vec![
             format!("Workspace: {}", data.workspace_id),
             format!("Format: {}", data.workspace_format),
-            format!("Workflow Pack: {pack_id}"),
+            format!("Applications: {}", data.application_count),
             format!("SQLite: {} ({})", data.sqlite_version, data.journal_mode),
             format!("Artifacts: {}", data.artifact_count),
         ],
@@ -2679,9 +2692,28 @@ fn application_v3_create(
         operation,
         &arguments.candidate,
     )?;
-    let model = Application::create_application_flow_v3(&root, request)
-        .map_err(|error| app_adapter::failure(operation, error))?
-        .data;
+    let pack_id =
+        WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID).map_err(|error| {
+            app_adapter::failure(operation, ApplicationError::InvalidInput(error.to_string()))
+        })?;
+    let v4_result = Application::create_application_flow_v4(
+        &root,
+        ApplicationFlowCreateRequestV4 {
+            pack_id,
+            application: request.clone(),
+        },
+    );
+    // M3-LEGACY removes this bounded fallback with the historical generic-* aliases. Neutral
+    // Workspace v4 never reaches it: all new Applications bind an exact Pack before mutation.
+    let model = match v4_result {
+        Ok(receipt) => receipt.data,
+        Err(ApplicationError::CompatibilityUnavailable { .. }) => {
+            Application::create_application_flow_v3(&root, request)
+                .map_err(|error| app_adapter::failure(operation, error))?
+                .data
+        }
+        Err(error) => return Err(app_adapter::failure(operation, error)),
+    };
     success(
         operation,
         "created",
@@ -4621,10 +4653,10 @@ mod tests {
     use super::{
         AgentAssetsExportArgs, AgentHostName, ApplicationCommand, ApplicationV3ApproveArgs,
         ApplicationV3CandidateArgs, ApplicationV3CreateArgs, ApplicationV3ExportArgs,
-        ApplicationV3IdArgs, BuiltInPackName, Cli, Command, CommandFailure, ExitClass, JobCommand,
-        JobListArgs, OutputArgs, TaskExecutionModeName, TaskOperationName, WorkspaceCommand,
-        WorkspaceInitArgs, agent_assets_export, assistance, capabilities, clap_leaf_paths, context,
-        execute, human_failure_lines, human_success_lines,
+        ApplicationV3IdArgs, Cli, Command, CommandFailure, ExitClass, JobCommand, JobListArgs,
+        OutputArgs, TaskExecutionModeName, TaskOperationName, WorkspaceCommand, WorkspaceInitArgs,
+        agent_assets_export, assistance, capabilities, clap_leaf_paths, context, execute,
+        human_failure_lines, human_success_lines,
     };
 
     fn command_ok(result: super::CommandResult<super::CommandOutput>) -> super::CommandOutput {
@@ -4654,7 +4686,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_v3_commands_parse_with_explicit_pack_and_revision_boundaries() {
+    fn canonical_v3_commands_parse_with_neutral_workspace_and_revision_boundaries() {
         let initialized = Cli::try_parse_from([
             "canisend",
             "--workspace",
@@ -4662,14 +4694,11 @@ mod tests {
             "workspace",
             "init",
         ])
-        .expect("default generic Workspace init");
+        .expect("neutral Workspace v4 init");
         assert!(matches!(
             initialized.command,
             Command::Workspace {
-                command: WorkspaceCommand::Init(super::WorkspaceInitArgs {
-                    pack: BuiltInPackName::GenericApplication,
-                    ..
-                })
+                command: WorkspaceCommand::Init(super::WorkspaceInitArgs { pack: None, .. })
             }
         ));
 
@@ -4723,15 +4752,23 @@ mod tests {
         let stale_plan_candidate = root.with_extension("stale-plan.json");
         let plan_candidate = root.with_extension("plan.json");
         let compose_candidate = root.with_extension("compose.json");
-        command_ok(execute(Cli {
+        let initialized = command_ok(execute(Cli {
             workspace: Some(root.clone()),
             command: Command::Workspace {
                 command: WorkspaceCommand::Init(WorkspaceInitArgs {
-                    pack: BuiltInPackName::GenericApplication,
+                    pack: None,
                     output: OutputArgs { json: true },
                 }),
             },
         }));
+        assert_eq!(
+            initialized
+                .response
+                .data
+                .as_ref()
+                .and_then(|data| data["workspace_format"].as_str()),
+            Some(canisend_contracts::WORKSPACE_V4_FORMAT)
+        );
         fs::write(
             &candidate,
             r#"{
@@ -4761,6 +4798,14 @@ mod tests {
         }));
         assert_eq!(created.response.operation, "application-flow-v3.create");
         assert_eq!(created.response.status, "created");
+        assert_eq!(
+            created
+                .response
+                .data
+                .as_ref()
+                .and_then(|data| data["stored"]["snapshot"]["pack"]["id"].as_str()),
+            Some(canisend_app::GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+        );
         let application_id = created
             .response
             .data
