@@ -20,6 +20,7 @@
   import { Separator } from "$lib/components/ui/separator/index.js";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import LoadingPanel from "$lib/components/patterns/LoadingPanel.svelte";
+  import * as Page from "$lib/components/patterns/page/index.js";
   import { agentUiState } from "$lib/agent-state.svelte";
   import WorkspaceContextBar from "$lib/components/WorkspaceContextBar.svelte";
   import {
@@ -2740,7 +2741,18 @@
           </Button>
           <span class="text-xs text-muted-foreground">{copy.workflowPackDescription}</span>
         </div>
-        {#if GenericApplicationsView && activeWorkspace}
+        {#if !activeWorkspace}
+          <Page.Root>
+            <Page.Header
+              eyebrow={copy.applications}
+              title={copy.applicationsTitle}
+              description={copy.genericApplicationsDescription}
+            />
+            <Alert.Root>
+              <Alert.Description>{copy.noWorkspace}</Alert.Description>
+            </Alert.Root>
+          </Page.Root>
+        {:else if GenericApplicationsView}
           <GenericApplicationsView
             {copy}
             {desktopRuntime}
