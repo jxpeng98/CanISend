@@ -12,6 +12,10 @@ const genericApplicationsView = readFileSync(
   new URL("./views/GenericApplicationsView.svelte", import.meta.url),
   "utf8",
 );
+const workspacesView = readFileSync(
+  new URL("./views/WorkspacesView.svelte", import.meta.url),
+  "utf8",
+);
 const loadingPanel = readFileSync(
   new URL("./components/patterns/LoadingPanel.svelte", import.meta.url),
   "utf8",
@@ -92,6 +96,15 @@ describe("desktop accessibility contract", () => {
     expect(genericApplicationsView).not.toMatch(
       /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu,
     );
+  });
+
+  it("keeps mixed Application selection keyboard-native and Workspace creation neutral", () => {
+    expect(app).toContain('role="group"');
+    expect(app).toContain("aria-label={copy.workflowPack}");
+    expect(app).toContain("aria-pressed={activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID}");
+    expect(app).toContain("aria-pressed={activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID}");
+    expect(workspacesView).not.toContain('id="create-workspace-pack"');
+    expect(workspacesView).toContain("{copy.workflowPackDescription}");
   });
 
   it("centralizes semantic controls and compact desktop target sizes", () => {

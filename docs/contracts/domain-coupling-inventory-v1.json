@@ -85,21 +85,21 @@
       "schemas": 31,
       "sql": 7,
       "tests": 80,
-      "ui": 25
+      "ui": 24
     },
     "classification_counts": {
       "academic-pack": 8,
       "compatibility-surface": 145,
-      "kernel": 35,
+      "kernel": 34,
       "optional-adapter": 2
     },
     "family_counts": {
-      "academic-vocabulary": 87,
+      "academic-vocabulary": 85,
       "fixed-academic-deliverables": 72,
       "fixed-workflow-stage": 19,
       "legacy-job-surface": 135
     },
-    "inventory_sha256": "478418f2a43bb31f4bc911db4907f18529b2332f5b6ab3049943a358336e4285",
-    "matching_files": 190
+    "inventory_sha256": "bb18bee265a96db5084798448a8eb1a5b7d74cdc49ad5d5f6f8dc0f8250a89eb",
+    "matching_files": 189
   }
 }

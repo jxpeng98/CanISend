@@ -22,6 +22,7 @@ import {
   confirmPlan,
   configureCliPath,
   createGenericApplication,
+  createWorkspace,
   copyAgentHandoff,
   copyAgentMcpConfiguration,
   exportPackage,
@@ -53,6 +54,14 @@ describe("typed Tauri command requests", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
     mocks.invoke.mockResolvedValue({ status: "ok" });
+  });
+
+  it("creates one neutral Workspace without a Workspace-level Pack field", async () => {
+    await createWorkspace("Mixed applications", "/tmp/workspace");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("create_workspace", {
+      request: { alias: "Mixed applications", path: "/tmp/workspace" },
+    });
   });
 
   it("preserves explicit private-read consent for discovery previews", async () => {
@@ -143,12 +152,20 @@ describe("typed Tauri command requests", () => {
         },
       ],
     };
-    await createGenericApplication("/tmp/workspace", candidate);
+    await createGenericApplication(
+      "/tmp/workspace",
+      GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+      candidate,
+    );
     await reviewGenericApplication("/tmp/workspace", "application-id", true);
     await approveGenericApplication("/tmp/workspace", "application-id", 3);
 
     expect(mocks.invoke).toHaveBeenNthCalledWith(1, "create_generic_application", {
-      request: { workspace: "/tmp/workspace", request: candidate },
+      request: {
+        workspace: "/tmp/workspace",
+        pack_id: GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        request: candidate,
+      },
     });
     expect(mocks.invoke).toHaveBeenNthCalledWith(2, "review_generic_application", {
       request: {

@@ -146,9 +146,9 @@ export const messages = {
     workspacePath: "Workspace directory",
     workflowPack: "Workflow pack",
     genericApplicationPack: "Generic applications and submissions",
-    academicJobPack: "Academic job applications (compatibility)",
+    academicJobPack: "Academic job applications",
     workflowPackDescription:
-      "The generic pack creates a canonical v3 workspace. Existing academic workflows remain on the compatibility path.",
+      "One neutral workspace holds both generic and academic applications. Choose the workflow when creating or reviewing an application.",
     genericApplicationsDescription:
       "Create, resume, review, and export Pack-bound applications without external submission.",
     genericApplicationTitle: "Application title",
@@ -969,8 +969,9 @@ export const messages = {
     workspacePath: "工作区目录",
     workflowPack: "工作流包",
     genericApplicationPack: "通用申请与提交",
-    academicJobPack: "学术职位申请（兼容模式）",
-    workflowPackDescription: "通用包会创建 canonical v3 工作区；现有学术流程继续使用兼容路径。",
+    academicJobPack: "学术职位申请",
+    workflowPackDescription:
+      "一个中立工作区可同时保存通用申请和学术申请；在创建或审查申请时选择所需流程。",
     genericApplicationsDescription:
       "创建、续接、审查并导出由工作流包约束的申请，全程不会对外提交。",
     genericApplicationTitle: "申请标题",

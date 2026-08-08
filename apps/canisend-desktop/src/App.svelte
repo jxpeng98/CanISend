@@ -190,11 +190,9 @@
   import {
     applicationSectionForRoute,
     defaultNavigationMemory,
-    isNavigationAvailableForPack,
     parseNavigationMemory,
     recommendWorkflowRoute,
     rememberedJob,
-    routeForWorkspacePack,
     routeForContentEntry,
     routeForTaskOperation,
     routeForWorkflowStage,
@@ -213,7 +211,6 @@
     textScale: number;
   };
   type AgentViewComponent = typeof import("$lib/views/AgentView.svelte").default;
-  type ApplicationsViewComponent = typeof import("$lib/views/ApplicationsView.svelte").default;
   type GenericApplicationsViewComponent =
     typeof import("$lib/views/GenericApplicationsView.svelte").default;
   type WorkflowViewComponent = typeof import("$lib/views/WorkflowView.svelte").default;
@@ -236,7 +233,6 @@
   let navigationReady = $state(false);
   let lastSuccessfulAction = $state<LastSuccessfulAction | null>(null);
   let AgentView = $state<AgentViewComponent | null>(null);
-  let ApplicationsView = $state<ApplicationsViewComponent | null>(null);
   let GenericApplicationsView = $state<GenericApplicationsViewComponent | null>(null);
   let WorkflowView = $state<WorkflowViewComponent | null>(null);
   let DeliveryView = $state<DeliveryViewComponent | null>(null);
@@ -304,9 +300,7 @@
 
   const copy = $derived(messages[language]);
   const selectedJobId = $derived(selectedJob?.job.id ?? "");
-  const activePackId = $derived<BuiltInWorkflowPackId>(
-    activeWorkspace?.pack_id ?? ACADEMIC_JOB_WORKFLOW_PACK_ID,
-  );
+  let activePackId = $state<BuiltInWorkflowPackId>(GENERIC_APPLICATION_WORKFLOW_PACK_ID);
   const selectedDossier = $derived(
     applicationDossiers.find((dossier) => dossier.job.id === selectedJobId) ?? null,
   );
@@ -326,7 +320,7 @@
       id: "opportunities" as const,
       label: copy.opportunities,
       icon: Search,
-      enabled: activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID,
+      enabled: true,
     },
     {
       id: "applications" as const,
@@ -338,7 +332,7 @@
       id: "profile" as const,
       label: copy.profile,
       icon: UserRound,
-      enabled: activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID,
+      enabled: true,
     },
     {
       id: "agent" as const,
@@ -502,7 +496,6 @@
   $effect(() => {
     if (
       activeView !== "opportunities" ||
-      !isNavigationAvailableForPack("opportunities", activePackId) ||
       OpportunitiesView ||
       opportunitiesViewLoading ||
       opportunitiesViewFailed
@@ -527,32 +520,6 @@
   $effect(() => {
     if (
       activeView !== "applications" ||
-      activePackId !== ACADEMIC_JOB_WORKFLOW_PACK_ID ||
-      ApplicationsView ||
-      applicationsViewLoading ||
-      applicationsViewFailed
-    ) {
-      return;
-    }
-    applicationsViewLoading = true;
-    void import("$lib/views/ApplicationsView.svelte")
-      .then((module) => {
-        ApplicationsView = module.default;
-      })
-      .catch((error: unknown) => {
-        applicationsViewFailed = true;
-        captureBridgeError(error);
-        bridgeErrorCanRetry = true;
-      })
-      .finally(() => {
-        applicationsViewLoading = false;
-      });
-  });
-
-  $effect(() => {
-    if (
-      activeView !== "applications" ||
-      activePackId !== GENERIC_APPLICATION_WORKFLOW_PACK_ID ||
       GenericApplicationsView ||
       applicationsViewLoading ||
       applicationsViewFailed
@@ -575,13 +542,7 @@
   });
 
   $effect(() => {
-    if (
-      activeView !== "profile" ||
-      !isNavigationAvailableForPack("profile", activePackId) ||
-      ProfileView ||
-      profileViewLoading ||
-      profileViewFailed
-    ) {
+    if (activeView !== "profile" || ProfileView || profileViewLoading || profileViewFailed) {
       return;
     }
     profileViewLoading = true;
@@ -742,6 +703,12 @@
     }
   }
 
+  function selectApplicationPack(packId: BuiltInWorkflowPackId): void {
+    if (packId === activePackId) return;
+    activePackId = packId;
+    void refreshWorkflowPackPresentation(language, packId);
+  }
+
   function handleLanguageChange(value: Language): void {
     language = value;
     void refreshWorkflowPackPresentation(value);
@@ -812,7 +779,15 @@
   }
 
   async function navigateTo(route: WorkflowRoute): Promise<void> {
-    const destination = routeForWorkspacePack(route, activePackId);
+    const destination = route;
+    if (
+      destination.view === "opportunities" ||
+      destination.view === "profile" ||
+      destination.view === "workflow" ||
+      destination.view === "delivery"
+    ) {
+      selectApplicationPack(ACADEMIC_JOB_WORKFLOW_PACK_ID);
+    }
     if (
       destination.jobId &&
       activeWorkspace &&
@@ -851,12 +826,6 @@
     registrySnapshot = session.registry;
     const canonicalPath = session.registry.registry.default_path ?? session.action.data.path;
     activeWorkspace = { ...session.action.data, path: canonicalPath };
-    const destination = routeForWorkspacePack(
-      { view: activeView, detail: activeDetail ?? undefined },
-      session.action.data.pack_id,
-    );
-    activeView = destination.view;
-    activeDetail = destination.detail ?? null;
     navigationMemory = {
       ...navigationMemory,
       workspacePath: canonicalPath,
@@ -866,7 +835,7 @@
     contentCatalog = null;
     contentSearchResult = null;
     notice = session.action.summary;
-    void refreshWorkflowPackPresentation(language, session.action.data.pack_id);
+    void refreshWorkflowPackPresentation(language, activePackId);
   }
 
   async function loadJobsForActive(): Promise<void> {
@@ -1014,14 +983,6 @@
   }
 
   async function loadWorkspaceCollections(): Promise<void> {
-    if (activeWorkspace?.pack_id === GENERIC_APPLICATION_WORKFLOW_PACK_ID) {
-      jobs = [];
-      selectedJob = null;
-      applicationDossiers = [];
-      clearDiscoverySession();
-      clearProfileSession();
-      return;
-    }
     await Promise.all([loadJobsForActive(), loadDiscoveryForActive(), loadProfileForActive()]);
   }
 
@@ -1065,12 +1026,8 @@
     return true;
   }
 
-  async function handleCreateWorkspace(
-    alias: string,
-    path: string,
-    packId: BuiltInWorkflowPackId,
-  ): Promise<boolean> {
-    const result = await runAction(() => createWorkspace(alias, path, packId), {
+  async function handleCreateWorkspace(alias: string, path: string): Promise<boolean> {
+    const result = await runAction(() => createWorkspace(alias, path), {
       operation: "workspace.create",
       route: { view: "opportunities", detail: "lead-list" },
       jobId: null,
@@ -2760,42 +2717,36 @@
           <LoadingPanel label={copy.loading} class="min-h-32" />
         {/if}
       {:else if activeView === "applications"}
-        {#if activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID && GenericApplicationsView && activeWorkspace}
+        <div
+          class="mb-[var(--density-section-gap)] flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2"
+          role="group"
+          aria-label={copy.workflowPack}
+        >
+          <Button
+            type="button"
+            variant={activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID ? "secondary" : "ghost"}
+            aria-pressed={activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID}
+            onclick={() => selectApplicationPack(GENERIC_APPLICATION_WORKFLOW_PACK_ID)}
+          >
+            {copy.genericApplicationPack}
+          </Button>
+          <Button
+            type="button"
+            variant={activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID ? "secondary" : "ghost"}
+            aria-pressed={activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID}
+            onclick={() => selectApplicationPack(ACADEMIC_JOB_WORKFLOW_PACK_ID)}
+          >
+            {copy.academicJobPack}
+          </Button>
+          <span class="text-xs text-muted-foreground">{copy.workflowPackDescription}</span>
+        </div>
+        {#if GenericApplicationsView && activeWorkspace}
           <GenericApplicationsView
             {copy}
             {desktopRuntime}
             {activeWorkspace}
+            packId={activePackId}
             presentation={workflowPackPresentation}
-          />
-        {:else if activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID && ApplicationsView}
-          <ApplicationsView
-            {copy}
-            {desktopRuntime}
-            {activeWorkspace}
-            {jobs}
-            {selectedJob}
-            presentation={workflowPackPresentation}
-            dossiers={applicationDossiers}
-            dossier={selectedDossier}
-            {contentCatalog}
-            {contentSearchResult}
-            focus={activeView === "applications" ? activeDetail : null}
-            preview={jobIntakePreview}
-            loading={jobsLoading}
-            {contentLoading}
-            {busy}
-            onRefresh={handleRefreshJobs}
-            onCreate={handleCreateJob}
-            onSelect={handleSelectJob}
-            onArchive={handleArchiveJob}
-            onPreviewLocal={handlePreviewLocalSource}
-            onPreviewUrl={handlePreviewUrlSource}
-            onCommitPreview={handleCommitJobSourcePreview}
-            onDiscardPreview={handleDiscardJobSourcePreview}
-            onRefreshContent={handleRefreshContent}
-            onSearchContent={handleSearchContent}
-            onOpenContent={handleOpenContent}
-            onContinue={() => navigateTo(recommendation.route)}
           />
         {:else if applicationsViewFailed}
           <Alert.Root variant="destructive" class="min-h-12">

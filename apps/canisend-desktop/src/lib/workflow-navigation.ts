@@ -41,31 +41,6 @@ export interface WorkflowRoute {
   jobId?: string;
 }
 
-export type BuiltInWorkspacePackId =
-  "org.canisend.academic-job" | "org.canisend.generic-application";
-
-const genericWorkspaceViews = new Set<NavigationId>([
-  "today",
-  "applications",
-  "agent",
-  "workspaces",
-  "settings",
-]);
-
-export function isNavigationAvailableForPack(
-  view: NavigationId,
-  packId: BuiltInWorkspacePackId,
-): boolean {
-  return packId === "org.canisend.academic-job" || genericWorkspaceViews.has(view);
-}
-
-export function routeForWorkspacePack(
-  route: WorkflowRoute,
-  packId: BuiltInWorkspacePackId,
-): WorkflowRoute {
-  return isNavigationAvailableForPack(route.view, packId) ? route : { view: "applications" };
-}
-
 export type ApplicationWorkspaceSection =
   "overview" | "job-criteria" | "evidence-fit" | "materials" | "review-export";
 

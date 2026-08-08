@@ -27,6 +27,7 @@
     type ApplicationFlowDeliverableDraftV3,
     type ApplicationFlowReviewReadModelV3,
     type ApplicationFlowStageV3,
+    type BuiltInWorkflowPackId,
     type StoredApplicationModelV3,
     type WorkflowPackPresentationField,
     type WorkflowPackPresentationReadModel,
@@ -39,10 +40,11 @@
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel;
+    packId: BuiltInWorkflowPackId;
     presentation: WorkflowPackPresentationReadModel | null;
   };
 
-  let { copy, desktopRuntime, activeWorkspace, presentation }: Props = $props();
+  let { copy, desktopRuntime, activeWorkspace, packId, presentation }: Props = $props();
 
   let applications = $state<StoredApplicationModelV3[]>([]);
   let selected = $state<StoredApplicationModelV3 | null>(null);
@@ -52,7 +54,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let notice = $state<string | null>(null);
-  let loadedWorkspace = "";
+  let loadedCollection = "";
 
   let title = $state("");
   let sourceText = $state("");
@@ -79,8 +81,17 @@
 
   $effect(() => {
     const workspace = activeWorkspace.path;
-    if (!workspace || workspace === loadedWorkspace) return;
-    loadedWorkspace = workspace;
+    const collection = `${workspace}\u0000${packId}`;
+    if (!workspace || collection === loadedCollection) return;
+    loadedCollection = collection;
+    selected = null;
+    stages = [];
+    review = null;
+    requirementCategory = presentation?.requirement_categories[0]?.id ?? "";
+    opportunityValues = {};
+    applicationValues = {};
+    deliverableSelections = {};
+    deliverableDrafts = {};
     void refresh();
   });
 
@@ -148,7 +159,7 @@
     error = null;
     try {
       const receipt = await listGenericApplications(activeWorkspace.path);
-      applications = receipt.data;
+      applications = receipt.data.filter((application) => application.snapshot.pack.id === packId);
       const next =
         applications.find((item) => item.snapshot.application.id === preferredId) ??
         applications[0] ??
@@ -214,7 +225,7 @@
       return;
     }
     await run(async () => {
-      const receipt = await createGenericApplication(activeWorkspace.path, {
+      const receipt = await createGenericApplication(activeWorkspace.path, packId, {
         title: title.trim(),
         opportunity_metadata: metadata(presentation?.opportunity_fields ?? [], opportunityValues),
         application_metadata: metadata(presentation?.application_fields ?? [], applicationValues),
