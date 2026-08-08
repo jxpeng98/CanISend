@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod agent;
+mod agent_v4;
 mod application_v3;
 mod association_v4;
 mod discovery;
@@ -14,6 +15,7 @@ mod workflow_pack;
 mod workspace;
 
 pub use agent::*;
+pub use agent_v4::*;
 pub use application_v3::*;
 pub use association_v4::*;
 pub use discovery::*;

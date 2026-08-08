@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "AgentApplicationBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "pack": {
+          "$ref": "#/$defs/AgentPackBindingV4"
+        },
+        "snapshot_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "pack",
+        "expected_revision",
+        "snapshot_sha256"
+      ],
+      "type": "object"
+    },
+    "AgentContextBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentApplicationBindingV4"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_format": {
+          "$ref": "#/$defs/AgentWorkspaceFormatV4"
+        },
+        "workspace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "workspace_format"
+      ],
+      "type": "object"
+    },
+    "AgentPackBindingV4": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "AgentProtocolV4": {
+      "enum": [
+        "canisend.agent/v4"
+      ],
+      "type": "string"
+    },
+    "AgentResourceKindV4": {
+      "enum": [
+        "workspace-health",
+        "profile",
+        "evidence",
+        "source",
+        "requirement",
+        "plan",
+        "deliverable",
+        "review",
+        "export",
+        "backup"
+      ],
+      "type": "string"
+    },
+    "AgentResourceReferenceV4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentResourceKindV4"
+        },
+        "privacy": {
+          "$ref": "#/$defs/PrivacyClassification"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "sha256",
+        "privacy"
+      ],
+      "type": "object"
+    },
+    "AgentTaskKindV4": {
+      "enum": [
+        "orientation",
+        "profile-evidence",
+        "intake",
+        "application-create",
+        "requirements",
+        "fit-plan",
+        "drafting",
+        "review",
+        "export",
+        "recovery"
+      ],
+      "type": "string"
+    },
+    "AgentWorkspaceFormatV4": {
+      "enum": [
+        "canisend.workspace/v4"
+      ],
+      "type": "string"
+    },
+    "ConsentScope": {
+      "enum": [
+        "read-private-inputs",
+        "send-to-configured-provider",
+        "fetch-user-supplied-url",
+        "export-private-artifacts",
+        "use-system-fonts"
+      ],
+      "type": "string"
+    },
+    "PrivacyClassification": {
+      "enum": [
+        "public",
+        "private-local",
+        "provider-bound",
+        "secret"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.canisend.dev/agent/v4/task-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "context": {
+      "$ref": "#/$defs/AgentContextBindingV4"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolV4"
+    },
+    "requested_consents": {
+      "items": {
+        "$ref": "#/$defs/ConsentScope"
+      },
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/AgentResourceReferenceV4"
+      },
+      "type": "array"
+    },
+    "task": {
+      "$ref": "#/$defs/AgentTaskKindV4"
+    },
+    "task_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol",
+    "task_id",
+    "task",
+    "operation",
+    "context",
+    "resources",
+    "requested_consents"
+  ],
+  "title": "AgentTaskRequestV4",
+  "type": "object",
+  "x-canisend-id": "canisend.agent-task-request/v4",
+  "x-canisend-version": "4.0.0"
+}

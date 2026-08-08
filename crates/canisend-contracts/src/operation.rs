@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
@@ -7,7 +8,7 @@ pub const OPERATION_REGISTRY_FORMAT: &str = "canisend.operation-registry/v1";
 
 const BUILT_IN_OPERATION_REGISTRY: &str = include_str!("../operation-registry-v1.json");
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct OperationId(String);
 

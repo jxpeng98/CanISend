@@ -1,0 +1,33 @@
+{
+  "protocol": "canisend.agent/v4",
+  "task_id": "019f2f55-7c00-7000-8000-000000000102",
+  "operation": "source.intake.commit",
+  "context": {
+    "workspace_id": "019f2f55-7c00-7000-8000-000000000001",
+    "workspace_format": "canisend.workspace/v4",
+    "application": {
+      "id": "019f2f55-7c00-7000-8000-000000000002",
+      "pack": {
+        "id": "org.canisend.generic-application",
+        "version": "1.0.0",
+        "content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expected_revision": 3,
+      "snapshot_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "preview_token": "example-opaque-single-use-preview-token",
+  "preview_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "approval": {
+    "protocol": "canisend.agent/v4",
+    "task_id": "019f2f55-7c00-7000-8000-000000000102",
+    "preview_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "approved": true,
+    "consents": [
+      {
+        "scope": "read-private-inputs",
+        "granted_by_user": true
+      }
+    ]
+  }
+}
