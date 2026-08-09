@@ -22,9 +22,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationProjectionCatalogV3,
-    ApplicationProjectionService, BlobStore, DEFAULT_MAX_BLOB_BYTES, Database,
-    NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
+    ApplicationAssociationServiceV4, ApplicationModelCommitResultV3, ApplicationModelRepository,
+    ApplicationProjectionCatalogV3, ApplicationProjectionService, BlobStore,
+    DEFAULT_MAX_BLOB_BYTES, Database, NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
     association_v4::{prepare_source, validate_new_source_consent},
     generate_id, now_utc,
     render::{create_empty_export_directory, join_path, write_new_file},
@@ -354,7 +354,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 actor,
                 "application-flow-intake",
             )?;
-        let stages = derive_stages(pack, &commit.stored.snapshot, false, false)?;
+        let stages = derive_stages(pack, &commit.stored.snapshot, false, false, false)?;
         Ok(ApplicationFlowReadModelV3 {
             stored: commit.stored,
             stages,
@@ -373,7 +373,8 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 "operation Pack does not match the exact Application Pack binding".to_owned(),
             ));
         }
-        let stages = derive_stages(pack, &stored.snapshot, false, false)?;
+        let evidence_current = self.has_current_evidence_association(application_id)?;
+        let stages = derive_stages(pack, &stored.snapshot, evidence_current, false, false)?;
         Ok(ApplicationFlowReadModelV3 {
             stored,
             stages,
@@ -517,19 +518,14 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             .plan
             .as_ref()
             .expect("confirmed Plan checked before candidate creation");
-        let evidence_inputs = candidate
-            .requirements
-            .iter()
-            .filter(|requirement| requirement.confirmation == RequirementConfirmationV3::Confirmed)
-            .map(|requirement| {
-                (
-                    requirement.source_span.content.id.clone(),
-                    requirement.source_span.content.revision,
-                )
-            })
-            .collect::<BTreeMap<_, _>>()
+        let evidence_inputs = ApplicationAssociationServiceV4::new(self.database, self.blobs)
+            .evidence_associations(application_id)?
             .into_iter()
-            .map(|(id, revision)| EntityRevisionReferenceV3 { id, revision })
+            .filter(|association| !association.stale)
+            .map(|association| EntityRevisionReferenceV3 {
+                id: association.evidence.id,
+                revision: association.evidence.revision,
+            })
             .collect::<Vec<_>>();
         candidate.deliverables = prepared
             .iter()
@@ -648,7 +644,8 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 content,
             });
         }
-        let stages = derive_stages(pack, &stored.snapshot, false, false)?;
+        let evidence_current = self.has_current_evidence_association(application_id)?;
+        let stages = derive_stages(pack, &stored.snapshot, evidence_current, false, false)?;
         Ok(ApplicationFlowReviewReadModelV3 {
             stored,
             deliverables,
@@ -785,7 +782,8 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 exported_at.as_str(),
             ],
         )?;
-        let stages = derive_stages(pack, &current.snapshot, true, true)?;
+        let evidence_current = self.has_current_evidence_association(application_id)?;
+        let stages = derive_stages(pack, &current.snapshot, evidence_current, true, true)?;
         Ok(ApplicationFlowExportReadModelV3 {
             package,
             render: manifest,
@@ -816,16 +814,36 @@ impl<'a> ApplicationFlowServiceV3<'a> {
     }
 
     fn commit_read_model(
-        &self,
+        &mut self,
         pack: &VerifiedWorkflowPackBundle,
         commit: ApplicationModelCommitResultV3,
     ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
-        let stages = derive_stages(pack, &commit.stored.snapshot, false, false)?;
+        let evidence_current =
+            self.has_current_evidence_association(&commit.stored.snapshot.application.id)?;
+        let stages = derive_stages(
+            pack,
+            &commit.stored.snapshot,
+            evidence_current,
+            false,
+            false,
+        )?;
         Ok(ApplicationFlowCommitReadModelV3 {
             commit,
             stages,
             submission_performed: false,
         })
+    }
+
+    fn has_current_evidence_association(
+        &mut self,
+        application_id: &ApplicationId,
+    ) -> Result<bool, StoreError> {
+        Ok(
+            ApplicationAssociationServiceV4::new(self.database, self.blobs)
+                .evidence_associations(application_id)?
+                .into_iter()
+                .any(|association| !association.stale),
+        )
     }
 }
 
@@ -1036,6 +1054,7 @@ fn verify_content_blobs(
 fn derive_stages(
     pack: &VerifiedWorkflowPackBundle,
     snapshot: &ApplicationModelSnapshotV3,
+    evidence_confirmed: bool,
     packaged: bool,
     rendered: bool,
 ) -> Result<Vec<ApplicationFlowStageReadModelV3>, StoreError> {
@@ -1048,10 +1067,6 @@ fn derive_stages(
             .requirements
             .iter()
             .all(|requirement| requirement.confirmation != RequirementConfirmationV3::Proposed);
-    let evidence_confirmed = snapshot
-        .requirements
-        .iter()
-        .any(|requirement| requirement.confirmation == RequirementConfirmationV3::Confirmed);
     let deliverables_materialized = !snapshot.deliverables.is_empty()
         && snapshot.deliverables.iter().all(|deliverable| {
             matches!(
@@ -1185,6 +1200,125 @@ mod tests {
                 .expect("time")
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn current_evidence_associations_drive_stage_and_deliverable_inputs() {
+        let root = root();
+        let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
+        let generic = bundle(generic_application_workflow_pack());
+        let source = "Provide one project narrative.";
+        let created =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .create(
+                    &generic,
+                    ApplicationFlowCreateRequestV3 {
+                        title: "Evidence association fixture".to_owned(),
+                        opportunity_metadata: BTreeMap::new(),
+                        application_metadata: BTreeMap::new(),
+                        source_text: source.to_owned(),
+                        requirements: vec![ApplicationFlowRequirementDraftV3 {
+                            category: item("format"),
+                            statement: source.to_owned(),
+                            priority: RequirementPriorityV3::Mandatory,
+                            start_byte: 0,
+                            end_byte: u64::try_from(source.len()).expect("source length"),
+                        }],
+                    },
+                )
+                .expect("Application");
+        let application_id = created.stored.snapshot.application.id;
+        let evidence_id = generate_id().expect("Evidence ID");
+        let evidence_digest = Sha256Digest::try_new(hex::encode(Sha256::digest(b"evidence-v1")))
+            .expect("Evidence digest");
+        let created_at = now_utc().expect("timestamp");
+        workspace
+            .database
+            .connection()
+            .execute(
+                "INSERT INTO evidence_items(id, kind, created_at)
+                 VALUES (?1, 'other', ?2)",
+                params![evidence_id.as_str(), created_at.as_str()],
+            )
+            .expect("Evidence item");
+        workspace
+            .database
+            .connection()
+            .execute(
+                "INSERT INTO evidence_revisions(
+                    evidence_id, revision, sha256, confirmed, created_at, excluded, sensitivity
+                 ) VALUES (?1, 1, ?2, 1, ?3, 0, 'public')",
+                params![
+                    evidence_id.as_str(),
+                    evidence_digest.as_str(),
+                    created_at.as_str()
+                ],
+            )
+            .expect("Evidence revision");
+        ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
+            .associate_evidence(
+                &application_id,
+                &ContentRevisionReferenceV3 {
+                    id: evidence_id.clone(),
+                    revision: Revision::try_new(1).expect("revision"),
+                    sha256: evidence_digest,
+                },
+                None,
+                ActorKind::User,
+            )
+            .expect("Evidence association");
+
+        let status =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .status(&generic, &application_id)
+                .expect("status");
+        assert!(status.stages.iter().any(|stage| {
+            stage.id.local_id_str() == "evidence"
+                && stage.state == ApplicationFlowStageStateV3::Complete
+        }));
+        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .confirm_requirements_and_plan(
+                &generic,
+                &application_id,
+                ApplicationFlowPlanRequestV3 {
+                    expected_revision: Revision::try_new(1).expect("revision"),
+                    decision: item("proceed"),
+                    deliverables: vec![ApplicationFlowPlannedDeliverableV3 {
+                        kind: item("primary-document"),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Required by Pack".to_owned(),
+                        constraints: Vec::new(),
+                        execution_mode: Some(ExecutionMode::ManualImport),
+                    }],
+                },
+            )
+            .expect("Plan");
+        let composed =
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .compose(
+                    &generic,
+                    &application_id,
+                    ApplicationFlowComposeRequestV3 {
+                        expected_revision: Revision::try_new(2).expect("revision"),
+                        deliverables: vec![ApplicationFlowDeliverableDraftV3 {
+                            kind: item("primary-document"),
+                            title: "Narrative".to_owned(),
+                            media_type: "text/plain".to_owned(),
+                            content: "Grounded in the explicitly associated Evidence.".to_owned(),
+                        }],
+                    },
+                )
+                .expect("Deliverable");
+        assert_eq!(
+            composed.commit.stored.snapshot.deliverables[0].evidence_inputs,
+            vec![EntityRevisionReferenceV3 {
+                id: evidence_id,
+                revision: Revision::try_new(1).expect("revision"),
+            }]
+        );
+
+        drop(workspace);
+        fs::remove_dir_all(root).expect("remove fixture");
     }
 
     #[test]

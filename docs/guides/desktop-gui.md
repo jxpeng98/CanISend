@@ -103,6 +103,13 @@ commands before Alpha.7 qualification.
    for the selected Application. Every stage remains bound to that Application's exact Pack and
    revision.
 
+For each selected Application, **Application data boundary** lists Workspace Profile Sources and
+confirmed Evidence without opening their private bodies. Choose only the records this Application
+may use, preview the exact associate/unlink changes, review any stale links, and separately grant
+private-read consent when the preview requires it. Committing the selection writes revision-bound
+links; switching to another Application loads its independent selection. Closing and reopening the
+Workspace reconstructs the same choices from SQLite authority rather than browser state.
+
 The Workspace, selected host resources, project-local MCP files, and registry shortcut are one
 setup transaction. Invalid input fails before mutation; later failure removes newly created files
 and restores a user-selected empty directory. Closing the dialog before submission performs no
@@ -124,6 +131,11 @@ embedded bounded renderer and reports that external submission was not performed
 Clean-v4 intake supports pasted text, local text/PDF files, and user-supplied HTTP(S) sources
 through explicit preview, consent, and commit boundaries. Scanned PDFs still require separately
 reviewed OCR; see [Known limitations](known-limitations.md).
+
+The Plan may intentionally record an Evidence gap, but Requirements are not treated as Evidence.
+Only current Evidence selected in the Application data boundary is attached to subsequently
+composed Deliverables. A stale Evidence link must be unlinked and the current revision explicitly
+selected before it can ground new material.
 
 ## Navigate an Academic reference Application Workspace
 

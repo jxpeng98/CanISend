@@ -53,7 +53,7 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 19 |
-| Tauri | `tauri::generate_handler!` | 106 |
+| Tauri | `tauri::generate_handler!` | 112 |
 | MCP | `#[tool_router]` `canisend_*` methods | 4 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
@@ -72,6 +72,11 @@ uses the neutral Workspace v4 `profile-source.list` operation. Ten Alpha.6 mutat
 bindings have been removed from the registered handler set; their former frontend entry points fail
 locally before invoking Tauri. The source gate fixes the transitional aliases to the exact
 read-only set so a retired operation cannot be reintroduced as compatibility behavior.
+
+The clean-v4 Tauri inventory now also binds the body-free
+`profile.association.list` / `evidence.association.list` reads and their exact preview/commit
+pairs. These operations are canonical v4 leaves, not compatibility aliases; they bind one selected
+Application, exact resource revisions and digests, and explicit private-read consent where needed.
 
 ## Source gate
 

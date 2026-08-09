@@ -25,6 +25,9 @@
     {"id":"profile.show","phase":"read","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile show","mcp":"canisend_profile_show","tauri":"profile_show"}},
     {"id":"profile.update.preview","phase":"preview","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile update preview","mcp":"canisend_profile_update_preview","tauri":"profile_update_preview"}},
     {"id":"profile.update.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"profile update commit","mcp":"canisend_profile_update_commit","tauri":"profile_update_commit"}},
+    {"id":"profile.association.list","phase":"read","context":"application","agent_task":"profile-evidence","adapters":{"cli":"profile association list","mcp":"canisend_profile_association_list","tauri":"profile_association_list"}},
+    {"id":"profile.association.preview","phase":"preview","context":"application","agent_task":"profile-evidence","adapters":{"cli":"profile association preview","mcp":"canisend_profile_association_preview","tauri":"profile_association_preview"}},
+    {"id":"profile.association.commit","phase":"commit","context":"application","agent_task":"profile-evidence","adapters":{"cli":"profile association commit","mcp":"canisend_profile_association_commit","tauri":"profile_association_commit"}},
 
     {"id":"source.list","phase":"read","context":"application","agent_task":"intake","adapters":{"cli":"source list","mcp":"canisend_source_list","tauri":"source_list"}},
     {"id":"source.show","phase":"read","context":"application","agent_task":"intake","adapters":{"cli":"source show","mcp":"canisend_source_show","tauri":"source_show"}},
@@ -39,6 +42,7 @@
     {"id":"evidence.propose.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence propose commit","mcp":"canisend_evidence_propose_commit","tauri":"evidence_propose_commit"}},
     {"id":"evidence.confirm.preview","phase":"preview","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence confirm preview","mcp":"canisend_evidence_confirm_preview","tauri":"evidence_confirm_preview"}},
     {"id":"evidence.confirm.commit","phase":"commit","context":"workspace","agent_task":"profile-evidence","adapters":{"cli":"evidence confirm commit","mcp":"canisend_evidence_confirm_commit","tauri":"evidence_confirm_commit"}},
+    {"id":"evidence.association.list","phase":"read","context":"application","agent_task":"fit-plan","adapters":{"cli":"evidence association list","mcp":"canisend_evidence_association_list","tauri":"evidence_association_list"}},
     {"id":"evidence.association.preview","phase":"preview","context":"application","agent_task":"fit-plan","adapters":{"cli":"evidence association preview","mcp":"canisend_evidence_association_preview","tauri":"evidence_association_preview"}},
     {"id":"evidence.association.commit","phase":"commit","context":"application","agent_task":"fit-plan","adapters":{"cli":"evidence association commit","mcp":"canisend_evidence_association_commit","tauri":"evidence_association_commit"}},
 

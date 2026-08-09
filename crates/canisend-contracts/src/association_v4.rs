@@ -62,3 +62,17 @@ pub struct ApplicationEvidenceAssociationV4 {
     pub associated_at: UtcTimestamp,
     pub stale: bool,
 }
+
+/// Body-free metadata for one current, confirmed Workspace-scoped Evidence revision.
+///
+/// Evidence bodies remain in immutable local artifacts. Routine list and association operations
+/// expose only the exact revision identity and classification needed to make a deliberate
+/// Application link.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceEvidenceSummaryV4 {
+    pub evidence: ContentRevisionReferenceV3,
+    pub kind: String,
+    pub sensitivity: PrivacyClassification,
+    pub created_at: UtcTimestamp,
+}

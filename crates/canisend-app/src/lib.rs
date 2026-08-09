@@ -8,6 +8,7 @@ mod application_flow_v3;
 mod application_v3;
 mod approval;
 mod assistance;
+mod association_v4;
 mod candidate;
 mod catalog;
 mod cli_install;
@@ -89,6 +90,13 @@ pub use assistance::{
     AgentContentReferenceReadModel, AgentExecutionBoundaryReadModel, AgentProposalCommitBoundary,
     AgentProposalKind, AgentProposalState, AgentProposalTargetReadModel,
     AgentRecommendationReadModel, AgentWorkspaceSection,
+};
+pub use association_v4::{
+    AssociationChangeV4, EvidenceAssociationCommitReadModelV4, EvidenceAssociationCommitRequestV4,
+    EvidenceAssociationListReadModelV4, EvidenceAssociationPreviewReadModelV4,
+    EvidenceAssociationPreviewRequestV4, ProfileAssociationCommitReadModelV4,
+    ProfileAssociationCommitRequestV4, ProfileAssociationListReadModelV4,
+    ProfileAssociationPreviewReadModelV4, ProfileAssociationPreviewRequestV4,
 };
 pub use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 pub use catalog::{

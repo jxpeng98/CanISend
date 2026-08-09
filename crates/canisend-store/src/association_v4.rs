@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use canisend_contracts::{
     ActorKind, ApplicationEvidenceAssociationV4, ApplicationId, ApplicationProfileAssociationV4,
     ApplicationSourceAssociationV4, ConsentScope, ContentRevisionReferenceV3, EntityId,
-    PrivacyClassification, Revision, Sha256Digest, UtcTimestamp, WorkspaceSourceKindV4,
-    WorkspaceSourceRevisionV4,
+    PrivacyClassification, Revision, Sha256Digest, UtcTimestamp, WorkspaceEvidenceSummaryV4,
+    WorkspaceSourceKindV4, WorkspaceSourceRevisionV4,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -478,6 +478,89 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
                 })
             })
             .collect()
+    }
+
+    /// Lists only current, confirmed, non-excluded Evidence metadata. Private bodies and source
+    /// quotes are intentionally absent from this routine Workspace inventory.
+    pub fn confirmed_evidence(&self) -> Result<Vec<WorkspaceEvidenceSummaryV4>, StoreError> {
+        let mut statement = self.database.connection().prepare(
+            "SELECT item.id, item.kind, revision.revision, revision.sha256,
+                    revision.sensitivity, revision.created_at
+             FROM evidence_items AS item
+             JOIN evidence_revisions AS revision ON revision.evidence_id = item.id
+             WHERE revision.revision = (
+                 SELECT MAX(head.revision) FROM evidence_revisions AS head
+                 WHERE head.evidence_id = item.id
+             )
+               AND revision.confirmed = 1
+               AND revision.excluded = 0
+               AND revision.sensitivity IS NOT NULL
+             ORDER BY revision.created_at, item.id",
+        )?;
+        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })?
+            .map(|row| {
+                let (id, kind, revision, sha256, sensitivity, created_at) = row?;
+                Ok(WorkspaceEvidenceSummaryV4 {
+                    evidence: exact_reference(id, revision, sha256)?,
+                    kind,
+                    sensitivity: enum_value(&sensitivity)?,
+                    created_at: UtcTimestamp::try_new(created_at)?,
+                })
+            })
+            .collect()
+    }
+
+    pub fn evidence_revision_summary(
+        &self,
+        evidence: &ContentRevisionReferenceV3,
+    ) -> Result<WorkspaceEvidenceSummaryV4, StoreError> {
+        let row = self
+            .database
+            .connection()
+            .query_row(
+                "SELECT item.kind, revision.sha256, revision.sensitivity, revision.created_at
+                 FROM evidence_items AS item
+                 JOIN evidence_revisions AS revision ON revision.evidence_id = item.id
+                 WHERE item.id = ?1 AND revision.revision = ?2",
+                params![evidence.id.as_str(), to_i64(evidence.revision.get())?],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::ApplicationAssociationNotFound(evidence.id.to_string()))?;
+        let (kind, sha256, sensitivity, created_at) = row;
+        if sha256 != evidence.sha256.as_str() {
+            return Err(StoreError::ApplicationAssociationConflict(
+                "Evidence digest does not match the exact revision".to_owned(),
+            ));
+        }
+        let sensitivity = sensitivity.ok_or_else(|| {
+            StoreError::ApplicationAssociationConflict(
+                "Evidence revision has no sensitivity classification".to_owned(),
+            )
+        })?;
+        Ok(WorkspaceEvidenceSummaryV4 {
+            evidence: evidence.clone(),
+            kind,
+            sensitivity: enum_value(&sensitivity)?,
+            created_at: UtcTimestamp::try_new(created_at)?,
+        })
     }
 
     pub fn unlink_source(

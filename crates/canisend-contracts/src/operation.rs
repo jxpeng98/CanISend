@@ -704,7 +704,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            106
+            112
         );
         assert_eq!(
             bindings

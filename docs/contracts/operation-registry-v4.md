@@ -21,6 +21,11 @@ The registry contains the neutral namespaces `workspace`, `application`, `profil
 `evidence`, `requirement`, `plan`, `deliverable`, `review`, and `export`. Pack manifests own labels,
 stages, Deliverable kinds, and validators; they cannot add a host-only operation or business rule.
 
+Workspace-scoped Profile Sources and confirmed Evidence remain invisible to an Application until
+their respective `profile.association.*` or `evidence.association.*` operations create an exact,
+revision-bound link. Each family provides a body-free Application-scoped list plus a guarded
+preview/commit pair; neither list implies consent or association.
+
 ## Surface projection
 
 Every canonical dotted operation ID has exactly three mechanically derived adapter names:

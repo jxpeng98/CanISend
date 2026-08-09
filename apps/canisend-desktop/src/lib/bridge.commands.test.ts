@@ -20,6 +20,7 @@ import {
   cancelAgentTurn,
   commandErrorCode,
   commitApplicationIntakePreview,
+  commitProfileAssociationV4,
   commitJobSourcePreview,
   confirmPlan,
   configureCliPath,
@@ -38,12 +39,14 @@ import {
   installAgentSkills,
   installCli,
   listApplicationDossiers,
+  listProfileAssociationsV4,
   migrateWorkspaceV3,
   reviewGenericApplication,
   prepareAgentHandoff,
   prepareAgentMcpConfiguration,
   previewDiscoveryFile,
   previewLocalApplicationIntake,
+  previewProfileAssociationV4,
   previewLocalJobSource,
   previewWorkspaceV3Migration,
   previewRender,
@@ -236,6 +239,46 @@ describe("typed Tauri command requests", () => {
         workspace: "/tmp/workspace",
         pack_id: GENERIC_APPLICATION_WORKFLOW_PACK_ID,
         preview_token: "application-intake-preview-123",
+      },
+    });
+  });
+
+  it("binds Profile associations to exact preview digests and explicit consent", async () => {
+    const preview = {
+      application_id: "application-id",
+      profile_source: {
+        id: "profile-source-id",
+        revision: 2,
+        sha256: "a".repeat(64),
+      },
+      change: "associate" as const,
+    };
+    await listProfileAssociationsV4("/tmp/workspace", "application-id");
+    await previewProfileAssociationV4("/tmp/workspace", preview);
+    await commitProfileAssociationV4({
+      workspace: "/tmp/workspace",
+      preview,
+      expectedPreviewSha256: "b".repeat(64),
+      confirmedPrivateRead: true,
+    });
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "profile_association_list", {
+      request: { workspace: "/tmp/workspace", application_id: "application-id" },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "profile_association_preview", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        profile_source: preview.profile_source,
+        change: "associate",
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "profile_association_commit", {
+      request: {
+        workspace: "/tmp/workspace",
+        preview,
+        expected_preview_sha256: "b".repeat(64),
+        confirmed_private_read: true,
       },
     });
   });
