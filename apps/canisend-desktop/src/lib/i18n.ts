@@ -152,7 +152,7 @@ export const messages = {
     genericApplicationsDescription:
       "Create, resume, review, and export Pack-bound applications without external submission.",
     genericApplicationTitle: "Application title",
-    noGenericApplications: "No generic applications yet",
+    noPackApplications: "No applications for this workflow yet",
     applicationEvidenceSelection: "Application data boundary",
     applicationEvidenceSelectionDescription:
       "Choose the exact Workspace Profile Sources and confirmed Evidence this Application may use.",
@@ -1017,7 +1017,7 @@ export const messages = {
     genericApplicationsDescription:
       "创建、续接、审查并导出由工作流包约束的申请，全程不会对外提交。",
     genericApplicationTitle: "申请标题",
-    noGenericApplications: "尚无通用申请",
+    noPackApplications: "此工作流下尚无申请",
     applicationEvidenceSelection: "申请数据边界",
     applicationEvidenceSelectionDescription:
       "选择此申请可以使用的准确工作区个人资料来源和已确认证据。",

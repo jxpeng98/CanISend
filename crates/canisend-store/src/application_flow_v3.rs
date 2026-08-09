@@ -989,6 +989,13 @@ pub(crate) fn validate_plan_selection(
     let mut seen = BTreeSet::new();
     let mut counts = BTreeMap::new();
     for item in planned {
+        if item.disposition == PlannedDeliverableDispositionV3::Omitted
+            && item.execution_mode.is_some()
+        {
+            return Err(StoreError::InvalidInput(
+                "an omitted Deliverable cannot select an execution mode".to_owned(),
+            ));
+        }
         if !seen.insert(&item.kind) {
             return Err(StoreError::InvalidInput(
                 "Plan contains a duplicate Deliverable kind".to_owned(),
@@ -1200,6 +1207,30 @@ mod tests {
                 .expect("time")
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn omitted_deliverable_cannot_select_an_execution_mode() {
+        let generic = bundle(generic_application_workflow_pack());
+        let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(&generic)
+            .expect("Deliverable catalog");
+        let error = validate_plan_selection(
+            &catalog,
+            &[ApplicationFlowPlannedDeliverableV3 {
+                kind: item("supporting-document"),
+                disposition: PlannedDeliverableDispositionV3::Omitted,
+                rationale: "Not requested".to_owned(),
+                constraints: Vec::new(),
+                execution_mode: Some(ExecutionMode::ManualImport),
+            }],
+        )
+        .expect_err("omitted Deliverable executor must fail during preview validation");
+
+        assert!(matches!(
+            error,
+            StoreError::InvalidInput(message)
+                if message == "an omitted Deliverable cannot select an execution mode"
+        ));
     }
 
     #[test]

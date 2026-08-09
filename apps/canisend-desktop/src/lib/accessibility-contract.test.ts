@@ -138,6 +138,13 @@ describe("desktop accessibility contract", () => {
     expect(contextBar).toContain("usesV4ApplicationContext");
     expect(contextBar).toContain("selectedV4Application?.snapshot.application.id");
     expect(contextBar).toContain("application.snapshot.opportunity.title");
+    expect(genericApplicationsView).toContain(
+      "categories.some((category) => category.id === requirementCategory)",
+    );
+    expect(genericApplicationsView).toContain(
+      'execution_mode: deliverableSelections[item.id] ? "manual-import" : null',
+    );
+    expect(genericApplicationsView).toContain("copy.noPackApplications");
     expect(workspacesView).not.toContain('id="create-workspace-pack"');
     expect(workspacesView).toContain("{copy.workflowPackDescription}");
   });
