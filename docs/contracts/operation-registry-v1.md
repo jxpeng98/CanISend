@@ -53,8 +53,8 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 28 |
-| Tauri | `tauri::generate_handler!` | 111 |
-| MCP | `#[tool_router]` `canisend_*` methods | 16 |
+| Tauri | `tauri::generate_handler!` | 122 |
+| MCP | `#[tool_router]` `canisend_*` methods | 27 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
 `adapter-only` ID. Overrides may target only a declared canonical operation. The Alpha.7 registry
@@ -68,8 +68,8 @@ inventories, and the guarded MCP server. Host setup installs only manifest-owned
 and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
 router contains only Workspace status/check, Application list/show, body-free Workspace Profile
 Source listing, Application-scoped Profile/Evidence link inventories, Pack-bound
-Requirement/Plan/Deliverable reads, and single-use guarded
-association preview/commit pairs. Alpha.6-era CLI families
+Requirement/Plan/Deliverable reads, private Deliverable audit with explicit consent, and
+single-use guarded association and Application-mutation preview/commit pairs. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
 The Alpha.7 registry contains zero compatibility aliases. The six transitional read-only Tauri
 bindings have joined the already retired Alpha.6 mutation and preview bindings: legacy Agent, Job,
@@ -85,6 +85,11 @@ The clean-v4 Tauri inventory now also binds the body-free
 `profile.association.list` / `evidence.association.list` reads and their exact preview/commit
 pairs. These operations are canonical v4 leaves, not compatibility aliases; they bind one selected
 Application, exact resource revisions and digests, and explicit private-read consent where needed.
+Requirement confirmation, Plan propose/confirm, and Deliverable draft/revise add five more guarded
+preview/commit pairs on Tauri and MCP. Each preview is bound to the exact Workspace, Pack,
+Application revision, snapshot and proposed bytes; each commit requires explicit approval and
+consumes its token on denial, success, stale context, or replay. The standalone CLI does not
+advertise these mutations until it has an equally explicit safe approval interaction.
 
 ## Source gate
 

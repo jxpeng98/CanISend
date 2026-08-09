@@ -7782,6 +7782,8 @@ fn check_approval_broker() -> Result<(), String> {
     let desktop_application = read("crates/canisend-desktop/src/application_intake.rs")?;
     let application_association = read("crates/canisend-app/src/association_v4.rs")?;
     let desktop_association = read("crates/canisend-desktop/src/association_v4.rs")?;
+    let application_mutations = read("crates/canisend-app/src/application_mutations_v4.rs")?;
+    let desktop_mutations = read("crates/canisend-desktop/src/application_mutations_v4.rs")?;
     let bridge = read("apps/canisend-desktop/src/lib/bridge.ts")?;
     validate_approval_broker_sources(
         &app,
@@ -7789,6 +7791,7 @@ fn check_approval_broker() -> Result<(), String> {
         &desktop_state,
         &desktop_host,
         [&application_association, &desktop_association],
+        [&application_mutations, &desktop_mutations],
         [
             &desktop_job,
             &desktop_discovery,
@@ -7798,7 +7801,7 @@ fn check_approval_broker() -> Result<(), String> {
         &bridge,
     )?;
     println!(
-        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 5 desktop families; MCP guarded associations)"
+        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 7 guarded adapter families)"
     );
     Ok(())
 }
@@ -7809,10 +7812,12 @@ fn validate_approval_broker_sources(
     desktop_state: &str,
     desktop_host: &str,
     association_sources: [&str; 2],
+    mutation_sources: [&str; 2],
     desktop_families: [&str; 4],
     bridge: &str,
 ) -> Result<(), String> {
     let [application_association, desktop_association] = association_sources;
+    let [application_mutations, desktop_mutations] = mutation_sources;
     for required in [
         "pub const APPROVAL_DEFAULT_CAPACITY: usize = 16",
         "Duration::from_secs(10 * 60)",
@@ -7880,6 +7885,15 @@ fn validate_approval_broker_sources(
     {
         return Err("desktop host must manage exactly one AssociationApprovalBrokerV4".to_owned());
     }
+    if desktop_host
+        .matches("ApplicationMutationApprovalBrokerV4::default()")
+        .count()
+        != 1
+    {
+        return Err(
+            "desktop host must manage exactly one ApplicationMutationApprovalBrokerV4".to_owned(),
+        );
+    }
     for (index, family) in desktop_families.into_iter().enumerate() {
         for required in [
             "tauri::State<'_, DesktopApprovalStore>",
@@ -7905,11 +7919,35 @@ fn validate_approval_broker_sources(
             ));
         }
     }
-    if bridge.matches("remaining_ttl_seconds: number").count() < 6
-        || bridge.matches("expires_at_unix_ms: number").count() < 6
+    for required in [
+        "ApprovalBroker<PendingApplicationMutationV4>",
+        "ApprovalSourceVersion::RevisionAndSnapshot",
+        "remaining_ttl_seconds",
+        "expires_at_unix_ms",
+    ] {
+        if !application_mutations.contains(required) {
+            return Err(format!(
+                "Application mutation approval facade is missing invariant evidence: {required}"
+            ));
+        }
+    }
+    for required in [
+        "tauri::State<'_, ApplicationMutationApprovalBrokerV4>",
+        "preview_token",
+        "approved",
+    ] {
+        if !desktop_mutations.contains(required) {
+            return Err(format!(
+                "desktop Application mutation family is missing broker evidence: {required}"
+            ));
+        }
+    }
+    if bridge.matches("remaining_ttl_seconds: number").count() < 7
+        || bridge.matches("expires_at_unix_ms: number").count() < 7
     {
         return Err(
-            "desktop bridge must expose expiry metadata for all six preview read models".to_owned(),
+            "desktop bridge must expose expiry metadata for all seven preview read models"
+                .to_owned(),
         );
     }
     let adapter_sources = [
@@ -7918,6 +7956,8 @@ fn validate_approval_broker_sources(
         desktop_host,
         application_association,
         desktop_association,
+        application_mutations,
+        desktop_mutations,
     ]
     .into_iter()
     .chain(desktop_families)
@@ -8272,6 +8312,11 @@ fn validate_semantic_parity_policy(
         "application.intake.commit".to_owned(),
         "evidence.association.commit".to_owned(),
         "profile.association.commit".to_owned(),
+        "requirement.confirm.commit".to_owned(),
+        "plan.propose.commit".to_owned(),
+        "plan.confirm.commit".to_owned(),
+        "deliverable.draft.commit".to_owned(),
+        "deliverable.revise.commit".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
     ]);
     let mut revision_bound = BTreeSet::new();
@@ -8301,6 +8346,11 @@ fn validate_semantic_parity_policy(
         "desktop-workflow-rerun".to_owned(),
         "evidence-association".to_owned(),
         "profile-association".to_owned(),
+        "requirement-confirm".to_owned(),
+        "plan-propose".to_owned(),
+        "plan-confirm".to_owned(),
+        "deliverable-draft".to_owned(),
+        "deliverable-revise".to_owned(),
     ]);
     let mut preview_pairs = BTreeSet::new();
     let mut pair_operations = BTreeSet::new();

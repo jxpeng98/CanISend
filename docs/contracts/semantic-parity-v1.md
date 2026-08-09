@@ -41,11 +41,11 @@ The current source contract covers:
 | Dimension | Required inventory |
 |---|---:|
 | Built-in Pack/surface cases | 6 |
-| Shared operations | 5 |
-| Revision-bound operations | 8 |
-| Preview/commit families | 6 |
-| Read families | 5 |
-| Qualified adapter bindings | 41 |
+| Shared operations | 29 |
+| Revision-bound operations | 13 |
+| Preview/commit families | 11 |
+| Read families | 4 |
+| Qualified adapter bindings | 82 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
 `academic-job` with CLI, Tauri, and MCP. The clean CLI qualifies Workspace recovery and neutral
@@ -54,11 +54,12 @@ fixtures run the full create, resume, plan, compose, review, approve, and export
 still exercise the bounded academic compatibility families. Cross-linked fixtures prove the Pack
 boundary without treating retired CLI mutations as supported operations.
 
-The six preview/commit families are generic Application review, v4 desktop Application intake,
-academic job intake, academic task completion, desktop discovery, and desktop workflow rerun.
-They share the app-owned approval broker and its exact Workspace, Pack, operation, source, expiry,
-replay, and recovery rules. Desktop Application intake additionally qualifies pasted text, local
-text/PDF, and URL previews against one neutral Workspace and either built-in Pack.
+The eleven preview/commit families include Application review, v4 desktop Application intake,
+desktop discovery and workflow rerun, Profile/Evidence association, Requirement confirmation,
+Plan proposal/confirmation, and Deliverable draft/revision. They share the app-owned approval
+broker and its exact Workspace, Pack, operation, source, expiry, replay, and recovery rules.
+Desktop Application intake additionally qualifies pasted text, local text/PDF, and URL previews
+against one neutral Workspace and either built-in Pack.
 
 ## Explicitly uncovered bindings
 

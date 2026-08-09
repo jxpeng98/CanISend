@@ -32,7 +32,7 @@ use crate::{
 
 pub const APPLICATION_FLOW_EXPORT_FORMAT_V3: &str = "canisend.application-flow-export/v3";
 pub const MAX_APPLICATION_FLOW_SOURCE_BYTES_V3: usize = 4 * 1024 * 1024;
-const MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3: usize = 4 * 1024 * 1024;
+pub const MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -982,7 +982,7 @@ fn validate_metadata(
     Ok(())
 }
 
-fn validate_plan_selection(
+pub(crate) fn validate_plan_selection(
     catalog: &WorkflowPackDeliverableCatalogRuntime,
     planned: &[ApplicationFlowPlannedDeliverableV3],
 ) -> Result<(), StoreError> {
@@ -1007,7 +1007,7 @@ fn validate_plan_selection(
     catalog.validate_counts(&counts).map_err(pack_catalog_error)
 }
 
-fn validate_composed_deliverables(
+pub(crate) fn validate_composed_deliverables(
     catalog: &WorkflowPackDeliverableCatalogRuntime,
     deliverables: &[ApplicationFlowDeliverableDraftV3],
 ) -> Result<(), StoreError> {

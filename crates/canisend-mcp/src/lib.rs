@@ -1,17 +1,24 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use canisend_app::{
-    Application, ApplicationError, ApprovalBrokerError, AssociationApprovalBrokerV4,
-    AssociationApprovalErrorV4, AssociationChangeV4, EvidenceAssociationPreviewRequestV4,
-    PrivateReadConsent, ProfileAssociationPreviewRequestV4,
+    Application, ApplicationDeliverableReviseRequestV4, ApplicationError,
+    ApplicationFlowComposeRequestV3, ApplicationFlowDeliverableDraftV3,
+    ApplicationFlowPlannedDeliverableV3, ApplicationMutationApprovalBrokerV4,
+    ApplicationMutationApprovalErrorV4, ApplicationPlanConfirmRequestV4,
+    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4, ApprovalBrokerError,
+    AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
+    EvidenceAssociationPreviewRequestV4, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
+    RequirementDecisionV4,
 };
 use canisend_contracts::{
-    ApplicationId, ContentRevisionReferenceV3, DeliverableId, RequirementId, Sha256Digest,
+    ApplicationId, ContentRevisionReferenceV3, DeliverableId, ExecutionMode,
+    PlannedDeliverableDispositionV3, RequirementId, Revision, Sha256Digest, WorkflowPackItemId,
 };
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
@@ -66,6 +73,7 @@ pub enum McpServerError {
 pub struct CanISendMcpServer {
     workspace: Arc<PathBuf>,
     association_approvals: AssociationApprovalBrokerV4,
+    mutation_approvals: ApplicationMutationApprovalBrokerV4,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -143,12 +151,110 @@ pub struct AssociationCommitParameters {
     pub confirmed_private_read: bool,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum RequirementDecisionParameters {
+    Confirm,
+    Exclude,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementDecisionInput {
+    pub requirement_id: String,
+    pub decision: RequirementDecisionParameters,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementConfirmPreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub decisions: Vec<RequirementDecisionInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlannedDeliverableInput {
+    pub kind: String,
+    pub disposition: PlannedDeliverableDispositionV3,
+    pub rationale: String,
+    #[serde(default)]
+    pub constraints: Vec<String>,
+    pub execution_mode: Option<ExecutionMode>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub decision: String,
+    pub deliverables: Vec<PlannedDeliverableInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RevisionPreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeliverableDraftInput {
+    pub kind: String,
+    pub title: String,
+    pub media_type: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeliverableDraftPreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub deliverables: Vec<DeliverableDraftInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeliverableRevisePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub deliverable_id: String,
+    pub title: String,
+    pub media_type: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationMutationCommitParameters {
+    pub application_id: String,
+    pub preview_token: String,
+    pub preview_sha256: Sha256Digest,
+    #[schemars(description = "True only after explicit user approval of the exact preview")]
+    pub approved: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeliverableAuditParameters {
+    pub application_id: String,
+    #[schemars(
+        description = "True only after explicit consent to read private Deliverable bodies"
+    )]
+    pub confirmed_private_read: bool,
+}
+
 impl CanISendMcpServer {
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
         let workspace = Application::resolve_workspace_root_v4(Some(workspace))?;
         Ok(Self {
             workspace: Arc::new(workspace),
             association_approvals: AssociationApprovalBrokerV4::default(),
+            mutation_approvals: ApplicationMutationApprovalBrokerV4::default(),
         })
     }
 
@@ -241,6 +347,42 @@ impl CanISendMcpServer {
                 Some(serde_json::json!({"code": "approval.binding-mismatch"})),
             )),
         }
+    }
+
+    fn mutation_result<T: Serialize>(
+        result: Result<T, ApplicationMutationApprovalErrorV4>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        match result {
+            Ok(value) => Self::application_result(Ok(value)),
+            Err(ApplicationMutationApprovalErrorV4::Application(error)) => {
+                Self::application_result::<T>(Err(error))
+            }
+            Err(ApplicationMutationApprovalErrorV4::Approval(error)) => {
+                Err(McpError::invalid_params(
+                    error.to_string(),
+                    Some(serde_json::json!({"code": approval_error_code(&error)})),
+                ))
+            }
+            Err(ApplicationMutationApprovalErrorV4::Denied) => Err(McpError::invalid_params(
+                "Application mutation approval was denied",
+                Some(serde_json::json!({"code": "approval.denied"})),
+            )),
+            Err(ApplicationMutationApprovalErrorV4::BindingMismatch) => {
+                Err(McpError::invalid_params(
+                    "Application mutation approval does not match the reviewed operation or preview",
+                    Some(serde_json::json!({"code": "approval.binding-mismatch"})),
+                ))
+            }
+        }
+    }
+
+    fn revision(value: u64) -> Result<Revision, McpError> {
+        Revision::try_new(value).map_err(|error| McpError::invalid_params(error.to_string(), None))
+    }
+
+    fn pack_item(value: &str) -> Result<WorkflowPackItemId, McpError> {
+        WorkflowPackItemId::try_new(value)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))
     }
 }
 
@@ -393,6 +535,70 @@ impl CanISendMcpServer {
     }
 
     #[tool(
+        description = "Preview explicit decisions for every current Requirement and issue a single-use approval token",
+        annotations(
+            title = "Preview Requirement decisions",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_confirm_preview(
+        &self,
+        Parameters(parameters): Parameters<RequirementConfirmPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let mut decisions = BTreeMap::new();
+        for decision in parameters.decisions {
+            let requirement_id = RequirementId::try_new(decision.requirement_id)
+                .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+            let decision = match decision.decision {
+                RequirementDecisionParameters::Confirm => RequirementDecisionV4::Confirm,
+                RequirementDecisionParameters::Exclude => RequirementDecisionV4::Exclude,
+            };
+            if decisions.insert(requirement_id, decision).is_some() {
+                return Err(McpError::invalid_params(
+                    "Requirement decisions contain a duplicate Requirement ID",
+                    None,
+                ));
+            }
+        }
+        Self::mutation_result(self.mutation_approvals.preview_requirement_confirmation(
+            self.workspace(),
+            &application_id,
+            ApplicationRequirementConfirmRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                decisions,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit explicitly approved Requirement decisions; the preview token is single-use",
+        annotations(
+            title = "Commit Requirement decisions",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_confirm_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_requirement_confirmation(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.approved,
+        ))
+    }
+
+    #[tool(
         description = "Show the current Pack-bound Plan or an explicit not-created state for one Application",
         annotations(
             title = "Show Application Plan",
@@ -410,6 +616,117 @@ impl CanISendMcpServer {
         Self::application_result(Application::show_plan_v4(
             self.workspace(),
             &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "Preview a Pack-qualified draft Plan after all Requirements have explicit decisions",
+        annotations(
+            title = "Preview a Plan proposal",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_plan_propose_preview(
+        &self,
+        Parameters(parameters): Parameters<PlanProposePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let deliverables = parameters
+            .deliverables
+            .into_iter()
+            .map(|deliverable| {
+                Ok(ApplicationFlowPlannedDeliverableV3 {
+                    kind: Self::pack_item(&deliverable.kind)?,
+                    disposition: deliverable.disposition,
+                    rationale: deliverable.rationale,
+                    constraints: deliverable.constraints,
+                    execution_mode: deliverable.execution_mode,
+                })
+            })
+            .collect::<Result<Vec<_>, McpError>>()?;
+        Self::mutation_result(self.mutation_approvals.preview_plan_proposal(
+            self.workspace(),
+            &application_id,
+            ApplicationPlanProposeRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                decision: Self::pack_item(&parameters.decision)?,
+                deliverables,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit one approved draft Plan proposal; the preview token is single-use",
+        annotations(
+            title = "Commit a Plan proposal",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_plan_propose_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_plan_proposal(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.approved,
+        ))
+    }
+
+    #[tool(
+        description = "Preview explicit user confirmation of the exact current draft Plan",
+        annotations(
+            title = "Preview Plan confirmation",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_plan_confirm_preview(
+        &self,
+        Parameters(parameters): Parameters<RevisionPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.preview_plan_confirmation(
+            self.workspace(),
+            &application_id,
+            ApplicationPlanConfirmRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit explicit user confirmation of the current Plan; the preview token is single-use",
+        annotations(
+            title = "Commit Plan confirmation",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_plan_confirm_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_plan_confirmation(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.approved,
         ))
     }
 
@@ -454,6 +771,145 @@ impl CanISendMcpServer {
             self.workspace(),
             &parameters.application_id,
             &parameters.deliverable_id,
+        ))
+    }
+
+    #[tool(
+        description = "Preview Pack-qualified private Deliverable drafts without mutating the Application",
+        annotations(
+            title = "Preview Deliverable drafts",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_draft_preview(
+        &self,
+        Parameters(parameters): Parameters<DeliverableDraftPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let deliverables = parameters
+            .deliverables
+            .into_iter()
+            .map(|deliverable| {
+                Ok(ApplicationFlowDeliverableDraftV3 {
+                    kind: Self::pack_item(&deliverable.kind)?,
+                    title: deliverable.title,
+                    media_type: deliverable.media_type,
+                    content: deliverable.content,
+                })
+            })
+            .collect::<Result<Vec<_>, McpError>>()?;
+        Self::mutation_result(self.mutation_approvals.preview_deliverable_draft(
+            self.workspace(),
+            &application_id,
+            ApplicationFlowComposeRequestV3 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                deliverables,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit explicitly approved Deliverable drafts; the preview token is single-use",
+        annotations(
+            title = "Commit Deliverable drafts",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_draft_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_deliverable_draft(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.approved,
+        ))
+    }
+
+    #[tool(
+        description = "Preview a private Deliverable content revision for one exact Application",
+        annotations(
+            title = "Preview a Deliverable revision",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_revise_preview(
+        &self,
+        Parameters(parameters): Parameters<DeliverableRevisePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let deliverable_id = DeliverableId::try_new(parameters.deliverable_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        Self::mutation_result(self.mutation_approvals.preview_deliverable_revision(
+            self.workspace(),
+            &application_id,
+            ApplicationDeliverableReviseRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                deliverable_id,
+                title: parameters.title,
+                media_type: parameters.media_type,
+                content: parameters.content,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit one explicitly approved Deliverable revision; the preview token is single-use",
+        annotations(
+            title = "Commit a Deliverable revision",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_revise_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_deliverable_revision(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.approved,
+        ))
+    }
+
+    #[tool(
+        description = "Read current private Deliverable bodies only after explicit local private-read consent",
+        annotations(
+            title = "Audit Deliverable bodies",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_audit(
+        &self,
+        Parameters(parameters): Parameters<DeliverableAuditParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::audit_deliverables_v4(
+            self.workspace(),
+            &application_id,
+            parameters
+                .confirmed_private_read
+                .then(PrivateReadConsent::granted_by_user),
         ))
     }
 
