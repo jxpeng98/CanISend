@@ -7,6 +7,7 @@ canisend_absolute_path() {
     return 2
   fi
   local value="$1"
+  value="${value#./}"
   case "$value" in
     [A-Za-z]:\\*|[A-Za-z]:/*)
       if ! command -v cygpath >/dev/null 2>&1; then

@@ -57,7 +57,10 @@ for host in codex claude; do
       and (.data.skills.files | length) >= 4
       and .data.mcp.protocol_version == "2025-11-25"
       and .data.mcp.transport == "stdio"
-      and .data.mcp.executable == $binary
+      and (
+        .data.mcp.executable == $binary
+        or (.data.mcp.executable | endswith($binary))
+      )
       and (.data.mcp.tools | length) == 29
       and (.data.mcp.read_only_tools | length) == 21
       and (.data.mcp.guarded_write_tools | length) == 8
