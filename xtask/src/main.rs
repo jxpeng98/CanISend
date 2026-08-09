@@ -8995,6 +8995,30 @@ fn check_svelte_parity() -> Result<(), String> {
             }
         }
 
+        let design_preview = fs::read_to_string(root.join("scripts/build_macos_design_preview.sh"))
+            .map_err(|error| format!("cannot inspect macOS Design Preview: {error}"))?;
+        for required in [
+            "CanISend Design Preview.app",
+            "io.github.jxpeng98.canisend.design-preview",
+            "application create",
+            "org.canisend.generic-application",
+            "org.canisend.academic-job",
+            "bundle_identifier: \"io.github.jxpeng98.canisend.design-preview\"",
+        ] {
+            if !design_preview.contains(required) {
+                return Err(format!(
+                    "macOS Design Preview is missing clean-v4 isolation contract `{required}`"
+                ));
+            }
+        }
+        for forbidden in [" job create ", "workspace init --pack"] {
+            if design_preview.contains(forbidden) {
+                return Err(format!(
+                    "macOS Design Preview still contains compatibility fixture `{forbidden}`"
+                ));
+            }
+        }
+
         let fast_ci = fs::read_to_string(root.join(".github/workflows/fast-ci.yml"))
             .map_err(|error| format!("cannot inspect fast CI for Svelte cutover: {error}"))?;
         for required in [

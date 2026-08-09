@@ -57,11 +57,15 @@ pnpm --dir apps/canisend-desktop macos:preview -- --open
 
 The workflow runs Svelte diagnostics plus the Playwright visual, reflow, and accessibility suite;
 builds the embedded frontend and `release-alpha` Rust binaries; stages an ad-hoc-signed
-`CanISend.app`; verifies its companion integrity manifest; and launches it with a temporary HOME.
-The isolated fixture contains two synthetic applications, including one deliberately long title
-and institution, so sidebar, selector, card, tab, and text-wrapping behavior can be inspected with
-real native WebView rendering. It never reads or changes the normal CanISend workspace registry,
-Codex home, or Claude configuration.
+`CanISend Design Preview.app`; verifies its companion integrity manifest; and launches it with a
+temporary HOME.
+The preview is restaged as **CanISend Design Preview** with the distinct
+`io.github.jxpeng98.canisend.design-preview` bundle identifier before launch, so its WebKit local
+storage cannot reuse the production App's navigation or Workspace paths. Its isolated clean-v4
+fixture contains one generic and one academic Application in the same Workspace, including long
+labels for wrapping review. The final preview signature and companion hashes are reverified after
+the identifier change. It never reads or changes the normal CanISend workspace registry, Codex
+home, Claude configuration, or production WebKit data.
 
 The preview waits for the App to close and then removes its temporary directory. Preserve the App,
 isolated HOME, logs, receipt, and fixture workspace when investigating a problem:

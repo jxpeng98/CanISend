@@ -63,7 +63,7 @@ frontend_root="$repo_root/apps/canisend-desktop"
 manifest="$repo_root/Cargo.toml"
 profile="release-alpha"
 
-for command in cargo git jq pnpm; do
+for command in cargo codesign git jq plutil pnpm shasum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     printf 'macOS Design Preview requires command: %s\n' "$command" >&2
     exit 1
@@ -123,7 +123,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-app="$preview_root/CanISend.app"
+app="$preview_root/CanISend Design Preview.app"
 manifest_path="$app.manifest.json"
 preview_home="$preview_root/manual-home"
 workspace="$preview_root/design-workspace"
@@ -139,22 +139,90 @@ if [[ ! -f "$manifest_path" ]]; then
 fi
 
 unified_host="$app/Contents/MacOS/canisend-gui"
+info_plist="$app/Contents/Info.plist"
+preview_bundle_identifier="io.github.jxpeng98.canisend.design-preview"
+if [[ "$(plutil -extract CFBundleIdentifier raw "$info_plist")" != "io.github.jxpeng98.canisend" ]]; then
+  printf 'Design Preview source App has an unexpected bundle identifier.\n' >&2
+  exit 1
+fi
+plutil -replace CFBundleIdentifier -string "$preview_bundle_identifier" "$info_plist"
+plutil -replace CFBundleDisplayName -string "CanISend Design Preview" "$info_plist"
+plutil -replace CFBundleName -string "CanISend Design Preview" "$info_plist"
+codesign \
+  --force \
+  --identifier "$preview_bundle_identifier" \
+  --options runtime \
+  --sign - \
+  --timestamp=none \
+  "$app"
+info_plist_sha256="$(shasum -a 256 "$info_plist" | awk '{print $1}')"
+preview_host_sha256="$(shasum -a 256 "$unified_host" | awk '{print $1}')"
+manifest_temporary="$preview_root/.design-preview-integrity.json.tmp"
+jq \
+  --arg info_plist_sha256 "$info_plist_sha256" \
+  --arg host_sha256 "$preview_host_sha256" \
+  '.bundle.info_plist.sha256 = $info_plist_sha256 | .host.sha256 = $host_sha256' \
+  "$manifest_path" > "$manifest_temporary"
+mv "$manifest_temporary" "$manifest_path"
+"$script_dir/verify_macos_gui_app.sh" "$app" "$manifest_path"
+
 printf 'Creating an isolated design-review workspace...\n'
 HOME="$preview_home" "$unified_host" \
   --workspace "$workspace" workspace init --json \
   > "$preview_root/workspace-init.json"
 workspace="$(CDPATH= cd -- "$workspace" && pwd -P)"
 
+generic_source="Design preview generic fixture requires a reviewed project narrative."
+jq -n \
+  --arg source_text "$generic_source" \
+  '{
+    title: "Senior Programme and Evidence Lead",
+    opportunity_metadata: {
+      organization: {type: "short-text", value: "Northbridge Social Impact Lab"},
+      reference: {type: "short-text", value: "DESIGN-GENERIC-001"}
+    },
+    application_metadata: {
+      status: {type: "choice", value: "planning"}
+    },
+    source_text: $source_text,
+    requirements: [{
+      category: "format",
+      statement: $source_text,
+      priority: "mandatory",
+      start_byte: 0,
+      end_byte: ($source_text | utf8bytelength)
+    }]
+  }' > "$preview_root/generic-candidate.json"
+
+academic_source="Design preview academic fixture requires an academic CV."
+jq -n \
+  --arg source_text "$academic_source" \
+  '{
+    title: "Postdoctoral Research Fellow in Evidence and Public Policy",
+    opportunity_metadata: {
+      institution: {type: "short-text", value: "Institute for Public Policy"}
+    },
+    application_metadata: {},
+    source_text: $source_text,
+    requirements: [{
+      category: "qualification",
+      statement: $source_text,
+      priority: "mandatory",
+      start_byte: 0,
+      end_byte: ($source_text | utf8bytelength)
+    }]
+  }' > "$preview_root/academic-candidate.json"
+
 HOME="$preview_home" "$unified_host" \
-  --workspace "$workspace" job create \
-  --title "Senior Lecturer in Evidence-Based Research and Academic Programme Leadership" \
-  --institution "Northbridge University School of Social Sciences" \
-  --json > "$preview_root/job-primary.json"
+  --workspace "$workspace" application create \
+  --pack org.canisend.generic-application \
+  --candidate "$preview_root/generic-candidate.json" \
+  --json > "$preview_root/application-generic.json"
 HOME="$preview_home" "$unified_host" \
-  --workspace "$workspace" job create \
-  --title "Postdoctoral Research Fellow" \
-  --institution "Institute for Public Policy" \
-  --json > "$preview_root/job-secondary.json"
+  --workspace "$workspace" application create \
+  --pack org.canisend.academic-job \
+  --candidate "$preview_root/academic-candidate.json" \
+  --json > "$preview_root/application-academic.json"
 
 registry="$preview_home/Library/Application Support/CanISend/workspaces.json"
 mkdir -p "$(dirname -- "$registry")"
@@ -205,6 +273,7 @@ jq -n \
     integrity_manifest: $integrity_manifest,
     isolated_home: $preview_home,
     synthetic_workspace: $workspace,
+    bundle_identifier: "io.github.jxpeng98.canisend.design-preview",
     signing: "apple-adhoc",
     notarized: false,
     publication_allowed: false
