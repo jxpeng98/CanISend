@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use canisend_contracts::{
     ActorKind, ApplicationId, ApplicationLifecycleV3, ApplicationPackBindingV3,
-    ContentRevisionReferenceV3, DeliverableId, DeliverableStateV3, EntityRevisionReferenceV3,
-    PlanId, PlanRecordV3, PlanRevisionReferenceV3, PlanStateV3, PlannedDeliverableV3,
-    RequirementConfirmationV3, RequirementId, RequirementRevisionReferenceV3, Revision,
-    Sha256Digest, WorkflowPackItemId,
+    ContentRevisionReferenceV3, ContentSpanV3, DeliverableId, DeliverableStateV3,
+    EntityRevisionReferenceV3, PlanId, PlanRecordV3, PlanRevisionReferenceV3, PlanStateV3,
+    PlannedDeliverableV3, RequirementConfirmationV3, RequirementId, RequirementRecordV3,
+    RequirementRevisionReferenceV3, Revision, Sha256Digest, WorkflowPackItemId,
 };
 use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime};
 use serde::{Deserialize, Serialize};
@@ -13,9 +13,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     ApplicationAssociationServiceV4, ApplicationFlowComposeRequestV3,
-    ApplicationFlowPlannedDeliverableV3, ApplicationModelCommitResultV3,
-    ApplicationModelRepository, BlobStore, Database, MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3,
-    StoreError, StoredApplicationModelV3, generate_id, now_utc,
+    ApplicationFlowPlannedDeliverableV3, ApplicationFlowRequirementDraftV3,
+    ApplicationModelCommitResultV3, ApplicationModelRepository, BlobStore, Database,
+    MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3, MAX_APPLICATION_FLOW_SOURCE_BYTES_V3, StoreError,
+    StoredApplicationModelV3, generate_id, now_utc,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +31,14 @@ pub enum RequirementDecisionV4 {
 pub struct ApplicationRequirementConfirmRequestV4 {
     pub expected_revision: Revision,
     pub decisions: BTreeMap<RequirementId, RequirementDecisionV4>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationRequirementExtractRequestV4 {
+    pub expected_revision: Revision,
+    pub source: ContentRevisionReferenceV3,
+    pub requirements: Vec<ApplicationFlowRequirementDraftV3>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,6 +116,17 @@ impl<'a> ApplicationMutationServiceV4<'a> {
                 "Requirement decisions are already committed".to_owned(),
             ));
         }
+        Ok(current)
+    }
+
+    pub fn validate_requirement_extraction(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationRequirementExtractRequestV4,
+    ) -> Result<StoredApplicationModelV3, StoreError> {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        self.validate_requirement_extraction_request(pack, application_id, request, &current)?;
         Ok(current)
     }
 
@@ -308,6 +328,64 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             candidate,
             ActorKind::User,
             "application-v4-requirement-confirm",
+        )
+    }
+
+    pub fn extract_requirements(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationRequirementExtractRequestV4,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        self.validate_requirement_extraction_request(pack, application_id, &request, &current)?;
+
+        let updated_at = now_utc()?;
+        let mut candidate = current.snapshot;
+        candidate.application.updated_at = updated_at;
+        candidate.application.revision = next_revision(candidate.application.revision)?;
+        if !candidate
+            .opportunity
+            .source_ids
+            .contains(&request.source.id)
+        {
+            candidate
+                .opportunity
+                .source_ids
+                .push(request.source.id.clone());
+            candidate.opportunity.revision = next_revision(candidate.opportunity.revision)?;
+        }
+        let extracted = request
+            .requirements
+            .into_iter()
+            .map(|draft| {
+                Ok(RequirementRecordV3 {
+                    id: RequirementId::try_new(generate_id()?.to_string())?,
+                    application_id: application_id.clone(),
+                    pack: candidate.pack.clone(),
+                    category: draft.category,
+                    statement: draft.statement,
+                    priority: draft.priority,
+                    source_span: ContentSpanV3 {
+                        content: request.source.clone(),
+                        start_byte: draft.start_byte,
+                        end_byte: draft.end_byte,
+                    },
+                    confirmation: RequirementConfirmationV3::Proposed,
+                    confirmed_by: None,
+                    confirmed_at: None,
+                    revision: Revision::try_new(1)?,
+                })
+            })
+            .collect::<Result<Vec<_>, StoreError>>()?;
+        candidate.requirements.extend(extracted);
+        crate::application_v3::validate_snapshot(&candidate)?;
+        ApplicationModelRepository::new(self.database).commit(
+            application_id,
+            request.expected_revision,
+            candidate,
+            ActorKind::HostAgent,
+            "application-v4-requirement-extract",
         )
     }
 
@@ -528,6 +606,96 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             ));
         }
         Ok(current)
+    }
+
+    fn validate_requirement_extraction_request(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationRequirementExtractRequestV4,
+        current: &StoredApplicationModelV3,
+    ) -> Result<(), StoreError> {
+        if current.snapshot.plan.is_some() || !current.snapshot.deliverables.is_empty() {
+            return Err(StoreError::ApplicationModelConflict(
+                "Requirements cannot be extracted after Plan or Deliverable creation".to_owned(),
+            ));
+        }
+        if current
+            .snapshot
+            .requirements
+            .iter()
+            .any(|requirement| requirement.confirmation != RequirementConfirmationV3::Proposed)
+        {
+            return Err(StoreError::ApplicationModelConflict(
+                "confirmed or excluded Requirements cannot receive extracted additions".to_owned(),
+            ));
+        }
+        let distinct_requested_spans = request
+            .requirements
+            .iter()
+            .map(|requirement| (requirement.start_byte, requirement.end_byte))
+            .collect::<BTreeSet<_>>();
+        if distinct_requested_spans.len() != request.requirements.len() {
+            return Err(StoreError::InvalidInput(
+                "Requirement extraction repeats an exact Source span within the request".to_owned(),
+            ));
+        }
+        if request.requirements.iter().any(|requirement| {
+            current.snapshot.requirements.iter().any(|existing| {
+                existing.source_span.content == request.source
+                    && existing.source_span.start_byte == requirement.start_byte
+                    && existing.source_span.end_byte == requirement.end_byte
+            })
+        }) {
+            return Err(StoreError::InvalidInput(
+                "Requirement extraction duplicates an existing exact Source span".to_owned(),
+            ));
+        }
+        if current.snapshot.requirements.len() + request.requirements.len()
+            > canisend_contracts::APPLICATION_MODEL_V3_MAX_REQUIREMENTS
+        {
+            return Err(StoreError::InvalidInput(format!(
+                "Requirement extraction exceeds the {} Requirement limit",
+                canisend_contracts::APPLICATION_MODEL_V3_MAX_REQUIREMENTS
+            )));
+        }
+        let association = ApplicationAssociationServiceV4::new(self.database, self.blobs)
+            .source_associations(application_id)?
+            .into_iter()
+            .find(|association| association.source == request.source)
+            .ok_or_else(|| {
+                StoreError::ApplicationAssociationConflict(
+                    "Requirement extraction Source is not associated with this Application"
+                        .to_owned(),
+                )
+            })?;
+        if association.stale {
+            return Err(StoreError::ApplicationAssociationConflict(
+                "Requirement extraction Source association is stale".to_owned(),
+            ));
+        }
+        let source = ApplicationAssociationServiceV4::new(self.database, self.blobs)
+            .source(&request.source.id, request.source.revision)?;
+        if source.normalized_sha256 != request.source.sha256 {
+            return Err(StoreError::ApplicationAssociationConflict(
+                "Requirement extraction Source digest does not match its exact revision".to_owned(),
+            ));
+        }
+        let bytes = self.blobs.read_verified(
+            &source.normalized_sha256,
+            u64::try_from(MAX_APPLICATION_FLOW_SOURCE_BYTES_V3)
+                .expect("Source byte limit fits u64"),
+        )?;
+        let normalized_text = String::from_utf8(bytes).map_err(|_| {
+            StoreError::ApplicationModelIntegrity(
+                "Requirement extraction Source is not normalized UTF-8 text".to_owned(),
+            )
+        })?;
+        crate::application_flow_v3::validate_source_and_requirements(
+            pack,
+            &normalized_text,
+            &request.requirements,
+        )
     }
 }
 

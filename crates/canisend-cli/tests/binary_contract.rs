@@ -327,19 +327,19 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
             setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
-            Some(27)
+            Some(29)
         );
         assert_eq!(
             setup["data"]["mcp"]["read_only_tools"]
                 .as_array()
                 .map(Vec::len),
-            Some(20)
+            Some(21)
         );
         assert_eq!(
             setup["data"]["mcp"]["guarded_write_tools"]
                 .as_array()
                 .map(Vec::len),
-            Some(7)
+            Some(8)
         );
         assert_eq!(setup["data"]["mcp_configuration_mutated"], false);
         assert!(workspace.path().join(manifest).is_file());

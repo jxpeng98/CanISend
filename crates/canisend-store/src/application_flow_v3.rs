@@ -855,7 +855,7 @@ fn pack_binding(pack: &VerifiedWorkflowPackBundle) -> ApplicationPackBindingV3 {
     }
 }
 
-fn validate_source_and_requirements(
+pub(crate) fn validate_source_and_requirements(
     pack: &VerifiedWorkflowPackBundle,
     source: &str,
     requirements: &[ApplicationFlowRequirementDraftV3],

@@ -5,8 +5,8 @@ use canisend_app::{
     ApplicationFlowComposeRequestV3, ApplicationFlowReviewReadModelV3,
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationMutationApprovalPreviewV4, ApplicationPlanConfirmRequestV4,
-    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4, PrivateReadConsent,
-    StoredApplicationModelV3,
+    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
+    ApplicationRequirementExtractRequestV4, PrivateReadConsent, StoredApplicationModelV3,
 };
 use canisend_contracts::{ApplicationId, Sha256Digest};
 use serde::Deserialize;
@@ -19,6 +19,15 @@ pub(crate) struct RequirementConfirmPreviewDesktopRequestV4 {
     workspace: PathBuf,
     application_id: ApplicationId,
     mutation: ApplicationRequirementConfirmRequestV4,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RequirementExtractPreviewDesktopRequestV4 {
+    workspace: PathBuf,
+    application_id: ApplicationId,
+    mutation: ApplicationRequirementExtractRequestV4,
+    confirmed_private_read: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -65,6 +74,17 @@ pub(crate) struct ApplicationMutationCommitDesktopRequestV4 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(crate) struct RequirementExtractCommitDesktopRequestV4 {
+    workspace: PathBuf,
+    application_id: ApplicationId,
+    preview_token: String,
+    preview_sha256: Sha256Digest,
+    approved: bool,
+    confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct DeliverableAuditDesktopRequestV4 {
     workspace: PathBuf,
     application_id: ApplicationId,
@@ -84,6 +104,53 @@ fn mutation_error(error: ApplicationMutationApprovalErrorV4) -> DesktopCommandEr
             "Application mutation approval does not match the reviewed operation or preview.",
         ),
     }
+}
+
+#[tauri::command]
+pub(crate) async fn requirement_extract_preview(
+    state: tauri::State<'_, ApplicationMutationApprovalBrokerV4>,
+    request: RequirementExtractPreviewDesktopRequestV4,
+) -> Result<
+    ApplicationMutationApprovalPreviewV4<ApplicationRequirementExtractRequestV4>,
+    DesktopCommandError,
+> {
+    let broker = state.inner().clone();
+    run_worker(move || {
+        broker
+            .preview_requirement_extraction(
+                &request.workspace,
+                &request.application_id,
+                request.mutation,
+                request
+                    .confirmed_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            )
+            .map_err(mutation_error)
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn requirement_extract_commit(
+    state: tauri::State<'_, ApplicationMutationApprovalBrokerV4>,
+    request: RequirementExtractCommitDesktopRequestV4,
+) -> Result<ActionReceipt<StoredApplicationModelV3>, DesktopCommandError> {
+    let broker = state.inner().clone();
+    run_worker(move || {
+        broker
+            .commit_requirement_extraction(
+                &request.workspace,
+                &request.application_id,
+                &request.preview_token,
+                &request.preview_sha256,
+                request.approved,
+                request
+                    .confirmed_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            )
+            .map_err(mutation_error)
+    })
+    .await
 }
 
 #[tauri::command]

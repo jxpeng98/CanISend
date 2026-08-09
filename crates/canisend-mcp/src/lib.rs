@@ -9,16 +9,18 @@ use std::{
 use canisend_app::{
     Application, ApplicationDeliverableReviseRequestV4, ApplicationError,
     ApplicationFlowComposeRequestV3, ApplicationFlowDeliverableDraftV3,
-    ApplicationFlowPlannedDeliverableV3, ApplicationMutationApprovalBrokerV4,
-    ApplicationMutationApprovalErrorV4, ApplicationPlanConfirmRequestV4,
-    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4, ApprovalBrokerError,
-    AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
-    EvidenceAssociationPreviewRequestV4, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
-    RequirementDecisionV4,
+    ApplicationFlowPlannedDeliverableV3, ApplicationFlowRequirementDraftV3,
+    ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
+    ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
+    ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
+    ApprovalBrokerError, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
+    AssociationChangeV4, EvidenceAssociationPreviewRequestV4, PrivateReadConsent,
+    ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
 };
 use canisend_contracts::{
     ApplicationId, ContentRevisionReferenceV3, DeliverableId, ExecutionMode,
-    PlannedDeliverableDispositionV3, RequirementId, Revision, Sha256Digest, WorkflowPackItemId,
+    PlannedDeliverableDispositionV3, RequirementId, RequirementPriorityV3, Revision, Sha256Digest,
+    WorkflowPackItemId,
 };
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
@@ -171,6 +173,38 @@ pub struct RequirementConfirmPreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
     pub decisions: Vec<RequirementDecisionInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementExtractInput {
+    pub category: String,
+    pub statement: String,
+    pub priority: RequirementPriorityV3,
+    pub start_byte: u64,
+    pub end_byte: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementExtractPreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub source: ContentRevisionReferenceV3,
+    pub requirements: Vec<RequirementExtractInput>,
+    #[schemars(description = "True only after explicit consent to read a private local Source")]
+    pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementExtractCommitParameters {
+    pub application_id: String,
+    pub preview_token: String,
+    pub preview_sha256: Sha256Digest,
+    pub approved: bool,
+    #[schemars(description = "True only after explicit consent to read a private local Source")]
+    pub confirmed_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -532,6 +566,79 @@ impl CanISendMcpServer {
             &parameters.application_id,
             &parameters.requirement_id,
         ))
+    }
+
+    #[tool(
+        description = "Preview exact Source-bound Requirement proposals and issue a single-use approval token",
+        annotations(
+            title = "Preview Requirement extraction",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_extract_preview(
+        &self,
+        Parameters(parameters): Parameters<RequirementExtractPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let requirements = parameters
+            .requirements
+            .into_iter()
+            .map(|requirement| {
+                Ok(ApplicationFlowRequirementDraftV3 {
+                    category: Self::pack_item(&requirement.category)?,
+                    statement: requirement.statement,
+                    priority: requirement.priority,
+                    start_byte: requirement.start_byte,
+                    end_byte: requirement.end_byte,
+                })
+            })
+            .collect::<Result<Vec<_>, McpError>>()?;
+        Self::mutation_result(
+            self.mutation_approvals.preview_requirement_extraction(
+                self.workspace(),
+                &application_id,
+                ApplicationRequirementExtractRequestV4 {
+                    expected_revision: Self::revision(parameters.expected_revision)?,
+                    source: parameters.source,
+                    requirements,
+                },
+                parameters
+                    .confirmed_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Commit approved exact Source-bound Requirement proposals; the preview token is single-use",
+        annotations(
+            title = "Commit Requirement extraction",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_extract_commit(
+        &self,
+        Parameters(parameters): Parameters<RequirementExtractCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.commit_requirement_extraction(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.approved,
+                parameters
+                    .confirmed_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
     }
 
     #[tool(

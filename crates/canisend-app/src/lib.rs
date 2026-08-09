@@ -112,7 +112,8 @@ pub use association_v4::{
 pub use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 pub use canisend_store::{
     ApplicationDeliverableReviseRequestV4, ApplicationPlanConfirmRequestV4,
-    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4, RequirementDecisionV4,
+    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
+    ApplicationRequirementExtractRequestV4, RequirementDecisionV4,
 };
 pub use catalog::{
     InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,
