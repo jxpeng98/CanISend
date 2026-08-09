@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use canisend_app::{
     ActionReceipt, Application, ApplicationFlowApproveRequestV3, ApplicationFlowCommitReadModelV3,
-    ApplicationFlowComposeRequestV3, ApplicationFlowCreateRequestV3,
-    ApplicationFlowCreateRequestV4, ApplicationFlowExportReadModelV3,
-    ApplicationFlowExportRequestV3, ApplicationFlowPlanRequestV3, ApplicationFlowReadModelV3,
+    ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4,
+    ApplicationFlowExportReadModelV3, ApplicationFlowExportRequestV3, ApplicationFlowReadModelV3,
     ApplicationFlowReviewReadModelV3, PrivateExportConsent, PrivateReadConsent,
     StoredApplicationModelV3,
 };
+#[cfg(test)]
+use canisend_app::{ApplicationFlowComposeRequestV3, ApplicationFlowPlanRequestV3};
 use canisend_contracts::{Revision, WorkflowPackId};
 use serde::Deserialize;
 
@@ -36,6 +37,7 @@ pub(crate) struct GenericApplicationCreateRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(test)]
 pub(crate) struct GenericApplicationPlanRequest {
     workspace: PathBuf,
     application_id: String,
@@ -44,6 +46,7 @@ pub(crate) struct GenericApplicationPlanRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(test)]
 pub(crate) struct GenericApplicationComposeRequest {
     workspace: PathBuf,
     application_id: String,
@@ -103,6 +106,7 @@ fn create_generic_application_impl(
     .map_err(DesktopCommandError::application)
 }
 
+#[cfg(test)]
 fn plan_generic_application_impl(
     request: GenericApplicationPlanRequest,
 ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
@@ -114,6 +118,7 @@ fn plan_generic_application_impl(
     .map_err(DesktopCommandError::application)
 }
 
+#[cfg(test)]
 fn compose_generic_application_impl(
     request: GenericApplicationComposeRequest,
 ) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
@@ -195,20 +200,6 @@ pub(crate) async fn create_generic_application(
     request: GenericApplicationCreateRequest,
 ) -> Result<ActionReceipt<ApplicationFlowReadModelV3>, DesktopCommandError> {
     run_worker(move || create_generic_application_impl(request)).await
-}
-
-#[tauri::command]
-pub(crate) async fn plan_generic_application(
-    request: GenericApplicationPlanRequest,
-) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
-    run_worker(move || plan_generic_application_impl(request)).await
-}
-
-#[tauri::command]
-pub(crate) async fn compose_generic_application(
-    request: GenericApplicationComposeRequest,
-) -> Result<ActionReceipt<ApplicationFlowCommitReadModelV3>, DesktopCommandError> {
-    run_worker(move || compose_generic_application_impl(request)).await
 }
 
 #[tauri::command]

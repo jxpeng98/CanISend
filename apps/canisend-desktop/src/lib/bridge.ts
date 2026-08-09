@@ -263,12 +263,6 @@ export interface ApplicationFlowPlannedDeliverableV3 {
   execution_mode: ExecutionMode | null;
 }
 
-export interface ApplicationFlowPlanRequestV3 {
-  expected_revision: number;
-  decision: string;
-  deliverables: ApplicationFlowPlannedDeliverableV3[];
-}
-
 export interface ApplicationFlowDeliverableDraftV3 {
   kind: string;
   title: string;
@@ -2097,26 +2091,6 @@ export async function discardApplicationIntakePreview(
 ): Promise<void> {
   return invoke("discard_application_intake_preview", {
     request: { workspace, pack_id: packId, preview_token: previewToken },
-  });
-}
-
-export async function planGenericApplication(
-  workspace: string,
-  applicationId: string,
-  request: ApplicationFlowPlanRequestV3,
-): Promise<ActionReceipt<ApplicationFlowCommitReadModelV3>> {
-  return invoke("plan_generic_application", {
-    request: { workspace, application_id: applicationId, request },
-  });
-}
-
-export async function composeGenericApplication(
-  workspace: string,
-  applicationId: string,
-  request: ApplicationFlowComposeRequestV3,
-): Promise<ActionReceipt<ApplicationFlowCommitReadModelV3>> {
-  return invoke("compose_generic_application", {
-    request: { workspace, application_id: applicationId, request },
   });
 }
 

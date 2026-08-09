@@ -8315,8 +8315,6 @@ fn validate_semantic_parity_policy(
     }
 
     let expected_revision_bound = BTreeSet::from([
-        "application.plan".to_owned(),
-        "application.compose".to_owned(),
         "application.approve".to_owned(),
         "application.export".to_owned(),
         "application.intake.commit".to_owned(),

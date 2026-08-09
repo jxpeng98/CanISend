@@ -102,6 +102,32 @@ describe("desktop accessibility contract", () => {
     );
   });
 
+  it("routes the connected Application lifecycle through reviewed v4 mutations", () => {
+    for (const operation of [
+      "previewRequirementConfirmationV4",
+      "commitRequirementConfirmationV4",
+      "previewPlanProposalV4",
+      "commitPlanProposalV4",
+      "previewPlanConfirmationV4",
+      "commitPlanConfirmationV4",
+      "previewDeliverableDraftV4",
+      "commitDeliverableDraftV4",
+      "auditDeliverablesV4",
+    ]) {
+      expect(genericApplicationsView).toContain(operation);
+    }
+    for (const directMutation of [
+      "planGenericApplication",
+      "composeGenericApplication",
+      "reviewGenericApplication",
+    ]) {
+      expect(genericApplicationsView).not.toContain(directMutation);
+    }
+    expect(genericApplicationsView).toContain("requirement-decision-${requirement.id}");
+    expect(genericApplicationsView).toContain("commitPendingLifecycleMutation");
+    expect(genericApplicationsView).toContain("discardPendingLifecycleMutation");
+  });
+
   it("keeps mixed Application selection keyboard-native and Workspace creation neutral", () => {
     expect(app).toContain('role="group"');
     expect(app).toContain("aria-label={copy.workflowPack}");

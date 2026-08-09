@@ -15,7 +15,7 @@
       "compatibility_pack_scope": "none",
       "format": "canisend.operation-registry/v1",
       "path": "crates/canisend-contracts/operation-registry-v1.json",
-      "sha256": "949fa2e728e319bf6ce06d1582c3b07f1d7c7511bc2bd67a574008bb10783e1f"
+      "sha256": "eb65a353add8440f0f6f0ae0315046416d00d3f1ada42efccdd3638da41aa5fb"
     },
     "resource_manifest": {
       "entry_count": 87,

@@ -367,7 +367,7 @@
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "operations": ["application.list", "application.show", "application.create", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
       "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4", "application-mutations-v4"]
     },
     {
@@ -385,7 +385,7 @@
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "operations": ["application.list", "application.show", "application.create", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
       "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4", "application-mutations-v4"]
     },
     {
@@ -396,14 +396,6 @@
     }
   ],
   "revision_bound_operations": [
-    {
-      "operation": "application.plan",
-      "fixtures": ["generic-tauri-lifecycle"]
-    },
-    {
-      "operation": "application.compose",
-      "fixtures": ["generic-kernel-failures"]
-    },
     {
       "operation": "application.approve",
       "fixtures": ["generic-tauri-lifecycle", "approval-broker", "approval-context"]
