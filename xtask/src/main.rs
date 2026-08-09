@@ -19039,7 +19039,7 @@ mod tests {
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
         assert_eq!(current.shared_operations, 5);
-        assert_eq!(current.preview_pairs, 6);
+        assert_eq!(current.preview_pairs, 4);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();
