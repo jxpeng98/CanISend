@@ -23,6 +23,11 @@
       "marker": "fn serves_v4_reads_and_refuses_legacy_tools_without_mutation()"
     },
     {
+      "id": "profile-source-cli",
+      "path": "crates/canisend-cli/tests/binary_contract.rs",
+      "marker": "fn workspace_v4_profile_sources_import_and_list_without_the_app()"
+    },
+    {
       "id": "mixed-cli-workspace",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
       "marker": "fn workspace_v4_holds_generic_and_academic_applications_together()"
@@ -148,43 +153,57 @@
       "revision_bound": false,
       "outcomes": ["success", "wrong-pack", "no-mutation"],
       "fixtures": ["mixed-cli-workspace", "generic-tauri-lifecycle", "generic-kernel-failures"]
+    },
+    {
+      "operation": "profile-source.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "academic-tauri-profile"]
+    },
+    {
+      "operation": "profile-source.import",
+      "kind": "mutation",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["profile-source-cli", "academic-tauri-profile"]
     }
   ],
   "pack_surface_cases": [
     {
       "pack": "generic-application",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create"],
-      "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import"],
+      "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export"],
-      "fixtures": ["generic-tauri-lifecycle"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import"],
+      "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile"]
     },
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     },
     {
       "pack": "academic-job",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create"],
-      "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import"],
+      "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list"],
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import"],
       "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     }
   ],
@@ -258,7 +277,7 @@
     {
       "id": "profile-source",
       "operations": ["profile-source.list"],
-      "fixtures": ["academic-tauri-profile"]
+      "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "academic-tauri-profile"]
     }
   ],
   "uncovered_policy": {

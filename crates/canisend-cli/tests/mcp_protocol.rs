@@ -10,8 +10,9 @@ use std::{
 
 use canisend_app::{
     Application, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, PrivateReadConsent,
 };
+use canisend_contracts::PrivacyClassification;
 use serde_json::{Value, json};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -161,7 +162,21 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
 #[test]
 fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     let root = temporary_root("calls");
+    let profile_source = temporary_root("calls-profile-source").with_extension("md");
+    let private_sentinel = "PRIVATE-MCP-PROFILE-BODY-MUST-NOT-LEAK";
+    fs::write(
+        &profile_source,
+        format!("# Profile\n\n{private_sentinel}\n"),
+    )
+    .expect("write Profile Source fixture");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+    Application::import_profile_source_v4(
+        &root,
+        &profile_source,
+        PrivacyClassification::PrivateLocal,
+        Some(PrivateReadConsent::granted_by_user()),
+    )
+    .expect("import Profile Source fixture");
     let before = Application::workspace_status_v4(&root)
         .expect("workspace before")
         .data
@@ -202,10 +217,28 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
         json!(true)
     );
 
+    let profile_sources = mcp.request(
+        5,
+        "tools/call",
+        json!({"name": "canisend_profile_source_list", "arguments": {}}),
+    );
+    assert_eq!(profile_sources["result"]["isError"], json!(false));
+    assert_eq!(
+        profile_sources["result"]["structuredContent"]["operation"],
+        json!("profile-source.list")
+    );
+    assert_eq!(
+        profile_sources["result"]["structuredContent"]["data"]["sources"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert!(!profile_sources.to_string().contains(private_sentinel));
+
     for (id, legacy) in [
-        (5, "canisend_agent_v3_context"),
-        (6, "canisend_application_create"),
-        (7, "canisend_job_intake_commit"),
+        (6, "canisend_agent_v3_context"),
+        (7, "canisend_application_create"),
+        (8, "canisend_job_intake_commit"),
     ] {
         let refused = mcp.request(id, "tools/call", json!({"name": legacy, "arguments": {}}));
         assert!(
@@ -221,6 +254,7 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
         .status;
     assert_eq!(before, after);
     fs::remove_dir_all(root).expect("remove workspace");
+    fs::remove_file(profile_source).expect("remove Profile Source fixture");
 }
 
 #[test]

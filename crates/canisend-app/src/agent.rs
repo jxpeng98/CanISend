@@ -72,16 +72,18 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 4] = [
+pub const CANISEND_MCP_TOOLS: [&str; 5] = [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 4] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 5] = [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
@@ -754,7 +756,7 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(codex.tools.len(), 4);
+        assert_eq!(codex.tools.len(), 5);
         assert!(codex.guarded_write_tools.is_empty());
         assert!(
             CANISEND_MCP_V2_TOOLS

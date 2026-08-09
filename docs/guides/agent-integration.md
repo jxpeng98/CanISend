@@ -105,7 +105,13 @@ read operations:
 - `canisend_workspace_status`;
 - `canisend_workspace_check`;
 - `canisend_application_list`; and
-- `canisend_application_show`.
+- `canisend_application_show`; and
+- `canisend_profile_source_list`.
+
+Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
+without the App through `canisend profile-source import`; `private-local` input requires the
+explicit `--confirm-private-read` flag. Both CLI listing and the MCP tool return IDs, revisions,
+digests, kinds, and privacy metadata without returning original or normalized body text.
 
 Do not infer that an operation from the canonical registry is callable when it is absent from the
 runtime tool list. Use a native CLI operation only when it exposes the same operation ID, or stop

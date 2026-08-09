@@ -13,11 +13,11 @@ use std::{
 use canisend_app::{
     AgentHost, AgentMcpConfigurationRequest, AgentSkillsInstallRequest, Application,
     ApplicationArchiveRequest, ApplicationError, ApplicationFlowCreateRequestV3,
-    ApplicationFlowCreateRequestV4, WorkspaceInitPolicy,
+    ApplicationFlowCreateRequestV4, PrivateReadConsent, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
-    AgentError, AgentResponse, ErrorCode, ExitClass, Revision, SemanticVersion, VersionData,
-    WorkflowPackId,
+    AgentError, AgentResponse, ErrorCode, ExitClass, PrivacyClassification, Revision,
+    SemanticVersion, VersionData, WorkflowPackId,
 };
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -101,6 +101,11 @@ enum Command {
         #[command(subcommand)]
         command: ApplicationCommand,
     },
+    /// Import and inspect neutral Workspace-level Profile Sources.
+    ProfileSource {
+        #[command(subcommand)]
+        command: ProfileSourceCommand,
+    },
     /// Install and inspect clean Agent v4 host resources for this Workspace.
     Host {
         #[command(subcommand)]
@@ -154,6 +159,29 @@ enum ApplicationCommand {
     Archive(ApplicationArchiveArgs),
     /// Create a Pack-bound Application from a reviewed JSON request.
     Create(ApplicationCreateArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileSourceCommand {
+    /// List body-free Profile Source metadata from the current Workspace v4.
+    List(OutputArgs),
+    /// Import one reviewed Markdown, plain-text, or JSON file into Workspace v4 authority.
+    Import(ProfileSourceImportArgs),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ProfileSourceSensitivityArgument {
+    Public,
+    PrivateLocal,
+}
+
+impl From<ProfileSourceSensitivityArgument> for PrivacyClassification {
+    fn from(value: ProfileSourceSensitivityArgument) -> Self {
+        match value {
+            ProfileSourceSensitivityArgument::Public => Self::Public,
+            ProfileSourceSensitivityArgument::PrivateLocal => Self::PrivateLocal,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -253,6 +281,20 @@ struct ApplicationArchiveArgs {
 }
 
 #[derive(Debug, Args)]
+struct ProfileSourceImportArgs {
+    /// Reviewed local Markdown, plain-text, or JSON file.
+    source: PathBuf,
+    /// Privacy classification stored with the source.
+    #[arg(long, value_enum)]
+    sensitivity: ProfileSourceSensitivityArgument,
+    /// Confirm that CanISend may read the selected private-local file.
+    #[arg(long)]
+    confirm_private_read: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct HostConfigurationArgs {
     /// Agent host that will load the Workspace-local resources.
     #[arg(long, value_enum)]
@@ -309,6 +351,10 @@ impl Cli {
                 ApplicationCommand::Show(arguments) => arguments.output.json,
                 ApplicationCommand::Archive(arguments) => arguments.output.json,
                 ApplicationCommand::Create(arguments) => arguments.output.json,
+            },
+            Command::ProfileSource { command } => match command {
+                ProfileSourceCommand::List(output) => output.json,
+                ProfileSourceCommand::Import(arguments) => arguments.output.json,
             },
             Command::Host { command } => match command {
                 HostCommand::Setup(arguments) | HostCommand::Status(arguments) => {
@@ -540,6 +586,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Application {
             command: ApplicationCommand::Create(arguments),
         } => application_create(workspace, arguments),
+        Command::ProfileSource {
+            command: ProfileSourceCommand::List(_),
+        } => profile_source_list(workspace),
+        Command::ProfileSource {
+            command: ProfileSourceCommand::Import(arguments),
+        } => profile_source_import(workspace, arguments),
         Command::Host {
             command: HostCommand::Setup(arguments),
         } => host_setup(workspace, arguments),
@@ -1043,6 +1095,59 @@ fn application_archive(
     )
 }
 
+fn profile_source_list(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+    let operation = "profile-source.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let model = Application::list_profile_sources_v4(&root)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    let human = if model.sources.is_empty() {
+        vec!["No Workspace Profile Sources found".to_owned()]
+    } else {
+        model
+            .sources
+            .iter()
+            .map(|source| {
+                format!(
+                    "{}  {:?}  [{:?}; revision {}]",
+                    source.id,
+                    source.kind,
+                    source.sensitivity,
+                    source.revision.get()
+                )
+            })
+            .collect()
+    };
+    success(operation, "available", &model, human)
+}
+
+fn profile_source_import(
+    workspace_path: Option<PathBuf>,
+    arguments: ProfileSourceImportArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "profile-source.import";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let sensitivity = PrivacyClassification::from(arguments.sensitivity);
+    let consent = arguments
+        .confirm_private_read
+        .then(PrivateReadConsent::granted_by_user);
+    let model =
+        Application::import_profile_source_v4(&root, &arguments.source, sensitivity, consent)
+            .map_err(|error| app_adapter::failure(operation, error))?
+            .data;
+    success(
+        operation,
+        "imported",
+        &model,
+        vec![
+            format!("Profile Source: {}", model.source.id),
+            format!("Profile revision: {}", model.profile_revision),
+            "Only body-free metadata is returned; original bytes remain in local Workspace authority"
+                .to_owned(),
+        ],
+    )
+}
+
 fn read_application_candidate<T>(operation: &'static str, path: &Path) -> CommandResult<T>
 where
     T: serde::de::DeserializeOwned,
@@ -1233,8 +1338,9 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        ApplicationCommand, Cli, Command, CommandFailure, ExitClass, HostCommand, WorkspaceCommand,
-        clap_leaf_paths, human_failure_lines, public_clap_leaf_paths, unsupported_legacy_surface,
+        ApplicationCommand, Cli, Command, CommandFailure, ExitClass, HostCommand,
+        ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
+        public_clap_leaf_paths, unsupported_legacy_surface,
     };
 
     #[test]
@@ -1257,7 +1363,7 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 19);
+        assert_eq!(actual.len(), 21);
     }
 
     #[test]
@@ -1292,6 +1398,21 @@ mod tests {
             archive.command,
             Command::Application {
                 command: ApplicationCommand::Archive(_)
+            }
+        ));
+
+        let profile_sources = Cli::try_parse_from([
+            "canisend",
+            "--workspace",
+            "/tmp/canisend-generic",
+            "profile-source",
+            "list",
+        ])
+        .expect("neutral Workspace Profile Source list");
+        assert!(matches!(
+            profile_sources.command,
+            Command::ProfileSource {
+                command: ProfileSourceCommand::List(_)
             }
         ));
 

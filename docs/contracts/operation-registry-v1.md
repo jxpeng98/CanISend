@@ -52,9 +52,9 @@ The built-in registry currently owns:
 
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
-| CLI | Compiled Clap command tree | 19 |
+| CLI | Compiled Clap command tree | 21 |
 | Tauri | `tauri::generate_handler!` | 104 |
-| MCP | `#[tool_router]` `canisend_*` methods | 4 |
+| MCP | `#[tool_router]` `canisend_*` methods | 5 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
 `adapter-only` ID. Overrides may target only a declared canonical operation. The Alpha.7 registry
@@ -63,15 +63,17 @@ cannot be introduced.
 
 The CLI graph contains only product inspection, Schema/resource inspection, Workspace v4
 lifecycle, Pack-bound Application create/list/show/archive, clean Agent v4 host
-setup/status/remove, and the read-only MCP server. Host setup installs only manifest-owned Skills
+setup/status/remove, Workspace Profile Source import/list, and the read-only MCP server. Host setup installs only manifest-owned Skills
 and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
-router contains only Workspace status/check and Application list/show. Alpha.6-era CLI families
+router contains only Workspace status/check, Application list/show, and body-free Workspace Profile
+Source listing. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
 The Alpha.7 registry contains zero compatibility aliases. The six transitional read-only Tauri
 bindings have joined the already retired Alpha.6 mutation and preview bindings: legacy Agent, Job,
 Task, and Workflow inputs fail closed before mutation and direct users to clean Workspace v4
-initialization. Profile Source listing uses the neutral Workspace v4 `profile-source.list`
-operation. Their frontend entry points reject locally before invoking Tauri, and their internal
+initialization. Profile Source import/list use strict neutral Workspace v4
+`profile-source.import` / `profile-source.list` operations across the shared facade. Their frontend
+entry points reject locally before invoking Tauri, and their internal
 facades remain only as historical regression fixtures rather than public product surfaces.
 The v2-to-v3 migration preview and commit handlers are retired on the same boundary, so Alpha.7
 does not expose a hidden Workspace migration path.

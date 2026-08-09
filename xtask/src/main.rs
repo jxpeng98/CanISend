@@ -1835,6 +1835,7 @@ fn check_documentation() -> Result<(), String> {
             &[
                 "canisend_workspace_status",
                 "canisend_application_show",
+                "canisend_profile_source_list",
                 "canisend-workspace",
                 "canisend-agent-v4.json",
                 "orient -> propose -> preview -> approve -> commit -> verify",
@@ -6463,6 +6464,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         "canisend_workspace_check",
         "canisend_application_list",
         "canisend_application_show",
+        "profile-source import",
+        "profile-source list",
+        "canisend_profile_source_list",
+        "MCP-V4-PROFILE-PRIVATE-SENTINEL",
         "MCP-V4-GENERIC-PRIVATE-SENTINEL",
         "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
     ] {
@@ -19030,7 +19035,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 5);
+        assert_eq!(current.shared_operations, 7);
         assert_eq!(current.preview_pairs, 4);
         assert!(!current.uncovered_bindings.is_empty());
 
