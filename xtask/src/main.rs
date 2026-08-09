@@ -5404,14 +5404,13 @@ fn alpha_package_contract_bindings(root: &Path) -> Result<Value, String> {
     }
     let compatibility_aliases = operation_registry["compatibility_aliases"]
         .as_array()
-        .filter(|aliases| !aliases.is_empty())
-        .ok_or_else(|| "operation registry contains no compatibility aliases".to_owned())?;
+        .ok_or_else(|| "operation registry compatibility_aliases must be an array".to_owned())?;
     if compatibility_aliases
         .iter()
         .any(|alias| alias["status"] != "deprecated" || alias["pack_scope"] != "academic-job")
     {
         return Err(
-            "Alpha.6 compatibility aliases must be deprecated and academic-pack scoped".to_owned(),
+            "pre-v4 compatibility aliases must be deprecated and academic-pack scoped".to_owned(),
         );
     }
     fields.insert(
@@ -5420,7 +5419,7 @@ fn alpha_package_contract_bindings(root: &Path) -> Result<Value, String> {
             "path": operation_registry_path,
             "format": "canisend.operation-registry/v1",
             "compatibility_alias_count": compatibility_aliases.len(),
-            "compatibility_pack_scope": "academic-job",
+            "compatibility_pack_scope": if compatibility_aliases.is_empty() { "none" } else { "academic-job" },
             "sha256": hex::encode(Sha256::digest(&operation_registry_bytes)),
         }),
     );
@@ -7099,10 +7098,7 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "workspace.restore",
         "workspace.repair",
         "job.import",
-        "job.list",
-        "job.show",
         "workflow.start",
-        "workflow.status",
         "workflow.begin",
         "workflow.complete",
         "workflow.rerun",
@@ -7111,7 +7107,6 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "cli.uninstall",
         "profile.*",
         "discovery.*",
-        "task.latest",
         "criteria.*",
         "match.*",
         "plan.*",
@@ -8332,8 +8327,6 @@ fn validate_semantic_parity_policy(
         "generic-application".to_owned(),
         "academic-application".to_owned(),
         "profile-source".to_owned(),
-        "task".to_owned(),
-        "workflow".to_owned(),
     ]);
     let mut read_families = BTreeSet::new();
     let mut read_operations = BTreeSet::new();
@@ -8615,52 +8608,52 @@ fn check_operation_registry() -> Result<(), String> {
             .surface_leaves(OperationSurface::Tauri)
             .map_err(|error| format!("cannot resolve Tauri operation registry: {error}"))?,
     )?;
-    let retired_tauri_mutations = BTreeSet::from([
+    let retired_tauri_operations = BTreeSet::from([
+        "agent_capabilities",
+        "agent_context",
         "archive_job",
         "cancel_task",
         "commit_job_source_preview",
         "commit_task_completion_preview",
         "create_job",
         "export_task_inputs",
+        "latest_task",
+        "list_jobs",
+        "migrate_workspace_v3",
         "prepare_task",
         "prepare_task_again",
         "preview_local_job_source",
+        "preview_workspace_v3_migration",
         "preview_task_completion",
+        "show_job",
+        "workflow_controls",
     ]);
-    if let Some(handler) = retired_tauri_mutations
+    if let Some(handler) = retired_tauri_operations
         .iter()
         .find(|handler| tauri.contains(**handler))
     {
         return Err(format!(
-            "retired Alpha.6 Tauri mutation `{handler}` must fail before desktop invocation"
+            "retired pre-v4 Tauri operation `{handler}` must fail before desktop invocation"
         ));
     }
     let bridge_source = fs::read_to_string(root.join("apps/canisend-desktop/src/lib/bridge.ts"))
         .map_err(|error| format!("cannot inspect desktop bridge: {error}"))?;
-    if let Some(handler) = retired_tauri_mutations
+    if let Some(handler) = retired_tauri_operations
         .iter()
         .find(|handler| bridge_source.contains(&format!("invoke(\"{handler}\"")))
     {
         return Err(format!(
-            "retired Alpha.6 desktop mutation `{handler}` still reaches the Tauri bridge"
+            "retired pre-v4 desktop operation `{handler}` still reaches the Tauri bridge"
         ));
     }
-    let expected_read_only_compatibility = BTreeSet::from([
-        "agent.capabilities",
-        "agent.context",
-        "job.list",
-        "job.show",
-        "task.latest",
-        "workflow.status",
-    ]);
     let actual_compatibility = registry
         .compatibility_aliases
         .iter()
         .map(|alias| alias.id.as_str())
         .collect::<BTreeSet<_>>();
-    if actual_compatibility != expected_read_only_compatibility {
+    if !actual_compatibility.is_empty() {
         return Err(format!(
-            "Alpha.7 transitional compatibility must be the exact read-only set: expected={expected_read_only_compatibility:?}, actual={actual_compatibility:?}"
+            "Alpha.7 clean-v4 operation registry must not export compatibility aliases: actual={actual_compatibility:?}"
         ));
     }
     let desktop_sources = fs::read_dir(root.join("crates/canisend-desktop/src"))

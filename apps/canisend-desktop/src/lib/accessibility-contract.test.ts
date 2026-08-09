@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const app = readFileSync(new URL("../App.svelte", import.meta.url), "utf8");
+const bridge = readFileSync(new URL("./bridge.ts", import.meta.url), "utf8");
 const contextBar = readFileSync(
   new URL("./components/WorkspaceContextBar.svelte", import.meta.url),
   "utf8",
@@ -113,6 +114,33 @@ describe("desktop accessibility contract", () => {
     expect(contextBar).toContain("application.snapshot.opportunity.title");
     expect(workspacesView).not.toContain('id="create-workspace-pack"');
     expect(workspacesView).toContain("{copy.workflowPackDescription}");
+  });
+
+  it("rejects retired read projections before invoking the desktop host", () => {
+    for (const operation of [
+      "agent.capabilities",
+      "agent.context",
+      "job.list",
+      "job.show",
+      "task.latest",
+      "workflow.status",
+      "workspace.v3.migration.preview",
+      "workspace.v3.migration.commit",
+    ]) {
+      expect(bridge).toContain(`unsupportedLegacyDesktopOperation("${operation}"`);
+    }
+    for (const handler of [
+      "agent_capabilities",
+      "agent_context",
+      "list_jobs",
+      "show_job",
+      "latest_task",
+      "workflow_controls",
+      "preview_workspace_v3_migration",
+      "migrate_workspace_v3",
+    ]) {
+      expect(bridge).not.toContain(`invoke("${handler}"`);
+    }
   });
 
   it("centralizes semantic controls and compact desktop target sizes", () => {

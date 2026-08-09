@@ -11,14 +11,13 @@ use canisend_app::{
     Application, ApplicationDossierListReadModel, ApplicationDossierReadModel, ApplicationError,
     ApprovalBrokerError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
     ContentSearchReadModel, ContentSearchRequest, DoctorSummary,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID, JobDetailReadModel, JobListReadModel,
-    NetworkFetchConsent, PrivateReadConsent, ProductSummary, SourceImportReadModel,
-    WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel, WorkspaceHealthReadModel,
-    WorkspaceRegistry, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
-    WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
-    WorkspaceV4ReadModel, default_registry_path, desktop_cli_source_path, validate_workspace_alias,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
+    SourceImportReadModel, WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel,
+    WorkspaceHealthReadModel, WorkspaceRegistry, WorkspaceRepairReadModel,
+    WorkspaceRestoreReadModel, WorkspaceV4ReadModel, default_registry_path,
+    desktop_cli_source_path, validate_workspace_alias,
 };
-use canisend_contracts::{ApplicationPackBindingV3, Sha256Digest};
+use canisend_contracts::ApplicationPackBindingV3;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -168,14 +167,6 @@ pub(crate) struct WorkspaceRestoreRequest {
     alias: String,
     backup: PathBuf,
     destination: PathBuf,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct WorkspaceMigrateRequest {
-    workspace: PathBuf,
-    expected_plan_sha256: String,
-    backup_destination: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -730,64 +721,6 @@ pub(crate) async fn repair_workspace(
         Application::repair_workspace(&request.path).map_err(DesktopCommandError::application)
     })
     .await
-}
-
-#[tauri::command]
-pub(crate) async fn preview_workspace_v3_migration(
-    request: WorkspacePathRequest,
-) -> Result<ActionReceipt<WorkspaceV3MigrationPreview>, DesktopCommandError> {
-    run_worker(move || {
-        Application::preview_workspace_v3_migration(&request.path)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
-}
-
-#[tauri::command]
-pub(crate) async fn migrate_workspace_v3(
-    request: WorkspaceMigrateRequest,
-) -> Result<ActionReceipt<WorkspaceV3MigrationReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        let expected_plan_sha256 = Sha256Digest::try_new(request.expected_plan_sha256)
-            .map_err(|error| DesktopCommandError::state(error.to_string()))?;
-        Application::migrate_workspace_v3(
-            &request.workspace,
-            WorkspaceV3MigrationRequest {
-                expected_plan_sha256,
-                backup_destination: request.backup_destination,
-            },
-        )
-        .map_err(DesktopCommandError::application)
-    })
-    .await
-}
-
-fn list_jobs_impl(
-    request: JobListRequest,
-) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
-    Application::list_jobs(&request.workspace, request.include_archived)
-        .map_err(DesktopCommandError::application)
-}
-
-fn show_job_impl(
-    request: JobRequest,
-) -> Result<ActionReceipt<JobDetailReadModel>, DesktopCommandError> {
-    Application::job_detail(&request.workspace, &request.job_id)
-        .map_err(DesktopCommandError::application)
-}
-
-#[tauri::command]
-pub(crate) async fn list_jobs(
-    request: JobListRequest,
-) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
-    run_worker(move || list_jobs_impl(request)).await
-}
-
-#[tauri::command]
-pub(crate) async fn show_job(
-    request: JobRequest,
-) -> Result<ActionReceipt<JobDetailReadModel>, DesktopCommandError> {
-    run_worker(move || show_job_impl(request)).await
 }
 
 #[tauri::command]

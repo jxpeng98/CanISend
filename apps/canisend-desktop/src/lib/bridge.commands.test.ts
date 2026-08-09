@@ -283,24 +283,23 @@ describe("typed Tauri command requests", () => {
     });
   });
 
-  it("commits only the exact reviewed migration digest with a separate backup", async () => {
-    await previewWorkspaceV3Migration("/tmp/workspace");
-    await migrateWorkspaceV3({
-      workspace: "/tmp/workspace",
-      expectedPlanSha256: "a".repeat(64),
-      backupDestination: "/tmp/workspace-v2-backup",
+  it("rejects the retired Workspace migration path before invoking Tauri", async () => {
+    await expect(previewWorkspaceV3Migration("/tmp/workspace")).rejects.toMatchObject({
+      code: "unsupported_legacy_operation",
+      retryable: false,
+    });
+    await expect(
+      migrateWorkspaceV3({
+        workspace: "/tmp/workspace",
+        expectedPlanSha256: "a".repeat(64),
+        backupDestination: "/tmp/workspace-v2-backup",
+      }),
+    ).rejects.toMatchObject({
+      code: "unsupported_legacy_operation",
+      retryable: false,
     });
 
-    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "preview_workspace_v3_migration", {
-      request: { path: "/tmp/workspace" },
-    });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "migrate_workspace_v3", {
-      request: {
-        workspace: "/tmp/workspace",
-        expected_plan_sha256: "a".repeat(64),
-        backup_destination: "/tmp/workspace-v2-backup",
-      },
-    });
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
   it("keeps content filters typed and private body consent explicit", async () => {

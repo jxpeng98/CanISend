@@ -43,14 +43,7 @@
     {"id": "agent-v3.task.prepare-again", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "application.workflow.status", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"}
   ],
-  "compatibility_aliases": [
-    {"id": "agent.capabilities", "canonical_operation": "agent-v3.capabilities", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "agent.context", "canonical_operation": "agent-v3.context", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "job.list", "canonical_operation": "application.list", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "job.show", "canonical_operation": "application.show", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "task.latest", "canonical_operation": "agent-v3.task.latest", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "workflow.status", "canonical_operation": "application.workflow.status", "status": "deprecated", "pack_scope": "academic-job"}
-  ],
+  "compatibility_aliases": [],
   "presentation_aliases": [
     {"id": "schema.*", "class": "wildcard-alias", "status": "implemented", "members": ["cli.schema.list", "cli.schema.show"]},
     {"id": "resource.*", "class": "wildcard-alias", "status": "implemented", "members": ["cli.resource.list"]}
@@ -85,16 +78,16 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
-        "agent_capabilities", "agent_assistance", "agent_context", "agent_skills_status", "copy_agent_mcp_configuration", "copy_agent_handoff", "export_agent_pack", "install_agent_skills", "prepare_agent_handoff", "prepare_agent_mcp_configuration", "uninstall_agent_skills",
+        "agent_assistance", "agent_skills_status", "copy_agent_mcp_configuration", "copy_agent_handoff", "export_agent_pack", "install_agent_skills", "prepare_agent_handoff", "prepare_agent_mcp_configuration", "uninstall_agent_skills",
         "agent_runtime_catalog", "cancel_agent_turn", "run_agent_turn",
-        "application_dossier", "backup_workspace", "check_workspace", "connect_workspace", "content_catalog", "create_workspace", "import_local_job_source", "import_url_job_source", "list_jobs", "list_application_dossiers", "list_workspaces", "migrate_workspace_v3", "product_summary", "preview_workspace_v3_migration", "remove_workspace", "repair_workspace", "restore_workspace", "run_doctor", "select_workspace", "search_content", "show_job", "workspace_status", "workflow_pack_presentation",
+        "application_dossier", "backup_workspace", "check_workspace", "connect_workspace", "content_catalog", "create_workspace", "import_local_job_source", "import_url_job_source", "list_application_dossiers", "list_workspaces", "product_summary", "remove_workspace", "repair_workspace", "restore_workspace", "run_doctor", "select_workspace", "search_content", "workspace_status", "workflow_pack_presentation",
         "build_render", "check_package", "confirm_review", "copy_package_projection", "current_package", "current_package_export", "current_render", "document_workspace", "export_package", "export_render", "export_render_and_open", "preview_render", "reconcile_package", "replace_package_projection", "review_workspace",
         "commit_discovery_preview", "discard_discovery_preview", "discovery_adapters", "list_discovery_leads", "list_discovery_sources", "preview_discovery_file", "preview_discovery_network", "promote_discovery_lead", "show_discovery_lead", "suggest_discovery_duplicates",
         "approve_generic_application", "commit_application_intake_preview", "compose_generic_application", "create_generic_application", "discard_application_intake_preview", "export_generic_application", "list_generic_applications", "plan_generic_application", "preview_local_application_intake", "preview_pasted_application_intake", "preview_url_application_intake", "review_generic_application", "show_generic_application",
         "discard_job_source_preview", "preview_url_job_source",
         "confirm_criteria", "confirm_plan", "confirm_profile_evidence", "criteria_template", "current_matches", "current_plan", "evidence_association_commit", "evidence_association_list", "evidence_association_preview", "import_profile_source", "initialize_profile", "list_profile_sources", "plan_template", "profile_association_commit", "profile_association_list", "profile_association_preview", "profile_evidence_template",
         "check_for_updates", "cli_install_status", "configure_cli_path", "desktop_cli_defaults", "export_resource_catalog", "inspection_catalog", "install_cli", "resource_detail", "schema_detail", "uninstall_cli",
-        "begin_workflow_stage", "commit_workflow_rerun", "complete_workflow_stage", "discard_workflow_preview", "latest_task", "preview_workflow_rerun", "start_workflow", "workflow_controls"
+        "begin_workflow_stage", "commit_workflow_rerun", "complete_workflow_stage", "discard_workflow_preview", "preview_workflow_rerun", "start_workflow"
       ],
       "bindings": [
         {"leaf": "list_generic_applications", "operation": "application.list", "pack_scope": "any"},
@@ -109,19 +102,13 @@
         {"leaf": "review_generic_application", "operation": "application.review", "pack_scope": "any"},
         {"leaf": "approve_generic_application", "operation": "application.approve", "pack_scope": "any"},
         {"leaf": "export_generic_application", "operation": "application.export", "pack_scope": "any"},
-        {"leaf": "agent_capabilities", "operation": "agent.capabilities", "pack_scope": "academic-job"},
-        {"leaf": "agent_context", "operation": "agent.context", "pack_scope": "academic-job"},
-        {"leaf": "list_jobs", "operation": "job.list", "pack_scope": "academic-job"},
-        {"leaf": "show_job", "operation": "job.show", "pack_scope": "academic-job"},
         {"leaf": "list_profile_sources", "operation": "profile-source.list", "pack_scope": "any"},
         {"leaf": "profile_association_list", "operation": "profile.association.list", "pack_scope": "any"},
         {"leaf": "profile_association_preview", "operation": "profile.association.preview", "pack_scope": "any"},
         {"leaf": "profile_association_commit", "operation": "profile.association.commit", "pack_scope": "any"},
         {"leaf": "evidence_association_list", "operation": "evidence.association.list", "pack_scope": "any"},
         {"leaf": "evidence_association_preview", "operation": "evidence.association.preview", "pack_scope": "any"},
-        {"leaf": "evidence_association_commit", "operation": "evidence.association.commit", "pack_scope": "any"},
-        {"leaf": "latest_task", "operation": "task.latest", "pack_scope": "academic-job"},
-        {"leaf": "workflow_controls", "operation": "workflow.status", "pack_scope": "academic-job"}
+        {"leaf": "evidence_association_commit", "operation": "evidence.association.commit", "pack_scope": "any"}
       ]
     },
     {

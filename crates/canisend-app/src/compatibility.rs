@@ -66,28 +66,24 @@ impl LegacyCompatibilityOperation {
     ];
 
     #[cfg(test)]
-    pub(crate) const REGISTERED_ALIASES: [Self; 6] = [
+    pub(crate) const RETIRED_PUBLIC_ALIASES: [Self; 17] = [
         Self::AgentCapabilities,
         Self::AgentContext,
         Self::JobList,
         Self::JobShow,
-        Self::TaskLatest,
-        Self::WorkflowStatus,
-    ];
-
-    #[cfg(test)]
-    pub(crate) const RETIRED_REGISTERED_ALIASES: [Self; 11] = [
         Self::JobCreate,
         Self::JobArchive,
         Self::JobIntakePreview,
         Self::JobIntakeCommit,
         Self::ProfileSources,
+        Self::TaskLatest,
         Self::TaskPrepare,
         Self::TaskInputs,
         Self::TaskCompletionPreview,
         Self::TaskCompletionCommit,
         Self::TaskCancel,
         Self::TaskPrepareAgain,
+        Self::WorkflowStatus,
     ];
 
     pub(crate) const fn legacy(self) -> &'static str {
@@ -345,37 +341,25 @@ mod tests {
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
     #[test]
-    fn compatibility_registry_is_total_for_exported_aliases_and_unambiguous() {
+    fn compatibility_registry_exports_no_legacy_aliases() {
         let registry = OperationRegistry::built_in().expect("typed operation registry");
-        let mut legacy = BTreeSet::new();
-        for operation in LegacyCompatibilityOperation::REGISTERED_ALIASES {
-            assert!(legacy.insert(operation.legacy()));
-            assert!(!operation.canonical().is_empty());
-            assert_ne!(operation.legacy(), operation.canonical());
-            let registered = registry
-                .compatibility_alias(operation.legacy())
-                .expect("legacy alias is registered");
-            assert_eq!(
-                registered.canonical_operation.as_str(),
-                operation.canonical()
-            );
-        }
-        assert_eq!(legacy.len(), registry.compatibility_aliases.len());
-        for retired_or_internal in LegacyCompatibilityOperation::RETIRED_REGISTERED_ALIASES
+        let mut retired = BTreeSet::new();
+        assert!(registry.compatibility_aliases.is_empty());
+        for operation in LegacyCompatibilityOperation::RETIRED_PUBLIC_ALIASES
             .into_iter()
             .chain([
                 LegacyCompatibilityOperation::JobImport,
                 LegacyCompatibilityOperation::TaskShow,
             ])
         {
+            assert!(retired.insert(operation.legacy()));
             assert!(
-                registry
-                    .compatibility_alias(retired_or_internal.legacy())
-                    .is_none(),
-                "retired or internal legacy alias must not be registered: {}",
-                retired_or_internal.legacy()
+                registry.compatibility_alias(operation.legacy()).is_none(),
+                "legacy alias must not be registered: {}",
+                operation.legacy()
             );
         }
+        assert_eq!(retired.len(), LegacyCompatibilityOperation::ALL.len());
     }
 
     #[test]
