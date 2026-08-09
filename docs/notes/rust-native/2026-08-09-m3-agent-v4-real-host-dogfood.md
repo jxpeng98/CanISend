@@ -42,13 +42,14 @@ These local bytes are not public Alpha.7 qualification evidence.
 |---|---|---|
 | `codex-new-cancel` | Codex CLI `0.146.0` | Loaded Workspace/intake Skills, found both Packs, created a generic Requirement preview, and cancelled without mutation. |
 | `codex-resume-commit` | Codex CLI `0.146.0` | Rejected the prior process token, reoriented, committed one fresh generic Requirement confirmation, and verified revision 2 while academic remained accessible. |
+| `codex-stale-recovery` | Codex CLI `0.146.0` | Proposed and confirmed the generic Plan through fresh guarded previews, rejected an explicit revision-3 preview after authority reached revision 4 with `workspace.conflict`, reoriented, and verified that academic remained unchanged. |
 | `claude-desktop-new-cancel` | Claude Desktop `1.24012.9` | Loaded the exact local MCP, found both Packs, created an academic Requirement preview, and cancelled without mutation. |
 | `claude-desktop-resume-commit` | Claude Desktop `1.24012.9` | Reloaded MCP, rejected the prior token, committed one fresh academic Requirement confirmation, and verified revision 2 while generic remained unchanged. |
 | `claude-code-new-cancel` | Claude Code `2.1.222` | Loaded Workspace/materials Skills, found both Packs, created an academic Plan preview, and cancelled without mutation. |
 | `claude-code-resume-stale` | Claude Code `2.1.222` | Rejected the prior process token, committed a fresh Plan, committed the first of two same-revision confirmation previews, rejected the second as stale, reoriented, and verified the confirmed Plan at revision 4. |
 
-The final generic snapshot remained revision 2 with SHA-256
-`c51acc26218ffb6e597f436be26462e8f3946d4182f32cdb027728fa99d0f97e`. The final academic
+The final generic snapshot was revision 4 with SHA-256
+`7ba6c7aeb3bba97ec58992f97571e34ef904f802f86dcefed1f1a8f06df40024`. The final academic
 snapshot was revision 4 with SHA-256
 `408aff8824702c53c43bce400f231c2fd2e12760f4e0304b6b7940aec42207fb`.
 
@@ -59,6 +60,10 @@ snapshot was revision 4 with SHA-256
 - A malformed Requirement decision enum was rejected by MCP deserialization before mutation.
 - Non-interactive Codex cancelled a guarded write despite explicit host configuration; the same
   session completed through Codex's interactive approval path without bypassing safeguards.
+- Duplicate same-revision Plan proposal and confirmation tokens were invalidated at the approval
+  Broker after the first commit with `approval.binding-mismatch`. Codex did not relabel that result
+  as stale: it issued one explicit revision-3 preview after authority reached revision 4, received
+  `workspace.conflict` (`expected 3, found 4`), reoriented, and performed no further mutation.
 - Claude Code with project-only setting sources excluded its authenticated user layer and failed
   before MCP use. Removing that unnecessary host flag retained strict MCP isolation and restored
   the authenticated Code flow.
@@ -72,8 +77,8 @@ upload, or submission occurred.
 
 ## Remaining boundary
 
-This record proves the frozen local draft candidate only. The evidence-only commit containing this
-note changes repository identity and does not retroactively qualify new bytes. Five-target native
+This record proves the frozen local draft candidate only. The evidence-only commits containing this
+note change repository identity and do not retroactively qualify new bytes. Five-target native
 qualification, promotion of the same build-once artifacts, public download, and public-byte
 reverification remain mandatory for `M3-ALPHA7-001`. The separate schema-conforming client and
 complete failure matrix remain tracked by `M3-AGENT-003`; invited-user evidence remains post-release.
