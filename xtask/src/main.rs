@@ -8322,6 +8322,7 @@ fn validate_semantic_parity_policy(
         "application.intake.commit".to_owned(),
         "evidence.association.commit".to_owned(),
         "profile.association.commit".to_owned(),
+        "requirement.extract.commit".to_owned(),
         "requirement.confirm.commit".to_owned(),
         "plan.propose.commit".to_owned(),
         "plan.confirm.commit".to_owned(),
@@ -8356,6 +8357,7 @@ fn validate_semantic_parity_policy(
         "desktop-workflow-rerun".to_owned(),
         "evidence-association".to_owned(),
         "profile-association".to_owned(),
+        "requirement-extract".to_owned(),
         "requirement-confirm".to_owned(),
         "plan-propose".to_owned(),
         "plan-confirm".to_owned(),
@@ -19140,8 +19142,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 29);
-        assert_eq!(current.preview_pairs, 11);
+        assert_eq!(current.shared_operations, 31);
+        assert_eq!(current.preview_pairs, 12);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();

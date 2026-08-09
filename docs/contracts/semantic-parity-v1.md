@@ -41,11 +41,11 @@ The current source contract covers:
 | Dimension | Required inventory |
 |---|---:|
 | Built-in Pack/surface cases | 6 |
-| Shared operations | 29 |
+| Shared operations | 31 |
 | Revision-bound operations | 13 |
-| Preview/commit families | 11 |
+| Preview/commit families | 12 |
 | Read families | 4 |
-| Qualified adapter bindings | 82 |
+| Qualified adapter bindings | 86 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
 `academic-job` with CLI, Tauri, and MCP. The clean CLI qualifies Workspace recovery and neutral

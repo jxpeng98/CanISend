@@ -24,6 +24,7 @@ import {
   commitProfileAssociationV4,
   commitDeliverableRevisionV4,
   commitRequirementConfirmationV4,
+  commitRequirementExtractionV4,
   commitJobSourcePreview,
   confirmPlan,
   configureCliPath,
@@ -52,6 +53,7 @@ import {
   previewProfileAssociationV4,
   previewDeliverableRevisionV4,
   previewRequirementConfirmationV4,
+  previewRequirementExtractionV4,
   previewLocalJobSource,
   previewWorkspaceV3Migration,
   previewRender,
@@ -293,6 +295,32 @@ describe("typed Tauri command requests", () => {
   });
 
   it("binds v4 Application mutations to reviewed revisions and preview digests", async () => {
+    await previewRequirementExtractionV4(
+      "/tmp/workspace",
+      "application-id",
+      {
+        expected_revision: 1,
+        source: { id: "source-id", revision: 1, sha256: "a".repeat(64) },
+        requirements: [
+          {
+            category: "format",
+            statement: "Reviewed requirement",
+            priority: "mandatory",
+            start_byte: 0,
+            end_byte: 20,
+          },
+        ],
+      },
+      true,
+    );
+    await commitRequirementExtractionV4({
+      workspace: "/tmp/workspace",
+      applicationId: "application-id",
+      previewToken: "amv4-extract-token",
+      previewSha256: "b".repeat(64),
+      approved: true,
+      confirmedPrivateRead: true,
+    });
     await previewRequirementConfirmationV4("/tmp/workspace", "application-id", {
       expected_revision: 1,
       decisions: { "requirement-1": "confirm", "requirement-2": "exclude" },
@@ -320,7 +348,37 @@ describe("typed Tauri command requests", () => {
     });
     await auditDeliverablesV4("/tmp/workspace", "application-id", true);
 
-    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "requirement_confirm_preview", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "requirement_extract_preview", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        mutation: {
+          expected_revision: 1,
+          source: { id: "source-id", revision: 1, sha256: "a".repeat(64) },
+          requirements: [
+            {
+              category: "format",
+              statement: "Reviewed requirement",
+              priority: "mandatory",
+              start_byte: 0,
+              end_byte: 20,
+            },
+          ],
+        },
+        confirmed_private_read: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "requirement_extract_commit", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        preview_token: "amv4-extract-token",
+        preview_sha256: "b".repeat(64),
+        approved: true,
+        confirmed_private_read: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "requirement_confirm_preview", {
       request: {
         workspace: "/tmp/workspace",
         application_id: "application-id",
@@ -330,7 +388,7 @@ describe("typed Tauri command requests", () => {
         },
       },
     });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "requirement_confirm_commit", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(4, "requirement_confirm_commit", {
       request: {
         workspace: "/tmp/workspace",
         application_id: "application-id",
@@ -339,7 +397,7 @@ describe("typed Tauri command requests", () => {
         approved: true,
       },
     });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "deliverable_revise_preview", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(5, "deliverable_revise_preview", {
       request: {
         workspace: "/tmp/workspace",
         application_id: "application-id",
@@ -352,7 +410,7 @@ describe("typed Tauri command requests", () => {
         },
       },
     });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(4, "deliverable_revise_commit", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(6, "deliverable_revise_commit", {
       request: {
         workspace: "/tmp/workspace",
         application_id: "application-id",
@@ -361,7 +419,7 @@ describe("typed Tauri command requests", () => {
         approved: false,
       },
     });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(5, "deliverable_audit", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(7, "deliverable_audit", {
       request: {
         workspace: "/tmp/workspace",
         application_id: "application-id",

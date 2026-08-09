@@ -259,7 +259,7 @@ fi
 if ! jq -s -e '
   . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 27) and
+  (map(select(.id == 2))[0].result.tools | length == 29) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
@@ -285,6 +285,8 @@ if ! jq -s -e '
     "canisend_profile_source_list",
     "canisend_requirement_confirm_commit",
     "canisend_requirement_confirm_preview",
+    "canisend_requirement_extract_commit",
+    "canisend_requirement_extract_preview",
     "canisend_requirement_list",
     "canisend_requirement_show",
     "canisend_workspace_check",

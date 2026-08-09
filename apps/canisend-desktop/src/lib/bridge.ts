@@ -375,6 +375,12 @@ export interface ApplicationRequirementConfirmRequestV4 {
   decisions: Record<string, RequirementDecisionV4>;
 }
 
+export interface ApplicationRequirementExtractRequestV4 {
+  expected_revision: number;
+  source: ContentRevisionReferenceV3;
+  requirements: ApplicationFlowRequirementDraftV3[];
+}
+
 export interface ApplicationPlanProposeRequestV4 {
   expected_revision: number;
   decision: string;
@@ -414,6 +420,10 @@ export interface ApplicationMutationCommitOptionsV4 {
   previewToken: string;
   previewSha256: string;
   approved: boolean;
+}
+
+export interface RequirementExtractionCommitOptionsV4 extends ApplicationMutationCommitOptionsV4 {
+  confirmedPrivateRead: boolean;
 }
 
 export interface ApplicationFlowReadModelV3 {
@@ -1890,6 +1900,37 @@ export async function previewRequirementConfirmationV4(
 ): Promise<ApplicationMutationApprovalPreviewV4<ApplicationRequirementConfirmRequestV4>> {
   return invoke("requirement_confirm_preview", {
     request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function previewRequirementExtractionV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationRequirementExtractRequestV4,
+  confirmedPrivateRead: boolean,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationRequirementExtractRequestV4>> {
+  return invoke("requirement_extract_preview", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      mutation,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function commitRequirementExtractionV4(
+  options: RequirementExtractionCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invoke("requirement_extract_commit", {
+    request: {
+      workspace: options.workspace,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
+      confirmed_private_read: options.confirmedPrivateRead,
+    },
   });
 }
 

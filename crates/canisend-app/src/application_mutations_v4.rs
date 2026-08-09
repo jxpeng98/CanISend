@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use canisend_contracts::{ActorKind, ApplicationId, Sha256Digest};
+use canisend_contracts::{
+    ActorKind, ApplicationId, PrivacyClassification, Sha256Digest, WorkspaceSourceKindV4,
+};
 use canisend_store::{
-    ApplicationDeliverableReviseRequestV4, ApplicationFlowComposeRequestV3,
-    ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3, ApplicationModelCommitResultV3,
-    ApplicationMutationServiceV4, ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
-    ApplicationRequirementConfirmRequestV4, StoredApplicationModelV3,
+    ApplicationAssociationServiceV4, ApplicationDeliverableReviseRequestV4,
+    ApplicationFlowComposeRequestV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
+    ApplicationModelCommitResultV3, ApplicationMutationServiceV4, ApplicationPlanConfirmRequestV4,
+    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
+    ApplicationRequirementExtractRequestV4, StoredApplicationModelV3,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -38,6 +41,10 @@ pub struct ApplicationMutationApprovalPreviewV4<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PendingApplicationMutationV4 {
+    RequirementExtract {
+        workspace: PathBuf,
+        preview: ApplicationMutationPreviewV4<ApplicationRequirementExtractRequestV4>,
+    },
     RequirementConfirm {
         workspace: PathBuf,
         preview: ApplicationMutationPreviewV4<ApplicationRequirementConfirmRequestV4>,
@@ -78,6 +85,30 @@ pub struct ApplicationMutationApprovalBrokerV4 {
 }
 
 impl ApplicationMutationApprovalBrokerV4 {
+    pub fn preview_requirement_extraction(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationRequirementExtractRequestV4,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<
+        ApplicationMutationApprovalPreviewV4<ApplicationRequirementExtractRequestV4>,
+        ApplicationMutationApprovalErrorV4,
+    > {
+        let receipt =
+            Application::preview_requirement_extraction_v4(root, application_id, request, consent)?;
+        self.insert(
+            root,
+            ApprovalKind::ApplicationRequirementExtraction,
+            application_id,
+            receipt,
+            |workspace, preview| PendingApplicationMutationV4::RequirementExtract {
+                workspace,
+                preview,
+            },
+        )
+    }
+
     pub fn preview_requirement_confirmation(
         &self,
         root: &Path,
@@ -205,6 +236,37 @@ impl ApplicationMutationApprovalBrokerV4 {
                         &preview.context.application_id,
                         preview.request,
                         preview.preview_sha256,
+                    ))
+                }
+                _ => Err(ApplicationMutationApprovalErrorV4::BindingMismatch),
+            },
+        )
+    }
+
+    pub fn commit_requirement_extraction(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+        preview_sha256: &Sha256Digest,
+        approved: bool,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationMutationApprovalErrorV4> {
+        self.commit(
+            root,
+            application_id,
+            preview_token,
+            preview_sha256,
+            approved,
+            ApprovalKind::ApplicationRequirementExtraction,
+            |pending| match pending {
+                PendingApplicationMutationV4::RequirementExtract { workspace, preview } => {
+                    Ok(Application::commit_requirement_extraction_v4(
+                        &workspace,
+                        &preview.context.application_id,
+                        preview.request,
+                        preview.preview_sha256,
+                        consent,
                     ))
                 }
                 _ => Err(ApplicationMutationApprovalErrorV4::BindingMismatch),
@@ -423,6 +485,30 @@ impl ApplicationMutationApprovalBrokerV4 {
 }
 
 impl Application {
+    pub fn preview_requirement_extraction_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationRequirementExtractRequestV4,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<
+        ActionReceipt<ApplicationMutationPreviewV4<ApplicationRequirementExtractRequestV4>>,
+        ApplicationError,
+    > {
+        require_requirement_source_consent(root, &request, consent)?;
+        let (_, context) = validate_mutation(root, application_id, |service, pack| {
+            service.validate_requirement_extraction(pack, application_id, &request)
+        })?;
+        mutation_preview(
+            "requirement.extract.preview",
+            context,
+            request.clone(),
+            vec![format!(
+                "Add {} exact Source-bound Requirement proposal(s)",
+                request.requirements.len()
+            )],
+        )
+    }
+
     pub fn preview_requirement_confirmation_v4(
         root: &Path,
         application_id: &ApplicationId,
@@ -565,6 +651,33 @@ impl Application {
         )
     }
 
+    fn commit_requirement_extraction_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationRequirementExtractRequestV4,
+        expected_preview_sha256: Sha256Digest,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationError> {
+        ensure_preview(
+            Self::preview_requirement_extraction_v4(
+                root,
+                application_id,
+                request.clone(),
+                consent,
+            )?
+            .data
+            .preview_sha256,
+            expected_preview_sha256,
+        )?;
+        commit_mutation(
+            root,
+            application_id,
+            |service, pack| service.extract_requirements(pack, application_id, request),
+            "requirement.extract.commit",
+            "proposed",
+        )
+    }
+
     fn commit_plan_proposal_v4(
         root: &Path,
         application_id: &ApplicationId,
@@ -683,6 +796,32 @@ where
     )?;
     let context = resource_context(&stored);
     Ok((stored, context))
+}
+
+fn require_requirement_source_consent(
+    root: &Path,
+    request: &ApplicationRequirementExtractRequestV4,
+    consent: Option<PrivateReadConsent>,
+) -> Result<(), ApplicationError> {
+    let mut workspace = open_workspace_v4(root)?;
+    let source = ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
+        .source(&request.source.id, request.source.revision)?;
+    let requires_private_read = matches!(
+        source.kind,
+        WorkspaceSourceKindV4::LocalFile | WorkspaceSourceKindV4::TextPdf
+    ) && source.privacy != PrivacyClassification::Public;
+    if requires_private_read && consent.is_none() {
+        return Err(ApplicationError::ConsentRequired {
+            message: "Requirement extraction reads an explicitly selected private Source"
+                .to_owned(),
+            remediation: canisend_contracts::NextAction {
+                action: "grant private read consent".to_owned(),
+                description: "Review the exact Source revision and authorize Requirement extraction for this Application"
+                    .to_owned(),
+            },
+        });
+    }
+    Ok(())
 }
 
 fn commit_mutation<F>(
@@ -821,7 +960,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::{ApplicationFlowCreateRequestV4, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
+    use crate::{
+        ApplicationFlowCreateRequestV4, GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        LocalFileIntakeCommitRequestV4, LocalFileIntakePreviewRequestV4,
+    };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -871,6 +1013,226 @@ mod tests {
         .expect("create Application")
         .data
         .stored
+    }
+
+    #[test]
+    fn requirement_extraction_adds_only_reviewed_proposals_from_an_exact_source() {
+        let root = root();
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
+        let created = create_application(&root, "Extract Requirements");
+        let application_id = created.snapshot.application.id.clone();
+        let source = created.snapshot.requirements[0].source_span.content.clone();
+        let broker = ApplicationMutationApprovalBrokerV4::default();
+        let preview = broker
+            .preview_requirement_extraction(
+                &root,
+                &application_id,
+                ApplicationRequirementExtractRequestV4 {
+                    expected_revision: Revision::try_new(1).expect("revision"),
+                    source,
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: item("format"),
+                        statement: "reviewed evidence".to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 35,
+                        end_byte: 52,
+                    }],
+                },
+                None,
+            )
+            .expect("extraction preview");
+        assert_eq!(preview.preview.data.request.requirements.len(), 1);
+        let committed = broker
+            .commit_requirement_extraction(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+                None,
+            )
+            .expect("extraction commit");
+        assert_eq!(committed.data.snapshot.application.revision.get(), 2);
+        assert_eq!(committed.data.snapshot.requirements.len(), 3);
+        assert_eq!(
+            committed.data.snapshot.requirements[2].statement,
+            "reviewed evidence"
+        );
+        assert!(matches!(
+            broker.commit_requirement_extraction(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+                None,
+            ),
+            Err(ApplicationMutationApprovalErrorV4::Approval(
+                ApprovalBrokerError::Missing
+            ))
+        ));
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn requirement_extraction_rejects_wrong_application_invalid_spans_and_stale_preview() {
+        let root = root();
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
+        let first = create_application(&root, "First extraction");
+        let second = create_application(&root, "Second extraction");
+        let first_id = first.snapshot.application.id.clone();
+        let second_id = second.snapshot.application.id.clone();
+        let source = first.snapshot.requirements[0].source_span.content.clone();
+        let broker = ApplicationMutationApprovalBrokerV4::default();
+        let request =
+            |statement: &str, start_byte, end_byte| ApplicationRequirementExtractRequestV4 {
+                expected_revision: Revision::try_new(1).expect("revision"),
+                source: source.clone(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: item("format"),
+                    statement: statement.to_owned(),
+                    priority: RequirementPriorityV3::Recommended,
+                    start_byte,
+                    end_byte,
+                }],
+            };
+
+        assert!(
+            broker
+                .preview_requirement_extraction(
+                    &root,
+                    &second_id,
+                    request("reviewed evidence", 35, 52),
+                    None,
+                )
+                .is_err()
+        );
+        assert!(
+            broker
+                .preview_requirement_extraction(
+                    &root,
+                    &first_id,
+                    request("invented statement", 35, 52),
+                    None,
+                )
+                .is_err()
+        );
+        assert!(
+            broker
+                .preview_requirement_extraction(
+                    &root,
+                    &first_id,
+                    request("Provide one concise narrative.", 0, 30),
+                    None,
+                )
+                .is_err()
+        );
+
+        let stale = broker
+            .preview_requirement_extraction(
+                &root,
+                &first_id,
+                request("reviewed evidence", 35, 52),
+                None,
+            )
+            .expect("stale preview");
+        let winner = broker
+            .preview_requirement_extraction(
+                &root,
+                &first_id,
+                request("concise narrative", 12, 29),
+                None,
+            )
+            .expect("winning preview");
+        broker
+            .commit_requirement_extraction(
+                &root,
+                &first_id,
+                &winner.preview_token,
+                &winner.preview.data.preview_sha256,
+                true,
+                None,
+            )
+            .expect("winning commit");
+        assert!(matches!(
+            broker.commit_requirement_extraction(
+                &root,
+                &first_id,
+                &stale.preview_token,
+                &stale.preview.data.preview_sha256,
+                true,
+                None,
+            ),
+            Err(ApplicationMutationApprovalErrorV4::BindingMismatch)
+        ));
+        let current = Application::application_model_v4(&root, first_id.as_str())
+            .expect("current Application")
+            .data;
+        assert_eq!(current.snapshot.application.revision.get(), 2);
+        assert_eq!(current.snapshot.requirements.len(), 3);
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn requirement_extraction_requires_consent_for_private_local_source_reads() {
+        let root = root();
+        let source_path = root.with_extension("private-source.txt");
+        fs::write(
+            &source_path,
+            "Provide one concise narrative.\nUse reviewed evidence.",
+        )
+        .expect("write private Source");
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
+        let request = LocalFileIntakePreviewRequestV4 {
+            pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+                .expect("Pack ID"),
+            title: "Private extraction".to_owned(),
+            opportunity_metadata: Default::default(),
+            application_metadata: Default::default(),
+            path: source_path.clone(),
+            requirement_category: item("format"),
+            requirement_priority: RequirementPriorityV3::Mandatory,
+        };
+        let consent = PrivateReadConsent::granted_by_user();
+        let preview =
+            Application::preview_local_file_intake_v4(&root, request.clone(), Some(consent))
+                .expect("local preview");
+        let created = Application::commit_local_file_intake_v4(
+            &root,
+            LocalFileIntakeCommitRequestV4 {
+                preview: request,
+                expected_preview_sha256: preview.data.preview_sha256,
+            },
+            Some(consent),
+        )
+        .expect("local commit")
+        .data
+        .stored;
+        let application_id = created.snapshot.application.id;
+        let mutation = ApplicationRequirementExtractRequestV4 {
+            expected_revision: Revision::try_new(1).expect("revision"),
+            source: created.snapshot.requirements[0].source_span.content.clone(),
+            requirements: vec![ApplicationFlowRequirementDraftV3 {
+                category: item("format"),
+                statement: "concise narrative".to_owned(),
+                priority: RequirementPriorityV3::Recommended,
+                start_byte: 12,
+                end_byte: 29,
+            }],
+        };
+        let broker = ApplicationMutationApprovalBrokerV4::default();
+        assert!(matches!(
+            broker.preview_requirement_extraction(&root, &application_id, mutation.clone(), None),
+            Err(ApplicationMutationApprovalErrorV4::Application(
+                ApplicationError::ConsentRequired { .. }
+            ))
+        ));
+        broker
+            .preview_requirement_extraction(&root, &application_id, mutation, Some(consent))
+            .expect("consented extraction preview");
+
+        fs::remove_dir_all(root).expect("remove fixture");
+        fs::remove_file(source_path).expect("remove private Source");
     }
 
     #[test]

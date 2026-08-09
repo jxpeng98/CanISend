@@ -57,6 +57,8 @@ pub fn run() {
             application_mutations_v4::plan_propose_preview,
             application_mutations_v4::requirement_confirm_commit,
             application_mutations_v4::requirement_confirm_preview,
+            application_mutations_v4::requirement_extract_commit,
+            application_mutations_v4::requirement_extract_preview,
             application_resources_v4::deliverable_list,
             application_resources_v4::deliverable_show,
             application_resources_v4::plan_show,

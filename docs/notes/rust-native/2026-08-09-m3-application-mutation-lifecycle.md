@@ -7,6 +7,9 @@ either built-in Pack in one neutral Workspace.
 
 ## Implemented operations
 
+- `requirement.extract.preview/commit` appends deduplicated Pack-qualified proposals that equal
+  exact spans in one current Source already associated with the Application; private local-file
+  and text-PDF Sources require explicit read consent.
 - `requirement.confirm.preview/commit` decides every exact current proposed Requirement once.
 - `plan.propose.preview/commit` creates a Host Agent-authored draft Plan only after Requirement
   decisions are complete.
@@ -18,7 +21,7 @@ either built-in Pack in one neutral Workspace.
 - `deliverable.audit` reads current private bodies only after explicit private-read consent.
 
 The App facade owns validation and mutation. Tauri, the TypeScript bridge, and MCP are typed
-adapters over that facade. MCP now publishes 27 clean-v4 tools: 20 read/preview tools and seven
+adapters over that facade. MCP now publishes 29 clean-v4 tools: 21 read/preview tools and eight
 guarded commits. The standalone CLI remains body-free for these resource families and does not
 claim mutation parity until it can preserve an explicit approval boundary across its process
 model.

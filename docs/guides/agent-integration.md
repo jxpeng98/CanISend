@@ -119,10 +119,21 @@ Requirement, Plan, and Deliverable responses include the exact Application, Pack
 snapshot digest. Deliverable list/show return metadata and content references only; reading a
 Deliverable body remains a separate consented operation and is not part of this surface.
 
-It also exposes two guarded mutation pairs:
+It exposes eight guarded mutation pairs:
 
 - `canisend_profile_association_preview` → `canisend_profile_association_commit`; and
-- `canisend_evidence_association_preview` → `canisend_evidence_association_commit`.
+- `canisend_evidence_association_preview` → `canisend_evidence_association_commit`;
+- `canisend_requirement_extract_preview` → `canisend_requirement_extract_commit`;
+- `canisend_requirement_confirm_preview` → `canisend_requirement_confirm_commit`;
+- `canisend_plan_propose_preview` → `canisend_plan_propose_commit`;
+- `canisend_plan_confirm_preview` → `canisend_plan_confirm_commit`;
+- `canisend_deliverable_draft_preview` → `canisend_deliverable_draft_commit`; and
+- `canisend_deliverable_revise_preview` → `canisend_deliverable_revise_commit`.
+
+Requirement extraction accepts only Pack-qualified candidates whose statements equal exact UTF-8
+spans in one current Source revision already associated with the selected Application. It appends
+new proposals, rejects duplicate spans, and never deletes persisted Requirements. Local-file and
+text-PDF Sources require explicit private-read consent for both preview and commit.
 
 Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
 without the App through `canisend profile-source import`; `private-local` input requires the
@@ -137,10 +148,10 @@ read consent. Denial, wrong context, malformed binding, expiry, and successful c
 token; replay fails without mutation. Only explicitly classified transient I/O or database failures
 restore the same still-valid token.
 
-Direct CLI association preview/commit is intentionally absent: independent CLI processes cannot
-share the in-memory single-use Broker safely. Headless Agent writes use one running `mcp serve`
-session; CLI retains the equivalent body-free list operations until a separately designed durable
-approval authority exists.
+Direct CLI preview/commit for these guarded operations is intentionally absent: independent CLI
+processes cannot share the in-memory single-use Broker safely. Headless Agent writes use one
+running `mcp serve` session; CLI retains the equivalent body-free list/read operations until a
+separately designed durable approval authority exists.
 
 Do not infer that an operation from the canonical registry is callable when it is absent from the
 runtime tool list. Use a native CLI operation only when it exposes the same operation ID, or stop
