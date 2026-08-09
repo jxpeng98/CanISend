@@ -154,7 +154,6 @@ fn public_help_excludes_every_alpha6_legacy_command_family() {
         "criteria",
         "match",
         "document",
-        "review",
         "package",
         "render",
         "workflow",
