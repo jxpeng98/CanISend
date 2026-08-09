@@ -5,6 +5,7 @@ mod agent_session;
 mod agent_v3;
 mod application;
 mod application_flow_v3;
+mod application_mutations_v4;
 mod application_resources_v4;
 mod application_v3;
 mod approval;
@@ -75,6 +76,10 @@ pub use application_flow_v3::{
     ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3,
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
 };
+pub use application_mutations_v4::{
+    ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
+    ApplicationMutationApprovalPreviewV4, ApplicationMutationPreviewV4,
+};
 pub use application_resources_v4::{
     ApplicationResourceContextV4, DeliverableListReadModelV4, DeliverableShowReadModelV4,
     PlanShowReadModelV4, RequirementListReadModelV4, RequirementShowReadModelV4,
@@ -105,6 +110,10 @@ pub use association_v4::{
     ProfileAssociationPreviewReadModelV4, ProfileAssociationPreviewRequestV4,
 };
 pub use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
+pub use canisend_store::{
+    ApplicationDeliverableReviseRequestV4, ApplicationPlanConfirmRequestV4,
+    ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4, RequirementDecisionV4,
+};
 pub use catalog::{
     InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,
     ResourceDetailReadModel,

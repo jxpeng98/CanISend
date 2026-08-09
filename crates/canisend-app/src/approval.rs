@@ -30,6 +30,11 @@ const APPROVAL_TOKEN_GENERATION_ATTEMPTS: usize = 16;
 pub enum ApprovalKind {
     ApplicationApproval,
     ApplicationIntake,
+    ApplicationPlanConfirmation,
+    ApplicationPlanProposal,
+    ApplicationRequirementConfirmation,
+    DeliverableDraft,
+    DeliverableRevision,
     DiscoveryImport,
     DiscoveryRefresh,
     EvidenceAssociation,

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod application_flow_v3;
+mod application_mutation_v4;
 mod application_projection_v3;
 mod application_storage;
 mod application_v3;
@@ -44,7 +45,13 @@ pub use application_flow_v3::{
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
     ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
-    MAX_APPLICATION_FLOW_SOURCE_BYTES_V3, validate_application_flow_create_request,
+    MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3, MAX_APPLICATION_FLOW_SOURCE_BYTES_V3,
+    validate_application_flow_create_request,
+};
+pub use application_mutation_v4::{
+    ApplicationDeliverableReviseRequestV4, ApplicationMutationServiceV4,
+    ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
+    ApplicationRequirementConfirmRequestV4, RequirementDecisionV4,
 };
 pub use application_projection_v3::{
     APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,

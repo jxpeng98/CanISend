@@ -120,6 +120,21 @@ impl Drop for McpProcess {
     }
 }
 
+fn mutation_preview_binding(response: &Value) -> (String, String) {
+    assert_eq!(response["result"]["isError"], json!(false));
+    let structured = &response["result"]["structuredContent"];
+    (
+        structured["preview_token"]
+            .as_str()
+            .expect("mutation preview token")
+            .to_owned(),
+        structured["preview"]["data"]["preview_sha256"]
+            .as_str()
+            .expect("mutation preview digest")
+            .to_owned(),
+    )
+}
+
 #[test]
 fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
     let root = temporary_root("list");
@@ -150,8 +165,8 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 14);
-    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 2);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 20);
+    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 7);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
         let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
@@ -165,6 +180,284 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         );
         assert_eq!(tool["annotations"]["openWorldHint"], json!(false));
     }
+
+    drop(mcp);
+    fs::remove_dir_all(root).expect("remove workspace");
+}
+
+#[test]
+fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
+    let root = temporary_root("application-lifecycle");
+    Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+    let created = Application::create_application_flow_v4(
+        &root,
+        ApplicationFlowCreateRequestV4 {
+            pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+                .expect("Pack ID"),
+            application: ApplicationFlowCreateRequestV3 {
+                title: "MCP lifecycle fixture".to_owned(),
+                opportunity_metadata: Default::default(),
+                application_metadata: Default::default(),
+                source_text: "Provide a reviewed primary document.".to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: WorkflowPackItemId::try_new("format").expect("category"),
+                    statement: "Provide a reviewed primary document.".to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: 36,
+                }],
+            },
+        },
+    )
+    .expect("create Application fixture")
+    .data
+    .stored;
+    let application_id = created.snapshot.application.id;
+    let requirement_id = created.snapshot.requirements[0].id.clone();
+    let mut mcp = McpProcess::start(&root);
+    mcp.initialize();
+
+    let requirement_preview = mcp.request(
+        2,
+        "tools/call",
+        json!({
+            "name": "canisend_requirement_confirm_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 1,
+                "decisions": [{
+                    "requirement_id": requirement_id.as_str(),
+                    "decision": "confirm"
+                }]
+            }
+        }),
+    );
+    assert_eq!(
+        requirement_preview["result"]["structuredContent"]["preview"]["operation"],
+        json!("requirement.confirm.preview")
+    );
+    let (token, digest) = mutation_preview_binding(&requirement_preview);
+    let requirements = mcp.request(
+        3,
+        "tools/call",
+        json!({
+            "name": "canisend_requirement_confirm_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true
+            }
+        }),
+    );
+    assert_eq!(
+        requirements["result"]["structuredContent"]["operation"],
+        json!("requirement.confirm.commit")
+    );
+    assert_eq!(
+        requirements["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"],
+        json!(2)
+    );
+
+    let plan_preview = mcp.request(
+        4,
+        "tools/call",
+        json!({
+            "name": "canisend_plan_propose_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 2,
+                "decision": "proceed",
+                "deliverables": [{
+                    "kind": "primary-document",
+                    "disposition": "required",
+                    "rationale": "Required by the reviewed source",
+                    "constraints": [],
+                    "execution_mode": "host-agent"
+                }]
+            }
+        }),
+    );
+    let (token, digest) = mutation_preview_binding(&plan_preview);
+    let proposed = mcp.request(
+        5,
+        "tools/call",
+        json!({
+            "name": "canisend_plan_propose_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true
+            }
+        }),
+    );
+    assert_eq!(
+        proposed["result"]["structuredContent"]["data"]["snapshot"]["plan"]["state"],
+        json!("draft")
+    );
+
+    let confirmation_preview = mcp.request(
+        6,
+        "tools/call",
+        json!({
+            "name": "canisend_plan_confirm_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 3
+            }
+        }),
+    );
+    let (token, digest) = mutation_preview_binding(&confirmation_preview);
+    let confirmed = mcp.request(
+        7,
+        "tools/call",
+        json!({
+            "name": "canisend_plan_confirm_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true
+            }
+        }),
+    );
+    assert_eq!(
+        confirmed["result"]["structuredContent"]["data"]["snapshot"]["plan"]["state"],
+        json!("confirmed")
+    );
+
+    let draft_body = "PRIVATE-MCP-DELIVERABLE-V1";
+    let draft_preview = mcp.request(
+        8,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_draft_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 4,
+                "deliverables": [{
+                    "kind": "primary-document",
+                    "title": "Reviewed primary document",
+                    "media_type": "text/markdown",
+                    "content": draft_body
+                }]
+            }
+        }),
+    );
+    let (draft_token, draft_digest) = mutation_preview_binding(&draft_preview);
+    let drafted = mcp.request(
+        9,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_draft_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": draft_token,
+                "preview_sha256": draft_digest,
+                "approved": true
+            }
+        }),
+    );
+    let deliverable_id = drafted["result"]["structuredContent"]["data"]["snapshot"]["deliverables"]
+        [0]["id"]
+        .as_str()
+        .expect("Deliverable ID")
+        .to_owned();
+
+    let refused_audit = mcp.request(
+        10,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_audit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "confirmed_private_read": false
+            }
+        }),
+    );
+    assert!(
+        refused_audit["error"].is_object() || refused_audit["result"]["isError"] == json!(true)
+    );
+    assert!(!refused_audit.to_string().contains(draft_body));
+    let audit = mcp.request(
+        11,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_audit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert_eq!(
+        audit["result"]["structuredContent"]["operation"],
+        json!("deliverable.audit")
+    );
+    assert!(audit.to_string().contains(draft_body));
+
+    let revised_body = "PRIVATE-MCP-DELIVERABLE-V2";
+    let revision_preview = mcp.request(
+        12,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_revise_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 5,
+                "deliverable_id": deliverable_id,
+                "title": "Revised primary document",
+                "media_type": "text/markdown",
+                "content": revised_body
+            }
+        }),
+    );
+    let (token, digest) = mutation_preview_binding(&revision_preview);
+    let revised = mcp.request(
+        13,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_revise_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true
+            }
+        }),
+    );
+    assert_eq!(
+        revised["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"],
+        json!(6)
+    );
+    let replay = mcp.request(
+        14,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_revise_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true
+            }
+        }),
+    );
+    assert!(replay["error"].is_object() || replay["result"]["isError"] == json!(true));
+    let revised_audit = mcp.request(
+        15,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_audit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert!(revised_audit.to_string().contains(revised_body));
+    assert!(!revised_audit.to_string().contains(draft_body));
 
     drop(mcp);
     fs::remove_dir_all(root).expect("remove workspace");

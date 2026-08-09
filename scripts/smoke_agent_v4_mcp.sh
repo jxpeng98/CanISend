@@ -239,6 +239,14 @@ write_initialize() {
       deliverable_id: "019f2f55-7c00-7000-8000-000000000999"
     }}
   }'
+  jq -nc --arg application_id "$generic_id" --arg requirement_id "$generic_requirement_id" '{
+    jsonrpc: "2.0", id: 22, method: "tools/call",
+    params: {name: "canisend_requirement_confirm_preview", arguments: {
+      application_id: $application_id,
+      expected_revision: 1,
+      decisions: [{requirement_id: $requirement_id, decision: "confirm"}]
+    }}
+  }'
 } > "$smoke_root/requests.jsonl"
 
 if ! "$binary" --workspace "$workspace" mcp serve \
@@ -251,21 +259,32 @@ fi
 if ! jq -s -e '
   . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 16) and
+  (map(select(.id == 2))[0].result.tools | length == 27) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_deliverable_audit",
+    "canisend_deliverable_draft_commit",
+    "canisend_deliverable_draft_preview",
     "canisend_deliverable_list",
+    "canisend_deliverable_revise_commit",
+    "canisend_deliverable_revise_preview",
     "canisend_deliverable_show",
     "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_plan_confirm_commit",
+    "canisend_plan_confirm_preview",
+    "canisend_plan_propose_commit",
+    "canisend_plan_propose_preview",
     "canisend_plan_show",
     "canisend_profile_association_commit",
     "canisend_profile_association_list",
     "canisend_profile_association_preview",
     "canisend_profile_source_list",
+    "canisend_requirement_confirm_commit",
+    "canisend_requirement_confirm_preview",
     "canisend_requirement_list",
     "canisend_requirement_show",
     "canisend_workspace_check",
@@ -341,6 +360,11 @@ if ! jq -s -e '
     ($responses | map(select(.id == $id))[0].result.structuredContent.operation == "deliverable.list") and
     ($responses | map(select(.id == $id))[0].result.structuredContent.data.deliverables | length == 0))) and
   ($responses | map(select(.id == 21))[0].error.code == -32602)
+  and
+  (map(select(.id == 22))[0].result.structuredContent.preview.operation ==
+    "requirement.confirm.preview") and
+  (map(select(.id == 22))[0].result.structuredContent.preview_token |
+    startswith("apv1_"))
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '

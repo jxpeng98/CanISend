@@ -38,6 +38,16 @@
       "marker": "fn exact_application_resource_reads_are_pack_revision_bound_and_body_free()"
     },
     {
+      "id": "application-mutations-v4",
+      "path": "crates/canisend-app/src/application_mutations_v4.rs",
+      "marker": "fn guarded_mutations_split_requirements_plan_and_deliverables_without_replay()"
+    },
+    {
+      "id": "application-mutations-mcp",
+      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
+      "marker": "fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle()"
+    },
+    {
       "id": "mixed-cli-workspace",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
       "marker": "fn workspace_v4_holds_generic_and_academic_applications_together()"
@@ -235,11 +245,53 @@
       "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
     },
     {
+      "operation": "requirement.confirm.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
+    },
+    {
+      "operation": "requirement.confirm.commit",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
       "operation": "plan.show",
       "kind": "read",
       "revision_bound": false,
       "outcomes": ["success", "no-mutation"],
       "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "plan.propose.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
+    },
+    {
+      "operation": "plan.propose.commit",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "plan.confirm.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
+    },
+    {
+      "operation": "plan.confirm.commit",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
     },
     {
       "operation": "deliverable.list",
@@ -254,6 +306,41 @@
       "revision_bound": false,
       "outcomes": ["success", "wrong-context", "no-mutation"],
       "fixtures": ["application-resources-v4", "generic-tauri-lifecycle"]
+    },
+    {
+      "operation": "deliverable.draft.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
+    },
+    {
+      "operation": "deliverable.draft.commit",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "deliverable.revise.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
+    },
+    {
+      "operation": "deliverable.revise.commit",
+      "kind": "commit",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "deliverable.audit",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp"]
     }
   ],
   "pack_surface_cases": [
@@ -266,14 +353,14 @@
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4", "application-mutations-v4"]
     },
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace", "application-mutations-mcp"]
     },
     {
       "pack": "academic-job",
@@ -284,14 +371,14 @@
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4", "application-mutations-v4"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit"],
+      "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace", "application-mutations-mcp"]
     }
   ],
   "revision_bound_operations": [
@@ -322,6 +409,26 @@
     {
       "operation": "evidence.association.commit",
       "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "requirement.confirm.commit",
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "plan.propose.commit",
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "plan.confirm.commit",
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "deliverable.draft.commit",
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "deliverable.revise.commit",
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
     },
     {
       "operation": "tauri.commit.workflow.rerun",
@@ -370,18 +477,53 @@
       "commit_operation": "evidence.association.commit",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
       "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "requirement-confirm",
+      "preview_operations": ["requirement.confirm.preview"],
+      "commit_operation": "requirement.confirm.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "plan-propose",
+      "preview_operations": ["plan.propose.preview"],
+      "commit_operation": "plan.propose.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "plan-confirm",
+      "preview_operations": ["plan.confirm.preview"],
+      "commit_operation": "plan.confirm.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "deliverable-draft",
+      "preview_operations": ["deliverable.draft.preview"],
+      "commit_operation": "deliverable.draft.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "deliverable-revise",
+      "preview_operations": ["deliverable.revise.preview"],
+      "commit_operation": "deliverable.revise.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
     }
   ],
   "read_families": [
     {
       "id": "generic-application",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace"]
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show", "deliverable.audit"],
+      "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace", "application-mutations-v4", "application-mutations-mcp"]
     },
     {
       "id": "academic-application",
-      "operations": ["application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
-      "fixtures": ["mixed-cli-workspace", "mixed-tauri-workspace", "mixed-mcp-workspace"]
+      "operations": ["application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show", "deliverable.audit"],
+      "fixtures": ["mixed-cli-workspace", "mixed-tauri-workspace", "mixed-mcp-workspace", "application-mutations-v4", "application-mutations-mcp"]
     },
     {
       "id": "profile-source",

@@ -368,6 +368,54 @@ export interface DeliverableShowReadModelV4 {
   deliverable: DeliverableRecordV3;
 }
 
+export type RequirementDecisionV4 = "confirm" | "exclude";
+
+export interface ApplicationRequirementConfirmRequestV4 {
+  expected_revision: number;
+  decisions: Record<string, RequirementDecisionV4>;
+}
+
+export interface ApplicationPlanProposeRequestV4 {
+  expected_revision: number;
+  decision: string;
+  deliverables: ApplicationFlowPlannedDeliverableV3[];
+}
+
+export interface ApplicationPlanConfirmRequestV4 {
+  expected_revision: number;
+}
+
+export interface ApplicationDeliverableReviseRequestV4 {
+  expected_revision: number;
+  deliverable_id: string;
+  title: string;
+  media_type: "text/plain" | "text/markdown";
+  content: string;
+}
+
+export interface ApplicationMutationPreviewV4<T> {
+  context: ApplicationResourceContextV4;
+  request: T;
+  preview_sha256: string;
+  changes: string[];
+  submission_performed: false;
+}
+
+export interface ApplicationMutationApprovalPreviewV4<T> {
+  preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
+  preview: ActionReceipt<ApplicationMutationPreviewV4<T>>;
+}
+
+export interface ApplicationMutationCommitOptionsV4 {
+  workspace: string;
+  applicationId: string;
+  previewToken: string;
+  previewSha256: string;
+  approved: boolean;
+}
+
 export interface ApplicationFlowReadModelV3 {
   stored: StoredApplicationModelV3;
   stages: ApplicationFlowStageV3[];
@@ -1831,6 +1879,115 @@ export async function showDeliverableV4(
       workspace,
       application_id: applicationId,
       deliverable_id: deliverableId,
+    },
+  });
+}
+
+export async function previewRequirementConfirmationV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationRequirementConfirmRequestV4,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationRequirementConfirmRequestV4>> {
+  return invoke("requirement_confirm_preview", {
+    request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function commitRequirementConfirmationV4(
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invokeApplicationMutationCommit("requirement_confirm_commit", options);
+}
+
+export async function previewPlanProposalV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationPlanProposeRequestV4,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationPlanProposeRequestV4>> {
+  return invoke("plan_propose_preview", {
+    request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function commitPlanProposalV4(
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invokeApplicationMutationCommit("plan_propose_commit", options);
+}
+
+export async function previewPlanConfirmationV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationPlanConfirmRequestV4,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationPlanConfirmRequestV4>> {
+  return invoke("plan_confirm_preview", {
+    request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function commitPlanConfirmationV4(
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invokeApplicationMutationCommit("plan_confirm_commit", options);
+}
+
+export async function previewDeliverableDraftV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationFlowComposeRequestV3,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationFlowComposeRequestV3>> {
+  return invoke("deliverable_draft_preview", {
+    request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function commitDeliverableDraftV4(
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invokeApplicationMutationCommit("deliverable_draft_commit", options);
+}
+
+export async function previewDeliverableRevisionV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationDeliverableReviseRequestV4,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationDeliverableReviseRequestV4>> {
+  return invoke("deliverable_revise_preview", {
+    request: { workspace, application_id: applicationId, mutation },
+  });
+}
+
+export async function commitDeliverableRevisionV4(
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invokeApplicationMutationCommit("deliverable_revise_commit", options);
+}
+
+export async function auditDeliverablesV4(
+  workspace: string,
+  applicationId: string,
+  confirmedPrivateRead: boolean,
+): Promise<ActionReceipt<ApplicationFlowReviewReadModelV3>> {
+  return invoke("deliverable_audit", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+function invokeApplicationMutationCommit(
+  command: string,
+  options: ApplicationMutationCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invoke(command, {
+    request: {
+      workspace: options.workspace,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
     },
   });
 }

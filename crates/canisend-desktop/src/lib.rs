@@ -3,6 +3,7 @@
 mod agent;
 mod agent_runtime;
 mod application_intake;
+mod application_mutations_v4;
 mod application_resources_v4;
 mod approval;
 mod association_v4;
@@ -20,7 +21,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(agent_runtime::AgentRuntimeState::default())
         .manage(approval::DesktopApprovalStore::default())
-        .manage(canisend_app::AssociationApprovalBrokerV4::default());
+        .manage(canisend_app::AssociationApprovalBrokerV4::default())
+        .manage(canisend_app::ApplicationMutationApprovalBrokerV4::default());
     #[cfg(feature = "preview-qualification")]
     let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
     builder
@@ -44,6 +46,17 @@ pub fn run() {
             application_intake::preview_local_application_intake,
             application_intake::preview_pasted_application_intake,
             application_intake::preview_url_application_intake,
+            application_mutations_v4::deliverable_audit,
+            application_mutations_v4::deliverable_draft_commit,
+            application_mutations_v4::deliverable_draft_preview,
+            application_mutations_v4::deliverable_revise_commit,
+            application_mutations_v4::deliverable_revise_preview,
+            application_mutations_v4::plan_confirm_commit,
+            application_mutations_v4::plan_confirm_preview,
+            application_mutations_v4::plan_propose_commit,
+            application_mutations_v4::plan_propose_preview,
+            application_mutations_v4::requirement_confirm_commit,
+            application_mutations_v4::requirement_confirm_preview,
             application_resources_v4::deliverable_list,
             application_resources_v4::deliverable_show,
             application_resources_v4::plan_show,

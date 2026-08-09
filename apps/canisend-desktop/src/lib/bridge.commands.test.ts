@@ -17,10 +17,13 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 import {
   beginWorkflowStage,
   approveGenericApplication,
+  auditDeliverablesV4,
   cancelAgentTurn,
   commandErrorCode,
   commitApplicationIntakePreview,
   commitProfileAssociationV4,
+  commitDeliverableRevisionV4,
+  commitRequirementConfirmationV4,
   commitJobSourcePreview,
   confirmPlan,
   configureCliPath,
@@ -47,6 +50,8 @@ import {
   previewDiscoveryFile,
   previewLocalApplicationIntake,
   previewProfileAssociationV4,
+  previewDeliverableRevisionV4,
+  previewRequirementConfirmationV4,
   previewLocalJobSource,
   previewWorkspaceV3Migration,
   previewRender,
@@ -282,6 +287,84 @@ describe("typed Tauri command requests", () => {
         preview_token: "apv1_preview-token",
         preview_sha256: "b".repeat(64),
         approved: true,
+        confirmed_private_read: true,
+      },
+    });
+  });
+
+  it("binds v4 Application mutations to reviewed revisions and preview digests", async () => {
+    await previewRequirementConfirmationV4("/tmp/workspace", "application-id", {
+      expected_revision: 1,
+      decisions: { "requirement-1": "confirm", "requirement-2": "exclude" },
+    });
+    await commitRequirementConfirmationV4({
+      workspace: "/tmp/workspace",
+      applicationId: "application-id",
+      previewToken: "amv4-requirement-token",
+      previewSha256: "c".repeat(64),
+      approved: true,
+    });
+    await previewDeliverableRevisionV4("/tmp/workspace", "application-id", {
+      expected_revision: 5,
+      deliverable_id: "deliverable-id",
+      title: "Reviewed narrative",
+      media_type: "text/markdown",
+      content: "Reviewed draft",
+    });
+    await commitDeliverableRevisionV4({
+      workspace: "/tmp/workspace",
+      applicationId: "application-id",
+      previewToken: "amv4-revision-token",
+      previewSha256: "d".repeat(64),
+      approved: false,
+    });
+    await auditDeliverablesV4("/tmp/workspace", "application-id", true);
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "requirement_confirm_preview", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        mutation: {
+          expected_revision: 1,
+          decisions: { "requirement-1": "confirm", "requirement-2": "exclude" },
+        },
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "requirement_confirm_commit", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        preview_token: "amv4-requirement-token",
+        preview_sha256: "c".repeat(64),
+        approved: true,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "deliverable_revise_preview", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        mutation: {
+          expected_revision: 5,
+          deliverable_id: "deliverable-id",
+          title: "Reviewed narrative",
+          media_type: "text/markdown",
+          content: "Reviewed draft",
+        },
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(4, "deliverable_revise_commit", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
+        preview_token: "amv4-revision-token",
+        preview_sha256: "d".repeat(64),
+        approved: false,
+      },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(5, "deliverable_audit", {
+      request: {
+        workspace: "/tmp/workspace",
+        application_id: "application-id",
         confirmed_private_read: true,
       },
     });
