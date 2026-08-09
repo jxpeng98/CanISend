@@ -591,13 +591,13 @@ mod tests {
         assert_eq!(exported.data.render.documents.len(), 2);
         assert!(!exported.data.render.submission_performed);
         assert!(!exported.data.package.submission_performed);
-        assert!(
-            exported
-                .data
-                .stages
-                .iter()
-                .all(|stage| stage.state == ApplicationFlowStageStateV3::Complete)
-        );
+        assert!(exported.data.stages.iter().all(|stage| {
+            if stage.id.local_id_str() == "evidence" {
+                stage.state == ApplicationFlowStageStateV3::Ready
+            } else {
+                stage.state == ApplicationFlowStageStateV3::Complete
+            }
+        }));
         for document in &exported.data.render.documents {
             let bytes = fs::read(root.join(document.relative_path.as_str())).expect("PDF bytes");
             assert_eq!(
@@ -856,13 +856,13 @@ mod tests {
         assert_eq!(exported.data.render.documents.len(), 2);
         assert!(!exported.data.render.submission_performed);
         assert_eq!(exported.data.stages.len(), 10);
-        assert!(
-            exported
-                .data
-                .stages
-                .iter()
-                .all(|stage| stage.state == ApplicationFlowStageStateV3::Complete)
-        );
+        assert!(exported.data.stages.iter().all(|stage| {
+            if stage.id.local_id_str() == "evidence" {
+                stage.state == ApplicationFlowStageStateV3::Ready
+            } else {
+                stage.state == ApplicationFlowStageStateV3::Complete
+            }
+        }));
 
         fs::remove_dir_all(root).expect("remove fixture");
         fs::remove_dir_all(backup).expect("remove backup");

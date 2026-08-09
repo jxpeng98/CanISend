@@ -93,6 +93,9 @@ describe("desktop accessibility contract", () => {
     expect(genericApplicationsView).toContain('aria-describedby="generic-source-help"');
     expect(genericApplicationsView).toContain('<Checkbox id="generic-review-consent"');
     expect(genericApplicationsView).toContain('<Checkbox id="generic-export-consent"');
+    expect(genericApplicationsView).toContain("<fieldset");
+    expect(genericApplicationsView).toContain("<legend");
+    expect(genericApplicationsView).toContain('id="application-association-private-consent"');
     expect(genericApplicationsView).not.toMatch(
       /<(?:div|span|p|section|article)\b[^>]*\b(?:onclick|onkeydown)=/giu,
     );

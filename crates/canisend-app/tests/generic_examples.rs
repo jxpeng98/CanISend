@@ -85,7 +85,7 @@ struct DeliverableExampleV1 {
 }
 
 #[test]
-fn five_domain_families_complete_in_clean_v4_without_real_data_or_submission() {
+fn five_domain_families_finish_in_clean_v4_without_real_data_or_submission() {
     let mut scenario_ids = BTreeSet::new();
     let mut families = BTreeSet::new();
     for (resource_id, expected_family) in EXAMPLES {
@@ -155,7 +155,6 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
         GENERIC_APPLICATION_WORKFLOW_PACK_ID
     );
     let application_id = created.stored.snapshot.application.id.to_string();
-
     let planned = Application::plan_application_flow_v3(
         &root,
         &application_id,
@@ -254,12 +253,13 @@ fn run_complete_offline_flow(scenario: &GenericExampleV1) {
     .data;
     assert_eq!(exported.render.documents.len(), 2);
     assert!(!exported.render.submission_performed);
-    assert!(
-        exported
-            .stages
-            .iter()
-            .all(|stage| stage.state == ApplicationFlowStageStateV3::Complete)
-    );
+    assert!(exported.stages.iter().all(|stage| {
+        if stage.id.local_id_str() == "evidence" {
+            stage.state == ApplicationFlowStageStateV3::Ready
+        } else {
+            stage.state == ApplicationFlowStageStateV3::Complete
+        }
+    }));
     for document in &exported.render.documents {
         let bytes = fs::read(root.join(document.relative_path.as_str()))
             .expect("read rendered example PDF");

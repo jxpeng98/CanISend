@@ -4,6 +4,7 @@ mod agent;
 mod agent_runtime;
 mod application_intake;
 mod approval;
+mod association_v4;
 mod commands;
 mod delivery;
 mod discovery;
@@ -43,6 +44,12 @@ pub fn run() {
             application_intake::preview_local_application_intake,
             application_intake::preview_pasted_application_intake,
             application_intake::preview_url_application_intake,
+            association_v4::evidence_association_commit,
+            association_v4::evidence_association_list,
+            association_v4::evidence_association_preview,
+            association_v4::profile_association_commit,
+            association_v4::profile_association_list,
+            association_v4::profile_association_preview,
             commands::application_dossier,
             commands::backup_workspace,
             commands::check_workspace,

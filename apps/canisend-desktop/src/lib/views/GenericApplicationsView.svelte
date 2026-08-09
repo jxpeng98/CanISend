@@ -26,24 +26,35 @@
     approveGenericApplication,
     chooseApplicationSource,
     commandErrorMessage,
+    commitEvidenceAssociationV4,
+    commitProfileAssociationV4,
     commitApplicationIntakePreview,
     composeGenericApplication,
     discardApplicationIntakePreview,
     exportGenericApplication,
     listGenericApplications,
+    listEvidenceAssociationsV4,
+    listProfileAssociationsV4,
     planGenericApplication,
     previewLocalApplicationIntake,
+    previewEvidenceAssociationV4,
     previewPastedApplicationIntake,
+    previewProfileAssociationV4,
     previewUrlApplicationIntake,
     reviewGenericApplication,
     showGenericApplication,
     type ApplicationIntakeBaseRequestV4,
     type ApplicationIntakePreviewTokenReadModelV4,
     type ApplicationFieldValueV3,
+    type ContentRevisionReferenceV3,
+    type EvidenceAssociationListReadModelV4,
+    type EvidenceAssociationPreviewRequestV4,
     type ApplicationFlowDeliverableDraftV3,
     type ApplicationFlowReviewReadModelV3,
     type ApplicationFlowStageV3,
     type BuiltInWorkflowPackId,
+    type ProfileAssociationListReadModelV4,
+    type ProfileAssociationPreviewRequestV4,
     type StoredApplicationModelV3,
     type WorkflowPackPresentationField,
     type WorkflowPackPresentationReadModel,
@@ -89,6 +100,28 @@
   let reviewConfirmed = $state(false);
   let exportDestination = $state("");
   let privateExportConsent = $state(false);
+  let profileAssociations = $state<ProfileAssociationListReadModelV4 | null>(null);
+  let evidenceAssociations = $state<EvidenceAssociationListReadModelV4 | null>(null);
+  let profileSelections = $state<Record<string, boolean>>({});
+  let evidenceSelections = $state<Record<string, boolean>>({});
+  let associationPrivateConsent = $state(false);
+  let pendingAssociationChanges = $state<PendingAssociationChange[]>([]);
+
+  type PendingAssociationChange =
+    | {
+        resource: "profile";
+        label: string;
+        request: ProfileAssociationPreviewRequestV4;
+        previewSha256: string;
+        requiresPrivateRead: boolean;
+      }
+    | {
+        resource: "evidence";
+        label: string;
+        request: EvidenceAssociationPreviewRequestV4;
+        previewSha256: string;
+        requiresPrivateRead: boolean;
+      };
 
   const selectedRevision = $derived(selected?.snapshot.application.revision ?? 0);
   const completedStages = $derived(stages.filter((stage) => stage.state === "complete").length);
@@ -97,6 +130,9 @@
     selected?.snapshot.plan?.deliverables.filter(
       (deliverable) => deliverable.disposition !== "omitted",
     ) ?? [],
+  );
+  const pendingAssociationNeedsPrivateRead = $derived(
+    pendingAssociationChanges.some((item) => item.requiresPrivateRead),
   );
 
   $effect(() => {
@@ -117,6 +153,9 @@
     selected = null;
     stages = [];
     review = null;
+    profileAssociations = null;
+    evidenceAssociations = null;
+    pendingAssociationChanges = [];
     requirementCategory = presentation?.requirement_categories[0]?.id ?? "";
     opportunityValues = {};
     applicationValues = {};
@@ -217,11 +256,185 @@
       );
       selected = receipt.data.stored;
       stages = receipt.data.stages;
+      await loadAssociationContext(receipt.data.stored.snapshot.application.id);
       exportDestination = `applications/${receipt.data.stored.snapshot.application.id}/exports/revision-${receipt.data.stored.snapshot.application.revision}`;
       prepareDrafts();
     } catch (value) {
       captureError(value);
     }
+  }
+
+  function profileReference(
+    source: ProfileAssociationListReadModelV4["profile_sources"][number],
+  ): ContentRevisionReferenceV3 {
+    return {
+      id: source.id,
+      revision: source.revision,
+      sha256: String(source.original.sha256),
+    };
+  }
+
+  function linkedProfile(id: string) {
+    return profileAssociations?.associations.find((item) => item.profile_source.id === id);
+  }
+
+  function linkedEvidence(id: string) {
+    return evidenceAssociations?.associations.find((item) => item.evidence.id === id);
+  }
+
+  async function loadAssociationContext(applicationId: string): Promise<void> {
+    const [profiles, evidence] = await Promise.all([
+      listProfileAssociationsV4(activeWorkspace.path, applicationId),
+      listEvidenceAssociationsV4(activeWorkspace.path, applicationId),
+    ]);
+    profileAssociations = profiles.data;
+    evidenceAssociations = evidence.data;
+    profileSelections = Object.fromEntries([
+      ...profiles.data.profile_sources.map((source) => [source.id, false] as const),
+      ...profiles.data.associations.map(
+        (association) => [association.profile_source.id, true] as const,
+      ),
+    ]);
+    evidenceSelections = Object.fromEntries([
+      ...evidence.data.evidence.map((item) => [item.evidence.id, false] as const),
+      ...evidence.data.associations.map((association) => [association.evidence.id, true] as const),
+    ]);
+    associationPrivateConsent = false;
+    pendingAssociationChanges = [];
+  }
+
+  async function previewAssociationChanges(): Promise<void> {
+    if (!selected || !profileAssociations || !evidenceAssociations) return;
+    await run(async () => {
+      const pending: PendingAssociationChange[] = [];
+      for (const source of profileAssociations!.profile_sources) {
+        const association = linkedProfile(source.id);
+        const selectedNow = profileSelections[source.id] ?? false;
+        if (selectedNow === Boolean(association)) continue;
+        const request: ProfileAssociationPreviewRequestV4 = {
+          application_id: selected!.snapshot.application.id,
+          profile_source: association?.profile_source ?? profileReference(source),
+          change: selectedNow ? "associate" : "unlink",
+        };
+        const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
+        pending.push({
+          resource: "profile",
+          label: `${source.kind} · ${source.id}`,
+          request,
+          previewSha256: preview.data.preview_sha256,
+          requiresPrivateRead: preview.data.requires_private_read,
+        });
+      }
+      for (const association of profileAssociations!.associations) {
+        if (
+          profileAssociations!.profile_sources.some(
+            (source) => source.id === association.profile_source.id,
+          ) ||
+          profileSelections[association.profile_source.id] !== false
+        ) {
+          continue;
+        }
+        const request: ProfileAssociationPreviewRequestV4 = {
+          application_id: selected!.snapshot.application.id,
+          profile_source: association.profile_source,
+          change: "unlink",
+        };
+        const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
+        pending.push({
+          resource: "profile",
+          label: `${copy.staleAssociation} · ${association.profile_source.id}`,
+          request,
+          previewSha256: preview.data.preview_sha256,
+          requiresPrivateRead: false,
+        });
+      }
+      for (const item of evidenceAssociations!.evidence) {
+        const association = linkedEvidence(item.evidence.id);
+        const selectedNow = evidenceSelections[item.evidence.id] ?? false;
+        if (selectedNow === Boolean(association)) continue;
+        const request: EvidenceAssociationPreviewRequestV4 = {
+          application_id: selected!.snapshot.application.id,
+          evidence: association?.evidence ?? item.evidence,
+          change: selectedNow ? "associate" : "unlink",
+        };
+        const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
+        pending.push({
+          resource: "evidence",
+          label: `${item.kind} · ${item.evidence.id}`,
+          request,
+          previewSha256: preview.data.preview_sha256,
+          requiresPrivateRead: preview.data.requires_private_read,
+        });
+      }
+      for (const association of evidenceAssociations!.associations) {
+        if (
+          evidenceAssociations!.evidence.some(
+            (item) => item.evidence.id === association.evidence.id,
+          ) ||
+          evidenceSelections[association.evidence.id] !== false
+        ) {
+          continue;
+        }
+        const request: EvidenceAssociationPreviewRequestV4 = {
+          application_id: selected!.snapshot.application.id,
+          evidence: association.evidence,
+          change: "unlink",
+        };
+        const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
+        pending.push({
+          resource: "evidence",
+          label: `${copy.staleAssociation} · ${association.evidence.id}`,
+          request,
+          previewSha256: preview.data.preview_sha256,
+          requiresPrivateRead: false,
+        });
+      }
+      pendingAssociationChanges = pending;
+      notice = pending.length ? copy.associationPreviewReady : copy.noAssociationChanges;
+    });
+  }
+
+  async function commitAssociationChanges(): Promise<void> {
+    if (!selected || !pendingAssociationChanges.length) return;
+    if (
+      pendingAssociationChanges.some((item) => item.requiresPrivateRead) &&
+      !associationPrivateConsent
+    ) {
+      error = copy.associationPrivateConsent;
+      return;
+    }
+    await run(async () => {
+      const applicationId = selected!.snapshot.application.id;
+      let committed = false;
+      try {
+        for (const item of pendingAssociationChanges) {
+          if (item.resource === "profile") {
+            await commitProfileAssociationV4({
+              workspace: activeWorkspace.path,
+              preview: item.request,
+              expectedPreviewSha256: item.previewSha256,
+              confirmedPrivateRead: associationPrivateConsent,
+            });
+          } else {
+            await commitEvidenceAssociationV4({
+              workspace: activeWorkspace.path,
+              preview: item.request,
+              expectedPreviewSha256: item.previewSha256,
+              confirmedPrivateRead: associationPrivateConsent,
+            });
+          }
+        }
+        committed = true;
+      } finally {
+        // Each reviewed change is an independent canonical mutation. Always reconcile the UI in
+        // case a later stale preview fails after an earlier change has already committed.
+        await loadAssociationContext(applicationId);
+        const receipt = await showGenericApplication(activeWorkspace.path, applicationId);
+        selected = receipt.data.stored;
+        stages = receipt.data.stages;
+      }
+      if (committed) notice = copy.associationChangesCommitted;
+    });
   }
 
   function prepareDrafts(): void {
@@ -813,6 +1026,204 @@
                 </Badge>
               {/each}
             </div>
+          </Card.Content>
+        </Card.Root>
+
+        <Card.Root>
+          <Card.Header>
+            <Card.Title>{copy.applicationEvidenceSelection}</Card.Title>
+            <Card.Description>{copy.applicationEvidenceSelectionDescription}</Card.Description>
+          </Card.Header>
+          <Card.Content class="space-y-5">
+            <fieldset class="space-y-3">
+              <legend class="text-sm font-semibold">{copy.profileSources}</legend>
+              {#if !profileAssociations}
+                <p class="text-sm text-muted-foreground" aria-live="polite">{copy.loading}</p>
+              {:else if !profileAssociations.profile_sources.length && !profileAssociations.associations.length}
+                <Empty.Root class="min-h-24 border bg-muted/20">
+                  <Empty.Header>
+                    <Empty.Title>{copy.noProfileSources}</Empty.Title>
+                    <Empty.Description>{copy.profileSourceHelp}</Empty.Description>
+                  </Empty.Header>
+                </Empty.Root>
+              {:else}
+                {#each profileAssociations.profile_sources as source (source.id)}
+                  {@const association = linkedProfile(source.id)}
+                  <div class="flex items-start gap-3 rounded-md border p-3">
+                    <Checkbox
+                      id={`application-profile-${source.id}`}
+                      bind:checked={profileSelections[source.id]}
+                      disabled={busy || pendingAssociationChanges.length > 0}
+                      class="mt-0.5"
+                    />
+                    <Label
+                      for={`application-profile-${source.id}`}
+                      class="min-w-0 flex-1 font-normal"
+                    >
+                      <span class="flex flex-wrap items-center gap-2 font-medium">
+                        {source.kind}
+                        {#if association?.stale}
+                          <Badge variant="destructive">{copy.staleAssociation}</Badge>
+                        {:else if association}
+                          <Badge variant="secondary">{copy.associated}</Badge>
+                        {/if}
+                      </span>
+                      <span class="mt-1 block truncate font-mono text-xs text-muted-foreground">
+                        {source.id} · {copy.revision}
+                        {source.revision} · {source.sensitivity}
+                      </span>
+                    </Label>
+                  </div>
+                {/each}
+                {#each profileAssociations.associations.filter((association) => !profileAssociations?.profile_sources.some((source) => source.id === association.profile_source.id)) as association (association.profile_source.id)}
+                  <div class="flex items-start gap-3 rounded-md border border-destructive/40 p-3">
+                    <Checkbox
+                      id={`application-profile-orphan-${association.profile_source.id}`}
+                      bind:checked={profileSelections[association.profile_source.id]}
+                      disabled={busy || pendingAssociationChanges.length > 0}
+                      class="mt-0.5"
+                    />
+                    <Label
+                      for={`application-profile-orphan-${association.profile_source.id}`}
+                      class="min-w-0 flex-1 font-normal"
+                    >
+                      <span class="flex flex-wrap items-center gap-2 font-medium">
+                        {copy.staleAssociation}
+                        <Badge variant="destructive">{copy.reviewRequired}</Badge>
+                      </span>
+                      <span class="mt-1 block truncate font-mono text-xs text-muted-foreground">
+                        {association.profile_source.id} · {copy.revision}
+                        {association.profile_source.revision}
+                      </span>
+                    </Label>
+                  </div>
+                {/each}
+              {/if}
+            </fieldset>
+
+            <fieldset class="space-y-3">
+              <legend class="text-sm font-semibold">
+                {presentation?.vocabulary.evidence_plural ?? copy.evidence}
+              </legend>
+              {#if !evidenceAssociations}
+                <p class="text-sm text-muted-foreground" aria-live="polite">{copy.loading}</p>
+              {:else if !evidenceAssociations.evidence.length && !evidenceAssociations.associations.length}
+                <Empty.Root class="min-h-24 border bg-muted/20">
+                  <Empty.Header>
+                    <Empty.Title>{copy.noConfirmedEvidence}</Empty.Title>
+                    <Empty.Description>{copy.confirmedEvidenceHelp}</Empty.Description>
+                  </Empty.Header>
+                </Empty.Root>
+              {:else}
+                {#each evidenceAssociations.evidence as item (item.evidence.id)}
+                  {@const association = linkedEvidence(item.evidence.id)}
+                  <div class="flex items-start gap-3 rounded-md border p-3">
+                    <Checkbox
+                      id={`application-evidence-${item.evidence.id}`}
+                      bind:checked={evidenceSelections[item.evidence.id]}
+                      disabled={busy || pendingAssociationChanges.length > 0}
+                      class="mt-0.5"
+                    />
+                    <Label
+                      for={`application-evidence-${item.evidence.id}`}
+                      class="min-w-0 flex-1 font-normal"
+                    >
+                      <span class="flex flex-wrap items-center gap-2 font-medium">
+                        {item.kind}
+                        {#if association?.stale}
+                          <Badge variant="destructive">{copy.staleAssociation}</Badge>
+                        {:else if association}
+                          <Badge variant="secondary">{copy.associated}</Badge>
+                        {/if}
+                      </span>
+                      <span class="mt-1 block truncate font-mono text-xs text-muted-foreground">
+                        {item.evidence.id} · {copy.revision}
+                        {item.evidence.revision} ·
+                        {item.sensitivity}
+                      </span>
+                    </Label>
+                  </div>
+                {/each}
+                {#each evidenceAssociations.associations.filter((association) => !evidenceAssociations?.evidence.some((item) => item.evidence.id === association.evidence.id)) as association (association.evidence.id)}
+                  <div class="flex items-start gap-3 rounded-md border border-destructive/40 p-3">
+                    <Checkbox
+                      id={`application-evidence-orphan-${association.evidence.id}`}
+                      bind:checked={evidenceSelections[association.evidence.id]}
+                      disabled={busy || pendingAssociationChanges.length > 0}
+                      class="mt-0.5"
+                    />
+                    <Label
+                      for={`application-evidence-orphan-${association.evidence.id}`}
+                      class="min-w-0 flex-1 font-normal"
+                    >
+                      <span class="flex flex-wrap items-center gap-2 font-medium">
+                        {copy.staleAssociation}
+                        <Badge variant="destructive">{copy.reviewRequired}</Badge>
+                      </span>
+                      <span class="mt-1 block truncate font-mono text-xs text-muted-foreground">
+                        {association.evidence.id} · {copy.revision}
+                        {association.evidence.revision}
+                      </span>
+                    </Label>
+                  </div>
+                {/each}
+              {/if}
+            </fieldset>
+
+            {#if pendingAssociationChanges.length}
+              <Alert.Root aria-live="polite" aria-atomic="true">
+                <ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+                <Alert.Description>
+                  <span class="block font-medium">
+                    {copy.associationPreviewCount}: {pendingAssociationChanges.length}
+                  </span>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+                    {#each pendingAssociationChanges as item (`${item.resource}-${item.request.change}-${item.label}`)}
+                      <li>{item.request.change} · {item.label}</li>
+                    {/each}
+                  </ul>
+                </Alert.Description>
+              </Alert.Root>
+              {#if pendingAssociationNeedsPrivateRead}
+                <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                  <Checkbox
+                    id="application-association-private-consent"
+                    bind:checked={associationPrivateConsent}
+                    class="mt-0.5"
+                  />
+                  <Label
+                    for="application-association-private-consent"
+                    class="text-xs leading-5 font-normal"
+                  >
+                    {copy.associationPrivateConsent}
+                  </Label>
+                </div>
+              {/if}
+              <div class="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  disabled={busy ||
+                    (pendingAssociationNeedsPrivateRead && !associationPrivateConsent)}
+                  onclick={commitAssociationChanges}
+                >
+                  {copy.commitAssociationChanges}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onclick={() => loadAssociationContext(selected!.snapshot.application.id)}
+                >
+                  {copy.discardPreview}
+                </Button>
+              </div>
+            {:else}
+              <Button
+                variant="outline"
+                disabled={busy || !profileAssociations || !evidenceAssociations}
+                onclick={previewAssociationChanges}
+              >
+                {copy.previewAssociationChanges}
+              </Button>
+            {/if}
           </Card.Content>
         </Card.Root>
 

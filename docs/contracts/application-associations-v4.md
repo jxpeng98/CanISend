@@ -32,6 +32,19 @@ Blob, and audit authority unchanged.
 Queries always begin with one selected Application ID. A Workspace-level record that has no link
 to that Application is not returned, even when another Application links the same record.
 
+## Application surface
+
+The clean v4 surface exposes separate body-free inventories for Profile Source and Evidence links:
+
+- `profile.association.list`, `.preview`, and `.commit`; and
+- `evidence.association.list`, `.preview`, and `.commit`.
+
+Every preview binds the exact Application revision, resource revision, resource digest, requested
+associate-or-unlink change, and whether private-read consent is required. Commit recomputes that
+preview from current authority before mutation. Replayed, stale, already-linked, absent-link, and
+wrong-digest changes therefore fail without creating a second association. Unlinking does not
+reread a private body and does not ask for private-read consent.
+
 ## Revision and deletion rules
 
 Associations never float to a newer resource revision. When a Source or linked record advances,
@@ -42,6 +55,12 @@ A linked Source cannot be deleted. After every Application link is explicitly re
 metadata and Blob references may be deleted; immutable Blob garbage collection remains a separate
 bounded maintenance operation. Every associate, unlink, revision, and delete operation writes a
 body-free audit event.
+
+Only current, non-stale Evidence associations become `evidence_inputs` on newly materialized
+Deliverables. Requirement Source spans remain Requirement authority and are never relabelled as
+Evidence. A deliberate no-Evidence gap leaves the Pack's Evidence stage ready rather than complete
+and produces an empty Evidence input list; selecting a confirmed Evidence revision completes that
+stage without changing the Application's Pack binding.
 
 ## Application creation
 

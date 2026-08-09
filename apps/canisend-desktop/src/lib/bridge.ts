@@ -719,7 +719,15 @@ export interface DiscoveryPromotionReadModel {
   lead_id: string;
 }
 
-export type PrivacyClassification = "public" | "private-local";
+export type PrivacyClassification = "public" | "private-local" | "provider-bound" | "secret";
+
+export interface ContentRevisionReferenceV3 {
+  id: string;
+  revision: number;
+  sha256: string;
+}
+
+export type AssociationChangeV4 = "associate" | "unlink";
 
 export interface ProfileSourceRecord {
   id: string;
@@ -744,6 +752,62 @@ export interface ProfileSourceImportReadModel {
 }
 
 export type ProfileInitializationReadModel = ProfileSourceImportReadModel;
+
+export interface ApplicationProfileAssociationV4 {
+  application_id: string;
+  profile_source: ContentRevisionReferenceV3;
+  consent_scope: "read-private-inputs" | null;
+  associated_at: string;
+  stale: boolean;
+}
+
+export interface ApplicationEvidenceAssociationV4 {
+  application_id: string;
+  evidence: ContentRevisionReferenceV3;
+  consent_scope: "read-private-inputs" | null;
+  associated_at: string;
+  stale: boolean;
+}
+
+export interface WorkspaceEvidenceSummaryV4 {
+  evidence: ContentRevisionReferenceV3;
+  kind: string;
+  sensitivity: PrivacyClassification;
+  created_at: string;
+}
+
+export interface ProfileAssociationListReadModelV4 {
+  application_id: string;
+  application_revision: number;
+  profile_sources: ProfileSourceRecord[];
+  associations: ApplicationProfileAssociationV4[];
+}
+
+export interface EvidenceAssociationListReadModelV4 {
+  application_id: string;
+  application_revision: number;
+  evidence: WorkspaceEvidenceSummaryV4[];
+  associations: ApplicationEvidenceAssociationV4[];
+}
+
+export interface ProfileAssociationPreviewRequestV4 {
+  application_id: string;
+  profile_source: ContentRevisionReferenceV3;
+  change: AssociationChangeV4;
+}
+
+export interface EvidenceAssociationPreviewRequestV4 {
+  application_id: string;
+  evidence: ContentRevisionReferenceV3;
+  change: AssociationChangeV4;
+}
+
+export interface AssociationPreviewReadModelV4<T> {
+  request: T;
+  application_revision: number;
+  requires_private_read: boolean;
+  preview_sha256: string;
+}
 
 export interface EvidenceCatalogRecord {
   id: string;
@@ -1547,6 +1611,94 @@ export async function listGenericApplications(
   workspace: string,
 ): Promise<ActionReceipt<StoredApplicationModelV3[]>> {
   return invoke("list_generic_applications", { request: { workspace } });
+}
+
+export async function listProfileAssociationsV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<ProfileAssociationListReadModelV4>> {
+  return invoke("profile_association_list", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function listEvidenceAssociationsV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<EvidenceAssociationListReadModelV4>> {
+  return invoke("evidence_association_list", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function previewProfileAssociationV4(
+  workspace: string,
+  preview: ProfileAssociationPreviewRequestV4,
+): Promise<ActionReceipt<AssociationPreviewReadModelV4<ProfileAssociationPreviewRequestV4>>> {
+  return invoke("profile_association_preview", {
+    request: {
+      workspace,
+      application_id: preview.application_id,
+      profile_source: preview.profile_source,
+      change: preview.change,
+    },
+  });
+}
+
+export async function commitProfileAssociationV4(options: {
+  workspace: string;
+  preview: ProfileAssociationPreviewRequestV4;
+  expectedPreviewSha256: string;
+  confirmedPrivateRead: boolean;
+}): Promise<
+  ActionReceipt<{
+    change: AssociationChangeV4;
+    association: ApplicationProfileAssociationV4 | null;
+  }>
+> {
+  return invoke("profile_association_commit", {
+    request: {
+      workspace: options.workspace,
+      preview: options.preview,
+      expected_preview_sha256: options.expectedPreviewSha256,
+      confirmed_private_read: options.confirmedPrivateRead,
+    },
+  });
+}
+
+export async function previewEvidenceAssociationV4(
+  workspace: string,
+  preview: EvidenceAssociationPreviewRequestV4,
+): Promise<ActionReceipt<AssociationPreviewReadModelV4<EvidenceAssociationPreviewRequestV4>>> {
+  return invoke("evidence_association_preview", {
+    request: {
+      workspace,
+      application_id: preview.application_id,
+      evidence: preview.evidence,
+      change: preview.change,
+    },
+  });
+}
+
+export async function commitEvidenceAssociationV4(options: {
+  workspace: string;
+  preview: EvidenceAssociationPreviewRequestV4;
+  expectedPreviewSha256: string;
+  confirmedPrivateRead: boolean;
+}): Promise<
+  ActionReceipt<{
+    change: AssociationChangeV4;
+    association: ApplicationEvidenceAssociationV4 | null;
+  }>
+> {
+  return invoke("evidence_association_commit", {
+    request: {
+      workspace: options.workspace,
+      preview: options.preview,
+      expected_preview_sha256: options.expectedPreviewSha256,
+      confirmed_private_read: options.confirmedPrivateRead,
+    },
+  });
 }
 
 export async function showGenericApplication(

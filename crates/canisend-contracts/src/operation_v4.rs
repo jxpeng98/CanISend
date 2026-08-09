@@ -285,7 +285,7 @@ fn expected_context(id: &str) -> OperationContextV4 {
         return OperationContextV4::Host;
     }
     if id.starts_with("workspace.")
-        || id.starts_with("profile.")
+        || (id.starts_with("profile.") && !id.starts_with("profile.association."))
         || (id.starts_with("evidence.") && !id.starts_with("evidence.association."))
         || id == "application.list"
         || id.starts_with("application.create.")
