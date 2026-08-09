@@ -6,9 +6,10 @@ release notes and artifact manifest as the installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.5` is the latest publicly qualified checkpoint. Later work on `main`, including
-  additional Generic Pack, Agent v3, desktop, and source-gate coverage, is not a published
-  Alpha.6 or Alpha.7 merely because the source version still says `1.0.0-alpha.6`.
+- `v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Clean Workspace v4, Agent v4,
+  new Skills, and App bootstrap work on `main` are not a published Alpha.7 merely because the
+  source version still says `1.0.0-alpha.6`. `v1.0.0-alpha.5` remains an immutable earlier
+  checkpoint, not the current release authority.
 - The five-target CLI matrices and the macOS GUI channel have different qualification evidence.
   A source build or local design preview is not a signed release artifact.
 - Windows and Linux public GUI artifacts are not qualified. Their CLI targets remain separate

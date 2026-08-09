@@ -1,17 +1,24 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use canisend_app::{
-    ACADEMIC_JOB_WORKFLOW_PACK_ID, ActionReceipt, Application, ApplicationDossierListReadModel,
-    ApplicationDossierReadModel, ApplicationError, ApprovalBrokerError, BackupReadModel,
-    ContentCatalogFilter, ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest,
-    DoctorSummary, JobDetailReadModel, JobListReadModel, NetworkFetchConsent, PrivateReadConsent,
-    ProductSummary, SourceImportReadModel, WorkflowPackPresentationLocale,
-    WorkflowPackPresentationReadModel, WorkspaceHealthReadModel, WorkspaceRegistry,
-    WorkspaceRepairReadModel, WorkspaceRestoreReadModel, WorkspaceV3MigrationPreview,
-    WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest, WorkspaceV4ReadModel,
-    default_registry_path, validate_workspace_alias,
+    ACADEMIC_JOB_WORKFLOW_PACK_ID, ActionReceipt, AgentHost, AgentMcpConfigurationReadModel,
+    AgentMcpConfigurationRequest, AgentSkillsInstallReadModel, AgentSkillsInstallRequest,
+    Application, ApplicationDossierListReadModel, ApplicationDossierReadModel, ApplicationError,
+    ApprovalBrokerError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
+    ContentSearchReadModel, ContentSearchRequest, DoctorSummary,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID, JobDetailReadModel, JobListReadModel,
+    NetworkFetchConsent, PrivateReadConsent, ProductSummary, SourceImportReadModel,
+    WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel, WorkspaceHealthReadModel,
+    WorkspaceRegistry, WorkspaceRepairReadModel, WorkspaceRestoreReadModel,
+    WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
+    WorkspaceV4ReadModel, default_registry_path, desktop_cli_source_path, validate_workspace_alias,
 };
-use canisend_contracts::{JobRecord, Sha256Digest};
+use canisend_contracts::{ApplicationPackBindingV3, JobRecord, Sha256Digest};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -104,11 +111,42 @@ pub(crate) struct RegisteredAction<T> {
     registry: RegistrySnapshot,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkspaceBootstrapHostReadModel {
+    host: AgentHost,
+    skills: AgentSkillsInstallReadModel,
+    mcp: AgentMcpConfigurationReadModel,
+    configuration_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkspaceBootstrapBoundaryReadModel {
+    workspace_alias: String,
+    application_count: usize,
+    profile_initialized: bool,
+    private_bodies_written: bool,
+    workspace_modes_enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkspaceBootstrapReadModel {
+    action: ActionReceipt<WorkspaceV4ReadModel>,
+    registry: RegistrySnapshot,
+    validated_packs: Vec<ApplicationPackBindingV3>,
+    hosts: Vec<WorkspaceBootstrapHostReadModel>,
+    boundary: WorkspaceBootstrapBoundaryReadModel,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WorkspaceCreateRequest {
     alias: String,
     path: PathBuf,
+    #[serde(default)]
+    hosts: Vec<AgentHost>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -253,17 +291,193 @@ fn save_registry(
 fn create_workspace_impl(
     registry_path: &Path,
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
+    desktop_executable: Option<PathBuf>,
+) -> Result<WorkspaceBootstrapReadModel, DesktopCommandError> {
     validate_workspace_alias(request.alias.trim()).map_err(DesktopCommandError::registry)?;
+    validate_bootstrap_hosts(&request.hosts)?;
+    let validated_packs = [
+        GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        ACADEMIC_JOB_WORKFLOW_PACK_ID,
+    ]
+    .into_iter()
+    .map(|pack_id| {
+        Application::built_in_pack_presentation(pack_id, WorkflowPackPresentationLocale::English)
+            .map(|receipt| receipt.data.pack)
+            .map_err(DesktopCommandError::application)
+    })
+    .collect::<Result<Vec<_>, _>>()?;
+    let root_existed = match fs::symlink_metadata(&request.path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(DesktopCommandError::state(
+                    "Workspace setup requires a new or empty regular directory",
+                ));
+            }
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => {
+            return Err(DesktopCommandError::state(format!(
+                "Cannot inspect the Workspace setup directory: {error}"
+            )));
+        }
+    };
     let action = Application::initialize_workspace_v4(&request.path)
         .map_err(DesktopCommandError::application)?;
+    let mut rollback = WorkspaceBootstrapRollback::new(action.data.path.clone(), root_existed);
+    let executable = if request.hosts.is_empty() {
+        None
+    } else {
+        Some(desktop_executable.ok_or_else(|| {
+            DesktopCommandError::state(
+                "The version-matched CanISend desktop host is not available inside this App",
+            )
+        })?)
+    };
+    let mut hosts = Vec::with_capacity(request.hosts.len());
+    for host in request.hosts.iter().copied() {
+        let executable = executable.as_ref().ok_or_else(|| {
+            DesktopCommandError::state(
+                "The version-matched CanISend desktop host is not available inside this App",
+            )
+        })?;
+        let mcp = Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
+            host,
+            workspace: action.data.path.clone(),
+            executable: executable.clone(),
+        })
+        .map_err(DesktopCommandError::application)?
+        .data;
+        let skills = Application::install_agent_skills(&AgentSkillsInstallRequest {
+            host,
+            workspace: action.data.path.clone(),
+        })
+        .map_err(DesktopCommandError::application)?
+        .data;
+        let configuration_path = write_bootstrap_mcp_configuration(&action.data.path, host, &mcp)?;
+        hosts.push(WorkspaceBootstrapHostReadModel {
+            host,
+            skills,
+            mcp,
+            configuration_path,
+        });
+    }
     let mut registry =
         WorkspaceRegistry::load(registry_path).map_err(DesktopCommandError::registry)?;
     registry
         .register(request.alias.trim(), &action.data.path)
         .map_err(DesktopCommandError::registry)?;
     let registry = save_registry(registry_path, registry)?;
-    Ok(RegisteredAction { action, registry })
+    rollback.commit();
+    Ok(WorkspaceBootstrapReadModel {
+        action,
+        registry,
+        validated_packs,
+        hosts,
+        boundary: WorkspaceBootstrapBoundaryReadModel {
+            workspace_alias: request.alias.trim().to_owned(),
+            application_count: 0,
+            profile_initialized: false,
+            private_bodies_written: false,
+            workspace_modes_enabled: false,
+        },
+    })
+}
+
+fn validate_bootstrap_hosts(hosts: &[AgentHost]) -> Result<(), DesktopCommandError> {
+    let unique = hosts
+        .iter()
+        .map(|host| host.as_str())
+        .collect::<BTreeSet<_>>();
+    if unique.len() != hosts.len() {
+        return Err(DesktopCommandError::state(
+            "Agent hosts cannot be repeated during Workspace setup",
+        ));
+    }
+    Ok(())
+}
+
+fn write_bootstrap_mcp_configuration(
+    workspace: &Path,
+    host: AgentHost,
+    configuration: &AgentMcpConfigurationReadModel,
+) -> Result<PathBuf, DesktopCommandError> {
+    const MAX_CONFIGURATION_BYTES: usize = 64 * 1024;
+    let expected_target = match host {
+        AgentHost::Codex => ".codex/config.toml",
+        AgentHost::Claude => ".mcp.json",
+        AgentHost::Generic => "mcp.json",
+    };
+    if configuration.host != host || configuration.configuration_target != expected_target {
+        return Err(DesktopCommandError::state(
+            "Prepared MCP configuration does not match the selected Agent host",
+        ));
+    }
+    let bytes = configuration.configuration_snippet.as_bytes();
+    if bytes.is_empty() || bytes.len() > MAX_CONFIGURATION_BYTES {
+        return Err(DesktopCommandError::state(
+            "Prepared MCP configuration is empty or exceeds the 64 KiB setup limit",
+        ));
+    }
+    let destination = workspace.join(expected_target);
+    let parent = destination.parent().ok_or_else(|| {
+        DesktopCommandError::state("Prepared MCP configuration has no parent directory")
+    })?;
+    fs::create_dir_all(parent).map_err(|error| {
+        DesktopCommandError::state(format!(
+            "Cannot create the Agent host configuration directory: {error}"
+        ))
+    })?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&destination)
+        .map_err(|error| {
+            DesktopCommandError::state(format!(
+                "Cannot create the Agent host configuration without overwriting a file: {error}"
+            ))
+        })?;
+    file.write_all(bytes).map_err(|error| {
+        DesktopCommandError::state(format!(
+            "Cannot write the Agent host configuration: {error}"
+        ))
+    })?;
+    file.sync_all().map_err(|error| {
+        DesktopCommandError::state(format!("Cannot sync the Agent host configuration: {error}"))
+    })?;
+    Ok(destination)
+}
+
+struct WorkspaceBootstrapRollback {
+    root: PathBuf,
+    recreate_empty: bool,
+    committed: bool,
+}
+
+impl WorkspaceBootstrapRollback {
+    fn new(root: PathBuf, recreate_empty: bool) -> Self {
+        Self {
+            root,
+            recreate_empty,
+            committed: false,
+        }
+    }
+
+    fn commit(&mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for WorkspaceBootstrapRollback {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+        let _ = fs::remove_dir_all(&self.root);
+        if self.recreate_empty {
+            let _ = fs::create_dir(&self.root);
+        }
+    }
 }
 
 fn connect_workspace_impl(
@@ -452,8 +666,9 @@ pub(crate) async fn list_workspaces() -> Result<RegistrySnapshot, DesktopCommand
 #[tauri::command]
 pub(crate) async fn create_workspace(
     request: WorkspaceCreateRequest,
-) -> Result<RegisteredAction<WorkspaceV4ReadModel>, DesktopCommandError> {
-    run_worker(move || create_workspace_impl(&default_registry_path(), request)).await
+) -> Result<WorkspaceBootstrapReadModel, DesktopCommandError> {
+    let executable = desktop_cli_source_path();
+    run_worker(move || create_workspace_impl(&default_registry_path(), request, executable)).await
 }
 
 #[tauri::command]
@@ -718,7 +933,9 @@ mod tests {
             WorkspaceCreateRequest {
                 alias: "Mixed applications".to_owned(),
                 path: root.clone(),
+                hosts: Vec::new(),
             },
+            None,
         )
         .expect("neutral Workspace v4");
         assert_eq!(
@@ -765,7 +982,9 @@ mod tests {
             WorkspaceCreateRequest {
                 alias: "Mixed applications".to_owned(),
                 path: root.clone(),
+                hosts: Vec::new(),
             },
+            None,
         )
         .expect("create registered workspace");
         assert_eq!(created.registry.registry.entries.len(), 1);
@@ -787,6 +1006,137 @@ mod tests {
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_dir_all(registry_path.parent().expect("registry parent"))
             .expect("remove registry");
+    }
+
+    #[test]
+    fn desktop_bootstrap_installs_selected_v4_hosts_and_records_only_basic_boundaries() {
+        let sandbox = temporary_root("bootstrap-hosts");
+        let root = sandbox.join("workspace");
+        let registry_path = sandbox.join("registry/workspaces.json");
+        let executable = sandbox.join("canisend-gui");
+        fs::create_dir_all(&sandbox).expect("create sandbox");
+        fs::write(&executable, b"bounded desktop executable fixture")
+            .expect("write executable fixture");
+
+        let created = create_workspace_impl(
+            &registry_path,
+            WorkspaceCreateRequest {
+                alias: "One library".to_owned(),
+                path: root.clone(),
+                hosts: vec![AgentHost::Codex, AgentHost::Claude],
+            },
+            Some(executable.clone()),
+        )
+        .expect("clean App bootstrap");
+
+        assert_eq!(created.hosts.len(), 2);
+        assert_eq!(created.boundary.workspace_alias, "One library");
+        assert_eq!(created.boundary.application_count, 0);
+        assert!(!created.boundary.profile_initialized);
+        assert!(!created.boundary.private_bodies_written);
+        assert!(!created.boundary.workspace_modes_enabled);
+        assert_eq!(created.validated_packs.len(), 2);
+        assert_eq!(
+            created
+                .validated_packs
+                .iter()
+                .map(|pack| pack.id.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([
+                GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+                ACADEMIC_JOB_WORKFLOW_PACK_ID,
+            ])
+        );
+        assert_eq!(created.registry.registry.entries.len(), 1);
+        for host in &created.hosts {
+            assert!(host.skills.manifest_path.is_file());
+            assert!(!host.skills.files.is_empty());
+            assert_eq!(host.mcp.tools.len(), 4);
+            assert_eq!(host.mcp.read_only_tools, host.mcp.tools);
+            assert!(host.mcp.guarded_write_tools.is_empty());
+            assert_eq!(
+                fs::read_to_string(&host.configuration_path).expect("read MCP configuration"),
+                host.mcp.configuration_snippet
+            );
+            assert_eq!(host.mcp.executable, fs::canonicalize(&executable).unwrap());
+        }
+        assert!(root.join(".codex/config.toml").is_file());
+        assert!(root.join(".mcp.json").is_file());
+
+        fs::remove_dir_all(sandbox).expect("remove bootstrap sandbox");
+    }
+
+    #[test]
+    fn desktop_bootstrap_rejects_duplicate_hosts_before_creating_workspace() {
+        let root = temporary_root("duplicate-hosts");
+        let registry_path = temporary_root("duplicate-registry").join("workspaces.json");
+
+        let error = create_workspace_impl(
+            &registry_path,
+            WorkspaceCreateRequest {
+                alias: "Duplicate hosts".to_owned(),
+                path: root.clone(),
+                hosts: vec![AgentHost::Codex, AgentHost::Codex],
+            },
+            None,
+        )
+        .expect_err("duplicate hosts must fail");
+
+        assert_eq!(error.code, "desktop-state-failure");
+        assert!(!root.exists());
+        assert!(!registry_path.exists());
+    }
+
+    #[test]
+    fn desktop_bootstrap_rolls_back_a_new_workspace_when_registry_commit_fails() {
+        let sandbox = temporary_root("bootstrap-rollback-new");
+        let root = sandbox.join("workspace");
+        let registry_path = sandbox.join("registry-as-directory");
+        fs::create_dir_all(&registry_path).expect("create invalid registry target");
+
+        let error = create_workspace_impl(
+            &registry_path,
+            WorkspaceCreateRequest {
+                alias: "Rollback".to_owned(),
+                path: root.clone(),
+                hosts: Vec::new(),
+            },
+            None,
+        )
+        .expect_err("registry commit must fail");
+
+        assert_eq!(error.code, "workspace-registry-failure");
+        assert!(!root.exists());
+        fs::remove_dir_all(sandbox).expect("remove rollback sandbox");
+    }
+
+    #[test]
+    fn desktop_bootstrap_restores_an_existing_empty_directory_after_failure() {
+        let sandbox = temporary_root("bootstrap-rollback-empty");
+        let root = sandbox.join("workspace");
+        let registry_path = sandbox.join("registry-as-directory");
+        fs::create_dir_all(&root).expect("create selected empty directory");
+        fs::create_dir_all(&registry_path).expect("create invalid registry target");
+
+        create_workspace_impl(
+            &registry_path,
+            WorkspaceCreateRequest {
+                alias: "Rollback".to_owned(),
+                path: root.clone(),
+                hosts: Vec::new(),
+            },
+            None,
+        )
+        .expect_err("registry commit must fail");
+
+        assert!(root.is_dir());
+        assert_eq!(
+            fs::read_dir(&root)
+                .expect("read restored directory")
+                .count(),
+            0
+        );
+        fs::remove_dir_all(sandbox).expect("remove rollback sandbox");
     }
 
     #[test]

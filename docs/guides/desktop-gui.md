@@ -1,21 +1,21 @@
 # CanISend desktop GUI
 
-The macOS-first desktop interface uses Svelte 5 inside a Tauri 2 WebView and operates the same
-Pack-bound Rust Workspaces as the `canisend` CLI: canonical Workspace v3 for
-`org.canisend.generic-application`, and Workspace v2 compatibility or migrated academic authority
-for `org.canisend.academic-job`. All operations call the shared `canisend-app`
-facade through typed Tauri commands; the frontend never parses CLI output or reads `.canisend`
-internals. The Terminal CLI settings use only bounded install/status services and never invoke a
-shell or inspect Python, package managers, or their environments.
+The macOS-first desktop interface uses Svelte 5 inside a Tauri 2 WebView. Post-Alpha.6 `main`
+operates clean neutral Workspace v4 through the same Rust application facade as the standalone
+`canisend` CLI and MCP adapter. Each Application owns its exact Pack binding, so academic and
+generic Applications coexist in one Workspace without a Workspace mode. The first-party
+`org.canisend.academic-job` and `org.canisend.generic-application` Packs are equal reference Packs
+at that boundary. The frontend never parses CLI output or reads `.canisend` internals.
 
-The latest publicly qualified checkpoint is `v1.0.0-alpha.5`. Later desktop work described from
-`main` is post-tag source, not a published Alpha.6 or Alpha.7. A local design preview is ad-hoc
-signed and must not be distributed as a qualified release.
+The latest publicly qualified checkpoint is `v1.0.0-alpha.6`. The clean-v4 desktop work described
+from `main` is post-tag source, not a published Alpha.7. A local design preview is ad-hoc signed
+and must not be distributed as a qualified release. Workspace v3 remains an Alpha.6 historical
+contract; the App does not silently upgrade it through clean Workspace v4 setup.
 
-The active CLI/GUI parity contract currently records 38/38 implemented operation families. That
-source-level parity does not qualify changed bytes: Alpha.6 must still prove exact-package
-Workspace v2→v3 migration, Academic Pack parity, and the bounded Generic Pack lifecycle before it
-can make a public dual-Pack claim. Alpha.7 remains the feedback-hardened user-validation baseline.
+The clean-v4 public CLI has 19 exact leaves. Its MCP adapter currently exposes four body-free,
+read-only operations; mutation surfaces remain native application-facade operations until their
+v4 preview/approval contracts are implemented. Source-level parity does not qualify changed
+bytes: Alpha.7 still requires packaged native, accessibility, lifecycle, and public-byte evidence.
 
 ## Build and launch on Apple Silicon
 
@@ -79,30 +79,31 @@ The generated receipt uses `canisend.macos-design-preview/v1`, records the sourc
 worktree state, and fixes `publication_allowed` to `false`. This preview is not Developer ID signed
 or notarized and must not be distributed or substituted for native release qualification.
 
-The native arm64 application opens one window and routes its application journey from the active
-Workspace Pack. Generic Workspaces use the neutral Applications view. Academic Workspaces expose
-Today, Opportunities, Application workspace, Profile, Agent integration, Workspaces, and Settings;
-Application workspace then provides Overview, Job & criteria, Evidence & fit, Materials, and Review
-& export.
+The native arm64 application opens one window. Workspace creation and selection are neutral; the
+Applications collection selects Pack context per Application. The established academic reference
+journey remains available while the clean v4 surface replaces its remaining compatibility-era
+commands before Alpha.7 qualification.
 
 ## First run
 
 1. Open **Workspaces** and choose **Create workspace**.
-2. Select **Generic applications and submissions** or **Academic job applications
-   (compatibility)** before choosing a new or empty local directory. The choice creates an exact
-   Pack binding; it cannot be changed later.
-3. Give the Workspace a local display name. The name and canonical path are stored in the GUI
-   registry; private Workspace bodies are not copied into the registry.
-4. For the Generic Pack, open **Applications**. Enter reviewed source text, select an exact
-   Requirement excerpt, confirm the Pack-declared Plan, compose each selected Deliverable, grant
-   private-read consent for review, explicitly confirm every reviewed body, and export to the
-   suggested safe relative path after separate private-export consent.
-5. For the Academic Pack, open **Application workspace**, create a job, import a reviewed local
-   source or user-supplied public URL, start the durable workflow, and add Profile Evidence.
-6. When an existing Academic Workspace offers v3 migration, open **Workspaces**, preview the
-   body-free plan, choose a new backup destination, review the exact digest, and authorize the
-   atomic migration. Migration preserves `org.canisend.academic-job`; it does not select the
-   Generic Pack.
+2. Select a new or empty local directory and give the neutral Workspace a local display name.
+   This is the complete basic-data boundary: setup creates no Profile, private body, Application,
+   or academic/generic mode.
+3. Optionally select Codex, Claude, or both. The App installs clean v4 Skills and creates the
+   project-local MCP configuration with the exact bundled desktop executable. Selecting neither
+   host keeps the Workspace App-only and does not prevent later setup.
+4. Open **Applications** and choose the Pack for each new Application. Academic and generic
+   Applications can be created, opened, and retained together in the same Workspace.
+5. Continue the source, Requirements, Evidence, Plan, Deliverable, review, and local-export stages
+   for the selected Application. Every stage remains bound to that Application's exact Pack and
+   revision.
+
+The Workspace, selected host resources, project-local MCP files, and registry shortcut are one
+setup transaction. Invalid input fails before mutation; later failure removes newly created files
+and restores a user-selected empty directory. Closing the dialog before submission performs no
+setup. The prior Alpha.6 first-run journey selected one Pack for an entire Workspace; that behavior
+is historical and is not the clean Alpha.7 contract.
 
 Every file, URL, PDF, Workspace, Application, job, and workflow mutation uses the same bounded Rust services and
 authoritative SQLite/blob store as the CLI.
@@ -116,8 +117,9 @@ uses the currently displayed revision. Private Deliverable bodies remain closed 
 approval remains disabled until the user confirms every current body was reviewed. Export uses the
 embedded bounded renderer and reports that external submission was not performed.
 
-Direct Generic URL/PDF/file normalization is not yet available in the GUI. Review source text
-outside CanISend before pasting it; see [Known limitations](known-limitations.md).
+Clean-v4 intake supports pasted text, local text/PDF files, and user-supplied HTTP(S) sources
+through explicit preview, consent, and commit boundaries. Scanned PDFs still require separately
+reviewed OCR; see [Known limitations](known-limitations.md).
 
 ## Navigate an Academic reference Application Workspace
 

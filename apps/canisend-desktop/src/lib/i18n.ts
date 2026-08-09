@@ -189,6 +189,15 @@ export const messages = {
     removeWorkspace: "Remove shortcut",
     createWorkspaceDescription:
       "Choose a new or empty directory. CanISend creates its private database and managed files there.",
+    agentSetup: "Agent setup",
+    agentSetupDescription:
+      "Install the clean v4 Skills and project-local MCP configuration for the Agent hosts you use.",
+    codexSetupDescription: "Creates .agents Skills and a project-local .codex/config.toml.",
+    claudeSetupDescription: "Creates .claude Skills and a project-local .mcp.json.",
+    agentSetupOptional:
+      "Agent setup is optional. You can install it later without changing this Workspace's application scope.",
+    workspaceBootstrapBoundary:
+      "This setup stores only the display alias and local integration files. It creates no Profile, private content, Application, or Workspace mode.",
     connectWorkspaceDescription: "Choose a directory that already contains a CanISend workspace.",
     workspaceHealth: "Workspace health",
     checkIntegrity: "Check integrity",
@@ -1009,6 +1018,13 @@ export const messages = {
     selectWorkspace: "选择工作区",
     removeWorkspace: "移除快捷入口",
     createWorkspaceDescription: "请选择新的或空的目录，CanISend 会在其中创建私有数据库与托管文件。",
+    agentSetup: "Agent 初始化",
+    agentSetupDescription: "为你使用的 Agent 主机安装全新的 v4 Skills 与项目级 MCP 配置。",
+    codexSetupDescription: "创建 .agents Skills 和项目级 .codex/config.toml。",
+    claudeSetupDescription: "创建 .claude Skills 和项目级 .mcp.json。",
+    agentSetupOptional: "Agent 初始化是可选的，之后仍可安装，且不会改变此工作区可容纳的申请类型。",
+    workspaceBootstrapBoundary:
+      "此步骤只保存显示名称和本地集成文件；不会创建 Profile、私密正文、Application 或工作区模式。",
     connectWorkspaceDescription: "请选择已经包含 CanISend 工作区的目录。",
     workspaceHealth: "工作区健康状态",
     checkIntegrity: "检查完整性",

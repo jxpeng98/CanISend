@@ -156,6 +156,31 @@ export interface WorkspaceReadModel {
   status: WorkspaceStatus;
 }
 
+export type AgentHost = "codex" | "claude" | "generic";
+
+export interface WorkspaceBootstrapHostReadModel {
+  host: AgentHost;
+  skills: AgentSkillsInstallReadModel;
+  mcp: AgentMcpConfigurationReadModel;
+  configuration_path: string;
+}
+
+export interface WorkspaceBootstrapBoundaryReadModel {
+  workspace_alias: string;
+  application_count: number;
+  profile_initialized: false;
+  private_bodies_written: false;
+  workspace_modes_enabled: false;
+}
+
+export interface WorkspaceBootstrapReadModel {
+  action: ActionReceipt<WorkspaceReadModel>;
+  registry: RegistrySnapshot;
+  validated_packs: WorkflowPackBinding[];
+  hosts: WorkspaceBootstrapHostReadModel[];
+  boundary: WorkspaceBootstrapBoundaryReadModel;
+}
+
 export type ApplicationFieldValueV3 = {
   type:
     "short-text" | "long-text" | "integer" | "boolean" | "date" | "url" | "string-list" | "choice";
@@ -1399,9 +1424,10 @@ export async function listWorkspaces(): Promise<RegistrySnapshot> {
 export async function createWorkspace(
   alias: string,
   path: string,
-): Promise<RegisteredAction<WorkspaceReadModel>> {
+  hosts: AgentHost[],
+): Promise<WorkspaceBootstrapReadModel> {
   return invoke("create_workspace", {
-    request: { alias, path },
+    request: { alias, path, hosts },
   });
 }
 

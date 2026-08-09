@@ -134,6 +134,7 @@
     type AgentCapabilitiesReadModel,
     type AgentContextReadModel,
     type AgentHandoffReadModel,
+    type AgentHost,
     type AgentMcpConfigurationReadModel,
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
@@ -1027,10 +1028,14 @@
     return true;
   }
 
-  async function handleCreateWorkspace(alias: string, path: string): Promise<boolean> {
-    const result = await runAction(() => createWorkspace(alias, path), {
+  async function handleCreateWorkspace(
+    alias: string,
+    path: string,
+    hosts: AgentHost[],
+  ): Promise<boolean> {
+    const result = await runAction(() => createWorkspace(alias, path, hosts), {
       operation: "workspace.create",
-      route: { view: "opportunities", detail: "lead-list" },
+      route: { view: "applications" },
       jobId: null,
     });
     if (!result) return false;
