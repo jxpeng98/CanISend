@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-alpha.6`, with additional post-tag changes that are not yet a
+- Checked-in source: `1.0.0-alpha.7`, with additional post-tag changes that are not yet a
   qualified release.
 - Latest public checkpoint: [`v1.0.0-alpha.6`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.6).
 - Next authorized checkpoint: `v1.0.0-alpha.7`, the breaking clean-v4 release described by the

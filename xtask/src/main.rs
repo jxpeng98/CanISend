@@ -9,11 +9,11 @@ use std::{
 };
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, OperationClass, OperationPackScope, OperationRegistry, OperationSurface,
-    PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT, generate_agent_v4_schemas,
-    generate_application_model_schemas, generate_public_schemas, generate_workflow_pack_schema,
-    verify_agent_v4_schemas, verify_application_model_schemas, verify_public_schemas,
-    verify_workflow_pack_schema,
+    AGENT_PROTOCOL, AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, OperationClass, OperationPackScope,
+    OperationRegistry, OperationSurface, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT,
+    WORKSPACE_V4_FORMAT, generate_agent_v4_schemas, generate_application_model_schemas,
+    generate_public_schemas, generate_workflow_pack_schema, verify_agent_v4_schemas,
+    verify_application_model_schemas, verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -2184,8 +2184,8 @@ fn check_release_notes_policy() -> Result<(), String> {
     ];
     let guidance = [
         "does not require Python",
-        "canisend.workspace/v2",
-        "canisend.agent/v2",
+        "canisend.workspace/v4",
+        "canisend.agent/v4",
         "never submits an application",
         "SHA256SUMS",
         "GitHub build provenance",
@@ -3388,17 +3388,16 @@ CanISend 1.0 combines a macOS desktop interface, standalone command-line applica
 integration in one Rust-native product. It installs without Python and does not require Python, Node.js, Java, a
 separately installed SQLite library, or a Typst command.
 
-The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
-evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;
-editable exports; and embedded PDF rendering. Codex, Claude, and custom hosts integrate through the versioned
-`canisend.agent/v2` JSON protocol and generated agent packs. CanISend prepares application materials but never
-submits an application.
+The product provides local-first connected intake, independently Pack-bound Applications, explicit Evidence
+associations, guarded planning and drafting, review, export, backup, recovery, and embedded PDF rendering. Codex,
+Claude Code, and conforming MCP clients integrate through `canisend.agent/v4` and generated integrity-managed
+Skills. CanISend prepares application materials but never submits an application.
 
 ## Compatibility
 
-- This release line uses `canisend.workspace/v2`, `canisend.agent/v2`, and public schema major version 2.
-- It does not migrate Python-era workspaces or preserve the `0.6.x` Python command tree.
-- Rust-native workspace migrations are append-only. An older binary rejects a future schema without mutation.
+- This release line uses `canisend.workspace/v4`, `canisend.agent/v4`, and Agent schema major version 4.
+- It does not migrate Python-era Workspaces, Workspace v2/v3, or preserve old Skills and Agent requests.
+- Rust-native schema migrations are append-only. Unsupported or future authority is rejected before mutation.
 - The macOS application bundles a version-matched CLI; standalone CLI archives cover the five declared targets.
 
 ## Install and verify
@@ -5325,7 +5324,7 @@ fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Res
     }
     if readiness["contracts"] != beta_readiness_contracts(root)? {
         return Err(
-            "Beta readiness does not bind canonical v3 contracts and both Pack digests".to_owned(),
+            "Beta readiness does not bind canonical v4 contracts and both Pack digests".to_owned(),
         );
     }
     let freeze: Value = serde_json::from_slice(
@@ -5362,8 +5361,8 @@ fn beta_readiness_contracts(root: &Path) -> Result<Value, String> {
         }));
     }
     Ok(json!({
-        "agent_protocol": "canisend.agent/v3",
-        "workspace_format": "canisend.workspace/v3",
+        "agent_protocol": AGENT_V4_PROTOCOL,
+        "workspace_format": WORKSPACE_V4_FORMAT,
         "workflow_pack_format": "canisend.workflow-pack/v1",
         "workflow_packs": packs,
     }))
@@ -5403,32 +5402,25 @@ fn alpha_package_contract_bindings(root: &Path) -> Result<Value, String> {
         }),
     );
 
-    let operation_registry_path = "crates/canisend-contracts/operation-registry-v1.json";
+    let operation_registry_path = "crates/canisend-resources/resources/operations/v4/registry.json";
     let operation_registry_bytes = fs::read(root.join(operation_registry_path))
         .map_err(|error| format!("operation registry is missing: {error}"))?;
     let operation_registry: Value = serde_json::from_slice(&operation_registry_bytes)
         .map_err(|error| format!("operation registry is invalid JSON: {error}"))?;
-    if operation_registry["format"] != "canisend.operation-registry/v1" {
-        return Err("operation registry format is not v1".to_owned());
-    }
-    let compatibility_aliases = operation_registry["compatibility_aliases"]
-        .as_array()
-        .ok_or_else(|| "operation registry compatibility_aliases must be an array".to_owned())?;
-    if compatibility_aliases
-        .iter()
-        .any(|alias| alias["status"] != "deprecated" || alias["pack_scope"] != "academic-job")
+    if operation_registry["format"] != "canisend.operation-registry/v4"
+        || operation_registry["agent_protocol"] != AGENT_V4_PROTOCOL
+        || operation_registry["workspace_format"] != WORKSPACE_V4_FORMAT
+        || operation_registry["compatibility_aliases_supported"] != false
     {
-        return Err(
-            "pre-v4 compatibility aliases must be deprecated and academic-pack scoped".to_owned(),
-        );
+        return Err("operation registry is not the clean Agent/Workspace v4 authority".to_owned());
     }
     fields.insert(
         "operation_registry".to_owned(),
         json!({
             "path": operation_registry_path,
-            "format": "canisend.operation-registry/v1",
-            "compatibility_alias_count": compatibility_aliases.len(),
-            "compatibility_pack_scope": if compatibility_aliases.is_empty() { "none" } else { "academic-job" },
+            "format": "canisend.operation-registry/v4",
+            "compatibility_alias_count": 0,
+            "compatibility_pack_scope": "none",
             "sha256": hex::encode(Sha256::digest(&operation_registry_bytes)),
         }),
     );
@@ -9574,7 +9566,7 @@ fn check_alpha_package_contract_identity_and_bindings(
     let expected_bindings = alpha_package_contract_bindings(root)?;
     if contract.get("contracts") != Some(&expected_bindings) {
         return Err(
-            "Alpha package contract does not bind the exact v3 protocols, built-in Packs, resources, operation registry, and migrations"
+            "Alpha package contract does not bind the exact v4 protocols, built-in Packs, resources, operation registry, and migrations"
                 .to_owned(),
         );
     }
@@ -10123,10 +10115,10 @@ fn check_support_policy() -> Result<(), String> {
     let support_heading = format!("# CanISend {release_line} Support Policy");
     for required in [
         support_heading.as_str(),
-        AGENT_PROTOCOL,
-        PUBLIC_SCHEMA_VERSION,
-        canisend_resources::RESOURCE_VERSION,
-        WORKSPACE_FORMAT,
+        AGENT_V4_PROTOCOL,
+        AGENT_V4_SCHEMA_VERSION,
+        canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
+        WORKSPACE_V4_FORMAT,
         "current-only-until-superseded",
         "current-minor-latest-patch",
         "restore into a new path",
@@ -10157,14 +10149,14 @@ fn build_support_policy(version: &Version) -> Result<Value, String> {
             "python_0_6_line": "archived-unsupported"
         },
         "contracts": {
-            "agent_protocol": AGENT_PROTOCOL,
-            "public_schema_version": PUBLIC_SCHEMA_VERSION,
-            "resource_format": canisend_resources::RESOURCE_VERSION,
+            "agent_protocol": AGENT_V4_PROTOCOL,
+            "public_schema_version": AGENT_V4_SCHEMA_VERSION,
+            "resource_format": canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
             "beta_freeze": "release/beta-contract-freeze.json",
             "breaking_agent_change": "new-protocol-and-schema-major"
         },
         "workspace": {
-            "format": WORKSPACE_FORMAT,
+            "format": WORKSPACE_V4_FORMAT,
             "current_database_schema_version": declared_database_schema_version()?,
             "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
             "migration_policy": "append-only",
@@ -16643,8 +16635,8 @@ mod tests {
         ];
         let guidance = [
             "does not require Python",
-            "canisend.workspace/v2",
-            "canisend.agent/v2",
+            "canisend.workspace/v4",
+            "canisend.agent/v4",
             "never submits an application",
             "SHA256SUMS",
             "GitHub build provenance",

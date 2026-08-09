@@ -1,9 +1,9 @@
 {
   "schema": "canisend.alpha-package-contract/v3",
-  "version": "1.0.0-alpha.6",
-  "tag": "v1.0.0-alpha.6",
+  "version": "1.0.0-alpha.7",
+  "tag": "v1.0.0-alpha.7",
   "contracts": {
-    "agent_protocol": "canisend.agent/v3",
+    "agent_protocol": "canisend.agent/v4",
     "migration_inventory": {
       "count": 20,
       "directory": "crates/canisend-store/migrations",
@@ -13,9 +13,9 @@
     "operation_registry": {
       "compatibility_alias_count": 0,
       "compatibility_pack_scope": "none",
-      "format": "canisend.operation-registry/v1",
-      "path": "crates/canisend-contracts/operation-registry-v1.json",
-      "sha256": "eb65a353add8440f0f6f0ae0315046416d00d3f1ada42efccdd3638da41aa5fb"
+      "format": "canisend.operation-registry/v4",
+      "path": "crates/canisend-resources/resources/operations/v4/registry.json",
+      "sha256": "8780fd4e28e9361b0beddd19b269d3f4627af88256e07b4b98952e2281269834"
     },
     "resource_manifest": {
       "entry_count": 87,
@@ -35,7 +35,7 @@
         "version": "1.0.0"
       }
     ],
-    "workspace_format": "canisend.workspace/v3"
+    "workspace_format": "canisend.workspace/v4"
   },
   "standalone_cli": {
     "build_profile": "release-alpha",
@@ -44,31 +44,31 @@
     "assets": [
       {
         "target": "aarch64-apple-darwin",
-        "file": "canisend-1.0.0-alpha.6-aarch64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-alpha.7-aarch64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-apple-darwin",
-        "file": "canisend-1.0.0-alpha.6-x86_64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-alpha.7-x86_64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-gnu",
-        "file": "canisend-1.0.0-alpha.6-x86_64-unknown-linux-gnu.tar.gz"
+        "file": "canisend-1.0.0-alpha.7-x86_64-unknown-linux-gnu.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-musl",
-        "file": "canisend-1.0.0-alpha.6-x86_64-unknown-linux-musl.tar.gz"
+        "file": "canisend-1.0.0-alpha.7-x86_64-unknown-linux-musl.tar.gz"
       },
       {
         "target": "x86_64-pc-windows-msvc",
-        "file": "canisend-1.0.0-alpha.6-x86_64-pc-windows-msvc.zip"
+        "file": "canisend-1.0.0-alpha.7-x86_64-pc-windows-msvc.zip"
       }
     ]
   },
   "desktop_macos": {
     "build_profile": "release-alpha",
     "target": "aarch64-apple-darwin",
-    "archive": "CanISend-1.0.0-alpha.6-aarch64-apple-darwin.zip",
-    "dmg": "CanISend-1.0.0-alpha.6-aarch64-apple-darwin.dmg",
+    "archive": "CanISend-1.0.0-alpha.7-aarch64-apple-darwin.zip",
+    "dmg": "CanISend-1.0.0-alpha.7-aarch64-apple-darwin.dmg",
     "archive_top_level": [
       "CanISend.app",
       "CanISend.app.manifest.json"

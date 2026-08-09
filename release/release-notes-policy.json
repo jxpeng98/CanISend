@@ -13,8 +13,8 @@
   ],
   "required_guidance": [
     "does not require Python",
-    "canisend.workspace/v2",
-    "canisend.agent/v2",
+    "canisend.workspace/v4",
+    "canisend.agent/v4",
     "never submits an application",
     "SHA256SUMS",
     "GitHub build provenance",
