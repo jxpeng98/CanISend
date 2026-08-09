@@ -1,214 +1,171 @@
-# Quick start: choose one exact Pack
+# Quick start: one Workspace, independently Pack-bound Applications
 
-This guide describes the post-`v1.0.0-alpha.5` source contract. A downloaded Alpha.5 binary may not
-contain every command below; verify its version and release notes first. The two paths use separate
-Workspaces because Pack identity is an authority boundary, not a preference.
+This guide describes the clean Workspace v4 and Agent v4 contract being prepared for
+`v1.0.0-alpha.7`. The latest public Alpha.6 remains the historical Workspace v3 checkpoint and
+does not contain this complete flow.
 
-## 1. Verify the binary
+CanISend is local-first. Keep every Workspace in a user-controlled private directory. It never
+logs in, uploads, or submits an Application; every successful export receipt keeps
+`submission_performed: false`.
+
+## 1. Verify the binary and initialize once
 
 ```console
 canisend version --json
 canisend doctor --json
+canisend --workspace ./my-applications workspace init --json
+canisend --workspace ./my-applications workspace status --json
 ```
 
-Keep every Workspace in a user-controlled private directory. Do not initialize one inside a public
-repository or a directory synchronized without appropriate encryption and access control.
+Initialization creates a neutral `canisend.workspace/v4` authority. It creates no Profile,
+private body, Application, or academic/generic mode. A Workspace may contain any number of
+Applications, but each Application owns one exact Pack ID, version, and content digest.
 
-## 2. Choose a path before initialization
+## 2. Create a generic Application
 
-Use the Generic Pack for grants, admissions, tenders, professional roles, and other evidence-bound
-Applications:
-
-```console
-canisend --workspace ./generic-applications workspace init \
-  --pack generic-application --json
-```
-
-This creates a Workspace v3 authority bound to
-`org.canisend.generic-application`. `--pack generic-application` is the default, but keeping it in
-scripts makes the decision auditable.
-
-Use the academic reference journey when you need the established job-source, Profile, matching,
-four-document, and workflow controls:
-
-```console
-canisend --workspace ./academic-applications workspace init \
-  --pack academic-job --json
-```
-
-This creates the academic Workspace v2 compatibility authority bound to
-`org.canisend.academic-job`. Generic v3 operations fail closed in it; Academic `job`, `profile`,
-`task`, and workflow mutations fail closed in a Generic Workspace.
-
-## 3A. Complete a Generic v3 Application
-
-The current generic CLI accepts a user-reviewed bounded JSON request. Direct URL, PDF, and local
-document normalization into that request is not yet implemented. Save the following as
-`create.json`:
+Save a reviewed, bounded candidate as `generic.json`:
 
 ```json
 {
-  "title": "Synthetic application",
-  "opportunity_metadata": {},
+  "title": "Community programme application",
+  "opportunity_metadata": {
+    "organization": { "type": "short-text", "value": "Example Foundation" }
+  },
   "application_metadata": {},
-  "source_text": "Narrative required.",
+  "source_text": "Applicants must provide a reviewed project narrative.",
   "requirements": [
     {
       "category": "format",
-      "statement": "Narrative required.",
+      "statement": "Applicants must provide a reviewed project narrative.",
       "priority": "mandatory",
       "start_byte": 0,
-      "end_byte": 19
+      "end_byte": 53
     }
   ]
 }
 ```
 
-Create the Application and copy its UUID and current revision from the JSON response:
+Create it with the exact built-in Pack:
 
 ```console
-canisend --workspace ./generic-applications application generic-create \
-  --candidate ./create.json --json
-canisend --workspace ./generic-applications application v3-list --json
-canisend --workspace ./generic-applications application v3-show \
-  --application APPLICATION_ID --json
+canisend --workspace ./my-applications application create \
+  --pack org.canisend.generic-application \
+  --candidate ./generic.json --json
 ```
 
-Review every Requirement against the source span. Save a Plan candidate as `plan.json`, replacing
-`expected_revision` with the current revision returned above:
+The Generic Pack supports professional roles, grants and fellowships, admissions, tenders and
+proposals, internal dossiers, and other evidence-bound submissions. Pack metadata and
+Deliverable kinds describe the domain; the kernel remains neutral.
+
+## 3. Create an academic Application in the same Workspace
+
+Save an academic candidate as `academic.json`:
 
 ```json
 {
-  "expected_revision": 1,
-  "decision": "proceed",
-  "deliverables": [
+  "title": "Research fellowship",
+  "opportunity_metadata": {
+    "institution": { "type": "short-text", "value": "Example University" }
+  },
+  "application_metadata": {},
+  "source_text": "Applicants must provide an academic CV.",
+  "requirements": [
     {
-      "kind": "primary-document",
-      "disposition": "required",
-      "rationale": "Required by the reviewed source",
-      "constraints": ["Use confirmed local evidence only"],
-      "execution_mode": "manual-import"
+      "category": "qualification",
+      "statement": "Applicants must provide an academic CV.",
+      "priority": "mandatory",
+      "start_byte": 0,
+      "end_byte": 39
     }
   ]
 }
 ```
 
 ```console
-canisend --workspace ./generic-applications application generic-plan \
-  --application APPLICATION_ID --candidate ./plan.json --json
+canisend --workspace ./my-applications application create \
+  --pack org.canisend.academic-job \
+  --candidate ./academic.json --json
+canisend --workspace ./my-applications application list --json
 ```
 
-Save reviewed material as `compose.json`, again using the revision returned by the preceding
-mutation:
+The list must contain both exact Pack identities. Creating, archiving, or changing either
+Application does not relabel or clear the other.
 
-```json
-{
-  "expected_revision": 2,
-  "deliverables": [
-    {
-      "kind": "primary-document",
-      "title": "Application narrative",
-      "media_type": "text/markdown",
-      "content": "# Application narrative\n\nReviewed content."
-    }
-  ]
-}
-```
+## 4. Add minimum shared data
+
+Import a reviewed Profile Source. Private-local files require explicit read consent:
 
 ```console
-canisend --workspace ./generic-applications application generic-compose \
-  --application APPLICATION_ID --candidate ./compose.json --json
-canisend --workspace ./generic-applications application v3-show \
+canisend --workspace ./my-applications profile-source import ./profile.md \
+  --sensitivity private-local --confirm-private-read --json
+canisend --workspace ./my-applications profile-source list --json
+```
+
+The list receipt is body-free. A Profile Source or Evidence record is not visible to an
+Application merely because it exists in the same Workspace. Use the Application-scoped
+association lists, then review and commit an exact association through one MCP session:
+
+```console
+canisend --workspace ./my-applications profile association list \
+  --application APPLICATION_ID --json
+canisend --workspace ./my-applications evidence association list \
   --application APPLICATION_ID --json
 ```
 
-Read the private Deliverable bodies and approve them only after human review. The CLI approval is
-revision-bound; an Agent v3/MCP approval additionally consumes a single-use review token:
+## 5. Install new Agent v4 host resources
+
+Codex and Claude Code use the same generated Skills and MCP operation registry:
 
 ```console
-canisend --workspace ./generic-applications application generic-approve \
-  --application APPLICATION_ID --expected-revision CURRENT_REVISION --json
-canisend --workspace ./generic-applications application generic-export \
-  --application APPLICATION_ID --expected-revision CURRENT_REVISION \
-  --destination applications/APPLICATION_ID/exports/first \
-  --allow-private-export --json
+canisend --workspace ./my-applications host setup --host codex --json
+canisend --workspace ./my-applications host status --host codex --json
+canisend --workspace ./my-applications host setup --host claude --json
+canisend --workspace ./my-applications host status --host claude --json
 ```
 
-Use the revision returned by `generic-approve` for export. The destination must be a safe relative
-path within the Workspace. A successful receipt always reports `submission_performed: false`.
+Setup installs only manifest-owned v4 Skills and returns deterministic MCP registration guidance.
+It does not silently edit the host's global configuration. See [Agent integration](agent-integration.md)
+for the exact registration snippets and tool sequence.
 
-Four complete fictional Pack examples are described in
-[Generic Application synthetic examples](../testing/generic-application-examples.md).
+## 6. Continue through one guarded MCP session
 
-## 3B. Complete the Academic reference intake
-
-Create a job and copy its ID:
+The standalone CLI provides initialization, recovery, host management, basic data, and body-free
+Application reads. Independent CLI processes do not exchange in-memory approval tokens. Keep one
+MCP stdio process alive for guarded mutations:
 
 ```console
-canisend --workspace ./academic-applications job create \
-  --title "Lecturer in Economics" --institution "University X" --json
+canisend --workspace ./my-applications mcp serve
 ```
 
-Import reviewed Markdown, UTF-8 text, or a text-based PDF:
+For each selected Application, the canonical flow is:
+
+```text
+orient -> propose -> preview -> approve -> commit -> verify
+```
+
+Use `requirement.extract`, `requirement.confirm`, `plan.propose`, `plan.confirm`,
+`deliverable.draft`, `deliverable.audit`, review, and export operations with the exact Workspace,
+Application, Pack, revision, snapshot digest, preview token, and required consent. A denied,
+expired, replayed, stale, or wrong-context token fails without mutation. The App may be closed;
+reopening it reads the same SQLite authority and receipts.
+
+## 7. Check, back up, and restore
 
 ```console
-canisend --workspace ./academic-applications job import JOB_ID \
-  --file ./job-advert.md --json
-canisend --workspace ./academic-applications job import JOB_ID \
-  --file ./person-specification.pdf --json
+canisend --workspace ./my-applications workspace check --json
+canisend --workspace ./my-applications workspace backup \
+  ./my-applications-backup --json
+canisend workspace restore ./my-applications-backup \
+  ./my-applications-restored --json
+canisend --workspace ./my-applications-restored workspace check --json
 ```
 
-A user-supplied public HTTP(S) URL is also supported. Fetches reject credentials, non-public
-destinations, unsafe redirects, misleading content types, and oversized responses:
+Backup and restore preserve both Application Pack bindings, immutable Blobs, explicit
+associations, audit history, and revisions. Restore always targets a new or empty directory.
 
-```console
-canisend --workspace ./academic-applications job import JOB_ID \
-  --url https://jobs.example.edu/vacancy/123 --json
-```
+## Unsupported legacy boundary
 
-Scanned or image-only PDFs are unsupported. Review output from a separately trusted OCR tool and
-import it as text; never treat unreviewed OCR as authoritative evidence.
-
-```console
-canisend --workspace ./academic-applications job show JOB_ID --json
-canisend --workspace ./academic-applications workflow start --job JOB_ID --json
-canisend --workspace ./academic-applications workflow status --job JOB_ID --json
-```
-
-Continue through criteria confirmation, Evidence, matching, the apply/hold/skip decision,
-materials, review, rendering, and local export. CanISend never performs portal submission.
-
-## 4. Existing Workspace v2: preview migration before mutation
-
-Do not run a Generic command against an existing Academic Workspace to “upgrade” it. First stop all
-writers, check it, and request the body-free migration plan:
-
-```console
-canisend --workspace ./academic-applications workspace check --json
-canisend --workspace ./academic-applications workspace migration-preview --json
-```
-
-Review the exact Pack binding, counts, required backup size, and `migration_plan_sha256`. Then use
-that digest and a new backup destination:
-
-```console
-canisend --workspace ./academic-applications workspace migrate \
-  --expected-plan-sha256 MIGRATION_PLAN_SHA256 \
-  --backup-destination ./backups/academic-before-v3 --json
-```
-
-Migration creates and verifies the backup before commit, rejects a stale plan, preserves legacy
-compatibility authority, and keeps `org.canisend.academic-job`. It does not turn academic records
-into `org.canisend.generic-application` records. To start a Generic journey, create a separate
-Generic Workspace.
-
-## 5. Finish every session safely
-
-```console
-canisend --workspace ./generic-applications workspace check --json
-canisend --workspace ./generic-applications workspace backup \
-  ./generic-applications-backup --json
-```
-
-Use a new or empty backup destination. See [Backup and recovery](backup-and-recovery.md) before
-moving, restoring, or repairing an important Workspace.
+Alpha.7 does not support Alpha.6-or-earlier Skills, Agent v2/v3 requests, job-specific aliases,
+host-resource layouts, or Workspace v2/v3 migration. Unsupported inputs fail before mutation and
+direct the user to initialize a clean Workspace v4. Historical tagged release documentation
+remains available for reproducing the corresponding public checkpoint.

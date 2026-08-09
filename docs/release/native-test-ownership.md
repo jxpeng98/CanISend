@@ -27,7 +27,7 @@ of the named native package gates.
 | Owner | Required evidence |
 |---|---|
 | Candidate source gate | format, full workspace Clippy, complete locked workspace tests, generated property contracts, release contracts, dependency policy |
-| Every CLI native job | locked target release build; exact archived-binary comparison; extracted version, doctor, quickstart, host-agent, isolated install/uninstall, and workspace-retention smoke |
+| Every CLI native job | locked target release build; exact archived-binary comparison; extracted version, doctor, quickstart, Agent v4 host-resource lifecycle, guarded dual-Pack MCP lifecycle, isolated install/uninstall, and workspace-retention smoke |
 | macOS CLI jobs | native architecture plus stage-required ad-hoc signing |
 | Intel macOS candidate job | standalone CLI for every stage; exact-commit GUI compilation evidence for Beta and later |
 | Scheduled Intel GUI workflow | weekly/manual Alpha development compile regression; never release evidence or a support claim |
@@ -39,7 +39,7 @@ of the named native package gates.
 | Svelte fast CI | locked dependencies, Svelte/TypeScript checks, focused unit tests, and production static-asset build |
 | Browser fast CI | pinned Chrome skip-link and primary-navigation traversal, focus restoration, automated accessibility, bilingual 200% reflow, and key active-state checks |
 | Linux/Windows core fast CI | locked core, Store, IO, CLI, and MCP contract tests on Ubuntu and Windows without packaging or release profiles |
-| macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and CLI/host-agent smoke |
+| macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and clean-v4 CLI/host/MCP smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |
 | Native release source and package gates | Linux full suite, dependency policy, GNU performance/synthetic budgets, Linux/Windows exact package smoke, and signing checks |
 | Scheduled workflows | Intel GUI compilation, Windows/Linux desktop package qualification, and bounded malformed-input fuzzing outside the edit loop |
@@ -62,9 +62,11 @@ Intel GUI compile keep the canonical `release` profile. The stage selector is em
 the tag has passed validation, and each release artifact records the selected profile.
 
 The extracted archive is compared byte-for-byte with the target binary before it is executed.
-`version`, `doctor`, the documented workflow, host-agent workflow, and isolated
-installation/uninstallation therefore run against the actual bytes intended for release rather
-than a development substitute.
+`version`, `doctor`, the documented workflow, Agent v4 host setup/status/remove and legacy
+refusal, guarded dual-Pack MCP lifecycle, and isolated installation/uninstallation therefore run
+against the actual bytes intended for release rather than a development substitute. The MCP
+lifecycle keeps one stdio server alive across preview and commit, so approval tokens are exercised
+through the packaged process boundary rather than replaced with in-process test authority.
 
 ## Timing evidence
 

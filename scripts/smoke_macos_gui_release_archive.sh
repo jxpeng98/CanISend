@@ -146,7 +146,6 @@ if [[ "$qualification" == true && "$tag" != "v$version" ]]; then
 fi
 
 "$host" doctor --json > "$smoke_root/doctor.json"
-"$host" agent capabilities --json > "$smoke_root/capabilities.json"
 jq -e '
   .ok == true
   and .data.python_required == false
@@ -156,9 +155,12 @@ jq -e '
 "$script_dir/smoke_documented_quickstart.sh" \
   "$host" \
   "$smoke_root/documented-workflow"
-"$script_dir/smoke_host_agent.sh" \
+"$script_dir/smoke_host_v4.sh" \
   "$host" \
-  "$smoke_root/host-agent-workflow"
+  "$smoke_root/host-v4-workflow"
+"$script_dir/smoke_agent_v4_mcp.sh" \
+  "$host" \
+  "$smoke_root/agent-v4-mcp-workflow"
 
 home="$smoke_root/home"
 mkdir -p "$home"
@@ -221,8 +223,9 @@ if [[ "$qualification" == true ]]; then
         outer_adhoc_signature: true,
         version_match: true,
         packaged_cli_doctor: true,
-        packaged_cli_synthetic_workflow: true,
-        packaged_host_agent_workflow: true,
+        packaged_dual_pack_quickstart: true,
+        packaged_agent_v4_host_resources: true,
+        packaged_agent_v4_mcp_lifecycle: true,
         packaged_gui_launch: true,
         no_publication: true
       },

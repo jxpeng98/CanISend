@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-      - rewrite/rust-native
-      - "feat/**"
-      - "fix/**"
   pull_request:
   workflow_dispatch:
 
@@ -133,12 +130,15 @@ jobs:
       - name: Test core, Store, IO, CLI, and MCP contracts
         run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
 
-      - name: Smoke Agent v4 MCP through the built CLI
+      - name: Smoke Agent v4 host resources and MCP through the built CLI
         shell: bash
-        run: >-
-          ./scripts/smoke_agent_v4_mcp.sh
-          "${{ matrix.binary }}"
-          "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v4-mcp-workflow"
+        run: |
+          ./scripts/smoke_host_v4.sh \
+            "${{ matrix.binary }}" \
+            "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/host-v4-workflow"
+          ./scripts/smoke_agent_v4_mcp.sh \
+            "${{ matrix.binary }}" \
+            "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v4-mcp-workflow"
 
   macos-quality:
     name: macos-quality
@@ -278,6 +278,9 @@ jobs:
           file ./target/debug/canisend-gui | grep -q arm64
           ./target/debug/canisend version --json
           ./target/debug/canisend doctor --json
+          ./scripts/smoke_host_v4.sh \
+            ./target/debug/canisend \
+            "$RUNNER_TEMP/canisend-host-v4-smoke"
           ./scripts/smoke_agent_v4_mcp.sh \
             ./target/debug/canisend \
             "$RUNNER_TEMP/canisend-agent-v4-mcp-smoke"
