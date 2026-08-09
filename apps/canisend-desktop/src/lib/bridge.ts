@@ -393,6 +393,16 @@ export interface ApplicationDeliverableReviseRequestV4 {
   content: string;
 }
 
+export interface ApplicationFlowApproveRequestV3 {
+  expected_revision: number;
+}
+
+export interface ApplicationFlowExportRequestV3 {
+  application_id: string;
+  expected_revision: number;
+  destination: string;
+}
+
 export interface ApplicationMutationPreviewV4<T> {
   context: ApplicationResourceContextV4;
   request: T;
@@ -418,6 +428,14 @@ export interface ApplicationMutationCommitOptionsV4 {
 
 export interface RequirementExtractionCommitOptionsV4 extends ApplicationMutationCommitOptionsV4 {
   confirmedPrivateRead: boolean;
+}
+
+export interface ReviewDispositionCommitOptionsV4 extends ApplicationMutationCommitOptionsV4 {
+  confirmedPrivateRead: boolean;
+}
+
+export interface ExportPrepareCommitOptionsV4 extends ApplicationMutationCommitOptionsV4 {
+  confirmedPrivateExport: boolean;
 }
 
 export interface ApplicationFlowReadModelV3 {
@@ -448,19 +466,45 @@ export interface ApplicationFlowReviewReadModelV3 {
 
 export interface ApplicationFlowExportReadModelV3 {
   render: {
+    format: string;
     application_id: string;
     application_revision: number;
+    snapshot_sha256: string;
+    pack: WorkflowPackBinding;
     destination: string;
     documents: Array<{
       deliverable_id: string;
+      deliverable_revision: number;
+      kind: string;
+      source_sha256: string;
+      pdf_sha256: string;
       relative_path: string;
       page_count: number;
       byte_count: number;
       warning_count: number;
+      elapsed_millis: number;
     }>;
+    exported_at: string;
     submission_performed: false;
   };
   stages: ApplicationFlowStageV3[];
+}
+
+export interface ExportListReadModelV4 {
+  context: ApplicationResourceContextV4;
+  exports: Array<{
+    destination: string;
+    application_revision: number;
+    snapshot_sha256: string;
+    document_count: number;
+    exported_at: string;
+    submission_performed: false;
+  }>;
+}
+
+export interface ExportShowReadModelV4 {
+  context: ApplicationResourceContextV4;
+  manifest: ApplicationFlowExportReadModelV3["render"];
 }
 
 export interface WorkspaceCheckIssue {
@@ -2008,6 +2052,101 @@ export async function auditDeliverablesV4(
       workspace,
       application_id: applicationId,
       confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function inspectReviewV4(
+  workspace: string,
+  applicationId: string,
+  confirmedPrivateRead: boolean,
+): Promise<ActionReceipt<ApplicationFlowReviewReadModelV3>> {
+  return invoke("review_inspect", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function previewReviewDispositionV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationFlowApproveRequestV3,
+  confirmedPrivateRead: boolean,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationFlowApproveRequestV3>> {
+  return invoke("review_disposition_preview", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      mutation,
+      confirmed_private_read: confirmedPrivateRead,
+    },
+  });
+}
+
+export async function commitReviewDispositionV4(
+  options: ReviewDispositionCommitOptionsV4,
+): Promise<ActionReceipt<StoredApplicationModelV3>> {
+  return invoke("review_disposition_commit", {
+    request: {
+      workspace: options.workspace,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
+      confirmed_private_read: options.confirmedPrivateRead,
+    },
+  });
+}
+
+export async function listExportsV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<ExportListReadModelV4>> {
+  return invoke("export_list", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function showExportV4(
+  workspace: string,
+  applicationId: string,
+  destination: string,
+): Promise<ActionReceipt<ExportShowReadModelV4>> {
+  return invoke("export_show", {
+    request: { workspace, application_id: applicationId, destination },
+  });
+}
+
+export async function previewExportPrepareV4(
+  workspace: string,
+  applicationId: string,
+  mutation: ApplicationFlowExportRequestV3,
+  confirmedPrivateExport: boolean,
+): Promise<ApplicationMutationApprovalPreviewV4<ApplicationFlowExportRequestV3>> {
+  return invoke("export_prepare_preview", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      mutation,
+      confirmed_private_export: confirmedPrivateExport,
+    },
+  });
+}
+
+export async function commitExportPrepareV4(
+  options: ExportPrepareCommitOptionsV4,
+): Promise<ActionReceipt<ApplicationFlowExportReadModelV3>> {
+  return invoke("export_prepare_commit", {
+    request: {
+      workspace: options.workspace,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
+      confirmed_private_export: options.confirmedPrivateExport,
     },
   });
 }

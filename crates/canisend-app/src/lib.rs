@@ -82,7 +82,8 @@ pub use application_mutations_v4::{
 };
 pub use application_resources_v4::{
     ApplicationResourceContextV4, DeliverableListReadModelV4, DeliverableShowReadModelV4,
-    PlanShowReadModelV4, RequirementListReadModelV4, RequirementShowReadModelV4,
+    ExportListReadModelV4, ExportShowReadModelV4, ExportSummaryReadModelV4, PlanShowReadModelV4,
+    RequirementListReadModelV4, RequirementShowReadModelV4,
 };
 pub use application_v3::{
     ApplicationArchiveRequest, ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,

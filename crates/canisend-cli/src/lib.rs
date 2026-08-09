@@ -132,6 +132,16 @@ enum Command {
         #[command(subcommand)]
         command: DeliverableCommand,
     },
+    /// Inspect exact current private Deliverables for evidence-bound review.
+    Review {
+        #[command(subcommand)]
+        command: ReviewCommand,
+    },
+    /// Inspect verified local exports for one exact Application.
+    Export {
+        #[command(subcommand)]
+        command: ExportCommand,
+    },
     /// Install and inspect clean Agent v4 host resources for this Workspace.
     Host {
         #[command(subcommand)]
@@ -241,6 +251,20 @@ enum DeliverableCommand {
     Show(DeliverableIdArgs),
 }
 
+#[derive(Debug, Subcommand)]
+enum ReviewCommand {
+    /// Inspect exact current Deliverable bodies after explicit private-read consent.
+    Inspect(PrivateApplicationIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ExportCommand {
+    /// List verified local exports for one exact Application.
+    List(ApplicationIdArgs),
+    /// Show and verify one exact local export manifest and its document digests.
+    Show(ExportShowArgs),
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ProfileSourceSensitivityArgument {
     Public,
@@ -346,6 +370,28 @@ struct DeliverableIdArgs {
     application: String,
     #[arg(long)]
     deliverable: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct PrivateApplicationIdArgs {
+    #[arg(long)]
+    application: String,
+    /// Confirm that CanISend may read current private Deliverable bodies.
+    #[arg(long)]
+    confirm_private_read: bool,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct ExportShowArgs {
+    #[arg(long)]
+    application: String,
+    /// Exact Workspace-relative export directory.
+    #[arg(long)]
+    destination: String,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -466,6 +512,13 @@ impl Cli {
             Command::Deliverable { command } => match command {
                 DeliverableCommand::List(arguments) => arguments.output.json,
                 DeliverableCommand::Show(arguments) => arguments.output.json,
+            },
+            Command::Review {
+                command: ReviewCommand::Inspect(arguments),
+            } => arguments.output.json,
+            Command::Export { command } => match command {
+                ExportCommand::List(arguments) => arguments.output.json,
+                ExportCommand::Show(arguments) => arguments.output.json,
             },
             Command::Host { command } => match command {
                 HostCommand::Setup(arguments) | HostCommand::Status(arguments) => {
@@ -781,6 +834,15 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Deliverable {
             command: DeliverableCommand::Show(arguments),
         } => deliverable_show(workspace, &arguments.application, &arguments.deliverable),
+        Command::Review {
+            command: ReviewCommand::Inspect(arguments),
+        } => review_inspect(workspace, arguments),
+        Command::Export {
+            command: ExportCommand::List(arguments),
+        } => export_list(workspace, &arguments.application),
+        Command::Export {
+            command: ExportCommand::Show(arguments),
+        } => export_show(workspace, arguments),
         Command::Host {
             command: HostCommand::Setup(arguments),
         } => host_setup(workspace, arguments),
@@ -1485,6 +1547,82 @@ fn deliverable_show(
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
             "Content body remains behind the private-read boundary".to_owned(),
+        ],
+    )
+}
+
+fn review_inspect(
+    workspace_path: Option<PathBuf>,
+    arguments: PrivateApplicationIdArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "review.inspect";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let application_id = canisend_contracts::ApplicationId::try_new(arguments.application)
+        .map_err(|error| {
+            app_adapter::failure(
+                operation,
+                ApplicationError::InvalidEntityId(error.to_string()),
+            )
+        })?;
+    let receipt = Application::inspect_review_v4(
+        &root,
+        &application_id,
+        arguments
+            .confirm_private_read
+            .then(PrivateReadConsent::granted_by_user),
+    )
+    .map_err(|error| app_adapter::failure(operation, error))?;
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Application: {application_id}"),
+            format!("Deliverables reviewed: {}", receipt.data.deliverables.len()),
+            "Submission performed: no".to_owned(),
+        ],
+    )
+}
+
+fn export_list(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "export.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::list_exports_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Verified local exports: {}", receipt.data.exports.len()),
+        ],
+    )
+}
+
+fn export_show(
+    workspace_path: Option<PathBuf>,
+    arguments: ExportShowArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "export.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt =
+        Application::show_export_v4(&root, &arguments.application, &arguments.destination)
+            .map_err(|error| app_adapter::failure(operation, error))?;
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Destination: {}", receipt.data.manifest.destination),
+            format!(
+                "Verified documents: {}",
+                receipt.data.manifest.documents.len()
+            ),
+            "Submission performed: no".to_owned(),
         ],
     )
 }

@@ -72,7 +72,7 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 29] = [
+pub const CANISEND_MCP_TOOLS: [&str; 36] = [
     "canisend_application_list",
     "canisend_application_show",
     "canisend_deliverable_audit",
@@ -85,6 +85,10 @@ pub const CANISEND_MCP_TOOLS: [&str; 29] = [
     "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_export_list",
+    "canisend_export_prepare_commit",
+    "canisend_export_prepare_preview",
+    "canisend_export_show",
     "canisend_plan_confirm_commit",
     "canisend_plan_confirm_preview",
     "canisend_plan_propose_commit",
@@ -100,11 +104,14 @@ pub const CANISEND_MCP_TOOLS: [&str; 29] = [
     "canisend_requirement_extract_preview",
     "canisend_requirement_list",
     "canisend_requirement_show",
+    "canisend_review_disposition_commit",
+    "canisend_review_disposition_preview",
+    "canisend_review_inspect",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 21] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 26] = [
     "canisend_application_list",
     "canisend_application_show",
     "canisend_deliverable_audit",
@@ -114,6 +121,9 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 21] = [
     "canisend_deliverable_show",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_export_list",
+    "canisend_export_prepare_preview",
+    "canisend_export_show",
     "canisend_plan_confirm_preview",
     "canisend_plan_propose_preview",
     "canisend_plan_show",
@@ -124,19 +134,23 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 21] = [
     "canisend_requirement_extract_preview",
     "canisend_requirement_list",
     "canisend_requirement_show",
+    "canisend_review_disposition_preview",
+    "canisend_review_inspect",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 8] = [
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 10] = [
     "canisend_deliverable_draft_commit",
     "canisend_deliverable_revise_commit",
     "canisend_evidence_association_commit",
+    "canisend_export_prepare_commit",
     "canisend_plan_confirm_commit",
     "canisend_plan_propose_commit",
     "canisend_profile_association_commit",
     "canisend_requirement_confirm_commit",
     "canisend_requirement_extract_commit",
+    "canisend_review_disposition_commit",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -805,8 +819,8 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(codex.tools.len(), 29);
-        assert_eq!(codex.guarded_write_tools.len(), 8);
+        assert_eq!(codex.tools.len(), 36);
+        assert_eq!(codex.guarded_write_tools.len(), 10);
         assert!(
             CANISEND_MCP_V2_TOOLS
                 .into_iter()

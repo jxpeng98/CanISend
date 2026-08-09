@@ -12,8 +12,9 @@ from `main` is post-tag source, not a published Alpha.7. A local design preview 
 and must not be distributed as a qualified release. Workspace v3 remains an Alpha.6 historical
 contract; the App does not silently upgrade it through clean Workspace v4 setup.
 
-The clean-v4 public CLI has 28 exact leaves. Its MCP adapter currently exposes 29 operations:
-21 body-free read/preview operations and eight single-use guarded commits. Source-level parity does
+The clean-v4 public CLI has 31 exact leaves. Its MCP adapter currently exposes 36 operations:
+26 read/preview operations and ten single-use guarded commits, including canonical review and
+local-only export. Source-level parity does
 not qualify changed bytes: Alpha.7 still requires packaged native, accessibility, lifecycle, and
 public-byte evidence.
 

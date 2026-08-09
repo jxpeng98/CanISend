@@ -8370,6 +8370,8 @@ fn validate_semantic_parity_policy(
         "plan.confirm.commit".to_owned(),
         "deliverable.draft.commit".to_owned(),
         "deliverable.revise.commit".to_owned(),
+        "review.disposition.commit".to_owned(),
+        "export.prepare.commit".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
     ]);
     let mut revision_bound = BTreeSet::new();
@@ -8405,6 +8407,8 @@ fn validate_semantic_parity_policy(
         "plan-confirm".to_owned(),
         "deliverable-draft".to_owned(),
         "deliverable-revise".to_owned(),
+        "review-disposition".to_owned(),
+        "export-prepare".to_owned(),
     ]);
     let mut preview_pairs = BTreeSet::new();
     let mut pair_operations = BTreeSet::new();

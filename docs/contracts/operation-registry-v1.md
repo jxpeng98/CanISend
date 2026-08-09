@@ -52,9 +52,9 @@ The built-in registry currently owns:
 
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
-| CLI | Compiled Clap command tree | 28 |
-| Tauri | `tauri::generate_handler!` | 122 |
-| MCP | `#[tool_router]` `canisend_*` methods | 29 |
+| CLI | Compiled Clap command tree | 31 |
+| Tauri | `tauri::generate_handler!` | 129 |
+| MCP | `#[tool_router]` `canisend_*` methods | 36 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
 `adapter-only` ID. Overrides may target only a declared canonical operation. The Alpha.7 registry

@@ -41,21 +41,22 @@ The current source contract covers:
 | Dimension | Required inventory |
 |---|---:|
 | Built-in Pack/surface cases | 6 |
-| Shared operations | 31 |
-| Revision-bound operations | 11 |
-| Preview/commit families | 12 |
+| Shared operations | 38 |
+| Revision-bound operations | 14 |
+| Preview/commit families | 14 |
 | Read families | 4 |
-| Qualified adapter bindings | 84 |
+| Qualified adapter bindings | 101 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
 `academic-job` with CLI, Tauri, and MCP. The clean CLI qualifies Workspace recovery and neutral
-Application create/list/show for both Packs; MCP qualifies the same Pack-neutral reads. Tauri
-fixtures run the full create, resume, guarded Requirement/Plan/Deliverable, review, approve, and
-export lifecycle and
+Application create/list/show plus canonical review/export reads for both Packs; MCP qualifies the
+same Pack-neutral reads and guarded review/export lifecycle. Tauri fixtures run the full create,
+resume, guarded Requirement/Plan/Deliverable, review, approve, and export lifecycle and
 still exercise the bounded academic compatibility families. Cross-linked fixtures prove the Pack
 boundary without treating retired CLI mutations as supported operations.
 
-The twelve preview/commit families include Application review, v4 desktop Application intake,
+The fourteen preview/commit families include Application review, canonical review disposition and
+local export preparation, v4 desktop Application intake,
 desktop discovery and workflow rerun, Profile/Evidence association, Requirement confirmation,
 Source-bound Requirement extraction, Plan proposal/confirmation, and Deliverable draft/revision.
 They share the app-owned approval
