@@ -4,15 +4,22 @@
 
 Use the toolchain pinned in `rust-toolchain.toml`. The active product does not use Python development tooling.
 
-## Required checks
+## Minimum sufficient checks
 
-```text
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace
-cargo run -p xtask -- release check
-cargo build --release --locked
-```
+Choose the smallest row that owns the change. Do not run every row for every edit.
+
+| Change | Local check before commit | Higher owner |
+|---|---|---|
+| Prose or historical note only | `git diff --check` | Documentation/source gate when the file is active release truth |
+| Rust leaf behavior | affected test or test filter, `cargo fmt --all -- --check`, affected-package Clippy | Fast CI runs the workspace suite |
+| Shared contract, schema, resource, CI, or release metadata | smallest affected test plus `cargo run -p xtask --locked -- release check` once on the final PR head | Fast CI |
+| Desktop behavior | affected pnpm test/check plus production build only when bundling changed | Fast CI accessibility and macOS lanes |
+| Package/runtime behavior | exact affected package smoke | Native candidate workflow |
+| Release candidate | no ad hoc local matrix | Build-once native and public-verification workflows |
+
+One invariant has one primary test owner. Other adapters receive a wiring/parity smoke, not copies of
+the same business-rule test. A trust-boundary, consent, data-loss, recovery, or release-integrity
+change keeps one positive and one negative regression at the lowest owning layer.
 
 ## Architecture
 
