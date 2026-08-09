@@ -226,6 +226,48 @@ impl CanISendMcpServer {
     fn canisend_profile_source_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
         Self::application_result(Application::list_profile_sources_v4(self.workspace()))
     }
+
+    #[tool(
+        description = "List body-free Workspace Profile Sources and explicit links for one Application",
+        annotations(
+            title = "List Application Profile Source links",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_profile_association_list(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        Self::application_result(Application::list_profile_associations_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "List body-free confirmed Workspace Evidence and explicit links for one Application",
+        annotations(
+            title = "List Application Evidence links",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_evidence_association_list(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::validate_application_id(&parameters.application_id)?;
+        Self::application_result(Application::list_evidence_associations_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
 }
 
 #[tool_handler(

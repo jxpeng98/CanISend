@@ -28,10 +28,10 @@
     {"id": "opportunity.intake.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "profile-source.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "profile-source.import", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "profile.association.list", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "profile.association.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "profile.association.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "profile.association.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "evidence.association.list", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "evidence.association.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "evidence.association.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "evidence.association.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "agent-v3.task.show", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
@@ -63,6 +63,7 @@
         "workspace init", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair",
         "application list", "application show", "application archive", "application create",
         "profile-source list", "profile-source import",
+        "profile association list", "evidence association list",
         "host setup", "host status", "host remove"
       ],
       "bindings": [
@@ -73,7 +74,9 @@
         {"leaf": "application archive", "operation": "application.archive", "pack_scope": "any"},
         {"leaf": "application create", "operation": "application.create", "pack_scope": "any"},
         {"leaf": "profile-source list", "operation": "profile-source.list", "pack_scope": "any"},
-        {"leaf": "profile-source import", "operation": "profile-source.import", "pack_scope": "any"}
+        {"leaf": "profile-source import", "operation": "profile-source.import", "pack_scope": "any"},
+        {"leaf": "profile association list", "operation": "profile.association.list", "pack_scope": "any"},
+        {"leaf": "evidence association list", "operation": "evidence.association.list", "pack_scope": "any"}
       ]
     },
     {
@@ -122,14 +125,16 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
-        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_profile_source_list"
+        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_profile_source_list", "canisend_profile_association_list", "canisend_evidence_association_list"
       ],
       "bindings": [
         {"leaf": "canisend_workspace_status", "operation": "workspace.status", "pack_scope": "any"},
         {"leaf": "canisend_workspace_check", "operation": "workspace.check", "pack_scope": "any"},
         {"leaf": "canisend_application_list", "operation": "application.list", "pack_scope": "any"},
         {"leaf": "canisend_application_show", "operation": "application.show", "pack_scope": "any"},
-        {"leaf": "canisend_profile_source_list", "operation": "profile-source.list", "pack_scope": "any"}
+        {"leaf": "canisend_profile_source_list", "operation": "profile-source.list", "pack_scope": "any"},
+        {"leaf": "canisend_profile_association_list", "operation": "profile.association.list", "pack_scope": "any"},
+        {"leaf": "canisend_evidence_association_list", "operation": "evidence.association.list", "pack_scope": "any"}
       ]
     }
   ]

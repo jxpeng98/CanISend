@@ -106,6 +106,16 @@ enum Command {
         #[command(subcommand)]
         command: ProfileSourceCommand,
     },
+    /// Inspect Application-scoped Profile Source links.
+    Profile {
+        #[command(subcommand)]
+        command: ProfileCommand,
+    },
+    /// Inspect Application-scoped confirmed Evidence links.
+    Evidence {
+        #[command(subcommand)]
+        command: EvidenceCommand,
+    },
     /// Install and inspect clean Agent v4 host resources for this Workspace.
     Host {
         #[command(subcommand)]
@@ -167,6 +177,30 @@ enum ProfileSourceCommand {
     List(OutputArgs),
     /// Import one reviewed Markdown, plain-text, or JSON file into Workspace v4 authority.
     Import(ProfileSourceImportArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileCommand {
+    /// Inspect exact Profile Source links for one Application.
+    Association {
+        #[command(subcommand)]
+        command: AssociationCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum EvidenceCommand {
+    /// Inspect exact confirmed Evidence links for one Application.
+    Association {
+        #[command(subcommand)]
+        command: AssociationCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AssociationCommand {
+    /// List body-free Workspace candidates and explicit links for one Application.
+    List(ApplicationIdArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -356,6 +390,14 @@ impl Cli {
                 ProfileSourceCommand::List(output) => output.json,
                 ProfileSourceCommand::Import(arguments) => arguments.output.json,
             },
+            Command::Profile {
+                command: ProfileCommand::Association { command },
+            }
+            | Command::Evidence {
+                command: EvidenceCommand::Association { command },
+            } => match command {
+                AssociationCommand::List(arguments) => arguments.output.json,
+            },
             Command::Host { command } => match command {
                 HostCommand::Setup(arguments) | HostCommand::Status(arguments) => {
                     arguments.output.json
@@ -450,7 +492,6 @@ const LEGACY_TOP_LEVEL_COMMANDS: &[&str] = &[
     "agent",
     "job",
     "content",
-    "profile",
     "discovery",
     "task",
     "criteria",
@@ -485,6 +526,13 @@ fn unsupported_legacy_surface(arguments: impl IntoIterator<Item = OsString>) -> 
     let top_level = command_path.first()?;
     if LEGACY_TOP_LEVEL_COMMANDS.contains(&top_level.as_str()) {
         return Some(top_level.clone());
+    }
+    if top_level == "profile"
+        && command_path
+            .get(1)
+            .is_some_and(|command| command != "association")
+    {
+        return Some(command_path.join(" "));
     }
     if top_level == "application"
         && command_path
@@ -592,6 +640,18 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::ProfileSource {
             command: ProfileSourceCommand::Import(arguments),
         } => profile_source_import(workspace, arguments),
+        Command::Profile {
+            command:
+                ProfileCommand::Association {
+                    command: AssociationCommand::List(arguments),
+                },
+        } => profile_association_list(workspace, &arguments.application),
+        Command::Evidence {
+            command:
+                EvidenceCommand::Association {
+                    command: AssociationCommand::List(arguments),
+                },
+        } => evidence_association_list(workspace, &arguments.application),
         Command::Host {
             command: HostCommand::Setup(arguments),
         } => host_setup(workspace, arguments),
@@ -1148,6 +1208,48 @@ fn profile_source_import(
     )
 }
 
+fn profile_association_list(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "profile.association.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let model = Application::list_profile_associations_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "available",
+        &model,
+        vec![
+            format!("Application: {}", model.application_id),
+            format!("Workspace Profile Sources: {}", model.profile_sources.len()),
+            format!("Explicit links: {}", model.associations.len()),
+        ],
+    )
+}
+
+fn evidence_association_list(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "evidence.association.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let model = Application::list_evidence_associations_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    success(
+        operation,
+        "available",
+        &model,
+        vec![
+            format!("Application: {}", model.application_id),
+            format!("Confirmed Workspace Evidence: {}", model.evidence.len()),
+            format!("Explicit links: {}", model.associations.len()),
+        ],
+    )
+}
+
 fn read_application_candidate<T>(operation: &'static str, path: &Path) -> CommandResult<T>
 where
     T: serde::de::DeserializeOwned,
@@ -1338,9 +1440,9 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        ApplicationCommand, Cli, Command, CommandFailure, ExitClass, HostCommand,
-        ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
-        public_clap_leaf_paths, unsupported_legacy_surface,
+        ApplicationCommand, AssociationCommand, Cli, Command, CommandFailure, EvidenceCommand,
+        ExitClass, HostCommand, ProfileCommand, ProfileSourceCommand, WorkspaceCommand,
+        clap_leaf_paths, human_failure_lines, public_clap_leaf_paths, unsupported_legacy_surface,
     };
 
     #[test]
@@ -1363,7 +1465,7 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 21);
+        assert_eq!(actual.len(), 23);
     }
 
     #[test]
@@ -1413,6 +1515,42 @@ mod tests {
             profile_sources.command,
             Command::ProfileSource {
                 command: ProfileSourceCommand::List(_)
+            }
+        ));
+
+        let profile_links = Cli::try_parse_from([
+            "canisend",
+            "profile",
+            "association",
+            "list",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+        ])
+        .expect("canonical Profile association list");
+        assert!(matches!(
+            profile_links.command,
+            Command::Profile {
+                command: ProfileCommand::Association {
+                    command: AssociationCommand::List(_)
+                }
+            }
+        ));
+
+        let evidence_links = Cli::try_parse_from([
+            "canisend",
+            "evidence",
+            "association",
+            "list",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+        ])
+        .expect("canonical Evidence association list");
+        assert!(matches!(
+            evidence_links.command,
+            Command::Evidence {
+                command: EvidenceCommand::Association {
+                    command: AssociationCommand::List(_)
+                }
             }
         ));
 

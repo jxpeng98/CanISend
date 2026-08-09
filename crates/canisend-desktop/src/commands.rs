@@ -950,7 +950,7 @@ mod tests {
         for host in &created.hosts {
             assert!(host.skills.manifest_path.is_file());
             assert!(!host.skills.files.is_empty());
-            assert_eq!(host.mcp.tools.len(), 5);
+            assert_eq!(host.mcp.tools.len(), 7);
             assert_eq!(host.mcp.read_only_tools, host.mcp.tools);
             assert!(host.mcp.guarded_write_tools.is_empty());
             assert_eq!(
