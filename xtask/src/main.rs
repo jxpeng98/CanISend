@@ -7788,8 +7788,7 @@ fn check_approval_broker() -> Result<(), String> {
         &mcp,
         &desktop_state,
         &desktop_host,
-        &application_association,
-        &desktop_association,
+        [&application_association, &desktop_association],
         [
             &desktop_job,
             &desktop_discovery,
@@ -7809,11 +7808,11 @@ fn validate_approval_broker_sources(
     mcp: &str,
     desktop_state: &str,
     desktop_host: &str,
-    application_association: &str,
-    desktop_association: &str,
+    association_sources: [&str; 2],
     desktop_families: [&str; 4],
     bridge: &str,
 ) -> Result<(), String> {
+    let [application_association, desktop_association] = association_sources;
     for required in [
         "pub const APPROVAL_DEFAULT_CAPACITY: usize = 16",
         "Duration::from_secs(10 * 60)",
@@ -19030,8 +19029,7 @@ mod tests {
             &mcp,
             &desktop_state,
             &desktop_host,
-            &application_association,
-            &desktop_association,
+            [&application_association, &desktop_association],
             [&job, &discovery, &workflow, &application],
             &bridge,
         )
@@ -19044,8 +19042,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
-                &application_association,
-                &desktop_association,
+                [&application_association, &desktop_association],
                 [&job, &discovery, &workflow, &application],
                 &bridge,
             )
@@ -19060,8 +19057,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
-                &application_association,
-                &desktop_association,
+                [&application_association, &desktop_association],
                 [&job, &discovery, &workflow, &application],
                 &bridge,
             )
