@@ -70,6 +70,28 @@ snapshot was revision 4 with SHA-256
 - Claude Desktop and Claude Code use separate MCP configuration locations. The same generated
   stdio entry worked for both; the Desktop user-global merge preserved its unrelated server entry.
 
+## Consolidated failure matrix
+
+The exact standalone CLI also passed `scripts/smoke_agent_v4_mcp.sh` as a separate, conforming
+JSON-RPC client against a fresh synthetic dual-Pack Workspace. The matrix used the App-absent stdio
+surface and ended with generic revision 6, academic revision 6, and a passing Workspace integrity
+check.
+
+| Boundary | Exact-candidate outcome |
+|---|---|
+| Missing runtime | Claude Code loaded an isolated MCP entry whose CanISend executable did not exist and rejected it with `ENOENT` in 6 ms; the dogfood Workspace remained at generic/academic revision 4. |
+| Missing authentication | An isolated Claude Code configuration reported `loggedIn: false`; its exact CanISend MCP connected, but the host stopped before any tool call with `Not logged in`, zero model tokens, and zero cost. |
+| Malformed output | MCP deserialization rejected an invalid Requirement decision, and the packaged smoke rejected a cross-Pack Deliverable kind before preview or mutation. |
+| Invented ID | `canisend_deliverable_show` rejected a synthetic Deliverable ID with JSON-RPC `-32602`, `input.invalid`, and no other-Application data. |
+| Wrong context | A generic Plan preview token could not commit against the academic Application; a fresh correctly bound preview was required. |
+| Stale revision | Codex received `workspace.conflict` for expected revision 3 after authority reached revision 4, reoriented, and did not mutate. |
+| Denied consent | Both Pack audits failed with `confirmed_private_read: false`; the responses contained no private marker. Fresh approved audits succeeded. |
+| Host restart | Codex, Claude Code, and Claude Desktop rejected tokens minted by the prior MCP process; each successful continuation used a fresh preview. |
+
+The packaged smoke additionally rejected preview replay, duplicate commit, and Pack-invalid output.
+Its final snapshots retained the correct Pack identity and Deliverable counts, and its isolation
+assertions proved that reads did not cross the generic/academic Application boundary.
+
 No failure required the CanISend App to run. No source body, Deliverable body, transcript,
 credential, provider token, or approval token is retained here. Every successful mutation used an
 explicit fresh preview approval through the MCP process. No direct internal write, provider send,
@@ -80,5 +102,4 @@ upload, or submission occurred.
 This record proves the frozen local draft candidate only. The evidence-only commits containing this
 note change repository identity and do not retroactively qualify new bytes. Five-target native
 qualification, promotion of the same build-once artifacts, public download, and public-byte
-reverification remain mandatory for `M3-ALPHA7-001`. The separate schema-conforming client and
-complete failure matrix remain tracked by `M3-AGENT-003`; invited-user evidence remains post-release.
+reverification remain mandatory for `M3-ALPHA7-001`. Invited-user evidence remains post-release.
