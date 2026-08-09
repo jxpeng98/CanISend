@@ -19193,8 +19193,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 31);
-        assert_eq!(current.preview_pairs, 12);
+        assert_eq!(current.shared_operations, 38);
+        assert_eq!(current.preview_pairs, 14);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();
