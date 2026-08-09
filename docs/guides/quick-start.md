@@ -124,8 +124,10 @@ canisend --workspace ./my-applications host status --host claude --json
 ```
 
 Setup installs only manifest-owned v4 Skills and returns deterministic MCP registration guidance.
-It does not silently edit the host's global configuration. See [Agent integration](agent-integration.md)
-for the exact registration snippets and tool sequence.
+It does not silently edit the host's global configuration. Claude Desktop chat can use the same
+Claude stdio entry through its separate user-level config, without treating Desktop as a Skills
+installation target. See [Agent integration](agent-integration.md) for the exact registration
+snippets and tool sequence.
 
 ## 6. Continue through one guarded MCP session
 

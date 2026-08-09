@@ -1,8 +1,9 @@
 # Agent integration
 
 CanISend owns validation, Pack identity, revisions, consent, storage, review, rendering, recovery,
-and audit state. Codex, Claude Code, or another Agent host owns conversation and bounded semantic
-reasoning. A host must never edit `.canisend`, SQLite, immutable Blobs, or managed projections.
+and audit state. Codex, Claude Code, Claude Desktop, or another Agent host owns conversation and
+bounded semantic reasoning. A host must never edit `.canisend`, SQLite, immutable Blobs, or managed
+projections.
 
 ## Clean v4 boundary
 
@@ -98,6 +99,13 @@ Claude Code project configuration:
   }
 }
 ```
+
+Claude Desktop chat uses the same `mcpServers.canisend` JSON entry, but reads it from the
+user-level `claude_desktop_config.json` rather than the project's `.mcp.json`. Merge only that
+entry through **Settings > Developer > Edit Config**, then choose **Developer > Reload MCP
+Configuration**. CanISend does not rewrite this user-global file or unrelated Desktop servers.
+Claude Desktop is an MCP client; the project-local `.claude/skills` resources remain the Claude
+Code workflow surface.
 
 List tools at the start of every session. The current clean-v4 MCP adapter exposes these body-free
 read operations:
