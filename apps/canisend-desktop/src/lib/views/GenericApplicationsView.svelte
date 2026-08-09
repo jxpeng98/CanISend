@@ -226,8 +226,9 @@
   });
 
   $effect(() => {
-    if (!requirementCategory && presentation?.requirement_categories[0]) {
-      requirementCategory = presentation.requirement_categories[0].id;
+    const categories = presentation?.requirement_categories ?? [];
+    if (!categories.some((category) => category.id === requirementCategory)) {
+      requirementCategory = categories[0]?.id ?? "";
     }
     for (const deliverable of presentation?.deliverables ?? []) {
       if (!(deliverable.id in deliverableSelections)) {
@@ -714,7 +715,7 @@
           : "omitted",
         rationale: "User reviewed this Pack Deliverable in the desktop plan.",
         constraints: ["Use only reviewed local source material and confirmed evidence."],
-        execution_mode: "manual-import",
+        execution_mode: deliverableSelections[item.id] ? "manual-import" : null,
       })),
     };
   }
@@ -915,7 +916,7 @@
               <Empty.Header>
                 <Empty.Media variant="icon"><FileCheck2 size={20} aria-hidden="true" /></Empty.Media
                 >
-                <Empty.Title>{copy.noGenericApplications}</Empty.Title>
+                <Empty.Title>{copy.noPackApplications}</Empty.Title>
               </Empty.Header>
             </Empty.Root>
           {:else}
@@ -1678,7 +1679,7 @@
               <Empty.Header>
                 <Empty.Media variant="icon"><FileCheck2 size={22} aria-hidden="true" /></Empty.Media
                 >
-                <Empty.Title>{copy.noGenericApplications}</Empty.Title>
+                <Empty.Title>{copy.noPackApplications}</Empty.Title>
               </Empty.Header>
             </Empty.Root>
           </Card.Content>
