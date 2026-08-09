@@ -106,12 +106,18 @@ read operations:
 - `canisend_workspace_check`;
 - `canisend_application_list`; and
 - `canisend_application_show`; and
-- `canisend_profile_source_list`.
+- `canisend_profile_source_list`;
+- `canisend_profile_association_list`; and
+- `canisend_evidence_association_list`.
 
 Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
 without the App through `canisend profile-source import`; `private-local` input requires the
 explicit `--confirm-private-read` flag. Both CLI listing and the MCP tool return IDs, revisions,
 digests, kinds, and privacy metadata without returning original or normalized body text.
+The two association-list tools require one exact Application ID and distinguish Workspace
+candidates from explicit links. They do not imply consent or create an association. Association
+preview/commit tools remain unavailable until their Agent v4 single-use approval-token boundary is
+implemented end to end.
 
 Do not infer that an operation from the canonical registry is callable when it is absent from the
 runtime tool list. Use a native CLI operation only when it exposes the same operation ID, or stop

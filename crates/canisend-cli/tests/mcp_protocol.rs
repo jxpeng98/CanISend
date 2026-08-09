@@ -9,10 +9,14 @@ use std::{
 };
 
 use canisend_app::{
-    Application, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, PrivateReadConsent,
+    Application, ApplicationFlowCreateRequestV3, ApplicationFlowCreateRequestV4,
+    ApplicationFlowRequirementDraftV3, CANISEND_MCP_GUARDED_WRITE_TOOLS,
+    CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+    GENERIC_APPLICATION_WORKFLOW_PACK_ID, PrivateReadConsent,
 };
-use canisend_contracts::PrivacyClassification;
+use canisend_contracts::{
+    PrivacyClassification, RequirementPriorityV3, WorkflowPackId, WorkflowPackItemId,
+};
 use serde_json::{Value, json};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -170,6 +174,32 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     )
     .expect("write Profile Source fixture");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+    let application_id = Application::create_application_flow_v4(
+        &root,
+        ApplicationFlowCreateRequestV4 {
+            pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+                .expect("Pack ID"),
+            application: ApplicationFlowCreateRequestV3 {
+                title: "MCP association fixture".to_owned(),
+                opportunity_metadata: Default::default(),
+                application_metadata: Default::default(),
+                source_text: "Provide a narrative.".to_owned(),
+                requirements: vec![ApplicationFlowRequirementDraftV3 {
+                    category: WorkflowPackItemId::try_new("format").expect("category"),
+                    statement: "Provide a narrative.".to_owned(),
+                    priority: RequirementPriorityV3::Mandatory,
+                    start_byte: 0,
+                    end_byte: 20,
+                }],
+            },
+        },
+    )
+    .expect("create Application fixture")
+    .data
+    .stored
+    .snapshot
+    .application
+    .id;
     Application::import_profile_source_v4(
         &root,
         &profile_source,
@@ -235,10 +265,39 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     );
     assert!(!profile_sources.to_string().contains(private_sentinel));
 
+    let profile_links = mcp.request(
+        6,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_list",
+            "arguments": {"application_id": application_id.as_str()}
+        }),
+    );
+    assert_eq!(profile_links["result"]["isError"], json!(false));
+    assert_eq!(
+        profile_links["result"]["structuredContent"]["operation"],
+        json!("profile.association.list")
+    );
+    assert!(!profile_links.to_string().contains(private_sentinel));
+
+    let evidence_links = mcp.request(
+        7,
+        "tools/call",
+        json!({
+            "name": "canisend_evidence_association_list",
+            "arguments": {"application_id": application_id.as_str()}
+        }),
+    );
+    assert_eq!(evidence_links["result"]["isError"], json!(false));
+    assert_eq!(
+        evidence_links["result"]["structuredContent"]["operation"],
+        json!("evidence.association.list")
+    );
+
     for (id, legacy) in [
-        (6, "canisend_agent_v3_context"),
-        (7, "canisend_application_create"),
-        (8, "canisend_job_intake_commit"),
+        (8, "canisend_agent_v3_context"),
+        (9, "canisend_application_create"),
+        (10, "canisend_job_intake_commit"),
     ] {
         let refused = mcp.request(id, "tools/call", json!({"name": legacy, "arguments": {}}));
         assert!(

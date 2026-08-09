@@ -28,6 +28,11 @@
       "marker": "fn workspace_v4_profile_sources_import_and_list_without_the_app()"
     },
     {
+      "id": "application-association-v4",
+      "path": "crates/canisend-app/src/association_v4.rs",
+      "marker": "fn profile_association_preview_commit_is_exact_consent_bound_and_body_free()"
+    },
+    {
       "id": "mixed-cli-workspace",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
       "marker": "fn workspace_v4_holds_generic_and_academic_applications_together()"
@@ -167,43 +172,57 @@
       "revision_bound": false,
       "outcomes": ["success", "no-mutation"],
       "fixtures": ["profile-source-cli", "academic-tauri-profile"]
+    },
+    {
+      "operation": "profile.association.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "application-association-v4"]
+    },
+    {
+      "operation": "evidence.association.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "application-association-v4"]
     }
   ],
   "pack_surface_cases": [
     {
       "pack": "generic-application",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
       "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import"],
-      "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4"]
     },
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "evidence.association.list"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     },
     {
       "pack": "academic-job",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
       "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import"],
-      "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "evidence.association.list"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     }
   ],
@@ -278,6 +297,11 @@
       "id": "profile-source",
       "operations": ["profile-source.list"],
       "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "academic-tauri-profile"]
+    },
+    {
+      "id": "application-association",
+      "operations": ["profile.association.list", "evidence.association.list"],
+      "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "application-association-v4"]
     }
   ],
   "uncovered_policy": {

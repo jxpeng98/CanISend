@@ -1836,6 +1836,8 @@ fn check_documentation() -> Result<(), String> {
                 "canisend_workspace_status",
                 "canisend_application_show",
                 "canisend_profile_source_list",
+                "canisend_profile_association_list",
+                "canisend_evidence_association_list",
                 "canisend-workspace",
                 "canisend-agent-v4.json",
                 "orient -> propose -> preview -> approve -> commit -> verify",
@@ -6466,7 +6468,11 @@ fn check_native_test_ownership() -> Result<(), String> {
         "canisend_application_show",
         "profile-source import",
         "profile-source list",
+        "profile association list",
+        "evidence association list",
         "canisend_profile_source_list",
+        "canisend_profile_association_list",
+        "canisend_evidence_association_list",
         "MCP-V4-PROFILE-PRIVATE-SENTINEL",
         "MCP-V4-GENERIC-PRIVATE-SENTINEL",
         "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
@@ -8332,6 +8338,7 @@ fn validate_semantic_parity_policy(
         "generic-application".to_owned(),
         "academic-application".to_owned(),
         "profile-source".to_owned(),
+        "application-association".to_owned(),
     ]);
     let mut read_families = BTreeSet::new();
     let mut read_operations = BTreeSet::new();
@@ -19035,7 +19042,7 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 7);
+        assert_eq!(current.shared_operations, 9);
         assert_eq!(current.preview_pairs, 4);
         assert!(!current.uncovered_bindings.is_empty());
 

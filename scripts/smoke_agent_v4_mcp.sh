@@ -91,9 +91,13 @@ printf '%s\n' \
 
 generic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/generic-create.json")"
 academic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/academic-create.json")"
+"$binary" --workspace "$workspace" profile association list \
+  --application "$generic_id" --json > "$smoke_root/profile-association-list.json"
+"$binary" --workspace "$workspace" evidence association list \
+  --application "$generic_id" --json > "$smoke_root/evidence-association-list.json"
 
 write_initialize() {
-  jq -nc '{
+  jq -nc --arg application_id "$generic_id" '{
     jsonrpc: "2.0",
     id: 1,
     method: "initialize",
@@ -151,9 +155,27 @@ write_initialize() {
     method: "tools/call",
     params: {name: "canisend_profile_source_list", arguments: {}}
   }'
-  jq -nc '{
+  jq -nc --arg application_id "$generic_id" '{
     jsonrpc: "2.0",
     id: 9,
+    method: "tools/call",
+    params: {
+      name: "canisend_profile_association_list",
+      arguments: {application_id: $application_id}
+    }
+  }'
+  jq -nc --arg application_id "$generic_id" '{
+    jsonrpc: "2.0",
+    id: 10,
+    method: "tools/call",
+    params: {
+      name: "canisend_evidence_association_list",
+      arguments: {application_id: $application_id}
+    }
+  }'
+  jq -nc '{
+    jsonrpc: "2.0",
+    id: 11,
     method: "tools/call",
     params: {name: "canisend_agent_v3_context", arguments: {}}
   }'
@@ -168,11 +190,13 @@ fi
 
 if ! jq -s -e '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 5) and
+  (map(select(.id == 2))[0].result.tools | length == 7) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_evidence_association_list",
+    "canisend_profile_association_list",
     "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status"
@@ -209,8 +233,14 @@ if ! jq -s -e '
   (map(select(.id == 8))[0].result.structuredContent.data.sources | length == 1) and
   ((map(select(.id == 8))[0] | tostring |
     contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
-  (map(select(.id == 9))[0].error.code == -32602) and
-  (map(select(.id == 9))[0].error.message == "tool not found")
+  (map(select(.id == 9))[0].result.structuredContent.operation ==
+    "profile.association.list") and
+  ((map(select(.id == 9))[0] | tostring |
+    contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
+  (map(select(.id == 10))[0].result.structuredContent.operation ==
+    "evidence.association.list") and
+  (map(select(.id == 11))[0].error.code == -32602) and
+  (map(select(.id == 11))[0].error.message == "tool not found")
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '

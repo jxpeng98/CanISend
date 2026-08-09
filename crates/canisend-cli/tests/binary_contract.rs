@@ -142,7 +142,6 @@ fn public_help_excludes_every_alpha6_legacy_command_family() {
         "agent",
         "job",
         "content",
-        "profile",
         "discovery",
         "task",
         "criteria",
@@ -170,6 +169,12 @@ fn public_help_excludes_every_alpha6_legacy_command_family() {
     assert!(!application_help.contains("generic-compose"));
     assert!(!application_help.contains("generic-approve"));
     assert!(!application_help.contains("generic-export"));
+
+    let profile_help = run(&["profile", "--help"]);
+    assert!(profile_help.status.success());
+    let profile_help = String::from_utf8(profile_help.stdout).expect("Profile help is UTF-8");
+    assert!(profile_help.contains("association"));
+    assert!(!profile_help.contains("source-list"));
 }
 
 #[test]
@@ -323,7 +328,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
             setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
-            Some(5)
+            Some(7)
         );
         assert_eq!(
             setup["data"]["mcp"]["guarded_write_tools"]
@@ -514,6 +519,7 @@ fn workspace_v4_profile_sources_import_and_list_without_the_app() {
     fs::create_dir_all(inputs.path()).expect("Profile Source input directory");
     let public_source = inputs.path().join("public.md");
     let private_source = inputs.path().join("private.txt");
+    let application_candidate = inputs.path().join("application.json");
     let private_sentinel = "PRIVATE-PROFILE-BODY-MUST-NOT-LEAK";
     fs::write(
         &public_source,
@@ -521,6 +527,14 @@ fn workspace_v4_profile_sources_import_and_list_without_the_app() {
     )
     .expect("write public Profile Source");
     fs::write(&private_source, private_sentinel).expect("write private Profile Source");
+    write_application_candidate(
+        &application_candidate,
+        "Profile association fixture",
+        "organization",
+        "Example Cooperative",
+        "Applicants must provide a short narrative.",
+        "format",
+    );
 
     run_json(&[
         "--workspace",
@@ -529,6 +543,14 @@ fn workspace_v4_profile_sources_import_and_list_without_the_app() {
         "init",
         "--json",
     ]);
+    let application = create_application(
+        &workspace,
+        "org.canisend.generic-application",
+        &application_candidate,
+    );
+    let application_id = application["data"]["stored"]["snapshot"]["application"]["id"]
+        .as_str()
+        .expect("Application ID");
 
     let before_denied = file_snapshot(workspace.path());
     let denied = run(&[
@@ -588,7 +610,48 @@ fn workspace_v4_profile_sources_import_and_list_without_the_app() {
     assert_eq!(listed["operation"], "profile-source.list");
     assert_eq!(listed["data"]["profile_revision"], 2);
     assert_eq!(listed["data"]["sources"].as_array().map(Vec::len), Some(2));
-    for response in [public, private, listed] {
+
+    let profile_links = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile",
+        "association",
+        "list",
+        "--application",
+        application_id,
+        "--json",
+    ]);
+    assert_eq!(profile_links["operation"], "profile.association.list");
+    assert_eq!(
+        profile_links["data"]["profile_sources"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        profile_links["data"]["associations"]
+            .as_array()
+            .map(Vec::len),
+        Some(0)
+    );
+
+    let evidence_links = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "evidence",
+        "association",
+        "list",
+        "--application",
+        application_id,
+        "--json",
+    ]);
+    assert_eq!(evidence_links["operation"], "evidence.association.list");
+    assert_eq!(
+        evidence_links["data"]["evidence"].as_array().map(Vec::len),
+        Some(0)
+    );
+
+    for response in [public, private, listed, profile_links, evidence_links] {
         assert!(
             !serde_json::to_string(&response)
                 .expect("serialize response")
