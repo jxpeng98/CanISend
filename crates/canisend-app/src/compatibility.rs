@@ -66,22 +66,22 @@ impl LegacyCompatibilityOperation {
     ];
 
     #[cfg(test)]
-    pub(crate) const REGISTERED_ALIASES: [Self; 7] = [
+    pub(crate) const REGISTERED_ALIASES: [Self; 6] = [
         Self::AgentCapabilities,
         Self::AgentContext,
         Self::JobList,
         Self::JobShow,
-        Self::ProfileSources,
         Self::TaskLatest,
         Self::WorkflowStatus,
     ];
 
     #[cfg(test)]
-    pub(crate) const RETIRED_REGISTERED_ALIASES: [Self; 10] = [
+    pub(crate) const RETIRED_REGISTERED_ALIASES: [Self; 11] = [
         Self::JobCreate,
         Self::JobArchive,
         Self::JobIntakePreview,
         Self::JobIntakeCommit,
+        Self::ProfileSources,
         Self::TaskPrepare,
         Self::TaskInputs,
         Self::TaskCompletionPreview,
@@ -124,7 +124,7 @@ impl LegacyCompatibilityOperation {
             Self::JobArchive => "application.archive",
             Self::JobImport | Self::JobIntakeCommit => "opportunity.intake.commit",
             Self::JobIntakePreview => "opportunity.intake.preview",
-            Self::ProfileSources => "evidence-source.list",
+            Self::ProfileSources => "profile-source.list",
             Self::TaskShow => "agent-v3.task.show",
             Self::TaskLatest => "agent-v3.task.latest",
             Self::TaskPrepare => "agent-v3.task.prepare",

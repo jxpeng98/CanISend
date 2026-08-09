@@ -8331,7 +8331,7 @@ fn validate_semantic_parity_policy(
     let expected_read_families = BTreeSet::from([
         "generic-application".to_owned(),
         "academic-application".to_owned(),
-        "evidence-source".to_owned(),
+        "profile-source".to_owned(),
         "task".to_owned(),
         "workflow".to_owned(),
     ]);
@@ -8650,7 +8650,6 @@ fn check_operation_registry() -> Result<(), String> {
         "agent.context",
         "job.list",
         "job.show",
-        "profile.source.list",
         "task.latest",
         "workflow.status",
     ]);

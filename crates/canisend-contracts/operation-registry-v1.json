@@ -26,7 +26,7 @@
     {"id": "application.archive", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "opportunity.intake.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "opportunity.intake.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
-    {"id": "evidence-source.list", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
+    {"id": "profile-source.list", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "agent-v3.task.show", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "agent-v3.task.latest", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "agent-v3.task.prepare", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
@@ -42,7 +42,6 @@
     {"id": "agent.context", "canonical_operation": "agent-v3.context", "status": "deprecated", "pack_scope": "academic-job"},
     {"id": "job.list", "canonical_operation": "application.list", "status": "deprecated", "pack_scope": "academic-job"},
     {"id": "job.show", "canonical_operation": "application.show", "status": "deprecated", "pack_scope": "academic-job"},
-    {"id": "profile.source.list", "canonical_operation": "evidence-source.list", "status": "deprecated", "pack_scope": "academic-job"},
     {"id": "task.latest", "canonical_operation": "agent-v3.task.latest", "status": "deprecated", "pack_scope": "academic-job"},
     {"id": "workflow.status", "canonical_operation": "application.workflow.status", "status": "deprecated", "pack_scope": "academic-job"}
   ],
@@ -108,7 +107,7 @@
         {"leaf": "agent_context", "operation": "agent.context", "pack_scope": "academic-job"},
         {"leaf": "list_jobs", "operation": "job.list", "pack_scope": "academic-job"},
         {"leaf": "show_job", "operation": "job.show", "pack_scope": "academic-job"},
-        {"leaf": "list_profile_sources", "operation": "profile.source.list", "pack_scope": "academic-job"},
+        {"leaf": "list_profile_sources", "operation": "profile-source.list", "pack_scope": "any"},
         {"leaf": "latest_task", "operation": "task.latest", "pack_scope": "academic-job"},
         {"leaf": "workflow_controls", "operation": "workflow.status", "pack_scope": "academic-job"}
       ]

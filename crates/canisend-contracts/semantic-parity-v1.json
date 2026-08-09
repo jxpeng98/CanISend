@@ -188,7 +188,7 @@
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.list", "job.show", "profile.source.list", "task.latest", "workflow.status"],
+      "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.list", "job.show", "profile-source.list", "task.latest", "workflow.status"],
       "fixtures": ["academic-tauri-agent", "neutral-tauri-registry", "academic-tauri-profile", "academic-tauri-workflow", "mixed-tauri-workspace", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
     },
     {
@@ -266,8 +266,8 @@
       "fixtures": ["mixed-cli-workspace", "mixed-tauri-workspace", "mixed-mcp-workspace"]
     },
     {
-      "id": "evidence-source",
-      "operations": ["profile.source.list"],
+      "id": "profile-source",
+      "operations": ["profile-source.list"],
       "fixtures": ["academic-tauri-profile"]
     },
     {
