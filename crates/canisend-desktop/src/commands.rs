@@ -790,9 +790,10 @@ mod tests {
 
         assert_eq!(summary.product, "canisend");
         assert_eq!(summary.version, env!("CARGO_PKG_VERSION"));
-        assert_eq!(summary.protocol, "canisend.agent/v2");
-        assert_eq!(summary.workspace_format, "canisend.workspace/v2");
-        assert_eq!(summary.resource_format, "canisend.resources/v2");
+        assert_eq!(summary.protocol, "canisend.agent/v4");
+        assert_eq!(summary.workspace_format, "canisend.workspace/v4");
+        assert_eq!(summary.resource_format, "canisend.agent-host-resources/v4");
+        assert_eq!(summary.public_schema_version, "4.0.0");
         assert!(!summary.target_os.is_empty());
         assert!(!summary.target_arch.is_empty());
     }

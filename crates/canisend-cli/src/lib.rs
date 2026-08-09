@@ -16,11 +16,12 @@ use canisend_app::{
     ApplicationFlowCreateRequestV4, PrivateReadConsent, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
-    AgentError, AgentResponse, ErrorCode, ExitClass, PrivacyClassification, Revision,
-    SemanticVersion, VersionData, WorkflowPackId,
+    AgentError, AgentProtocolV4, ArtifactReference, ConsentRequest, ErrorCode, ExitClass,
+    NextAction, PrivacyClassification, Revision, SemanticVersion, VersionData, WorkflowPackId,
 };
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
-use serde_json::json;
+use serde::Serialize;
+use serde_json::{Value, json};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -477,8 +478,54 @@ impl Cli {
 }
 
 struct CommandOutput {
-    response: AgentResponse,
+    response: CommandResponseV4,
     human: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct CommandResponseV4 {
+    protocol: AgentProtocolV4,
+    operation: String,
+    ok: bool,
+    status: String,
+    data: Option<Value>,
+    artifacts: Vec<ArtifactReference>,
+    required_consents: Vec<ConsentRequest>,
+    warnings: Vec<String>,
+    next_actions: Vec<NextAction>,
+    error: Option<AgentError>,
+}
+
+impl CommandResponseV4 {
+    fn success(operation: impl Into<String>, status: impl Into<String>, data: Value) -> Self {
+        Self {
+            protocol: AgentProtocolV4::V4,
+            operation: operation.into(),
+            ok: true,
+            status: status.into(),
+            data: Some(data),
+            artifacts: Vec::new(),
+            required_consents: Vec::new(),
+            warnings: Vec::new(),
+            next_actions: Vec::new(),
+            error: None,
+        }
+    }
+
+    fn failure(operation: impl Into<String>, status: impl Into<String>, error: AgentError) -> Self {
+        Self {
+            protocol: AgentProtocolV4::V4,
+            operation: operation.into(),
+            ok: false,
+            status: status.into(),
+            data: None,
+            artifacts: Vec::new(),
+            required_consents: Vec::new(),
+            warnings: Vec::new(),
+            next_actions: Vec::new(),
+            error: Some(error),
+        }
+    }
 }
 
 struct CommandFailure {
@@ -517,8 +564,8 @@ impl CommandFailure {
         self.error.code.exit_class()
     }
 
-    fn response(&self) -> AgentResponse {
-        AgentResponse::failure(self.operation, self.status.clone(), self.error.clone())
+    fn response(&self) -> CommandResponseV4 {
+        CommandResponseV4::failure(self.operation, self.status.clone(), self.error.clone())
     }
 }
 
@@ -798,7 +845,7 @@ fn doctor() -> CommandResult<CommandOutput> {
         },
     });
     Ok(CommandOutput {
-        response: AgentResponse::success("product.doctor", "healthy", data),
+        response: CommandResponseV4::success("product.doctor", "healthy", data),
         human: vec![
             "CanISend native foundation: healthy".to_owned(),
             "Embedded resources: verified".to_owned(),
@@ -1542,7 +1589,7 @@ fn success<T: serde::Serialize>(
         )
     })?;
     Ok(CommandOutput {
-        response: AgentResponse::success(operation, status, value),
+        response: CommandResponseV4::success(operation, status, value),
         human,
     })
 }
@@ -1613,7 +1660,7 @@ fn human_failure_lines(failure: &CommandFailure) -> Vec<String> {
     lines
 }
 
-fn render_json(response: &AgentResponse) -> ExitCode {
+fn render_json(response: &CommandResponseV4) -> ExitCode {
     match serde_json::to_string(response) {
         Ok(serialized) => {
             println!("{serialized}");
