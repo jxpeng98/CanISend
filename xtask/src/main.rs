@@ -7785,39 +7785,49 @@ fn check_approval_broker() -> Result<(), String> {
     let application_mutations = read("crates/canisend-app/src/application_mutations_v4.rs")?;
     let desktop_mutations = read("crates/canisend-desktop/src/application_mutations_v4.rs")?;
     let bridge = read("apps/canisend-desktop/src/lib/bridge.ts")?;
-    validate_approval_broker_sources(
-        &app,
-        &mcp,
-        &desktop_state,
-        &desktop_host,
-        [&application_association, &desktop_association],
-        [&application_mutations, &desktop_mutations],
-        [
+    validate_approval_broker_sources(ApprovalBrokerSources {
+        app: &app,
+        mcp: &mcp,
+        desktop_state: &desktop_state,
+        desktop_host: &desktop_host,
+        associations: [&application_association, &desktop_association],
+        mutations: [&application_mutations, &desktop_mutations],
+        desktop_families: [
             &desktop_job,
             &desktop_discovery,
             &desktop_workflow,
             &desktop_application,
         ],
-        &bridge,
-    )?;
+        bridge: &bridge,
+    })?;
     println!(
         "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 7 guarded adapter families)"
     );
     Ok(())
 }
 
-fn validate_approval_broker_sources(
-    app: &str,
-    mcp: &str,
-    desktop_state: &str,
-    desktop_host: &str,
-    association_sources: [&str; 2],
-    mutation_sources: [&str; 2],
-    desktop_families: [&str; 4],
-    bridge: &str,
-) -> Result<(), String> {
-    let [application_association, desktop_association] = association_sources;
-    let [application_mutations, desktop_mutations] = mutation_sources;
+struct ApprovalBrokerSources<'a> {
+    app: &'a str,
+    mcp: &'a str,
+    desktop_state: &'a str,
+    desktop_host: &'a str,
+    associations: [&'a str; 2],
+    mutations: [&'a str; 2],
+    desktop_families: [&'a str; 4],
+    bridge: &'a str,
+}
+
+fn validate_approval_broker_sources(sources: ApprovalBrokerSources<'_>) -> Result<(), String> {
+    let ApprovalBrokerSources {
+        app,
+        mcp,
+        desktop_state,
+        desktop_host,
+        associations: [application_association, desktop_association],
+        mutations: [application_mutations, desktop_mutations],
+        desktop_families,
+        bridge,
+    } = sources;
     for required in [
         "pub const APPROVAL_DEFAULT_CAPACITY: usize = 16",
         "Duration::from_secs(10 * 60)",
@@ -19073,44 +19083,49 @@ mod tests {
         let application = read("crates/canisend-desktop/src/application_intake.rs");
         let application_association = read("crates/canisend-app/src/association_v4.rs");
         let desktop_association = read("crates/canisend-desktop/src/association_v4.rs");
+        let application_mutations = read("crates/canisend-app/src/application_mutations_v4.rs");
+        let desktop_mutations = read("crates/canisend-desktop/src/application_mutations_v4.rs");
         let mut bridge = read("apps/canisend-desktop/src/lib/bridge.ts");
-        validate_approval_broker_sources(
-            &app,
-            &mcp,
-            &desktop_state,
-            &desktop_host,
-            [&application_association, &desktop_association],
-            [&job, &discovery, &workflow, &application],
-            &bridge,
-        )
+        validate_approval_broker_sources(ApprovalBrokerSources {
+            app: &app,
+            mcp: &mcp,
+            desktop_state: &desktop_state,
+            desktop_host: &desktop_host,
+            associations: [&application_association, &desktop_association],
+            mutations: [&application_mutations, &desktop_mutations],
+            desktop_families: [&job, &discovery, &workflow, &application],
+            bridge: &bridge,
+        })
         .expect("current approval sources");
 
         mcp.push_str("\nstruct MutationPreviewStore;\n");
         assert!(
-            validate_approval_broker_sources(
-                &app,
-                &mcp,
-                &desktop_state,
-                &desktop_host,
-                [&application_association, &desktop_association],
-                [&job, &discovery, &workflow, &application],
-                &bridge,
-            )
+            validate_approval_broker_sources(ApprovalBrokerSources {
+                app: &app,
+                mcp: &mcp,
+                desktop_state: &desktop_state,
+                desktop_host: &desktop_host,
+                associations: [&application_association, &desktop_association],
+                mutations: [&application_mutations, &desktop_mutations],
+                desktop_families: [&job, &discovery, &workflow, &application],
+                bridge: &bridge,
+            })
             .is_err()
         );
 
         mcp = read("crates/canisend-mcp/src/lib.rs");
         bridge = bridge.replacen("remaining_ttl_seconds: number", "ttl_removed: number", 1);
         assert!(
-            validate_approval_broker_sources(
-                &app,
-                &mcp,
-                &desktop_state,
-                &desktop_host,
-                [&application_association, &desktop_association],
-                [&job, &discovery, &workflow, &application],
-                &bridge,
-            )
+            validate_approval_broker_sources(ApprovalBrokerSources {
+                app: &app,
+                mcp: &mcp,
+                desktop_state: &desktop_state,
+                desktop_host: &desktop_host,
+                associations: [&application_association, &desktop_association],
+                mutations: [&application_mutations, &desktop_mutations],
+                desktop_families: [&job, &discovery, &workflow, &application],
+                bridge: &bridge,
+            })
             .is_err()
         );
     }
@@ -19125,8 +19140,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 18);
-        assert_eq!(current.preview_pairs, 6);
+        assert_eq!(current.shared_operations, 29);
+        assert_eq!(current.preview_pairs, 11);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();
