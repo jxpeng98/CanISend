@@ -7,23 +7,15 @@ use std::{
 };
 
 use canisend_app::{
-    ActionReceipt, AgentAssistanceReadModel, AgentCapabilitiesReadModel, AgentContextReadModel,
-    AgentHandoffReadModel, AgentHandoffRequest, AgentHost, AgentMcpConfigurationReadModel,
-    AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
-    AgentSkillsInstallReadModel, AgentSkillsInstallRequest, AgentSkillsStatusReadModel,
-    AgentSkillsStatusRequest, AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest,
-    Application, desktop_cli_source_path,
+    ActionReceipt, AgentAssistanceReadModel, AgentHandoffReadModel, AgentHandoffRequest, AgentHost,
+    AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest, AgentPackExportReadModel,
+    AgentPackExportRequest, AgentSkillsInstallReadModel, AgentSkillsInstallRequest,
+    AgentSkillsStatusReadModel, AgentSkillsStatusRequest, AgentSkillsUninstallReadModel,
+    AgentSkillsUninstallRequest, Application, desktop_cli_source_path,
 };
 use serde::Deserialize;
 
 use crate::commands::{DesktopCommandError, run_worker};
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct AgentContextRequest {
-    workspace: Option<PathBuf>,
-    selected_job_id: Option<String>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,26 +83,6 @@ pub(crate) struct CopyAgentMcpConfigurationRequest {
     host: AgentHost,
     workspace: PathBuf,
     field: AgentMcpClipboardField,
-}
-
-#[tauri::command]
-pub(crate) async fn agent_capabilities()
--> Result<ActionReceipt<AgentCapabilitiesReadModel>, DesktopCommandError> {
-    run_worker(|| Application::agent_capabilities().map_err(DesktopCommandError::application)).await
-}
-
-#[tauri::command]
-pub(crate) async fn agent_context(
-    request: AgentContextRequest,
-) -> Result<ActionReceipt<AgentContextReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        Application::agent_context(
-            request.workspace.as_deref(),
-            request.selected_job_id.as_deref(),
-        )
-        .map_err(DesktopCommandError::application)
-    })
-    .await
 }
 
 #[tauri::command]

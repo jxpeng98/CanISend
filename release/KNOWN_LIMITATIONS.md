@@ -35,7 +35,7 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   future work until explicitly supported.
 - The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
-- The GUI covers all 36 declared operation families and connects them through one persistent
+- The GUI covers all 32 declared operation families and connects them through one persistent
   workspace/application header and six-stage journey. Some advanced candidate editors expose
   versioned JSON directly and therefore still require familiarity with the public schemas.
 - Body-free desktop navigation memory contains the canonical workspace path, public job ID,

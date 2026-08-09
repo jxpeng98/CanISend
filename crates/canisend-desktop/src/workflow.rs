@@ -5,7 +5,7 @@ use canisend_app::{
     ApprovalSourceVersion, WorkflowBeginRequest, WorkflowCompleteRequest, WorkflowControlReadModel,
     WorkflowRerunPreview, WorkflowRerunRequest, approval_disposition_for_application_error,
 };
-use canisend_contracts::{ExecutionMode, TaskStateData, WorkflowStage};
+use canisend_contracts::{ExecutionMode, WorkflowStage};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -68,17 +68,6 @@ pub(crate) async fn start_workflow(
 ) -> Result<ActionReceipt<canisend_contracts::WorkflowStatusData>, DesktopCommandError> {
     run_worker(move || {
         Application::start_workflow(&request.workspace, &request.job_id)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
-}
-
-#[tauri::command]
-pub(crate) async fn workflow_controls(
-    request: WorkspaceJobRequest,
-) -> Result<ActionReceipt<WorkflowControlReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        Application::workflow_controls(&request.workspace, &request.job_id)
             .map_err(DesktopCommandError::application)
     })
     .await
@@ -209,17 +198,6 @@ pub(crate) fn discard_workflow_preview(
     let scope = ApprovalScope::for_workspace(&request.workspace)
         .map_err(DesktopCommandError::application)?;
     state.discard(&request.preview_token, ApprovalKind::WorkflowRerun, &scope)
-}
-
-#[tauri::command]
-pub(crate) async fn latest_task(
-    request: WorkspaceJobRequest,
-) -> Result<ActionReceipt<Option<TaskStateData>>, DesktopCommandError> {
-    run_worker(move || {
-        Application::latest_task_for_job(&request.workspace, &request.job_id)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
 }
 
 #[cfg(test)]

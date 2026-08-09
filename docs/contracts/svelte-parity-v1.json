@@ -91,20 +91,6 @@
       ]
     },
     {
-      "operation": "job.list",
-      "status": "implemented",
-      "tauri_commands": ["list_jobs"],
-      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
-      "tests": ["crates/canisend-desktop/src/commands.rs"]
-    },
-    {
-      "operation": "job.show",
-      "status": "implemented",
-      "tauri_commands": ["show_job"],
-      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
-      "tests": ["crates/canisend-desktop/src/commands.rs"]
-    },
-    {
       "operation": "application.dossier",
       "status": "implemented",
       "tauri_commands": ["list_application_dossiers", "application_dossier"],
@@ -156,13 +142,6 @@
       "operation": "workflow.start",
       "status": "implemented",
       "tauri_commands": ["start_workflow"],
-      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
-      "tests": ["crates/canisend-desktop/src/workflow.rs"]
-    },
-    {
-      "operation": "workflow.status",
-      "status": "implemented",
-      "tauri_commands": ["workflow_controls"],
       "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
       "tests": ["crates/canisend-desktop/src/workflow.rs"]
     },
@@ -239,15 +218,6 @@
       "tests": ["crates/canisend-desktop/src/discovery.rs"]
     },
     {
-      "operation": "task.latest",
-      "status": "implemented",
-      "tauri_commands": [
-        "latest_task"
-      ],
-      "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
-      "tests": ["crates/canisend-desktop/src/workflow.rs"]
-    },
-    {
       "operation": "criteria.*",
       "status": "implemented",
       "tauri_commands": ["criteria_template", "confirm_criteria"],
@@ -308,9 +278,7 @@
       "operation": "agent.*",
       "status": "implemented",
       "tauri_commands": [
-        "agent_capabilities",
         "agent_assistance",
-        "agent_context",
         "prepare_agent_handoff",
         "copy_agent_handoff",
         "prepare_agent_mcp_configuration",

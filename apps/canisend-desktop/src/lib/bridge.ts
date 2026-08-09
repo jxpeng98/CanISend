@@ -1544,9 +1544,7 @@ export async function repairWorkspace(
 export async function previewWorkspaceV3Migration(
   workspace: string,
 ): Promise<ActionReceipt<WorkspaceV3MigrationPreview>> {
-  return invoke("preview_workspace_v3_migration", {
-    request: { path: workspace },
-  });
+  return unsupportedLegacyDesktopOperation("workspace.v3.migration.preview", { workspace });
 }
 
 export async function migrateWorkspaceV3(options: {
@@ -1554,21 +1552,16 @@ export async function migrateWorkspaceV3(options: {
   expectedPlanSha256: string;
   backupDestination: string;
 }): Promise<ActionReceipt<WorkspaceV3MigrationReadModel>> {
-  return invoke("migrate_workspace_v3", {
-    request: {
-      workspace: options.workspace,
-      expected_plan_sha256: options.expectedPlanSha256,
-      backup_destination: options.backupDestination,
-    },
-  });
+  return unsupportedLegacyDesktopOperation("workspace.v3.migration.commit", options);
 }
 
 export async function listJobs(
   workspace: string,
   includeArchived = false,
 ): Promise<ActionReceipt<JobListReadModel>> {
-  return invoke("list_jobs", {
-    request: { workspace, include_archived: includeArchived },
+  return unsupportedLegacyDesktopOperation("job.list", {
+    workspace,
+    includeArchived,
   });
 }
 
@@ -1584,9 +1577,7 @@ export async function showJob(
   workspace: string,
   jobId: string,
 ): Promise<ActionReceipt<JobDetailReadModel>> {
-  return invoke("show_job", {
-    request: { workspace, job_id: jobId },
-  });
+  return unsupportedLegacyDesktopOperation("job.show", { workspace, jobId });
 }
 
 export async function listApplicationDossiers(
@@ -2240,9 +2231,7 @@ export async function getWorkflowControls(
   workspace: string,
   jobId: string,
 ): Promise<ActionReceipt<WorkflowControlReadModel>> {
-  return invoke("workflow_controls", {
-    request: { workspace, job_id: jobId },
-  });
+  return unsupportedLegacyDesktopOperation("workflow.status", { workspace, jobId });
 }
 
 export async function beginWorkflowStage(
@@ -2304,9 +2293,7 @@ export async function getLatestTask(
   workspace: string,
   jobId: string,
 ): Promise<ActionReceipt<TaskStateData | null>> {
-  return invoke("latest_task", {
-    request: { workspace, job_id: jobId },
-  });
+  return unsupportedLegacyDesktopOperation("task.latest", { workspace, jobId });
 }
 
 export async function prepareTask(
@@ -2371,18 +2358,16 @@ function unsupportedLegacyDesktopOperation(operation: string, _request: unknown)
 }
 
 export async function getAgentCapabilities(): Promise<ActionReceipt<AgentCapabilitiesReadModel>> {
-  return invoke("agent_capabilities");
+  return unsupportedLegacyDesktopOperation("agent.capabilities", {});
 }
 
 export async function getAgentContext(
   workspace?: string,
   selectedJobId?: string,
 ): Promise<ActionReceipt<AgentContextReadModel>> {
-  return invoke("agent_context", {
-    request: {
-      workspace: workspace || null,
-      selected_job_id: selectedJobId || null,
-    },
+  return unsupportedLegacyDesktopOperation("agent.context", {
+    workspace,
+    selectedJobId,
   });
 }
 

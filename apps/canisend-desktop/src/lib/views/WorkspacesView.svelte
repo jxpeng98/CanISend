@@ -30,14 +30,10 @@
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import {
     chooseWorkspaceDirectory,
-    commandErrorMessage,
-    migrateWorkspaceV3,
-    previewWorkspaceV3Migration,
     type AgentHost,
     type RegistrySnapshot,
     type WorkspaceHealthReadModel,
     type WorkspaceReadModel,
-    type WorkspaceV3MigrationPreview,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
 
@@ -94,12 +90,6 @@
   let restoreBackup = $state("");
   let restoreDestination = $state("");
   let formError = $state<string | null>(null);
-  let migrationPreview = $state<WorkspaceV3MigrationPreview | null>(null);
-  let migrationBackup = $state("");
-  let migrationConsent = $state(false);
-  let migrationBusy = $state(false);
-  let migrationError = $state<string | null>(null);
-  let migrationNotice = $state<string | null>(null);
 
   async function chooseCreatePath(): Promise<void> {
     createPath = (await chooseWorkspaceDirectory()) ?? createPath;
@@ -188,48 +178,6 @@
     if (pendingRemove && (await onRemove(pendingRemove))) {
       removeOpen = false;
       pendingRemove = null;
-    }
-  }
-
-  async function previewMigration(): Promise<void> {
-    if (!activeWorkspace) return;
-    migrationBusy = true;
-    migrationError = null;
-    migrationNotice = null;
-    try {
-      migrationPreview = (await previewWorkspaceV3Migration(activeWorkspace.path)).data;
-      migrationConsent = false;
-    } catch (error) {
-      migrationError = commandErrorMessage(error);
-    } finally {
-      migrationBusy = false;
-    }
-  }
-
-  async function chooseMigrationBackup(): Promise<void> {
-    migrationBackup = (await chooseWorkspaceDirectory()) ?? migrationBackup;
-  }
-
-  async function migrateWorkspace(): Promise<void> {
-    if (!activeWorkspace || !migrationPreview || !migrationBackup || !migrationConsent) return;
-    migrationBusy = true;
-    migrationError = null;
-    migrationNotice = null;
-    try {
-      const receipt = await migrateWorkspaceV3({
-        workspace: activeWorkspace.path,
-        expectedPlanSha256: migrationPreview.migration_plan_sha256,
-        backupDestination: migrationBackup,
-      });
-      migrationNotice = receipt.summary;
-      migrationPreview = null;
-      migrationConsent = false;
-      migrationBackup = "";
-      await onSelect(activeWorkspace.path);
-    } catch (error) {
-      migrationError = commandErrorMessage(error);
-    } finally {
-      migrationBusy = false;
     }
   }
 </script>
@@ -427,62 +375,6 @@
               </DropdownMenu.Item>
             </ActionMenu>
           </div>
-          {#if activeWorkspace.status.workspace_format === "canisend.workspace/v2"}
-            <Separator />
-            <section class="space-y-3" aria-labelledby="workspace-migration-title">
-              <div>
-                <h3 id="workspace-migration-title" class="text-sm font-semibold">
-                  {copy.migrateWorkspace}
-                </h3>
-                <p class="mt-1 text-xs text-muted-foreground">{copy.migrationDescription}</p>
-              </div>
-              <Button variant="outline" disabled={busy || migrationBusy} onclick={previewMigration}>
-                {copy.previewMigration}
-              </Button>
-              {#if migrationPreview}
-                <dl class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 rounded-md border p-3 text-sm">
-                  <dt class="text-muted-foreground">{copy.migrationApplications}</dt>
-                  <dd>{migrationPreview.application_count}</dd>
-                  <dt class="text-muted-foreground">{copy.migrationConflicts}</dt>
-                  <dd>{migrationPreview.projection_conflict_count}</dd>
-                </dl>
-                <p class="break-all font-mono text-xs" aria-label="Migration plan SHA-256">
-                  {migrationPreview.migration_plan_sha256}
-                </p>
-                <div class="space-y-2">
-                  <Label for="workspace-migration-backup">{copy.backupDirectory}</Label>
-                  <div class="flex gap-2">
-                    <Input id="workspace-migration-backup" bind:value={migrationBackup} readonly />
-                    <Button type="button" variant="outline" onclick={chooseMigrationBackup}>
-                      {copy.chooseDirectory}
-                    </Button>
-                  </div>
-                </div>
-                <div class="flex items-start gap-3">
-                  <Checkbox id="workspace-migration-consent" bind:checked={migrationConsent} />
-                  <Label for="workspace-migration-consent" class="font-normal">
-                    {copy.migrationConsent}
-                  </Label>
-                </div>
-                <Button
-                  disabled={migrationBusy || !migrationBackup || !migrationConsent}
-                  onclick={migrateWorkspace}
-                >
-                  {copy.migrateWorkspace}
-                </Button>
-              {/if}
-              {#if migrationError}
-                <Alert.Root variant="destructive" role="alert" aria-live="assertive">
-                  <Alert.Description>{migrationError}</Alert.Description>
-                </Alert.Root>
-              {/if}
-              {#if migrationNotice}
-                <Alert.Root variant="success" aria-live="polite">
-                  <Alert.Description>{migrationNotice}</Alert.Description>
-                </Alert.Root>
-              {/if}
-            </section>
-          {/if}
         {:else}
           <Empty.Root class="min-h-32 border">
             <Empty.Header>

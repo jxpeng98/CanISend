@@ -25,9 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
-            agent::agent_capabilities,
             agent::agent_assistance,
-            agent::agent_context,
             agent::agent_skills_status,
             agent::copy_agent_mcp_configuration,
             agent::copy_agent_handoff,
@@ -58,19 +56,15 @@ pub fn run() {
             commands::create_workspace,
             commands::import_local_job_source,
             commands::import_url_job_source,
-            commands::list_jobs,
             commands::list_application_dossiers,
             commands::list_workspaces,
-            commands::migrate_workspace_v3,
             commands::product_summary,
-            commands::preview_workspace_v3_migration,
             commands::remove_workspace,
             commands::repair_workspace,
             commands::restore_workspace,
             commands::run_doctor,
             commands::select_workspace,
             commands::search_content,
-            commands::show_job,
             commands::workspace_status,
             commands::workflow_pack_presentation,
             delivery::build_render,
@@ -133,10 +127,8 @@ pub fn run() {
             workflow::commit_workflow_rerun,
             workflow::complete_workflow_stage,
             workflow::discard_workflow_preview,
-            workflow::latest_task,
             workflow::preview_workflow_rerun,
-            workflow::start_workflow,
-            workflow::workflow_controls
+            workflow::start_workflow
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the CanISend Tauri desktop application");

@@ -63,11 +63,6 @@
       "marker": "fn revision_bound_rerun_rejects_stale_preview_without_mutation()"
     },
     {
-      "id": "academic-tauri-agent",
-      "path": "crates/canisend-desktop/src/agent.rs",
-      "marker": "fn agent_commands_preserve_body_free_shared_contracts()"
-    },
-    {
       "id": "neutral-tauri-registry",
       "path": "crates/canisend-desktop/src/commands.rs",
       "marker": "fn shared_registry_commands_create_and_reopen_neutral_workspace_v4()"
@@ -91,11 +86,6 @@
       "id": "academic-tauri-job-intake",
       "path": "crates/canisend-desktop/src/job_intake.rs",
       "marker": "fn job_intake_family_uses_the_shared_single_use_broker()"
-    },
-    {
-      "id": "compatibility-wrong-pack",
-      "path": "crates/canisend-app/src/compatibility.rs",
-      "marker": "fn generic_pack_context_fails_closed_with_canonical_remediation()"
     },
     {
       "id": "desktop-discovery-approval",
@@ -188,8 +178,8 @@
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["agent.capabilities", "agent.context", "application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "job.list", "job.show", "profile-source.list", "task.latest", "workflow.status"],
-      "fixtures": ["academic-tauri-agent", "neutral-tauri-registry", "academic-tauri-profile", "academic-tauri-workflow", "mixed-tauri-workspace", "generic-tauri-lifecycle", "compatibility-wrong-pack"]
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list"],
+      "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle"]
     },
     {
       "pack": "academic-job",
@@ -269,16 +259,6 @@
       "id": "profile-source",
       "operations": ["profile-source.list"],
       "fixtures": ["academic-tauri-profile"]
-    },
-    {
-      "id": "task",
-      "operations": ["task.latest"],
-      "fixtures": ["academic-tauri-workflow"]
-    },
-    {
-      "id": "workflow",
-      "operations": ["workflow.status"],
-      "fixtures": ["academic-tauri-workflow"]
     }
   ],
   "uncovered_policy": {

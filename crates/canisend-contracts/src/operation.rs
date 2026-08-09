@@ -704,7 +704,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            112
+            104
         );
         assert_eq!(
             bindings
@@ -713,7 +713,7 @@ mod tests {
                 .count(),
             4
         );
-        assert_eq!(registry.compatibility_aliases.len(), 6);
+        assert!(registry.compatibility_aliases.is_empty());
         assert!(registry.presentation_aliases.iter().all(|alias| {
             matches!(alias.id.as_str(), "schema.*" | "resource.*")
                 && alias.class == OperationClass::WildcardAlias
