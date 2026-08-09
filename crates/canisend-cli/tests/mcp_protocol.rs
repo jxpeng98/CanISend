@@ -150,7 +150,7 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 9);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 14);
     assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 2);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
@@ -181,7 +181,7 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
     )
     .expect("write Profile Source fixture");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
-    let application_id = Application::create_application_flow_v4(
+    let created = Application::create_application_flow_v4(
         &root,
         ApplicationFlowCreateRequestV4 {
             pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
@@ -203,10 +203,9 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
     )
     .expect("create Application fixture")
     .data
-    .stored
-    .snapshot
-    .application
-    .id;
+    .stored;
+    let application_id = created.snapshot.application.id;
+    let requirement_id = created.snapshot.requirements[0].id.clone();
     let imported_source = Application::import_profile_source_v4(
         &root,
         &profile_source,
@@ -229,6 +228,47 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
         listed["result"]["structuredContent"]["operation"],
         json!("application.list")
     );
+
+    for (id, name, arguments, operation) in [
+        (
+            20,
+            "canisend_requirement_list",
+            json!({"application_id": application_id.as_str()}),
+            "requirement.list",
+        ),
+        (
+            21,
+            "canisend_requirement_show",
+            json!({
+                "application_id": application_id.as_str(),
+                "requirement_id": requirement_id.as_str()
+            }),
+            "requirement.show",
+        ),
+        (
+            22,
+            "canisend_plan_show",
+            json!({"application_id": application_id.as_str()}),
+            "plan.show",
+        ),
+        (
+            23,
+            "canisend_deliverable_list",
+            json!({"application_id": application_id.as_str()}),
+            "deliverable.list",
+        ),
+    ] {
+        let response = mcp.request(
+            id,
+            "tools/call",
+            json!({"name": name, "arguments": arguments}),
+        );
+        assert_eq!(response["result"]["isError"], json!(false));
+        assert_eq!(
+            response["result"]["structuredContent"]["operation"],
+            operation
+        );
+    }
 
     let status = mcp.request(
         3,

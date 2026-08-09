@@ -91,6 +91,8 @@ printf '%s\n' \
 
 generic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/generic-create.json")"
 academic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/academic-create.json")"
+generic_requirement_id="$(jq -er '.data.stored.snapshot.requirements[0].id' "$smoke_root/generic-create.json")"
+academic_requirement_id="$(jq -er '.data.stored.snapshot.requirements[0].id' "$smoke_root/academic-create.json")"
 profile_source_id="$(jq -er '.data.source.id' "$smoke_root/profile-source-import.json")"
 profile_source_revision="$(jq -er '.data.source.revision' "$smoke_root/profile-source-import.json")"
 profile_source_sha256="$(jq -er '.data.source.original.sha256' "$smoke_root/profile-source-import.json")"
@@ -203,6 +205,40 @@ write_initialize() {
     method: "tools/call",
     params: {name: "canisend_agent_v3_context", arguments: {}}
   }'
+  for pack_context in \
+    "$generic_id:$generic_requirement_id:13" \
+    "$academic_id:$academic_requirement_id:17"; do
+    application_id="${pack_context%%:*}"
+    remainder="${pack_context#*:}"
+    requirement_id="${remainder%%:*}"
+    base_id="${remainder##*:}"
+    jq -nc --arg application_id "$application_id" --argjson id "$base_id" '{
+      jsonrpc: "2.0", id: $id, method: "tools/call",
+      params: {name: "canisend_requirement_list", arguments: {application_id: $application_id}}
+    }'
+    jq -nc --arg application_id "$application_id" --arg requirement_id "$requirement_id" \
+      --argjson id "$((base_id + 1))" '{
+      jsonrpc: "2.0", id: $id, method: "tools/call",
+      params: {name: "canisend_requirement_show", arguments: {
+        application_id: $application_id, requirement_id: $requirement_id
+      }}
+    }'
+    jq -nc --arg application_id "$application_id" --argjson id "$((base_id + 2))" '{
+      jsonrpc: "2.0", id: $id, method: "tools/call",
+      params: {name: "canisend_plan_show", arguments: {application_id: $application_id}}
+    }'
+    jq -nc --arg application_id "$application_id" --argjson id "$((base_id + 3))" '{
+      jsonrpc: "2.0", id: $id, method: "tools/call",
+      params: {name: "canisend_deliverable_list", arguments: {application_id: $application_id}}
+    }'
+  done
+  jq -nc --arg application_id "$generic_id" '{
+    jsonrpc: "2.0", id: 21, method: "tools/call",
+    params: {name: "canisend_deliverable_show", arguments: {
+      application_id: $application_id,
+      deliverable_id: "019f2f55-7c00-7000-8000-000000000999"
+    }}
+  }'
 } > "$smoke_root/requests.jsonl"
 
 if ! "$binary" --workspace "$workspace" mcp serve \
@@ -213,19 +249,25 @@ if ! "$binary" --workspace "$workspace" mcp serve \
 fi
 
 if ! jq -s -e '
+  . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 11) and
+  (map(select(.id == 2))[0].result.tools | length == 16) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_deliverable_list",
+    "canisend_deliverable_show",
     "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_plan_show",
     "canisend_profile_association_commit",
     "canisend_profile_association_list",
     "canisend_profile_association_preview",
     "canisend_profile_source_list",
+    "canisend_requirement_list",
+    "canisend_requirement_show",
     "canisend_workspace_check",
     "canisend_workspace_status"
   ]) and
@@ -286,6 +328,19 @@ if ! jq -s -e '
     contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
   (map(select(.id == 12))[0].error.code == -32602) and
   (map(select(.id == 12))[0].error.message == "tool not found")
+  and
+  ([13, 17] | all(.[]; . as $id |
+    ($responses | map(select(.id == $id))[0].result.structuredContent.operation == "requirement.list") and
+    ($responses | map(select(.id == $id))[0].result.structuredContent.data.requirements | length == 1))) and
+  ([14, 18] | all(.[]; . as $id |
+    ($responses | map(select(.id == $id))[0].result.structuredContent.operation == "requirement.show"))) and
+  ([15, 19] | all(.[]; . as $id |
+    ($responses | map(select(.id == $id))[0].result.structuredContent.operation == "plan.show") and
+    ($responses | map(select(.id == $id))[0].result.structuredContent.status == "not-created"))) and
+  ([16, 20] | all(.[]; . as $id |
+    ($responses | map(select(.id == $id))[0].result.structuredContent.operation == "deliverable.list") and
+    ($responses | map(select(.id == $id))[0].result.structuredContent.data.deliverables | length == 0))) and
+  ($responses | map(select(.id == 21))[0].error.code == -32602)
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '

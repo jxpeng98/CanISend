@@ -697,21 +697,21 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            23
+            28
         );
         assert_eq!(
             bindings
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            106
+            111
         );
         assert_eq!(
             bindings
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            11
+            16
         );
         assert!(registry.compatibility_aliases.is_empty());
         assert!(registry.presentation_aliases.iter().all(|alias| {

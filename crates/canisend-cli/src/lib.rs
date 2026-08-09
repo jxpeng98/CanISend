@@ -116,6 +116,21 @@ enum Command {
         #[command(subcommand)]
         command: EvidenceCommand,
     },
+    /// Inspect Pack-bound Requirements for one Application.
+    Requirement {
+        #[command(subcommand)]
+        command: RequirementCommand,
+    },
+    /// Inspect the current Pack-bound Plan for one Application.
+    Plan {
+        #[command(subcommand)]
+        command: PlanCommand,
+    },
+    /// Inspect Pack-bound Deliverable metadata for one Application.
+    Deliverable {
+        #[command(subcommand)]
+        command: DeliverableCommand,
+    },
     /// Install and inspect clean Agent v4 host resources for this Workspace.
     Host {
         #[command(subcommand)]
@@ -203,6 +218,28 @@ enum AssociationCommand {
     List(ApplicationIdArgs),
 }
 
+#[derive(Debug, Subcommand)]
+enum RequirementCommand {
+    /// List Requirements for one exact Application revision and Pack binding.
+    List(ApplicationIdArgs),
+    /// Show one Requirement that belongs to the selected Application.
+    Show(RequirementIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum PlanCommand {
+    /// Show the current Plan, or an explicit not-created state, for one Application.
+    Show(ApplicationIdArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum DeliverableCommand {
+    /// List body-free Deliverable metadata for one exact Application revision.
+    List(ApplicationIdArgs),
+    /// Show one body-free Deliverable metadata record for the selected Application.
+    Show(DeliverableIdArgs),
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ProfileSourceSensitivityArgument {
     Public,
@@ -288,6 +325,26 @@ struct WorkspaceRestoreArgs {
 struct ApplicationIdArgs {
     #[arg(long)]
     application: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct RequirementIdArgs {
+    #[arg(long)]
+    application: String,
+    #[arg(long)]
+    requirement: String,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
+struct DeliverableIdArgs {
+    #[arg(long)]
+    application: String,
+    #[arg(long)]
+    deliverable: String,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -398,6 +455,17 @@ impl Cli {
             } => match command {
                 AssociationCommand::List(arguments) => arguments.output.json,
             },
+            Command::Requirement { command } => match command {
+                RequirementCommand::List(arguments) => arguments.output.json,
+                RequirementCommand::Show(arguments) => arguments.output.json,
+            },
+            Command::Plan {
+                command: PlanCommand::Show(arguments),
+            } => arguments.output.json,
+            Command::Deliverable { command } => match command {
+                DeliverableCommand::List(arguments) => arguments.output.json,
+                DeliverableCommand::Show(arguments) => arguments.output.json,
+            },
             Command::Host { command } => match command {
                 HostCommand::Setup(arguments) | HostCommand::Status(arguments) => {
                     arguments.output.json
@@ -496,7 +564,6 @@ const LEGACY_TOP_LEVEL_COMMANDS: &[&str] = &[
     "task",
     "criteria",
     "match",
-    "plan",
     "document",
     "review",
     "package",
@@ -652,6 +719,21 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
                     command: AssociationCommand::List(arguments),
                 },
         } => evidence_association_list(workspace, &arguments.application),
+        Command::Requirement {
+            command: RequirementCommand::List(arguments),
+        } => requirement_list(workspace, &arguments.application),
+        Command::Requirement {
+            command: RequirementCommand::Show(arguments),
+        } => requirement_show(workspace, &arguments.application, &arguments.requirement),
+        Command::Plan {
+            command: PlanCommand::Show(arguments),
+        } => plan_show(workspace, &arguments.application),
+        Command::Deliverable {
+            command: DeliverableCommand::List(arguments),
+        } => deliverable_list(workspace, &arguments.application),
+        Command::Deliverable {
+            command: DeliverableCommand::Show(arguments),
+        } => deliverable_show(workspace, &arguments.application, &arguments.deliverable),
         Command::Host {
             command: HostCommand::Setup(arguments),
         } => host_setup(workspace, arguments),
@@ -1250,6 +1332,116 @@ fn evidence_association_list(
     )
 }
 
+fn requirement_list(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "requirement.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::list_requirements_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    let count = receipt.data.requirements.len();
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Pack: {}", receipt.data.context.pack.id),
+            format!("Requirements: {count}"),
+        ],
+    )
+}
+
+fn requirement_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+    requirement_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "requirement.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::show_requirement_v4(&root, application_id, requirement_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Requirement: {}", receipt.data.requirement.id),
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Pack: {}", receipt.data.context.pack.id),
+        ],
+    )
+}
+
+fn plan_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "plan.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::show_plan_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    let state = if receipt.data.plan.is_some() {
+        "Plan: current"
+    } else {
+        "Plan: not created"
+    };
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Pack: {}", receipt.data.context.pack.id),
+            state.to_owned(),
+        ],
+    )
+}
+
+fn deliverable_list(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "deliverable.list";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::list_deliverables_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    let count = receipt.data.deliverables.len();
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Pack: {}", receipt.data.context.pack.id),
+            format!("Deliverables: {count}"),
+        ],
+    )
+}
+
+fn deliverable_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+    deliverable_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "deliverable.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let receipt = Application::show_deliverable_v4(&root, application_id, deliverable_id)
+        .map_err(|error| app_adapter::failure(operation, error))?;
+    success(
+        operation,
+        &receipt.status,
+        &receipt.data,
+        vec![
+            format!("Deliverable: {}", receipt.data.deliverable.id),
+            format!("Application: {}", receipt.data.context.application_id),
+            format!("Pack: {}", receipt.data.context.pack.id),
+            "Content body remains behind the private-read boundary".to_owned(),
+        ],
+    )
+}
+
 fn read_application_candidate<T>(operation: &'static str, path: &Path) -> CommandResult<T>
 where
     T: serde::de::DeserializeOwned,
@@ -1336,7 +1528,7 @@ fn internal_version(error: impl std::fmt::Display) -> Box<CommandFailure> {
 
 fn success<T: serde::Serialize>(
     operation: &'static str,
-    status: &'static str,
+    status: &str,
     data: &T,
     human: Vec<String>,
 ) -> CommandResult<CommandOutput> {
@@ -1465,7 +1657,7 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 23);
+        assert_eq!(actual.len(), 28);
     }
 
     #[test]

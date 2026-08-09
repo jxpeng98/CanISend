@@ -10,7 +10,9 @@ use canisend_app::{
     AssociationApprovalErrorV4, AssociationChangeV4, EvidenceAssociationPreviewRequestV4,
     PrivateReadConsent, ProfileAssociationPreviewRequestV4,
 };
-use canisend_contracts::{ApplicationId, ContentRevisionReferenceV3, Sha256Digest};
+use canisend_contracts::{
+    ApplicationId, ContentRevisionReferenceV3, DeliverableId, RequirementId, Sha256Digest,
+};
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
     handler::server::wrapper::{Json, Parameters},
@@ -71,6 +73,24 @@ pub struct CanISendMcpServer {
 pub struct ApplicationParameters {
     #[schemars(description = "CanISend Application ID")]
     pub application_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationRequirementParameters {
+    #[schemars(description = "CanISend Application ID")]
+    pub application_id: String,
+    #[schemars(description = "Requirement ID owned by the selected Application")]
+    pub requirement_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationDeliverableParameters {
+    #[schemars(description = "CanISend Application ID")]
+    pub application_id: String,
+    #[schemars(description = "Deliverable ID owned by the selected Application")]
+    pub deliverable_id: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -185,6 +205,18 @@ impl CanISendMcpServer {
     fn parse_application_id(application_id: &str) -> Result<ApplicationId, McpError> {
         Self::validate_application_id(application_id)?;
         ApplicationId::try_new(application_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))
+    }
+
+    fn validate_requirement_id(requirement_id: &str) -> Result<(), McpError> {
+        RequirementId::try_new(requirement_id)
+            .map(|_| ())
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))
+    }
+
+    fn validate_deliverable_id(deliverable_id: &str) -> Result<(), McpError> {
+        DeliverableId::try_new(deliverable_id)
+            .map(|_| ())
             .map_err(|error| McpError::invalid_params(error.to_string(), None))
     }
 
@@ -313,6 +345,115 @@ impl CanISendMcpServer {
         Self::application_result(Application::application_model_v4(
             self.workspace(),
             &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "List Pack-bound Requirements for one exact Application revision",
+        annotations(
+            title = "List Application Requirements",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_list(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::list_requirements_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "Show one Requirement owned by the selected Application and Pack binding",
+        annotations(
+            title = "Show Application Requirement",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_show(
+        &self,
+        Parameters(parameters): Parameters<ApplicationRequirementParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::validate_requirement_id(&parameters.requirement_id)?;
+        Self::application_result(Application::show_requirement_v4(
+            self.workspace(),
+            &parameters.application_id,
+            &parameters.requirement_id,
+        ))
+    }
+
+    #[tool(
+        description = "Show the current Pack-bound Plan or an explicit not-created state for one Application",
+        annotations(
+            title = "Show Application Plan",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_plan_show(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::show_plan_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "List body-free Pack-bound Deliverable metadata for one exact Application revision",
+        annotations(
+            title = "List Application Deliverables",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_list(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::list_deliverables_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "Show one body-free Deliverable metadata record owned by the selected Application",
+        annotations(
+            title = "Show Application Deliverable",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_deliverable_show(
+        &self,
+        Parameters(parameters): Parameters<ApplicationDeliverableParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::validate_deliverable_id(&parameters.deliverable_id)?;
+        Self::application_result(Application::show_deliverable_v4(
+            self.workspace(),
+            &parameters.application_id,
+            &parameters.deliverable_id,
         ))
     }
 

@@ -332,6 +332,42 @@ export interface StoredApplicationModelV3 {
   committed_at: string;
 }
 
+export type RequirementRecordV3 = StoredApplicationModelV3["snapshot"]["requirements"][number];
+export type PlanRecordV3 = NonNullable<StoredApplicationModelV3["snapshot"]["plan"]>;
+export type DeliverableRecordV3 = StoredApplicationModelV3["snapshot"]["deliverables"][number];
+
+export interface ApplicationResourceContextV4 {
+  application_id: string;
+  pack: WorkflowPackBinding;
+  application_revision: number;
+  snapshot_sha256: string;
+}
+
+export interface RequirementListReadModelV4 {
+  context: ApplicationResourceContextV4;
+  requirements: RequirementRecordV3[];
+}
+
+export interface RequirementShowReadModelV4 {
+  context: ApplicationResourceContextV4;
+  requirement: RequirementRecordV3;
+}
+
+export interface PlanShowReadModelV4 {
+  context: ApplicationResourceContextV4;
+  plan: PlanRecordV3 | null;
+}
+
+export interface DeliverableListReadModelV4 {
+  context: ApplicationResourceContextV4;
+  deliverables: DeliverableRecordV3[];
+}
+
+export interface DeliverableShowReadModelV4 {
+  context: ApplicationResourceContextV4;
+  deliverable: DeliverableRecordV3;
+}
+
 export interface ApplicationFlowReadModelV3 {
   stored: StoredApplicationModelV3;
   stages: ApplicationFlowStageV3[];
@@ -1741,6 +1777,61 @@ export async function showGenericApplication(
 ): Promise<ActionReceipt<ApplicationFlowReadModelV3>> {
   return invoke("show_generic_application", {
     request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function listRequirementsV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<RequirementListReadModelV4>> {
+  return invoke("requirement_list", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function showRequirementV4(
+  workspace: string,
+  applicationId: string,
+  requirementId: string,
+): Promise<ActionReceipt<RequirementShowReadModelV4>> {
+  return invoke("requirement_show", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      requirement_id: requirementId,
+    },
+  });
+}
+
+export async function showPlanV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<PlanShowReadModelV4>> {
+  return invoke("plan_show", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function listDeliverablesV4(
+  workspace: string,
+  applicationId: string,
+): Promise<ActionReceipt<DeliverableListReadModelV4>> {
+  return invoke("deliverable_list", {
+    request: { workspace, application_id: applicationId },
+  });
+}
+
+export async function showDeliverableV4(
+  workspace: string,
+  applicationId: string,
+  deliverableId: string,
+): Promise<ActionReceipt<DeliverableShowReadModelV4>> {
+  return invoke("deliverable_show", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      deliverable_id: deliverableId,
+    },
   });
 }
 

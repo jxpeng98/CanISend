@@ -5,6 +5,7 @@ mod agent_session;
 mod agent_v3;
 mod application;
 mod application_flow_v3;
+mod application_resources_v4;
 mod application_v3;
 mod approval;
 mod assistance;
@@ -73,6 +74,10 @@ pub use application_flow_v3::{
     ApplicationFlowRenderedDeliverableV3, ApplicationFlowRequirementDraftV3,
     ApplicationFlowReviewDeliverableV3, ApplicationFlowReviewReadModelV3,
     ApplicationFlowStageReadModelV3, ApplicationFlowStageStateV3,
+};
+pub use application_resources_v4::{
+    ApplicationResourceContextV4, DeliverableListReadModelV4, DeliverableShowReadModelV4,
+    PlanShowReadModelV4, RequirementListReadModelV4, RequirementShowReadModelV4,
 };
 pub use application_v3::{
     ApplicationArchiveRequest, ApplicationModelCommitRequestV3, ApplicationModelCommitResultV3,
