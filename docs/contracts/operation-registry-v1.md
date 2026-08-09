@@ -53,7 +53,7 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 19 |
-| Tauri | `tauri::generate_handler!` | 116 |
+| Tauri | `tauri::generate_handler!` | 106 |
 | MCP | `#[tool_router]` `canisend_*` methods | 4 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
@@ -66,8 +66,11 @@ setup/status/remove, and the read-only MCP server. Host setup installs only mani
 and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
 router contains only Workspace status/check and Application list/show. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
-The remaining 17 compatibility bindings are owned by the current Tauri surface and are scheduled
-for removal with the mixed-Workspace desktop cutover.
+The remaining seven compatibility bindings are read-only Tauri projections used while the
+Profile/Evidence and Agent v4 desktop views complete their clean-v4 cutover. Ten Alpha.6 mutation
+and preview bindings have been removed from the registered handler set; their former frontend
+entry points fail locally before invoking Tauri. The source gate fixes the transitional aliases to
+the exact read-only set so a retired mutation cannot be reintroduced as compatibility behavior.
 
 ## Source gate
 

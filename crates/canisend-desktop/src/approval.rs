@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use canisend_app::{
     ApprovalBinding, ApprovalBroker, ApprovalBrokerError, ApprovalDisposition, ApprovalGrant,
-    ApprovalKind, ApprovalLease, ApprovalScope, PreparedJobSource, WorkflowRerunRequest,
+    ApprovalKind, ApprovalLease, ApprovalScope, WorkflowRerunRequest,
 };
-use canisend_contracts::{DiscoveryImportReport, TaskCompletionRequest};
+use canisend_contracts::DiscoveryImportReport;
 
 use crate::application_intake::PreparedApplicationIntakeV4;
 use crate::commands::DesktopCommandError;
@@ -23,11 +23,7 @@ pub(crate) enum DesktopPendingApproval {
         kind: DesktopDiscoveryKind,
         report: Box<DiscoveryImportReport>,
     },
-    JobIntake(Box<PreparedJobSource>),
-    TaskCompletion {
-        workspace: PathBuf,
-        request: TaskCompletionRequest,
-    },
+    JobIntake,
     WorkflowRerun {
         workspace: PathBuf,
         request: WorkflowRerunRequest,

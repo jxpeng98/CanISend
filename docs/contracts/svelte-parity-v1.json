@@ -75,28 +75,12 @@
       "tests": ["crates/canisend-desktop/src/commands.rs"]
     },
     {
-      "operation": "job.create",
-      "status": "implemented",
-      "tauri_commands": ["create_job"],
-      "svelte_views": [
-        "apps/canisend-desktop/src/App.svelte",
-        "apps/canisend-desktop/src/lib/components/WorkspaceContextBar.svelte",
-        "apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"
-      ],
-      "tests": [
-        "apps/canisend-desktop/src/lib/workflow-navigation.test.ts",
-        "crates/canisend-desktop/src/commands.rs"
-      ]
-    },
-    {
       "operation": "job.import",
       "status": "implemented",
       "tauri_commands": [
         "import_local_job_source",
         "import_url_job_source",
-        "preview_local_job_source",
         "preview_url_job_source",
-        "commit_job_source_preview",
         "discard_job_source_preview"
       ],
       "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
@@ -117,13 +101,6 @@
       "operation": "job.show",
       "status": "implemented",
       "tauri_commands": ["show_job"],
-      "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
-      "tests": ["crates/canisend-desktop/src/commands.rs"]
-    },
-    {
-      "operation": "job.archive",
-      "status": "implemented",
-      "tauri_commands": ["archive_job"],
       "svelte_views": ["apps/canisend-desktop/src/lib/views/ApplicationsView.svelte"],
       "tests": ["crates/canisend-desktop/src/commands.rs"]
     },
@@ -262,16 +239,10 @@
       "tests": ["crates/canisend-desktop/src/discovery.rs"]
     },
     {
-      "operation": "task.*",
+      "operation": "task.latest",
       "status": "implemented",
       "tauri_commands": [
-        "latest_task",
-        "prepare_task",
-        "export_task_inputs",
-        "preview_task_completion",
-        "commit_task_completion_preview",
-        "cancel_task",
-        "prepare_task_again"
+        "latest_task"
       ],
       "svelte_views": ["apps/canisend-desktop/src/lib/views/WorkflowView.svelte"],
       "tests": ["crates/canisend-desktop/src/workflow.rs"]

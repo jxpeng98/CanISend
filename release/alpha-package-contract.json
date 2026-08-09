@@ -11,11 +11,11 @@
       "tree_sha256": "70da68da07e757705c1a47c614a1088d756bffd9874683aee00f468f6ef9f7b8"
     },
     "operation_registry": {
-      "compatibility_alias_count": 17,
+      "compatibility_alias_count": 7,
       "compatibility_pack_scope": "academic-job",
       "format": "canisend.operation-registry/v1",
       "path": "crates/canisend-contracts/operation-registry-v1.json",
-      "sha256": "06b6aaf7bae82a43a142179104732fc0a969787aecdca0793a6330b2cfcd9117"
+      "sha256": "0dca354d81c0f6d99fa474ca40a7434a118891028003f9040141eddbe8e1d30a"
     },
     "resource_manifest": {
       "entry_count": 87,

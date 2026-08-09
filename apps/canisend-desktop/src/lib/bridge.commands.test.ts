@@ -18,6 +18,7 @@ import {
   beginWorkflowStage,
   approveGenericApplication,
   cancelAgentTurn,
+  commandErrorCode,
   commitApplicationIntakePreview,
   commitJobSourcePreview,
   confirmPlan,
@@ -92,19 +93,22 @@ describe("typed Tauri command requests", () => {
     });
   });
 
-  it("previews local and URL job sources without committing either source", async () => {
-    await previewLocalJobSource("/tmp/workspace", "job-id", "/tmp/advert.pdf", true);
+  it("refuses retired local job intake before invoking Tauri", async () => {
+    const error = await previewLocalJobSource(
+      "/tmp/workspace",
+      "job-id",
+      "/tmp/advert.pdf",
+      true,
+    ).catch((value: unknown) => value);
+
+    expect(commandErrorCode(error)).toBe("unsupported_legacy_operation");
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+  it("retains the read-only URL job preview during the v4 cutover", async () => {
     await previewUrlJobSource("/tmp/workspace", "job-id", "https://example.edu/advert.pdf", true);
 
-    expect(mocks.invoke).toHaveBeenNthCalledWith(1, "preview_local_job_source", {
-      request: {
-        workspace: "/tmp/workspace",
-        job_id: "job-id",
-        source: "/tmp/advert.pdf",
-        confirmed_private_read: true,
-      },
-    });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "preview_url_job_source", {
+    expect(mocks.invoke).toHaveBeenCalledWith("preview_url_job_source", {
       request: {
         workspace: "/tmp/workspace",
         job_id: "job-id",
@@ -114,15 +118,13 @@ describe("typed Tauri command requests", () => {
     });
   });
 
-  it("commits only an opaque reviewed job-intake preview token", async () => {
-    await commitJobSourcePreview("/tmp/workspace", "job-intake-preview-123");
+  it("refuses retired job-intake commits before invoking Tauri", async () => {
+    const error = await commitJobSourcePreview("/tmp/workspace", "job-intake-preview-123").catch(
+      (value: unknown) => value,
+    );
 
-    expect(mocks.invoke).toHaveBeenCalledWith("commit_job_source_preview", {
-      request: {
-        workspace: "/tmp/workspace",
-        preview_token: "job-intake-preview-123",
-      },
-    });
+    expect(commandErrorCode(error)).toBe("unsupported_legacy_operation");
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
   it("loads unified application dossiers through body-free desktop commands", async () => {
