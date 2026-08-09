@@ -66,24 +66,28 @@ impl LegacyCompatibilityOperation {
     ];
 
     #[cfg(test)]
-    pub(crate) const REGISTERED_ALIASES: [Self; 17] = [
+    pub(crate) const REGISTERED_ALIASES: [Self; 7] = [
         Self::AgentCapabilities,
         Self::AgentContext,
         Self::JobList,
         Self::JobShow,
+        Self::ProfileSources,
+        Self::TaskLatest,
+        Self::WorkflowStatus,
+    ];
+
+    #[cfg(test)]
+    pub(crate) const RETIRED_REGISTERED_ALIASES: [Self; 10] = [
         Self::JobCreate,
         Self::JobArchive,
         Self::JobIntakePreview,
         Self::JobIntakeCommit,
-        Self::ProfileSources,
-        Self::TaskLatest,
         Self::TaskPrepare,
         Self::TaskInputs,
         Self::TaskCompletionPreview,
         Self::TaskCompletionCommit,
         Self::TaskCancel,
         Self::TaskPrepareAgain,
-        Self::WorkflowStatus,
     ];
 
     pub(crate) const fn legacy(self) -> &'static str {
@@ -357,11 +361,20 @@ mod tests {
             );
         }
         assert_eq!(legacy.len(), registry.compatibility_aliases.len());
-        for internal in [
-            LegacyCompatibilityOperation::JobImport,
-            LegacyCompatibilityOperation::TaskShow,
-        ] {
-            assert!(registry.compatibility_alias(internal.legacy()).is_none());
+        for retired_or_internal in LegacyCompatibilityOperation::RETIRED_REGISTERED_ALIASES
+            .into_iter()
+            .chain([
+                LegacyCompatibilityOperation::JobImport,
+                LegacyCompatibilityOperation::TaskShow,
+            ])
+        {
+            assert!(
+                registry
+                    .compatibility_alias(retired_or_internal.legacy())
+                    .is_none(),
+                "retired or internal legacy alias must not be registered: {}",
+                retired_or_internal.legacy()
+            );
         }
     }
 
