@@ -16,12 +16,17 @@ if [[ -e "$smoke_root" || -L "$smoke_root" ]]; then
   echo "Agent v4 MCP smoke: destination must not exist: $smoke_root" >&2
   exit 1
 fi
-for command in jq mkfifo; do
+for command in jq; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Agent v4 MCP smoke: required command is missing: $command" >&2
     exit 1
   fi
 done
+if ! command -v cygpath >/dev/null 2>&1 \
+  && ! command -v mkfifo >/dev/null 2>&1; then
+  echo "Agent v4 MCP smoke: required command is missing: mkfifo" >&2
+  exit 1
+fi
 
 mcp_pid=""
 mcp_fds_open=false
@@ -467,16 +472,26 @@ if ! jq -s -e '
   exit 1
 fi
 
-request_fifo="$smoke_root/dynamic-mcp.requests"
-response_fifo="$smoke_root/dynamic-mcp.responses"
-mkfifo "$request_fifo" "$response_fifo"
-"$binary" --workspace "$workspace" mcp serve \
-  < "$request_fifo" \
-  > "$response_fifo" \
-  2> "$smoke_root/dynamic-mcp.stderr" &
-mcp_pid="$!"
-exec 3> "$request_fifo"
-exec 4< "$response_fifo"
+if command -v cygpath >/dev/null 2>&1; then
+  coproc MCP_SERVER {
+    "$binary" --workspace "$workspace" mcp serve \
+      2> "$smoke_root/dynamic-mcp.stderr"
+  }
+  mcp_pid="$MCP_SERVER_PID"
+  exec 3>&${MCP_SERVER[1]}-
+  exec 4<&${MCP_SERVER[0]}-
+else
+  request_fifo="$smoke_root/dynamic-mcp.requests"
+  response_fifo="$smoke_root/dynamic-mcp.responses"
+  mkfifo "$request_fifo" "$response_fifo"
+  "$binary" --workspace "$workspace" mcp serve \
+    < "$request_fifo" \
+    > "$response_fifo" \
+    2> "$smoke_root/dynamic-mcp.stderr" &
+  mcp_pid="$!"
+  exec 3> "$request_fifo"
+  exec 4< "$response_fifo"
+fi
 mcp_fds_open=true
 
 mcp_request "$(
