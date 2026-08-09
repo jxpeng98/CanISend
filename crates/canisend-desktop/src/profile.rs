@@ -91,6 +91,13 @@ fn import_profile_source_impl(
     .map_err(DesktopCommandError::application)
 }
 
+fn list_profile_sources_impl(
+    request: ProfileWorkspaceRequest,
+) -> Result<ActionReceipt<ProfileSourceListReadModel>, DesktopCommandError> {
+    Application::list_profile_sources_v4(&request.workspace)
+        .map_err(DesktopCommandError::application)
+}
+
 fn initialize_profile_impl(
     request: ProfileInitializationRequest,
 ) -> Result<ActionReceipt<ProfileInitializationReadModel>, DesktopCommandError> {
@@ -190,11 +197,7 @@ fn confirm_plan_impl(
 pub(crate) async fn list_profile_sources(
     request: ProfileWorkspaceRequest,
 ) -> Result<ActionReceipt<ProfileSourceListReadModel>, DesktopCommandError> {
-    run_worker(move || {
-        Application::list_profile_sources(&request.workspace)
-            .map_err(DesktopCommandError::application)
-    })
-    .await
+    run_worker(move || list_profile_sources_impl(request)).await
 }
 
 #[tauri::command]
@@ -326,7 +329,7 @@ mod tests {
         let workspace = temporary_root("workspace");
         let source = temporary_root("source").with_extension("txt");
         fs::write(&source, "Teaching and research experience.").expect("write profile source");
-        Application::initialize_workspace(&workspace).expect("initialize workspace");
+        Application::initialize_workspace_v4(&workspace).expect("initialize Workspace v4");
 
         let imported = import_profile_source_impl(ProfileSourceImportRequest {
             workspace: workspace.clone(),
@@ -336,7 +339,11 @@ mod tests {
         })
         .expect("import profile source");
         assert_eq!(imported.operation, "profile.source.add");
-        let listed = Application::list_profile_sources(&workspace).expect("list profile sources");
+        let listed = list_profile_sources_impl(ProfileWorkspaceRequest {
+            workspace: workspace.clone(),
+        })
+        .expect("list profile sources");
+        assert_eq!(listed.operation, "profile-source.list");
         assert_eq!(listed.data.sources.len(), 1);
         assert_eq!(listed.data.sources[0].id, imported.data.source.id);
 

@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::{
     ActionReceipt, Application, ApplicationError, PrivateReadConsent,
-    application::{open_workspace, parse_entity_id},
+    application::{open_workspace, open_workspace_v4, parse_entity_id},
     compatibility::{
         LegacyCompatibilityAccess, LegacyCompatibilityOperation, workspace_compatibility_notice,
     },
@@ -150,6 +150,25 @@ impl Application {
             },
         )
         .with_compatibility(compatibility))
+    }
+
+    pub fn list_profile_sources_v4(
+        root: &Path,
+    ) -> Result<ActionReceipt<ProfileSourceListReadModel>, ApplicationError> {
+        let mut workspace = open_workspace_v4(root)?;
+        let service = ProfileService::new(&mut workspace.database, &workspace.blobs);
+        let sources = service.list_sources()?;
+        let profile_revision = service.revision()?;
+        Ok(ActionReceipt::new(
+            "profile-source.list",
+            "available",
+            format!("Loaded {} Workspace Profile Source(s)", sources.len()),
+            ProfileSourceListReadModel {
+                workspace: workspace.paths.root,
+                profile_revision,
+                sources,
+            },
+        ))
     }
 
     pub fn profile_source(
@@ -339,6 +358,37 @@ mod tests {
         ] {
             assert!(!value.contains(sentinel));
         }
+
+        fs::remove_dir_all(root).expect("remove workspace");
+        fs::remove_file(source_path).expect("remove source");
+    }
+
+    #[test]
+    fn clean_v4_profile_source_list_is_neutral_and_body_free() {
+        let root = temporary_root("source-v4");
+        let source_path = temporary_root("private-v4").with_extension("md");
+        let sentinel = "PRIVATE-V4-PROFILE-SENTINEL-DO-NOT-LEAK";
+        fs::write(&source_path, format!("# Profile\n\n{sentinel}\n")).expect("write source");
+        Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+
+        let imported = Application::import_profile_source(
+            &root,
+            &source_path,
+            PrivacyClassification::PrivateLocal,
+            PrivateReadConsent::granted_by_user(),
+        )
+        .expect("import profile source");
+        let listed = Application::list_profile_sources_v4(&root).expect("list v4 Profile Sources");
+
+        assert_eq!(listed.operation, "profile-source.list");
+        assert_eq!(listed.data.profile_revision, 1);
+        assert_eq!(listed.data.sources[0].id, imported.data.source.id);
+        assert!(listed.compatibility.is_none());
+        assert!(
+            !serde_json::to_string(&listed)
+                .expect("serialize receipt")
+                .contains(sentinel)
+        );
 
         fs::remove_dir_all(root).expect("remove workspace");
         fs::remove_file(source_path).expect("remove source");

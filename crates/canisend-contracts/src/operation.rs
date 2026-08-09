@@ -713,7 +713,7 @@ mod tests {
                 .count(),
             4
         );
-        assert_eq!(registry.compatibility_aliases.len(), 7);
+        assert_eq!(registry.compatibility_aliases.len(), 6);
         assert!(registry.presentation_aliases.iter().all(|alias| {
             matches!(alias.id.as_str(), "schema.*" | "resource.*")
                 && alias.class == OperationClass::WildcardAlias

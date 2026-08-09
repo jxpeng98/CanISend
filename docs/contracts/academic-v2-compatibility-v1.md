@@ -68,7 +68,7 @@ detected Pack bindings, and `workspace_mutated: false`.
 | `job.archive` | `application.archive` |
 | `job.import`, `job.intake.commit` | `opportunity.intake.commit` |
 | `job.intake.preview` | `opportunity.intake.preview` |
-| `profile.source.list` | `evidence-source.list` |
+| `profile.source.list` | `profile-source.list` |
 | `task.show` | `agent-v3.task.show` |
 | `task.latest` | `agent-v3.task.latest` |
 | `task.prepare` | `agent-v3.task.prepare` |

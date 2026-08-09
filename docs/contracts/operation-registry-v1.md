@@ -66,11 +66,12 @@ setup/status/remove, and the read-only MCP server. Host setup installs only mani
 and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
 router contains only Workspace status/check and Application list/show. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
-The remaining seven compatibility bindings are read-only Tauri projections used while the
-Profile/Evidence and Agent v4 desktop views complete their clean-v4 cutover. Ten Alpha.6 mutation
-and preview bindings have been removed from the registered handler set; their former frontend
-entry points fail locally before invoking Tauri. The source gate fixes the transitional aliases to
-the exact read-only set so a retired mutation cannot be reintroduced as compatibility behavior.
+The remaining six compatibility bindings are read-only Tauri projections used while the Agent v4
+and academic Application desktop views complete their clean-v4 cutover. Profile Source listing now
+uses the neutral Workspace v4 `profile-source.list` operation. Ten Alpha.6 mutation and preview
+bindings have been removed from the registered handler set; their former frontend entry points fail
+locally before invoking Tauri. The source gate fixes the transitional aliases to the exact
+read-only set so a retired operation cannot be reintroduced as compatibility behavior.
 
 ## Source gate
 
