@@ -79,7 +79,7 @@
     "area_counts": {
       "contracts": 31,
       "guides": 10,
-      "projections": 14,
+      "projections": 13,
       "resources": 37,
       "rust": 80,
       "schemas": 31,
@@ -89,17 +89,17 @@
     },
     "classification_counts": {
       "academic-pack": 6,
-      "compatibility-surface": 138,
-      "kernel": 38,
+      "compatibility-surface": 137,
+      "kernel": 39,
       "optional-adapter": 2
     },
     "family_counts": {
       "academic-vocabulary": 81,
-      "fixed-academic-deliverables": 69,
+      "fixed-academic-deliverables": 68,
       "fixed-workflow-stage": 18,
-      "legacy-job-surface": 126
+      "legacy-job-surface": 125
     },
-    "inventory_sha256": "e47c4335c50e88a356a06f67ff42f5adbd2e8c78399fe8388f5f4f68b9aba8d5",
+    "inventory_sha256": "a7e0d37c82f291860ef7864c0b5c464ba9a3ac1cc594417dff99e2df8f88104b",
     "matching_files": 184
   }
 }

@@ -1,53 +1,41 @@
-# CanISend 1.0.0-alpha.6
+# CanISend 1.0.0-alpha.7
 
 ## Highlights
 
-CanISend 1.0 combines a Svelte-based macOS desktop interface, standalone command-line application, and versioned
-agent integration in one Rust-native product. This release completes the desktop transition from egui to
-Tauri + Svelte while preserving the same typed Rust application facade, local workspace, CLI, and Agent v2
-contracts. It installs without Python and does not require Python, Node.js, Java, a separately installed SQLite
-library, or a Typst command.
+CanISend 1.0 combines a Svelte/Tauri macOS desktop, standalone command-line application, and
+versioned Agent integration in one local-first Rust product. It does not require Python, Node.js,
+Java, an external SQLite library, or a Typst command at runtime.
 
-The macOS GUI supports persistent English and Simplified Chinese interfaces, native accessibility names, 100–200%
-text scaling, light/dark appearance, reduced motion, and the complete application workflow. Apple Silicon users can
-install from the new read-only DMG with an Applications drag target or retain the portable ZIP distribution.
+The clean `canisend.workspace/v4` authority is a neutral container. Academic and generic
+Applications coexist in one Workspace, and each Application owns its exact Pack ID, version,
+digest, revision, and stage state. Shared Profile Sources and Evidence require explicit
+Application associations and consent; one Application cannot silently read or invalidate another.
 
-The desktop now shares one checked-in shadcn-svelte Nova component system across the shell and every product page.
-Its restrained default radius, denser panels and spacing, clearer selected-tab surfaces, reusable page patterns,
-and overflow-safe responsive text make more of each workflow visible without crowding the interface. Comfortable
-and compact density now produce intentionally distinct layouts, while focus, keyboard, reduced-motion, bilingual,
-and 200% text behavior remain covered by the browser and packaged-App accessibility matrices.
+The App can initialize a new v4 Workspace and optionally install integrity-managed Codex and
+Claude Code Skills plus project-local MCP guidance. The same initialization, host
+setup/status/remove, basic-data import/read, recovery, and MCP stdio entry point remain available
+through the standalone CLI when the App is closed or absent.
 
-The desktop presents that workflow as one six-stage application journey with a shared workspace/application context,
-restored job selection, one recommended next action, and body-free recent-action continuity. Agent next actions and
-reviewed task results return to the exact criteria, profile, document, review, package, or render surface instead of
-opening disconnected tabs.
+`canisend.agent/v4` uses one canonical task-resource model and an
+`orient -> propose -> preview -> approve -> commit -> verify` sequence. Guarded mutations bind
+the exact Workspace, Application, Pack, revision, snapshot digest, preview digest, consent, and
+single-use process-local token. Denial, expiry, replay, stale context, wrong Application, or wrong
+Pack fails without mutation.
 
-Terminal settings now check the bundled/installed CLI automatically and expose the consent-gated Add to PATH action
-when needed. First-run profile initialization uses a localized editable Markdown scaffold and persists through the
-same revisioned application read model returned by the GUI and CLI. Optional in-App Agent turns can be cancelled by
-their exact workspace/runtime/job scope without saving a partial response. Selecting a different workspace returns
-the Agent screen to the recommended external-host flow and clears rendered conversation state from the previous
-workspace. New and resumed Codex bridge turns explicitly enforce the read-only sandbox.
-
-The product provides local-first job intake from user-supplied files, text PDFs, and public URLs; discovery imports;
-evidence and criteria workflows; matching; application planning; structured drafting and review; readiness checks;
-editable exports; and embedded PDF rendering. Codex, Claude, and custom hosts integrate through the versioned
-`canisend.agent/v2` JSON protocol and generated agent packs. CanISend prepares application materials but never
-submits an application.
-
-External Codex/Claude handoff remains the recommended reasoning surface. A portable MCP adapter exposes thirteen
-typed tools, including four approval-gated mutations; the optional in-App runtime bridge remains read-only. CanISend
-does not embed a model provider or duplicate the host-owned conversation transcript. The App identifies the nine
-read-only/preview tools separately from the four approval-gated writes, and a stale binding for a moved or deleted
-workspace cannot prevent active workspaces from using their own host sessions. Runtime discovery reports only
-observed executable/version evidence and never infers sign-in or host-tool configuration.
+The two built-in Packs share connected URL, pasted-text, local-file, and text-PDF intake plus
+Requirement, Plan, Deliverable, review, rendering, export, backup, and recovery rules through the
+same Rust application facade. CanISend prepares evidence-bound materials but never submits an application.
+It also never logs in or uploads on the user behalf.
 
 ## Compatibility
 
-- This release line uses `canisend.workspace/v2`, `canisend.agent/v2`, and public schema major version 2.
-- It does not migrate Python-era workspaces or preserve the `0.6.x` Python command tree.
-- Rust-native workspace migrations are append-only. An older binary rejects a future schema without mutation.
+- This development line uses `canisend.workspace/v4`, `canisend.agent/v4`, Agent schema
+  version `4.0.0`, and `canisend.agent-host-resources/v4`.
+- Earlier Skills, Agent v2/v3 requests, job aliases, host-resource layouts, and
+  Workspace v2/v3 files are unsupported. They fail before mutation with clean-v4 guidance.
+- It does not migrate Python-era Workspaces or preserve the `0.6.x` Python command tree.
+- Rust-native schema migrations are append-only. A binary rejects unsupported or future authority
+  before mutation.
 - The Apple Silicon macOS application bundles a version-matched CLI; standalone CLI archives
   cover the five declared targets. The desktop is distributed as a read-only DMG with an
   Applications drag target and as a portable ZIP; both contain the same ad-hoc-signed

@@ -1,8 +1,8 @@
 # Quick start: one Workspace, independently Pack-bound Applications
 
-This guide describes the clean Workspace v4 and Agent v4 contract being prepared for
-`v1.0.0-alpha.7`. The latest public Alpha.6 remains the historical Workspace v3 checkpoint and
-does not contain this complete flow.
+This guide describes the checked-in `1.0.0-alpha.7` clean Workspace v4 and Agent v4 development
+contract. The latest public Alpha.6 remains the historical Workspace v3 checkpoint and does not
+contain this flow. Treat Alpha.7 as unpublished until exact release artifacts pass qualification.
 
 CanISend is local-first. Keep every Workspace in a user-controlled private directory. It never
 logs in, uploads, or submits an Application; every successful export receipt keeps

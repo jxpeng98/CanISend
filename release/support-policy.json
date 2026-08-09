@@ -1,10 +1,10 @@
 {
   "contracts": {
-    "agent_protocol": "canisend.agent/v2",
+    "agent_protocol": "canisend.agent/v4",
     "beta_freeze": "release/beta-contract-freeze.json",
     "breaking_agent_change": "new-protocol-and-schema-major",
-    "public_schema_version": "2.0.0",
-    "resource_format": "canisend.resources/v2"
+    "public_schema_version": "4.0.0",
+    "resource_format": "canisend.agent-host-resources/v4"
   },
   "host_assets": {
     "claude": "generated-by-installed-binary",
@@ -42,7 +42,7 @@
   "workspace": {
     "current_database_schema_version": 20,
     "downgrade": "restore-verified-pre-upgrade-backup-to-new-path",
-    "format": "canisend.workspace/v2",
+    "format": "canisend.workspace/v4",
     "frozen_migrations_through": 13,
     "future_schema": "reject-without-mutation",
     "migration_policy": "append-only"

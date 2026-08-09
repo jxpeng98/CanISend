@@ -1,29 +1,27 @@
 # Changelog
 
-## Unreleased — toward `1.0.0-alpha.6`
+## Unreleased — `1.0.0-alpha.7` development
 
-- Reframed CanISend as a domain-neutral, local-first framework whose workflow Packs own domain
-  vocabulary, stages, Deliverables, templates, and Validators.
-- Added typed `canisend.workflow-pack/v1`, canonical embedded Academic and Generic Packs, stable
-  Pack-qualified stage and Deliverable identifiers, exact Pack digests, and bounded registries.
-- Added neutral Agent/Workspace v3 Application contracts and a dry-run-first, verified-backup,
-  failure-atomic Workspace v2→v3 migration that preserves Academic Pack authority.
-- Added Generic Pack CLI, MCP, and desktop flows while retaining bounded Agent v2, `job`, and
-  `jobs/JOB_ID` compatibility for migrated academic Applications.
-- Unified approval/preview storage, operation mapping, semantic parity, dependency-graph checks,
-  cross-platform core CI, and browser keyboard/accessibility gates.
-- Adopted `GPL-3.0-only` for current CanISend-authored source and future releases without changing
-  the license facts of published `v1.0.0-alpha.5` or older tags.
-- Added sequential Alpha/RC release planning, derived release status, workflow-default checks,
-  snapshot-declared feedback Roadmaps, and exact candidate promotion without recompilation.
+- Replaced Workspace modes with clean `canisend.workspace/v4`: one neutral Workspace can hold
+  independently Pack-bound academic and generic Applications.
+- Added explicit Application associations for shared Profile Sources and Evidence, connected
+  source intake, and guarded Requirement, Plan, and Deliverable operations.
+- Added App-led atomic bootstrap plus standalone CLI initialization, host management, basic-data
+  import/read, recovery, and persistent MCP stdio workflows.
+- Added `canisend.agent/v4`, schema version `4.0.0`, and one canonical source for
+  integrity-managed Codex and Claude Code Skills.
+- Removed supported Alpha.6 aliases, Agent v2/v3 requests, old Skill layouts, and Workspace v2/v3
+  migration from the Alpha.7 surface; unsupported legacy inputs fail before mutation.
+- Added packaged host and full guarded dual-Pack MCP lifecycle smoke on Linux, Windows, and macOS.
 
-The checked-in version remains `1.0.0-alpha.5` until the Roadmap authorizes the atomic Alpha.6
-transition. These entries describe unqualified post-tag source and are not Alpha.6 release notes.
+These entries describe checked-in development source. Alpha.7 is not published until exact
+candidate artifacts pass the Roadmap release gates.
 
-## Published `v1.0.0-alpha.5`
+## Published `v1.0.0-alpha.6`
 
-`v1.0.0-alpha.5` is the latest publicly qualified checkpoint. Its exact release notes, manifest,
-artifacts, license facts, and qualification evidence remain immutable at the tag.
+`v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Its Workspace v3/Agent v2-v3
+contracts, release notes, manifest, artifacts, and qualification evidence remain immutable at the
+tag.
 
 ## Historical Rust-native `0.7.0-alpha.1` development
 

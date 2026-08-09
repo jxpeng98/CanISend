@@ -1,76 +1,61 @@
 # Known limitations
 
-This page separates deliberate product boundaries from work that is complete only in post-tag
-source. It applies to the `1.0.0-alpha.6` development line; always treat the exact downloaded
-release notes and artifact manifest as the installed-binary authority.
+It applies to the `1.0.0-alpha.7` development line. It is not publication
+evidence; the exact downloaded release notes and manifest remain the installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Clean Workspace v4, Agent v4,
-  new Skills, and App bootstrap work on `main` are not a published Alpha.7 merely because the
-  source version still says `1.0.0-alpha.6`. `v1.0.0-alpha.5` remains an immutable earlier
-  checkpoint, not the current release authority.
-- The five-target CLI matrices and the macOS GUI channel have different qualification evidence.
-  A source build or local design preview is not a signed release artifact.
-- Windows and Linux public GUI artifacts are not qualified. Their CLI targets remain separate
-  release-matrix owners.
-- Signing, Apple notarization, Windows Authenticode, package-manager lifecycle, and clean-tag
-  provenance remain release-stage gates. Follow the release manifest; do not bypass an operating
-  system warning or treat an ad-hoc signature as publisher authentication.
+- `v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Alpha.7 is not a release merely
+  because the source version still says `1.0.0-alpha.7`; exact five-target CLI and supported
+  macOS App artifacts must pass build-once qualification, promotion, download, and independent
+  public reverification.
+- `v1.0.0-alpha.5` and earlier tags remain immutable historical checkpoints.
+- Windows and Linux public GUI artifacts are not qualified. Their standalone CLI targets have
+  separate native release-matrix owners.
+- Community signatures do not establish an operating-system-trusted publisher. Notarization,
+  Authenticode, provenance, and package-manager lifecycle remain release-stage gates. Never disable
+  an operating-system security control globally.
 
-## Workflow Packs
+## Clean v4 compatibility boundary
 
+- Alpha.7 initializes only `canisend.workspace/v4` and uses `canisend.agent/v4`.
+- Alpha.6-or-earlier Skills, Agent v2/v3 requests, job aliases, host-resource layouts, and Workspace
+  v2/v3 files are unsupported. They fail before mutation; there is no hidden migration or
+  compatibility negotiation.
+- Approval tokens are process-local, short-lived, bounded, and single-use. Guarded mutations must
+  remain in one running App or MCP process; a restart requires a fresh preview.
 - Only `org.canisend.generic-application` and `org.canisend.academic-job` are embedded. External
-  Pack installation, publisher trust, Pack signatures, upgrade resolution, and marketplace
-  discovery are not implemented.
-- A Workspace has one exact Pack binding. There is no supported in-place Pack switch, ontology
-  merge, or academic-to-generic conversion.
-- The Generic Pack is intentionally small: a Primary Document and optional Supporting Document,
-  with Pack-declared fields, Requirement categories, stages, renderers, and validators. It is a
-  reference neutral workflow, not a complete domain Pack for every grant, tender, admission, or
-  regulated submission.
-- Workspace v2→v3 migration preserves the Academic Pack. It requires a reviewed digest and verified
-  backup and does not make old records generic.
+  Pack installation, publisher trust, signatures, upgrade resolution, and marketplaces are not
+  implemented.
 
-## Generic intake and authoring
+## Applications, intake, and authoring
 
-- The Generic CLI currently creates an Application from reviewed bounded JSON. Direct URL, HTML,
-  local-file, and PDF normalization into a generic v3 request is not implemented. The desktop
-  accepts reviewed source text and an exact Requirement excerpt; users remain responsible for
-  source transcription and review.
-- The current generic flow is create, Plan, compose, review, approve, render, and export. Advanced
-  domain-specific Evidence extraction, reusable taxonomies, conditional forms, budgets, portal
-  fields, and electronic signatures require future Packs or services.
-- Generic Deliverables use the embedded bounded renderer. Layout flexibility is intentionally
-  narrower than an unrestricted Typst, LaTeX, office-suite, or browser environment.
+- One Workspace may contain both Packs, but one Application cannot merge Packs.
+- Shared Profile Sources and Evidence are not implicitly visible across Applications. Users must
+  review explicit associations and any private-read consent.
+- URL, pasted text, local files, and text PDFs are bounded inputs. Unsafe redirects, oversized
+  input, invalid spans, stale digests, duplicates, and missing consent fail closed.
+- The Generic Pack is a small reference workflow, not a complete regulated-domain form, budget,
+  portal, or electronic-signature system.
+- Editable projections are not authority. CanISend preserves user edits and requires explicit
+  reconciliation rather than silently importing or overwriting them.
 
-## Documents and input formats
+## Documents and host integration
 
-- Scanned or image-only PDFs are not supported because embedded OCR is not implemented. Use a
-  trusted OCR tool separately, review its text, and import only the reviewed result.
-- Encrypted or malformed PDFs, oversized inputs, excessive pages, unsafe URLs/redirects, and
-  unresolved external renderer resources fail closed.
-- Editable projections are not authoritative. User edits are preserved and must be reconciled;
-  CanISend never silently imports an edited projection into SQLite or immutable blobs.
+- Scanned or image-only PDFs require a separate trusted OCR tool and user review.
+- User-authored Typst, external Typst packages/files, unrestricted system fonts, browser
+  automation, and portal automation are outside the current scope.
+- CanISend does not provide model credentials or a hosted provider. Codex, Claude Code, and other
+  MCP clients own their authentication, conversations, plugins, search, and retention.
+- Exact Codex and Claude Code dogfood, another conforming MCP client, the packaged desktop journey,
+  and invited-user evidence remain Alpha.7 release gates.
 
-## Agent and provider integration
+## Product boundary
 
-- CanISend does not provide a direct model API or manage provider credentials. The recommended
-  path is a user-controlled Codex, Claude, or generic host; the optional in-App bridge is read-only.
-- Agent v3 is exact-bound to the Generic Pack. Agent v2 is an Academic compatibility surface. The
-  two tool sets do not silently fall back to each other.
-- Approval and preview tokens are process-local, bounded, single-use, and short-lived. They do not
-  survive a restart; a fresh review is required.
-- A host's search, plugins, connectors, transcript, retention, account, and model behavior remain
-  outside CanISend's authority.
+CanISend does not log in, create accounts, acquire credentials, bypass platform controls, fill
+portals, upload files, send email, or submit an Application. Local export always records
+`submission_performed: false`; the user reviews and performs any external submission.
 
-## Explicit non-goals
-
-CanISend does not log in to application systems, create accounts, bypass platform controls, fill or
-click through portals, upload files, send email, acquire credentials, or submit an Application.
-Local export always records `submission_performed: false`. The user reviews the final package and
-performs any external submission independently.
-
-CanISend also has no telemetry, hosted account, cloud synchronization, or automatic backup. A
-Workspace and every backup contain private user-owned data; storage, encryption, retention,
-sharing, and secure deletion remain the user's responsibility.
+CanISend also has no default telemetry, hosted account, cloud sync, or automatic backup. A
+Workspace and every backup contain user-owned data; storage, encryption, retention, sharing, and
+secure deletion remain the user responsibility.
