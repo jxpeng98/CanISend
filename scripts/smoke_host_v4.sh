@@ -12,6 +12,10 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 binary="$(canisend_absolute_path "$binary")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
+registered_binary="$binary"
+if command -v cygpath >/dev/null 2>&1; then
+  registered_binary="$(cygpath -w "$binary")"
+fi
 
 if [[ ! -x "$binary" || -L "$binary" ]]; then
   echo "Agent v4 host smoke: binary is not an executable regular file: $binary" >&2
@@ -40,11 +44,11 @@ jq -e '
 for host in codex claude; do
   "$binary" --workspace "$workspace" host setup \
     --host "$host" \
-    --executable "$binary" \
+    --executable "$registered_binary" \
     --json > "$smoke_root/$host-setup.json"
   jq -e \
     --arg host "$host" \
-    --arg binary "$binary" '
+    --arg binary "$registered_binary" '
       .ok == true
       and .operation == "host.setup"
       and .status == "ready"
@@ -63,7 +67,7 @@ for host in codex claude; do
 
   "$binary" --workspace "$workspace" host status \
     --host "$host" \
-    --executable "$binary" \
+    --executable "$registered_binary" \
     --json > "$smoke_root/$host-status.json"
   jq -e \
     --arg host "$host" '
@@ -112,7 +116,7 @@ printf '%s\n' 'PRE-V4-HOST-RESOURCE-SENTINEL' \
   > "$legacy_workspace/.agents/skills/canisend-application/SKILL.md"
 if "$binary" --workspace "$legacy_workspace" host setup \
   --host codex \
-  --executable "$binary" \
+  --executable "$registered_binary" \
   --json > "$smoke_root/legacy-refusal.json"; then
   echo "Agent v4 host smoke: unsupported pre-v4 resource was accepted" >&2
   exit 1
