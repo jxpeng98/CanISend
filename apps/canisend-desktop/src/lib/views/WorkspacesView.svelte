@@ -33,6 +33,7 @@
     commandErrorMessage,
     migrateWorkspaceV3,
     previewWorkspaceV3Migration,
+    type AgentHost,
     type RegistrySnapshot,
     type WorkspaceHealthReadModel,
     type WorkspaceReadModel,
@@ -50,7 +51,7 @@
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onSelect: (path: string) => Promise<boolean>;
-    onCreate: (alias: string, path: string) => Promise<boolean>;
+    onCreate: (alias: string, path: string, hosts: AgentHost[]) => Promise<boolean>;
     onConnect: (alias: string, path: string) => Promise<boolean>;
     onRemove: (path: string) => Promise<boolean>;
     onCheck: () => Promise<boolean>;
@@ -84,6 +85,8 @@
   let restoreOpen = $state(false);
   let createAlias = $state("");
   let createPath = $state("");
+  let createCodex = $state(true);
+  let createClaude = $state(false);
   let connectAlias = $state("");
   let connectPath = $state("");
   let pendingRemove = $state<string | null>(null);
@@ -116,10 +119,15 @@
       formError = copy.pathRequired;
       return;
     }
-    if (await onCreate(createAlias.trim(), createPath)) {
+    const hosts: AgentHost[] = [];
+    if (createCodex) hosts.push("codex");
+    if (createClaude) hosts.push("claude");
+    if (await onCreate(createAlias.trim(), createPath, hosts)) {
       createOpen = false;
       createAlias = "";
       createPath = "";
+      createCodex = true;
+      createClaude = false;
     }
   }
 
@@ -509,6 +517,29 @@
       </div>
       <Alert.Root>
         <Alert.Description>{copy.workflowPackDescription}</Alert.Description>
+      </Alert.Root>
+      <fieldset class="space-y-3 rounded-lg border p-4">
+        <legend class="px-1 text-sm font-semibold">{copy.agentSetup}</legend>
+        <p class="text-sm text-muted-foreground">{copy.agentSetupDescription}</p>
+        <div class="flex items-start gap-3">
+          <Checkbox id="create-workspace-codex" bind:checked={createCodex} class="mt-0.5" />
+          <div class="space-y-1">
+            <Label for="create-workspace-codex">{copy.codex}</Label>
+            <p class="text-xs text-muted-foreground">{copy.codexSetupDescription}</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <Checkbox id="create-workspace-claude" bind:checked={createClaude} class="mt-0.5" />
+          <div class="space-y-1">
+            <Label for="create-workspace-claude">{copy.claude}</Label>
+            <p class="text-xs text-muted-foreground">{copy.claudeSetupDescription}</p>
+          </div>
+        </div>
+        <p class="text-xs text-muted-foreground">{copy.agentSetupOptional}</p>
+      </fieldset>
+      <Alert.Root>
+        <ShieldCheck size={16} aria-hidden="true" />
+        <Alert.Description>{copy.workspaceBootstrapBoundary}</Alert.Description>
       </Alert.Root>
       <div class="space-y-2">
         <Label for="create-workspace-path">{copy.workspacePath}</Label>

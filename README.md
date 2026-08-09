@@ -64,7 +64,9 @@ evidence and every earlier published Alpha artifact remain immutable history. Al
 domain-neutral Pack kernel, canonical Generic and Academic Packs, neutral Application contracts,
 Workspace v2→v3 migration, bounded academic compatibility, and shared CLI/MCP/Tauri application
 services. Workspace v4 and the new Skills/Agent flow are Roadmap work, not current Alpha.6
-capabilities.
+capabilities. Post-tag `main` now implements the clean v4 authority, Application-level Pack
+ownership, new Agent v4 resources, standalone host setup, and App-led bootstrap as unqualified
+Alpha.7 development; only an exact future Alpha.7 release can make those public-product claims.
 
 The desktop supports persistent English and Simplified Chinese interfaces, system CJK font
 fallback, localized native accessibility names, exact Pack-driven vocabulary, and safe management

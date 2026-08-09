@@ -36,6 +36,13 @@ Install and update are idempotent within v4. CanISend replaces only bytes record
 manifest, refuses user-modified or unmanaged paths, and performs a complete digest preflight before
 uninstalling. Host setup never writes inside `.canisend`.
 
+When a user selects Codex or Claude in the App's **Create workspace** dialog, CanISend can safely
+create the complete project-local setup because the destination is required to be new or empty.
+It writes `.codex/config.toml` or `.mcp.json` with the exact version-matched desktop executable and
+installs the corresponding Skills in the same rollback boundary as Workspace registration. It
+uses create-new semantics and never overwrites or merges a host file. Selecting no host creates an
+App-only Workspace; host resources can be installed later.
+
 The standalone CLI provides the same setup path without opening the App. `setup` installs the
 managed Skills and returns the exact MCP registration command and configuration snippet. It does
 not merge host configuration automatically:
@@ -65,7 +72,8 @@ canisend --workspace /absolute/path/to/workspace mcp serve
 Apply the `registration_command` returned by `host setup` in a user-reviewed terminal, or merge its
 `configuration_snippet` into the reported `configuration_target`. Then run the returned
 `verification_command`. This explicit boundary prevents CanISend from overwriting unrelated host
-servers or user policy.
+servers or user policy. This manual merge rule applies to standalone CLI setup and existing
+Workspaces; only the App's atomic new-or-empty Workspace bootstrap creates a project file directly.
 
 Codex project configuration:
 
