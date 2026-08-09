@@ -639,7 +639,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
 }
 
 #[test]
-fn pre_v4_host_resources_fail_before_a_clean_install_mutates_files() {
+fn unsupported_host_resources_and_wrong_versions_fail_before_mutation() {
     let root = std::env::temp_dir().join(format!(
         "canisend-agent-v4-legacy-refusal-test-{}",
         std::process::id()
@@ -663,6 +663,43 @@ fn pre_v4_host_resources_fail_before_a_clean_install_mutates_files() {
     );
     assert!(!root.join(".agents/canisend-agent-v4.json").exists());
     assert!(!root.join(".agents/skills/canisend-workspace").exists());
+
+    let wrong_version_root = root.join("wrong-version-workspace");
+    fs::create_dir(&wrong_version_root).expect("wrong-version workspace");
+    let installed =
+        install_agent_skills(AgentHost::Codex, &wrong_version_root).expect("install v4 fixture");
+    let mut wrong_version: AgentSkillsManifest = serde_json::from_slice(
+        &fs::read(&installed.manifest_path).expect("installed manifest bytes"),
+    )
+    .expect("installed manifest JSON");
+    wrong_version.protocol = "canisend.agent/v3".to_owned();
+    fs::write(
+        &installed.manifest_path,
+        serde_json::to_vec_pretty(&wrong_version).expect("wrong-version manifest bytes"),
+    )
+    .expect("wrong-version manifest");
+    let before_manifest = fs::read(&installed.manifest_path).expect("wrong-version fixture");
+    let skill_path = wrong_version_root.join(".agents/skills/canisend-workspace/SKILL.md");
+    let before_skill = fs::read(&skill_path).expect("installed skill fixture");
+
+    for error in [
+        inspect_agent_skills(AgentHost::Codex, &wrong_version_root)
+            .expect_err("wrong-version status must fail closed"),
+        install_agent_skills(AgentHost::Codex, &wrong_version_root)
+            .expect_err("wrong-version install must fail closed"),
+    ] {
+        let message = error.to_string();
+        assert!(message.contains("unsupported pre-v4 host resources"));
+        assert!(message.contains("clean Agent v4 install"));
+    }
+    assert_eq!(
+        fs::read(&installed.manifest_path).expect("preserved wrong-version fixture"),
+        before_manifest
+    );
+    assert_eq!(
+        fs::read(&skill_path).expect("preserved installed skill"),
+        before_skill
+    );
 
     fs::remove_dir_all(root).expect("cleanup pre-v4 fixture");
 }

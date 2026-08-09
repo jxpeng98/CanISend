@@ -1155,7 +1155,9 @@ fn read_agent_skills_manifest(
         || manifest.resource_format != AGENT_HOST_RESOURCE_FORMAT
         || manifest.host != host
     {
-        return Err(ResourceError::UnsafeExportPath(manifest_path.to_path_buf()));
+        return Err(ResourceError::UnsupportedHostResources(
+            manifest_path.to_path_buf(),
+        ));
     }
     let mut paths = BTreeSet::new();
     for file in &manifest.files {
