@@ -1513,9 +1513,7 @@ export async function createJob(
   title: string,
   institution: string,
 ): Promise<ActionReceipt<JobRecord>> {
-  return invoke("create_job", {
-    request: { workspace, title, institution },
-  });
+  return unsupportedLegacyDesktopOperation("job.create", { workspace, title, institution });
 }
 
 export async function showJob(
@@ -1741,9 +1739,7 @@ export async function archiveJob(
   workspace: string,
   jobId: string,
 ): Promise<ActionReceipt<JobRecord>> {
-  return invoke("archive_job", {
-    request: { workspace, job_id: jobId },
-  });
+  return unsupportedLegacyDesktopOperation("job.archive", { workspace, jobId });
 }
 
 export async function importLocalJobSource(
@@ -1784,13 +1780,11 @@ export async function previewLocalJobSource(
   source: string,
   confirmedPrivateRead: boolean,
 ): Promise<JobIntakePreviewReadModel> {
-  return invoke("preview_local_job_source", {
-    request: {
-      workspace,
-      job_id: jobId,
-      source,
-      confirmed_private_read: confirmedPrivateRead,
-    },
+  return unsupportedLegacyDesktopOperation("job.intake.preview", {
+    workspace,
+    jobId,
+    source,
+    confirmedPrivateRead,
   });
 }
 
@@ -1814,8 +1808,9 @@ export async function commitJobSourcePreview(
   workspace: string,
   previewToken: string,
 ): Promise<ActionReceipt<SourceImportReadModel>> {
-  return invoke("commit_job_source_preview", {
-    request: { workspace, preview_token: previewToken },
+  return unsupportedLegacyDesktopOperation("job.intake.commit", {
+    workspace,
+    previewToken,
   });
 }
 
@@ -2168,8 +2163,11 @@ export async function prepareTask(
   operation: TaskOperation,
   mode: TaskExecutionMode,
 ): Promise<ActionReceipt<TaskDescriptor>> {
-  return invoke("prepare_task", {
-    request: { workspace, job_id: jobId, operation, mode },
+  return unsupportedLegacyDesktopOperation("task.prepare", {
+    workspace,
+    jobId,
+    operation,
+    mode,
   });
 }
 
@@ -2180,15 +2178,7 @@ export async function exportTaskInputs(options: {
   confirmedPrivateRead: boolean;
   confirmedProviderSend: boolean;
 }): Promise<ActionReceipt<Record<string, unknown>>> {
-  return invoke("export_task_inputs", {
-    request: {
-      workspace: options.workspace,
-      task_id: options.taskId,
-      destination: options.destination,
-      confirmed_private_read: options.confirmedPrivateRead,
-      confirmed_provider_send: options.confirmedProviderSend,
-    },
-  });
+  return unsupportedLegacyDesktopOperation("task.inputs", options);
 }
 
 export async function previewTaskCompletion(options: {
@@ -2196,39 +2186,35 @@ export async function previewTaskCompletion(options: {
   file: string;
   confirmedPrivateRead: boolean;
 }): Promise<TaskCompletionPreviewReadModel> {
-  return invoke("preview_task_completion", {
-    request: {
-      workspace: options.workspace,
-      file: options.file,
-      confirmed_private_read: options.confirmedPrivateRead,
-    },
-  });
+  return unsupportedLegacyDesktopOperation("task.complete.preview", options);
 }
 
 export async function commitTaskCompletion(
   workspace: string,
   previewToken: string,
 ): Promise<ActionReceipt<Record<string, unknown>>> {
-  return invoke("commit_task_completion_preview", {
-    request: { workspace, preview_token: previewToken },
-  });
+  return unsupportedLegacyDesktopOperation("task.complete", { workspace, previewToken });
 }
 
 export async function cancelTask(
   workspace: string,
   taskId: string,
 ): Promise<ActionReceipt<TaskStateData>> {
-  return invoke("cancel_task", {
-    request: { workspace, task_id: taskId },
-  });
+  return unsupportedLegacyDesktopOperation("task.cancel", { workspace, taskId });
 }
 
 export async function prepareTaskAgain(
   workspace: string,
   taskId: string,
 ): Promise<ActionReceipt<Record<string, unknown>>> {
-  return invoke("prepare_task_again", {
-    request: { workspace, task_id: taskId },
+  return unsupportedLegacyDesktopOperation("task.prepare-again", { workspace, taskId });
+}
+
+function unsupportedLegacyDesktopOperation(operation: string, _request: unknown): Promise<never> {
+  return Promise.reject({
+    code: "unsupported_legacy_operation",
+    message: `${operation} is not available in clean Workspace v4. Use the neutral Applications collection and Agent v4 workflows.`,
+    retryable: false,
   });
 }
 

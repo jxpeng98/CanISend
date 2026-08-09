@@ -7098,11 +7098,9 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "workspace.backup",
         "workspace.restore",
         "workspace.repair",
-        "job.create",
         "job.import",
         "job.list",
         "job.show",
-        "job.archive",
         "workflow.start",
         "workflow.status",
         "workflow.begin",
@@ -7113,7 +7111,7 @@ fn check_cli_gui_parity() -> Result<(), String> {
         "cli.uninstall",
         "profile.*",
         "discovery.*",
-        "task.*",
+        "task.latest",
         "criteria.*",
         "match.*",
         "plan.*",
@@ -8242,8 +8240,6 @@ fn validate_semantic_parity_policy(
         "application.approve".to_owned(),
         "application.export".to_owned(),
         "application.intake.commit".to_owned(),
-        "job.intake.commit".to_owned(),
-        "task.complete".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
     ]);
     let mut revision_bound = BTreeSet::new();
@@ -8268,8 +8264,6 @@ fn validate_semantic_parity_policy(
 
     let expected_pairs = BTreeSet::from([
         "generic-application-review".to_owned(),
-        "academic-job-intake".to_owned(),
-        "academic-task-completion".to_owned(),
         "desktop-application-intake".to_owned(),
         "desktop-discovery".to_owned(),
         "desktop-workflow-rerun".to_owned(),
@@ -8621,6 +8615,55 @@ fn check_operation_registry() -> Result<(), String> {
             .surface_leaves(OperationSurface::Tauri)
             .map_err(|error| format!("cannot resolve Tauri operation registry: {error}"))?,
     )?;
+    let retired_tauri_mutations = BTreeSet::from([
+        "archive_job",
+        "cancel_task",
+        "commit_job_source_preview",
+        "commit_task_completion_preview",
+        "create_job",
+        "export_task_inputs",
+        "prepare_task",
+        "prepare_task_again",
+        "preview_local_job_source",
+        "preview_task_completion",
+    ]);
+    if let Some(handler) = retired_tauri_mutations
+        .iter()
+        .find(|handler| tauri.contains(**handler))
+    {
+        return Err(format!(
+            "retired Alpha.6 Tauri mutation `{handler}` must fail before desktop invocation"
+        ));
+    }
+    let bridge_source = fs::read_to_string(root.join("apps/canisend-desktop/src/lib/bridge.ts"))
+        .map_err(|error| format!("cannot inspect desktop bridge: {error}"))?;
+    if let Some(handler) = retired_tauri_mutations
+        .iter()
+        .find(|handler| bridge_source.contains(&format!("invoke(\"{handler}\"")))
+    {
+        return Err(format!(
+            "retired Alpha.6 desktop mutation `{handler}` still reaches the Tauri bridge"
+        ));
+    }
+    let expected_read_only_compatibility = BTreeSet::from([
+        "agent.capabilities",
+        "agent.context",
+        "job.list",
+        "job.show",
+        "profile.source.list",
+        "task.latest",
+        "workflow.status",
+    ]);
+    let actual_compatibility = registry
+        .compatibility_aliases
+        .iter()
+        .map(|alias| alias.id.as_str())
+        .collect::<BTreeSet<_>>();
+    if actual_compatibility != expected_read_only_compatibility {
+        return Err(format!(
+            "Alpha.7 transitional compatibility must be the exact read-only set: expected={expected_read_only_compatibility:?}, actual={actual_compatibility:?}"
+        ));
+    }
     let desktop_sources = fs::read_dir(root.join("crates/canisend-desktop/src"))
         .map_err(|error| format!("cannot inspect Tauri command sources: {error}"))?
         .filter_map(Result::ok)

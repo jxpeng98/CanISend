@@ -18,7 +18,7 @@ use canisend_app::{
     WorkspaceV3MigrationPreview, WorkspaceV3MigrationReadModel, WorkspaceV3MigrationRequest,
     WorkspaceV4ReadModel, default_registry_path, desktop_cli_source_path, validate_workspace_alias,
 };
-use canisend_contracts::{ApplicationPackBindingV3, JobRecord, Sha256Digest};
+use canisend_contracts::{ApplicationPackBindingV3, Sha256Digest};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -183,14 +183,6 @@ pub(crate) struct WorkspaceMigrateRequest {
 pub(crate) struct JobListRequest {
     workspace: PathBuf,
     include_archived: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct JobCreateRequest {
-    workspace: PathBuf,
-    title: String,
-    institution: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -777,22 +769,10 @@ fn list_jobs_impl(
         .map_err(DesktopCommandError::application)
 }
 
-fn create_job_impl(
-    request: JobCreateRequest,
-) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    Application::create_job(&request.workspace, &request.title, &request.institution)
-        .map_err(DesktopCommandError::application)
-}
-
 fn show_job_impl(
     request: JobRequest,
 ) -> Result<ActionReceipt<JobDetailReadModel>, DesktopCommandError> {
     Application::job_detail(&request.workspace, &request.job_id)
-        .map_err(DesktopCommandError::application)
-}
-
-fn archive_job_impl(request: JobRequest) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    Application::archive_job(&request.workspace, &request.job_id)
         .map_err(DesktopCommandError::application)
 }
 
@@ -801,13 +781,6 @@ pub(crate) async fn list_jobs(
     request: JobListRequest,
 ) -> Result<ActionReceipt<JobListReadModel>, DesktopCommandError> {
     run_worker(move || list_jobs_impl(request)).await
-}
-
-#[tauri::command]
-pub(crate) async fn create_job(
-    request: JobCreateRequest,
-) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    run_worker(move || create_job_impl(request)).await
 }
 
 #[tauri::command]
@@ -843,13 +816,6 @@ pub(crate) async fn search_content(
     request: ContentSearchCommandRequest,
 ) -> Result<ActionReceipt<ContentSearchReadModel>, DesktopCommandError> {
     run_worker(move || search_content_impl(request)).await
-}
-
-#[tauri::command]
-pub(crate) async fn archive_job(
-    request: JobRequest,
-) -> Result<ActionReceipt<JobRecord>, DesktopCommandError> {
-    run_worker(move || archive_job_impl(request)).await
 }
 
 #[tauri::command]

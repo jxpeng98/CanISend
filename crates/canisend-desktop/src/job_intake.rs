@@ -1,16 +1,17 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, ApprovalBinding, ApprovalDisposition, ApprovalKind, ApprovalScope,
+    ActionReceipt, Application, ApprovalBinding, ApprovalKind, ApprovalScope,
     ApprovalSourceVersion, IntakeReviewReadModel, JobIntakePreviewReadModel, NetworkFetchConsent,
-    PreparedJobSource, PrivateReadConsent, SourceImportReadModel,
-    approval_disposition_for_application_error, job_intake_review,
+    PreparedJobSource, job_intake_review,
 };
+#[cfg(test)]
+use canisend_app::{ApprovalDisposition, PrivateReadConsent};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     approval::{DesktopApprovalStore, DesktopPendingApproval, lease_fields},
-    commands::{ApplicationWorkerError, DesktopCommandError, run_application_worker, run_worker},
+    commands::{DesktopCommandError, run_worker},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -23,6 +24,7 @@ pub(crate) struct JobIntakePreviewTokenReadModel {
     intake: IntakeReviewReadModel,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct LocalJobIntakePreviewRequest {
@@ -48,6 +50,7 @@ pub(crate) struct JobIntakePreviewTokenRequest {
     preview_token: String,
 }
 
+#[cfg(test)]
 fn prepare_local_job_source_impl(
     request: LocalJobIntakePreviewRequest,
 ) -> Result<PreparedJobSource, DesktopCommandError> {
@@ -83,38 +86,6 @@ fn prepare_url_job_source_impl(
 }
 
 #[tauri::command]
-pub(crate) async fn preview_local_job_source(
-    state: tauri::State<'_, DesktopApprovalStore>,
-    request: LocalJobIntakePreviewRequest,
-) -> Result<JobIntakePreviewTokenReadModel, DesktopCommandError> {
-    let prepared = run_worker(move || prepare_local_job_source_impl(request)).await?;
-    let preview = prepared.preview().clone();
-    let intake = job_intake_review(&preview.data);
-    let scope = ApprovalScope::for_workspace(&preview.data.workspace)
-        .map_err(DesktopCommandError::application)?;
-    let binding = ApprovalBinding::new(
-        ApprovalKind::JobIntake,
-        scope,
-        Some(preview.data.job.id.to_string()),
-        ApprovalSourceVersion::RevisionAndSnapshot {
-            revision: preview.data.expected_job_revision,
-            snapshot_sha256: preview.data.provenance.original_sha256.clone(),
-        },
-    );
-    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
-        binding,
-        DesktopPendingApproval::JobIntake(Box::new(prepared)),
-    )?);
-    Ok(JobIntakePreviewTokenReadModel {
-        preview_token,
-        expires_at_unix_ms,
-        remaining_ttl_seconds,
-        preview,
-        intake,
-    })
-}
-
-#[tauri::command]
 pub(crate) async fn preview_url_job_source(
     state: tauri::State<'_, DesktopApprovalStore>,
     request: UrlJobIntakePreviewRequest,
@@ -133,10 +104,8 @@ pub(crate) async fn preview_url_job_source(
             snapshot_sha256: preview.data.provenance.original_sha256.clone(),
         },
     );
-    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) = lease_fields(state.insert(
-        binding,
-        DesktopPendingApproval::JobIntake(Box::new(prepared)),
-    )?);
+    let (preview_token, expires_at_unix_ms, remaining_ttl_seconds) =
+        lease_fields(state.insert(binding, DesktopPendingApproval::JobIntake)?);
     Ok(JobIntakePreviewTokenReadModel {
         preview_token,
         expires_at_unix_ms,
@@ -144,37 +113,6 @@ pub(crate) async fn preview_url_job_source(
         preview,
         intake,
     })
-}
-
-#[tauri::command]
-pub(crate) async fn commit_job_source_preview(
-    state: tauri::State<'_, DesktopApprovalStore>,
-    request: JobIntakePreviewTokenRequest,
-) -> Result<ActionReceipt<SourceImportReadModel>, DesktopCommandError> {
-    let scope = ApprovalScope::for_workspace(&request.workspace)
-        .map_err(DesktopCommandError::application)?;
-    let grant = state.take(&request.preview_token, ApprovalKind::JobIntake, &scope)?;
-    let DesktopPendingApproval::JobIntake(prepared) = grant.payload().clone() else {
-        state.resolve(grant, ApprovalDisposition::Consume)?;
-        return Err(DesktopCommandError::state(
-            "Approval payload does not match job intake.",
-        ));
-    };
-    match run_application_worker(move || Application::commit_prepared_job_source(*prepared)).await {
-        Ok(receipt) => {
-            state.resolve(grant, ApprovalDisposition::Consume)?;
-            Ok(receipt)
-        }
-        Err(ApplicationWorkerError::Application(error)) => {
-            let disposition = approval_disposition_for_application_error(&error);
-            state.resolve(grant, disposition)?;
-            Err(DesktopCommandError::application(error))
-        }
-        Err(ApplicationWorkerError::Worker(message)) => {
-            state.resolve(grant, ApprovalDisposition::Consume)?;
-            Err(DesktopCommandError::worker(message))
-        }
-    }
 }
 
 #[tauri::command]
@@ -240,19 +178,13 @@ mod tests {
             },
         );
         let lease = store
-            .insert(
-                binding,
-                DesktopPendingApproval::JobIntake(Box::new(prepared)),
-            )
+            .insert(binding, DesktopPendingApproval::JobIntake)
             .expect("insert shared approval");
         assert_eq!(lease.remaining_ttl_seconds, 600);
         let grant = store
             .take(&lease.token, ApprovalKind::JobIntake, &scope)
             .expect("take shared approval");
-        assert!(matches!(
-            grant.payload(),
-            DesktopPendingApproval::JobIntake(_)
-        ));
+        assert!(matches!(grant.payload(), DesktopPendingApproval::JobIntake));
         store
             .resolve(grant, ApprovalDisposition::Consume)
             .expect("consume approval");
