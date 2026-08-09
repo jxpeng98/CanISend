@@ -704,14 +704,14 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            104
+            106
         );
         assert_eq!(
             bindings
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            7
+            11
         );
         assert!(registry.compatibility_aliases.is_empty());
         assert!(registry.presentation_aliases.iter().all(|alias| {

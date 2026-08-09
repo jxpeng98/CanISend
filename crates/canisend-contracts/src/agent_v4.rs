@@ -606,7 +606,7 @@ fn validate_operation_context(
     violations: &mut Vec<ContractViolation>,
 ) {
     let workspace_only = operation.starts_with("workspace.")
-        || operation.starts_with("profile.")
+        || (operation.starts_with("profile.") && !operation.starts_with("profile.association."))
         || (operation.starts_with("evidence.") && !operation.starts_with("evidence.association."))
         || operation.starts_with("application.create.")
         || operation == "application.list";
@@ -719,6 +719,37 @@ mod tests {
             request.validate_semantics()[0].code,
             "agent_v4.application_context_required"
         );
+    }
+
+    #[test]
+    fn profile_and_evidence_association_operations_require_application_context() {
+        for (task, operation) in [
+            (
+                AgentTaskKindV4::ProfileEvidence,
+                "profile.association.preview",
+            ),
+            (AgentTaskKindV4::FitPlan, "evidence.association.commit"),
+        ] {
+            let request = AgentTaskRequestV4 {
+                protocol: AgentProtocolV4::V4,
+                task_id: id(3),
+                task,
+                operation: OperationId::try_new(operation).expect("operation"),
+                context: AgentContextBindingV4 {
+                    workspace_id: id(1),
+                    workspace_format: AgentWorkspaceFormatV4::V4,
+                    application: None,
+                },
+                resources: Vec::new(),
+                requested_consents: Vec::new(),
+            };
+            assert!(
+                request
+                    .validate_semantics()
+                    .iter()
+                    .any(|violation| { violation.code == "agent_v4.application_context_required" })
+            );
+        }
     }
 
     #[test]

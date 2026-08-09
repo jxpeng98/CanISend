@@ -91,6 +91,9 @@ printf '%s\n' \
 
 generic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/generic-create.json")"
 academic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/academic-create.json")"
+profile_source_id="$(jq -er '.data.source.id' "$smoke_root/profile-source-import.json")"
+profile_source_revision="$(jq -er '.data.source.revision' "$smoke_root/profile-source-import.json")"
+profile_source_sha256="$(jq -er '.data.source.original.sha256' "$smoke_root/profile-source-import.json")"
 "$binary" --workspace "$workspace" profile association list \
   --application "$generic_id" --json > "$smoke_root/profile-association-list.json"
 "$binary" --workspace "$workspace" evidence association list \
@@ -173,9 +176,30 @@ write_initialize() {
       arguments: {application_id: $application_id}
     }
   }'
-  jq -nc '{
+  jq -nc \
+    --arg application_id "$generic_id" \
+    --arg profile_source_id "$profile_source_id" \
+    --argjson profile_source_revision "$profile_source_revision" \
+    --arg profile_source_sha256 "$profile_source_sha256" '{
     jsonrpc: "2.0",
     id: 11,
+    method: "tools/call",
+    params: {
+      name: "canisend_profile_association_preview",
+      arguments: {
+        application_id: $application_id,
+        profile_source: {
+          id: $profile_source_id,
+          revision: $profile_source_revision,
+          sha256: $profile_source_sha256
+        },
+        change: "associate"
+      }
+    }
+  }'
+  jq -nc '{
+    jsonrpc: "2.0",
+    id: 12,
     method: "tools/call",
     params: {name: "canisend_agent_v3_context", arguments: {}}
   }'
@@ -190,22 +214,36 @@ fi
 
 if ! jq -s -e '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 7) and
+  (map(select(.id == 2))[0].result.tools | length == 11) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
+    "canisend_evidence_association_preview",
+    "canisend_profile_association_commit",
     "canisend_profile_association_list",
+    "canisend_profile_association_preview",
     "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status"
   ]) and
   (map(select(.id == 2))[0].result.tools |
     all(.[];
-      .annotations.readOnlyHint == true and
-      .annotations.destructiveHint == false and
-      .annotations.idempotentHint == true and
+      (if (.name | endswith("_commit")) then
+        .annotations.readOnlyHint == false and
+        .annotations.destructiveHint == true and
+        .annotations.idempotentHint == false
+      elif (.name | endswith("_preview")) then
+        .annotations.readOnlyHint == true and
+        .annotations.destructiveHint == false and
+        .annotations.idempotentHint == false
+      else
+        .annotations.readOnlyHint == true and
+        .annotations.destructiveHint == false and
+        .annotations.idempotentHint == true
+      end) and
       .annotations.openWorldHint == false)) and
   (map(select(.id == 3))[0].result.structuredContent.operation == "workspace.status") and
   (map(select(.id == 3))[0].result.structuredContent.data.status.workspace_format ==
@@ -239,8 +277,15 @@ if ! jq -s -e '
     contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
   (map(select(.id == 10))[0].result.structuredContent.operation ==
     "evidence.association.list") and
-  (map(select(.id == 11))[0].error.code == -32602) and
-  (map(select(.id == 11))[0].error.message == "tool not found")
+  (map(select(.id == 11))[0].result.structuredContent.preview_token |
+    startswith("apv1_")) and
+  (map(select(.id == 11))[0].result.structuredContent.preview.operation ==
+    "profile.association.preview") and
+  (map(select(.id == 11))[0].result.structuredContent.preview.data.requires_private_read == true) and
+  ((map(select(.id == 11))[0] | tostring |
+    contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
+  (map(select(.id == 12))[0].error.code == -32602) and
+  (map(select(.id == 12))[0].error.message == "tool not found")
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '

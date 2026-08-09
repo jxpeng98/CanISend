@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use canisend_contracts::{
     ActorKind, ApplicationEvidenceAssociationV4, ApplicationId, ApplicationProfileAssociationV4,
@@ -9,7 +9,11 @@ use canisend_store::{ApplicationAssociationServiceV4, ApplicationModelRepository
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{ActionReceipt, Application, ApplicationError, PrivateReadConsent};
+use crate::{
+    ActionReceipt, Application, ApplicationError, ApprovalBinding, ApprovalBroker,
+    ApprovalBrokerError, ApprovalDisposition, ApprovalKind, ApprovalScope, ApprovalSourceVersion,
+    PrivateReadConsent, approval_disposition_for_application_error,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -68,6 +72,262 @@ pub struct EvidenceAssociationPreviewReadModelV4 {
     pub application_revision: Revision,
     pub requires_private_read: bool,
     pub preview_sha256: Sha256Digest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssociationApprovalPreviewReadModelV4<T> {
+    pub preview_token: String,
+    pub expires_at_unix_ms: u64,
+    pub remaining_ttl_seconds: u64,
+    pub preview: ActionReceipt<T>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PendingAssociationApprovalV4 {
+    Profile {
+        workspace: PathBuf,
+        preview: ProfileAssociationPreviewReadModelV4,
+    },
+    Evidence {
+        workspace: PathBuf,
+        preview: EvidenceAssociationPreviewReadModelV4,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AssociationApprovalErrorV4 {
+    #[error("{0}")]
+    Application(#[from] ApplicationError),
+    #[error("{0}")]
+    Approval(#[from] ApprovalBrokerError),
+    #[error("the association approval was explicitly denied")]
+    Denied,
+    #[error("the association approval does not match the reviewed Application or preview")]
+    BindingMismatch,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AssociationApprovalBrokerV4 {
+    broker: ApprovalBroker<PendingAssociationApprovalV4>,
+}
+
+impl AssociationApprovalBrokerV4 {
+    pub fn preview_profile(
+        &self,
+        root: &Path,
+        request: ProfileAssociationPreviewRequestV4,
+    ) -> Result<
+        AssociationApprovalPreviewReadModelV4<ProfileAssociationPreviewReadModelV4>,
+        AssociationApprovalErrorV4,
+    > {
+        let receipt = Application::preview_profile_association_v4(root, request)?;
+        let preview = receipt.data.clone();
+        let scope = association_approval_scope(root, &preview.request.application_id)?;
+        let workspace = scope.workspace.clone();
+        let lease = self.broker.insert(
+            association_binding(
+                ApprovalKind::ProfileAssociation,
+                scope,
+                preview.request.application_id.as_str(),
+                preview.application_revision,
+                preview.preview_sha256.clone(),
+            ),
+            PendingAssociationApprovalV4::Profile {
+                workspace,
+                preview: preview.clone(),
+            },
+        )?;
+        Ok(AssociationApprovalPreviewReadModelV4 {
+            preview_token: lease.token,
+            expires_at_unix_ms: lease.expires_at_unix_ms,
+            remaining_ttl_seconds: lease.remaining_ttl_seconds,
+            preview: receipt,
+        })
+    }
+
+    pub fn preview_evidence(
+        &self,
+        root: &Path,
+        request: EvidenceAssociationPreviewRequestV4,
+    ) -> Result<
+        AssociationApprovalPreviewReadModelV4<EvidenceAssociationPreviewReadModelV4>,
+        AssociationApprovalErrorV4,
+    > {
+        let receipt = Application::preview_evidence_association_v4(root, request)?;
+        let preview = receipt.data.clone();
+        let scope = association_approval_scope(root, &preview.request.application_id)?;
+        let workspace = scope.workspace.clone();
+        let lease = self.broker.insert(
+            association_binding(
+                ApprovalKind::EvidenceAssociation,
+                scope,
+                preview.request.application_id.as_str(),
+                preview.application_revision,
+                preview.preview_sha256.clone(),
+            ),
+            PendingAssociationApprovalV4::Evidence {
+                workspace,
+                preview: preview.clone(),
+            },
+        )?;
+        Ok(AssociationApprovalPreviewReadModelV4 {
+            preview_token: lease.token,
+            expires_at_unix_ms: lease.expires_at_unix_ms,
+            remaining_ttl_seconds: lease.remaining_ttl_seconds,
+            preview: receipt,
+        })
+    }
+
+    pub fn commit_profile(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+        preview_sha256: &Sha256Digest,
+        approved: bool,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<ProfileAssociationCommitReadModelV4>, AssociationApprovalErrorV4>
+    {
+        let scope = association_approval_scope(root, application_id)?;
+        let grant = self
+            .broker
+            .take(preview_token, ApprovalKind::ProfileAssociation, &scope)?;
+        if !approved {
+            self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+            return Err(AssociationApprovalErrorV4::Denied);
+        }
+        let (application_revision, workspace, preview) = match grant.payload().clone() {
+            PendingAssociationApprovalV4::Profile { workspace, preview } => {
+                (preview.application_revision, workspace, preview)
+            }
+            PendingAssociationApprovalV4::Evidence { .. } => {
+                self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+                return Err(AssociationApprovalErrorV4::BindingMismatch);
+            }
+        };
+        let binding_matches = grant.binding().application_id.as_deref()
+            == Some(application_id.as_str())
+            && grant.binding().source
+                == ApprovalSourceVersion::RevisionAndSnapshot {
+                    revision: application_revision,
+                    snapshot_sha256: preview_sha256.clone(),
+                }
+            && workspace == scope.workspace
+            && preview.preview_sha256 == *preview_sha256;
+        if !binding_matches {
+            self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+            return Err(AssociationApprovalErrorV4::BindingMismatch);
+        }
+        let result = Application::commit_profile_association_v4(
+            &scope.workspace,
+            ProfileAssociationCommitRequestV4 {
+                preview: preview.request,
+                expected_preview_sha256: preview_sha256.clone(),
+            },
+            consent,
+        );
+        self.resolve_application_result(grant, result)
+    }
+
+    pub fn commit_evidence(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+        preview_sha256: &Sha256Digest,
+        approved: bool,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<EvidenceAssociationCommitReadModelV4>, AssociationApprovalErrorV4>
+    {
+        let scope = association_approval_scope(root, application_id)?;
+        let grant = self
+            .broker
+            .take(preview_token, ApprovalKind::EvidenceAssociation, &scope)?;
+        if !approved {
+            self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+            return Err(AssociationApprovalErrorV4::Denied);
+        }
+        let (application_revision, workspace, preview) = match grant.payload().clone() {
+            PendingAssociationApprovalV4::Evidence { workspace, preview } => {
+                (preview.application_revision, workspace, preview)
+            }
+            PendingAssociationApprovalV4::Profile { .. } => {
+                self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+                return Err(AssociationApprovalErrorV4::BindingMismatch);
+            }
+        };
+        let binding_matches = grant.binding().application_id.as_deref()
+            == Some(application_id.as_str())
+            && grant.binding().source
+                == ApprovalSourceVersion::RevisionAndSnapshot {
+                    revision: application_revision,
+                    snapshot_sha256: preview_sha256.clone(),
+                }
+            && workspace == scope.workspace
+            && preview.preview_sha256 == *preview_sha256;
+        if !binding_matches {
+            self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+            return Err(AssociationApprovalErrorV4::BindingMismatch);
+        }
+        let result = Application::commit_evidence_association_v4(
+            &scope.workspace,
+            EvidenceAssociationCommitRequestV4 {
+                preview: preview.request,
+                expected_preview_sha256: preview_sha256.clone(),
+            },
+            consent,
+        );
+        self.resolve_application_result(grant, result)
+    }
+
+    pub fn discard_profile(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+    ) -> Result<(), AssociationApprovalErrorV4> {
+        let scope = association_approval_scope(root, application_id)?;
+        discard_idempotently(
+            &self.broker,
+            preview_token,
+            ApprovalKind::ProfileAssociation,
+            &scope,
+        )
+    }
+
+    pub fn discard_evidence(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+    ) -> Result<(), AssociationApprovalErrorV4> {
+        let scope = association_approval_scope(root, application_id)?;
+        discard_idempotently(
+            &self.broker,
+            preview_token,
+            ApprovalKind::EvidenceAssociation,
+            &scope,
+        )
+    }
+
+    fn resolve_application_result<T>(
+        &self,
+        grant: crate::ApprovalGrant<PendingAssociationApprovalV4>,
+        result: Result<T, ApplicationError>,
+    ) -> Result<T, AssociationApprovalErrorV4> {
+        match result {
+            Ok(value) => {
+                self.broker.resolve(grant, ApprovalDisposition::Consume)?;
+                Ok(value)
+            }
+            Err(error) => {
+                let disposition = approval_disposition_for_application_error(&error);
+                self.broker.resolve(grant, disposition)?;
+                Err(error.into())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -340,6 +600,50 @@ impl Application {
     }
 }
 
+fn discard_idempotently(
+    broker: &ApprovalBroker<PendingAssociationApprovalV4>,
+    preview_token: &str,
+    kind: ApprovalKind,
+    scope: &ApprovalScope,
+) -> Result<(), AssociationApprovalErrorV4> {
+    match broker.discard(preview_token, kind, scope) {
+        Ok(()) | Err(ApprovalBrokerError::Missing | ApprovalBrokerError::Expired) => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn association_approval_scope(
+    root: &Path,
+    application_id: &ApplicationId,
+) -> Result<ApprovalScope, ApplicationError> {
+    let status = Application::workspace_status_v4(root)?.data;
+    let application =
+        Application::application_model_v4(&status.path, application_id.as_str())?.data;
+    Ok(ApprovalScope {
+        workspace: status.path,
+        workspace_id: status.status.workspace_id,
+        pack: application.snapshot.pack,
+    })
+}
+
+fn association_binding(
+    kind: ApprovalKind,
+    scope: ApprovalScope,
+    application_id: &str,
+    revision: Revision,
+    preview_sha256: Sha256Digest,
+) -> ApprovalBinding {
+    ApprovalBinding::new(
+        kind,
+        scope,
+        Some(application_id.to_owned()),
+        ApprovalSourceVersion::RevisionAndSnapshot {
+            revision,
+            snapshot_sha256: preview_sha256,
+        },
+    )
+}
+
 fn current_application_revision(
     workspace: &mut canisend_store::Workspace,
     application_id: &ApplicationId,
@@ -579,6 +883,165 @@ mod tests {
                 .data
                 .associations
                 .is_empty()
+        );
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn association_approval_tokens_are_application_bound_denial_bound_and_single_use() {
+        let root = root("approval-token");
+        Application::initialize_workspace_v4(&root).expect("Workspace v4");
+        let application_id = application(&root);
+        let other_application_id = application(&root);
+        let mut workspace = canisend_store::Workspace::open_v4(Some(&root)).expect("Workspace");
+        let source = ProfileService::new(&mut workspace.database, &workspace.blobs)
+            .import_source(
+                NewProfileSource {
+                    kind: ProfileSourceKind::PlainText,
+                    original_bytes: b"PRIVATE-APPROVAL-BODY".to_vec(),
+                    normalized_text: "PRIVATE-APPROVAL-BODY".to_owned(),
+                    content_type: "text/plain".to_owned(),
+                    sensitivity: PrivacyClassification::PrivateLocal,
+                },
+                ActorKind::User,
+            )
+            .expect("Profile Source");
+        drop(workspace);
+        let request = ProfileAssociationPreviewRequestV4 {
+            application_id: application_id.clone(),
+            profile_source: ContentRevisionReferenceV3 {
+                id: source.id,
+                revision: source.revision,
+                sha256: source.original.sha256,
+            },
+            change: AssociationChangeV4::Associate,
+        };
+        let broker = AssociationApprovalBrokerV4::default();
+
+        let wrong_context = broker
+            .preview_profile(&root, request.clone())
+            .expect("wrong-context preview");
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &other_application_id,
+                &wrong_context.preview_token,
+                &wrong_context.preview.data.preview_sha256,
+                true,
+                Some(PrivateReadConsent::granted_by_user()),
+            ),
+            Err(AssociationApprovalErrorV4::BindingMismatch)
+        ));
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &application_id,
+                &wrong_context.preview_token,
+                &wrong_context.preview.data.preview_sha256,
+                true,
+                Some(PrivateReadConsent::granted_by_user()),
+            ),
+            Err(AssociationApprovalErrorV4::Approval(
+                ApprovalBrokerError::Missing
+            ))
+        ));
+
+        let discarded = broker
+            .preview_profile(&root, request.clone())
+            .expect("discarded preview");
+        broker
+            .discard_profile(&root, &application_id, &discarded.preview_token)
+            .expect("discard");
+        broker
+            .discard_profile(&root, &application_id, &discarded.preview_token)
+            .expect("idempotent discard");
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &application_id,
+                &discarded.preview_token,
+                &discarded.preview.data.preview_sha256,
+                true,
+                Some(PrivateReadConsent::granted_by_user()),
+            ),
+            Err(AssociationApprovalErrorV4::Approval(
+                ApprovalBrokerError::Missing
+            ))
+        ));
+
+        let denied = broker
+            .preview_profile(&root, request.clone())
+            .expect("denied preview");
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &application_id,
+                &denied.preview_token,
+                &denied.preview.data.preview_sha256,
+                false,
+                None,
+            ),
+            Err(AssociationApprovalErrorV4::Denied)
+        ));
+
+        let missing_consent = broker
+            .preview_profile(&root, request.clone())
+            .expect("missing-consent preview");
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &application_id,
+                &missing_consent.preview_token,
+                &missing_consent.preview.data.preview_sha256,
+                true,
+                None,
+            ),
+            Err(AssociationApprovalErrorV4::Application(
+                ApplicationError::ConsentRequired { .. }
+            ))
+        ));
+
+        let approved = broker
+            .preview_profile(&root, request)
+            .expect("approved preview");
+        broker
+            .commit_profile(
+                &root,
+                &application_id,
+                &approved.preview_token,
+                &approved.preview.data.preview_sha256,
+                true,
+                Some(PrivateReadConsent::granted_by_user()),
+            )
+            .expect("single commit");
+        assert!(matches!(
+            broker.commit_profile(
+                &root,
+                &application_id,
+                &approved.preview_token,
+                &approved.preview.data.preview_sha256,
+                true,
+                Some(PrivateReadConsent::granted_by_user()),
+            ),
+            Err(AssociationApprovalErrorV4::Approval(
+                ApprovalBrokerError::Missing
+            ))
+        ));
+        assert_eq!(
+            Application::list_profile_associations_v4(&root, application_id.as_str())
+                .expect("list")
+                .data
+                .associations
+                .len(),
+            1
+        );
+        assert!(
+            !serde_json::to_string(
+                &Application::list_profile_associations_v4(&root, application_id.as_str())
+                    .expect("body-free list")
+            )
+            .expect("receipt")
+            .contains("PRIVATE-APPROVAL-BODY")
         );
         fs::remove_dir_all(root).expect("remove fixture");
     }

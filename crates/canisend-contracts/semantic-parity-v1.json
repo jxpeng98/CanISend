@@ -20,7 +20,7 @@
     {
       "id": "workspace-v4-mcp-reads",
       "path": "crates/canisend-cli/tests/mcp_protocol.rs",
-      "marker": "fn serves_v4_reads_and_refuses_legacy_tools_without_mutation()"
+      "marker": "fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools()"
     },
     {
       "id": "profile-source-cli",
@@ -186,6 +186,34 @@
       "revision_bound": false,
       "outcomes": ["success", "no-mutation"],
       "fixtures": ["profile-source-cli", "workspace-v4-mcp-reads", "application-association-v4"]
+    },
+    {
+      "operation": "profile.association.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4"]
+    },
+    {
+      "operation": "profile.association.commit",
+      "kind": "mutation",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "evidence.association.preview",
+      "kind": "preview",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "wrong-context", "no-mutation"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4"]
+    },
+    {
+      "operation": "evidence.association.commit",
+      "kind": "mutation",
+      "revision_bound": true,
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
     }
   ],
   "pack_surface_cases": [
@@ -198,13 +226,13 @@
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
       "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4"]
     },
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "evidence.association.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     },
     {
@@ -216,13 +244,13 @@
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
       "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "evidence.association.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     }
   ],
@@ -246,6 +274,14 @@
     {
       "operation": "application.intake.commit",
       "fixtures": ["desktop-application-intake", "pasted-application-intake-failures", "local-application-intake-failures", "url-application-intake-failures"]
+    },
+    {
+      "operation": "profile.association.commit",
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "evidence.association.commit",
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
     },
     {
       "operation": "tauri.commit.workflow.rerun",
@@ -280,6 +316,20 @@
       "commit_operation": "application.intake.commit",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
       "fixtures": ["desktop-application-intake", "pasted-application-intake-failures", "local-application-intake-failures", "url-application-intake-failures", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "profile-association",
+      "preview_operations": ["profile.association.preview"],
+      "commit_operation": "profile.association.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "id": "evidence-association",
+      "preview_operations": ["evidence.association.preview"],
+      "commit_operation": "evidence.association.commit",
+      "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
+      "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
     }
   ],
   "read_families": [

@@ -92,6 +92,7 @@ pub use assistance::{
     AgentRecommendationReadModel, AgentWorkspaceSection,
 };
 pub use association_v4::{
+    AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationApprovalPreviewReadModelV4,
     AssociationChangeV4, EvidenceAssociationCommitReadModelV4, EvidenceAssociationCommitRequestV4,
     EvidenceAssociationListReadModelV4, EvidenceAssociationPreviewReadModelV4,
     EvidenceAssociationPreviewRequestV4, ProfileAssociationCommitReadModelV4,

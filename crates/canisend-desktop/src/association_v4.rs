@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use canisend_app::{
-    ActionReceipt, Application, AssociationChangeV4, EvidenceAssociationCommitReadModelV4,
-    EvidenceAssociationCommitRequestV4, EvidenceAssociationListReadModelV4,
+    ActionReceipt, Application, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
+    AssociationApprovalPreviewReadModelV4, AssociationChangeV4,
+    EvidenceAssociationCommitReadModelV4, EvidenceAssociationListReadModelV4,
     EvidenceAssociationPreviewReadModelV4, EvidenceAssociationPreviewRequestV4, PrivateReadConsent,
-    ProfileAssociationCommitReadModelV4, ProfileAssociationCommitRequestV4,
-    ProfileAssociationListReadModelV4, ProfileAssociationPreviewReadModelV4,
-    ProfileAssociationPreviewRequestV4,
+    ProfileAssociationCommitReadModelV4, ProfileAssociationListReadModelV4,
+    ProfileAssociationPreviewReadModelV4, ProfileAssociationPreviewRequestV4,
 };
 use canisend_contracts::{ApplicationId, ContentRevisionReferenceV3, Sha256Digest};
 use serde::Deserialize;
@@ -42,8 +42,10 @@ pub(crate) struct EvidenceAssociationPreviewDesktopRequestV4 {
 #[serde(deny_unknown_fields)]
 pub(crate) struct ProfileAssociationCommitDesktopRequestV4 {
     workspace: PathBuf,
-    preview: ProfileAssociationPreviewRequestV4,
-    expected_preview_sha256: Sha256Digest,
+    application_id: ApplicationId,
+    preview_token: String,
+    preview_sha256: Sha256Digest,
+    approved: bool,
     confirmed_private_read: bool,
 }
 
@@ -51,9 +53,19 @@ pub(crate) struct ProfileAssociationCommitDesktopRequestV4 {
 #[serde(deny_unknown_fields)]
 pub(crate) struct EvidenceAssociationCommitDesktopRequestV4 {
     workspace: PathBuf,
-    preview: EvidenceAssociationPreviewRequestV4,
-    expected_preview_sha256: Sha256Digest,
+    application_id: ApplicationId,
+    preview_token: String,
+    preview_sha256: Sha256Digest,
+    approved: bool,
     confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct AssociationDiscardDesktopRequestV4 {
+    workspace: PathBuf,
+    application_id: ApplicationId,
+    preview_token: String,
 }
 
 fn profile_association_list_impl(
@@ -71,63 +83,90 @@ fn evidence_association_list_impl(
 }
 
 fn profile_association_preview_impl(
+    broker: AssociationApprovalBrokerV4,
     request: ProfileAssociationPreviewDesktopRequestV4,
-) -> Result<ActionReceipt<ProfileAssociationPreviewReadModelV4>, DesktopCommandError> {
-    Application::preview_profile_association_v4(
-        &request.workspace,
-        ProfileAssociationPreviewRequestV4 {
-            application_id: request.application_id,
-            profile_source: request.profile_source,
-            change: request.change,
-        },
-    )
-    .map_err(DesktopCommandError::application)
+) -> Result<
+    AssociationApprovalPreviewReadModelV4<ProfileAssociationPreviewReadModelV4>,
+    DesktopCommandError,
+> {
+    broker
+        .preview_profile(
+            &request.workspace,
+            ProfileAssociationPreviewRequestV4 {
+                application_id: request.application_id,
+                profile_source: request.profile_source,
+                change: request.change,
+            },
+        )
+        .map_err(association_error)
 }
 
 fn evidence_association_preview_impl(
+    broker: AssociationApprovalBrokerV4,
     request: EvidenceAssociationPreviewDesktopRequestV4,
-) -> Result<ActionReceipt<EvidenceAssociationPreviewReadModelV4>, DesktopCommandError> {
-    Application::preview_evidence_association_v4(
-        &request.workspace,
-        EvidenceAssociationPreviewRequestV4 {
-            application_id: request.application_id,
-            evidence: request.evidence,
-            change: request.change,
-        },
-    )
-    .map_err(DesktopCommandError::application)
+) -> Result<
+    AssociationApprovalPreviewReadModelV4<EvidenceAssociationPreviewReadModelV4>,
+    DesktopCommandError,
+> {
+    broker
+        .preview_evidence(
+            &request.workspace,
+            EvidenceAssociationPreviewRequestV4 {
+                application_id: request.application_id,
+                evidence: request.evidence,
+                change: request.change,
+            },
+        )
+        .map_err(association_error)
 }
 
 fn profile_association_commit_impl(
+    broker: AssociationApprovalBrokerV4,
     request: ProfileAssociationCommitDesktopRequestV4,
 ) -> Result<ActionReceipt<ProfileAssociationCommitReadModelV4>, DesktopCommandError> {
-    Application::commit_profile_association_v4(
-        &request.workspace,
-        ProfileAssociationCommitRequestV4 {
-            preview: request.preview,
-            expected_preview_sha256: request.expected_preview_sha256,
-        },
-        request
-            .confirmed_private_read
-            .then(PrivateReadConsent::granted_by_user),
-    )
-    .map_err(DesktopCommandError::application)
+    broker
+        .commit_profile(
+            &request.workspace,
+            &request.application_id,
+            &request.preview_token,
+            &request.preview_sha256,
+            request.approved,
+            request
+                .confirmed_private_read
+                .then(PrivateReadConsent::granted_by_user),
+        )
+        .map_err(association_error)
 }
 
 fn evidence_association_commit_impl(
+    broker: AssociationApprovalBrokerV4,
     request: EvidenceAssociationCommitDesktopRequestV4,
 ) -> Result<ActionReceipt<EvidenceAssociationCommitReadModelV4>, DesktopCommandError> {
-    Application::commit_evidence_association_v4(
-        &request.workspace,
-        EvidenceAssociationCommitRequestV4 {
-            preview: request.preview,
-            expected_preview_sha256: request.expected_preview_sha256,
-        },
-        request
-            .confirmed_private_read
-            .then(PrivateReadConsent::granted_by_user),
-    )
-    .map_err(DesktopCommandError::application)
+    broker
+        .commit_evidence(
+            &request.workspace,
+            &request.application_id,
+            &request.preview_token,
+            &request.preview_sha256,
+            request.approved,
+            request
+                .confirmed_private_read
+                .then(PrivateReadConsent::granted_by_user),
+        )
+        .map_err(association_error)
+}
+
+fn association_error(error: AssociationApprovalErrorV4) -> DesktopCommandError {
+    match error {
+        AssociationApprovalErrorV4::Application(error) => DesktopCommandError::application(error),
+        AssociationApprovalErrorV4::Approval(error) => DesktopCommandError::approval(error),
+        AssociationApprovalErrorV4::Denied => {
+            DesktopCommandError::state("Association approval was denied.")
+        }
+        AssociationApprovalErrorV4::BindingMismatch => DesktopCommandError::state(
+            "Association approval does not match the reviewed Application or preview.",
+        ),
+    }
 }
 
 #[tauri::command]
@@ -146,28 +185,70 @@ pub(crate) async fn evidence_association_list(
 
 #[tauri::command]
 pub(crate) async fn profile_association_preview(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
     request: ProfileAssociationPreviewDesktopRequestV4,
-) -> Result<ActionReceipt<ProfileAssociationPreviewReadModelV4>, DesktopCommandError> {
-    run_worker(move || profile_association_preview_impl(request)).await
+) -> Result<
+    AssociationApprovalPreviewReadModelV4<ProfileAssociationPreviewReadModelV4>,
+    DesktopCommandError,
+> {
+    let broker = state.inner().clone();
+    run_worker(move || profile_association_preview_impl(broker, request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn evidence_association_preview(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
     request: EvidenceAssociationPreviewDesktopRequestV4,
-) -> Result<ActionReceipt<EvidenceAssociationPreviewReadModelV4>, DesktopCommandError> {
-    run_worker(move || evidence_association_preview_impl(request)).await
+) -> Result<
+    AssociationApprovalPreviewReadModelV4<EvidenceAssociationPreviewReadModelV4>,
+    DesktopCommandError,
+> {
+    let broker = state.inner().clone();
+    run_worker(move || evidence_association_preview_impl(broker, request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn profile_association_commit(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
     request: ProfileAssociationCommitDesktopRequestV4,
 ) -> Result<ActionReceipt<ProfileAssociationCommitReadModelV4>, DesktopCommandError> {
-    run_worker(move || profile_association_commit_impl(request)).await
+    let broker = state.inner().clone();
+    run_worker(move || profile_association_commit_impl(broker, request)).await
 }
 
 #[tauri::command]
 pub(crate) async fn evidence_association_commit(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
     request: EvidenceAssociationCommitDesktopRequestV4,
 ) -> Result<ActionReceipt<EvidenceAssociationCommitReadModelV4>, DesktopCommandError> {
-    run_worker(move || evidence_association_commit_impl(request)).await
+    let broker = state.inner().clone();
+    run_worker(move || evidence_association_commit_impl(broker, request)).await
+}
+
+#[tauri::command]
+pub(crate) fn profile_association_discard(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
+    request: AssociationDiscardDesktopRequestV4,
+) -> Result<(), DesktopCommandError> {
+    state
+        .discard_profile(
+            &request.workspace,
+            &request.application_id,
+            &request.preview_token,
+        )
+        .map_err(association_error)
+}
+
+#[tauri::command]
+pub(crate) fn evidence_association_discard(
+    state: tauri::State<'_, AssociationApprovalBrokerV4>,
+    request: AssociationDiscardDesktopRequestV4,
+) -> Result<(), DesktopCommandError> {
+    state
+        .discard_evidence(
+            &request.workspace,
+            &request.application_id,
+            &request.preview_token,
+        )
+        .map_err(association_error)
 }

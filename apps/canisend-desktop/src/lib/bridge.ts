@@ -809,6 +809,13 @@ export interface AssociationPreviewReadModelV4<T> {
   preview_sha256: string;
 }
 
+export interface AssociationApprovalPreviewReadModelV4<T> {
+  preview_token: string;
+  expires_at_unix_ms: number;
+  remaining_ttl_seconds: number;
+  preview: ActionReceipt<AssociationPreviewReadModelV4<T>>;
+}
+
 export interface EvidenceCatalogRecord {
   id: string;
   profile_revision: number;
@@ -1625,7 +1632,7 @@ export async function listEvidenceAssociationsV4(
 export async function previewProfileAssociationV4(
   workspace: string,
   preview: ProfileAssociationPreviewRequestV4,
-): Promise<ActionReceipt<AssociationPreviewReadModelV4<ProfileAssociationPreviewRequestV4>>> {
+): Promise<AssociationApprovalPreviewReadModelV4<ProfileAssociationPreviewRequestV4>> {
   return invoke("profile_association_preview", {
     request: {
       workspace,
@@ -1638,8 +1645,10 @@ export async function previewProfileAssociationV4(
 
 export async function commitProfileAssociationV4(options: {
   workspace: string;
-  preview: ProfileAssociationPreviewRequestV4;
-  expectedPreviewSha256: string;
+  applicationId: string;
+  previewToken: string;
+  previewSha256: string;
+  approved: boolean;
   confirmedPrivateRead: boolean;
 }): Promise<
   ActionReceipt<{
@@ -1650,8 +1659,10 @@ export async function commitProfileAssociationV4(options: {
   return invoke("profile_association_commit", {
     request: {
       workspace: options.workspace,
-      preview: options.preview,
-      expected_preview_sha256: options.expectedPreviewSha256,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
       confirmed_private_read: options.confirmedPrivateRead,
     },
   });
@@ -1660,7 +1671,7 @@ export async function commitProfileAssociationV4(options: {
 export async function previewEvidenceAssociationV4(
   workspace: string,
   preview: EvidenceAssociationPreviewRequestV4,
-): Promise<ActionReceipt<AssociationPreviewReadModelV4<EvidenceAssociationPreviewRequestV4>>> {
+): Promise<AssociationApprovalPreviewReadModelV4<EvidenceAssociationPreviewRequestV4>> {
   return invoke("evidence_association_preview", {
     request: {
       workspace,
@@ -1673,8 +1684,10 @@ export async function previewEvidenceAssociationV4(
 
 export async function commitEvidenceAssociationV4(options: {
   workspace: string;
-  preview: EvidenceAssociationPreviewRequestV4;
-  expectedPreviewSha256: string;
+  applicationId: string;
+  previewToken: string;
+  previewSha256: string;
+  approved: boolean;
   confirmedPrivateRead: boolean;
 }): Promise<
   ActionReceipt<{
@@ -1685,9 +1698,39 @@ export async function commitEvidenceAssociationV4(options: {
   return invoke("evidence_association_commit", {
     request: {
       workspace: options.workspace,
-      preview: options.preview,
-      expected_preview_sha256: options.expectedPreviewSha256,
+      application_id: options.applicationId,
+      preview_token: options.previewToken,
+      preview_sha256: options.previewSha256,
+      approved: options.approved,
       confirmed_private_read: options.confirmedPrivateRead,
+    },
+  });
+}
+
+export async function discardProfileAssociationV4(
+  workspace: string,
+  applicationId: string,
+  previewToken: string,
+): Promise<void> {
+  return invoke("profile_association_discard", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      preview_token: previewToken,
+    },
+  });
+}
+
+export async function discardEvidenceAssociationV4(
+  workspace: string,
+  applicationId: string,
+  previewToken: string,
+): Promise<void> {
+  return invoke("evidence_association_discard", {
+    request: {
+      workspace,
+      application_id: applicationId,
+      preview_token: previewToken,
     },
   });
 }

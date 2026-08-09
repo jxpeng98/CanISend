@@ -32,7 +32,9 @@ pub enum ApprovalKind {
     ApplicationIntake,
     DiscoveryImport,
     DiscoveryRefresh,
+    EvidenceAssociation,
     JobIntake,
+    ProfileAssociation,
     TaskCompletion,
     WorkflowRerun,
 }

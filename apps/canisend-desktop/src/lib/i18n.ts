@@ -712,7 +712,7 @@ export const messages = {
     readOnlyToolCount: "read-only / preview tools",
     guardedWriteToolCount: "approval-gated writes",
     mcpPrivacy:
-      "The bundled CLI starts an isolated MCP adapter over the application facade. Inspection stays body-free; job intake and task completion require preview plus explicit host approval. The adapter does not own the conversation or contact a model provider.",
+      "The bundled CLI starts an isolated MCP adapter over the application facade. Inspection stays body-free; Profile Source and Evidence association changes require an exact preview, explicit user approval, consent, and a single-use token. The adapter does not own the conversation or contact a model provider.",
     registrationCommand: "Registration command",
     configurationSnippet: "Configuration snippet",
     configurationTarget: "Configuration target",
@@ -1521,7 +1521,7 @@ export const messages = {
     readOnlyToolCount: "个只读/预览工具",
     guardedWriteToolCount: "个需审批写入工具",
     mcpPrivacy:
-      "内嵌 CLI 会通过应用层启动隔离的 MCP 适配器。检查工具不返回正文；职位导入和任务完成必须先预览并由宿主显式批准。适配器不管理对话，也不联系模型提供商。",
+      "内嵌 CLI 会通过应用层启动隔离的 MCP 适配器。检查工具不返回正文；个人资料来源和证据关联变更必须绑定精确预览、用户显式批准、所需同意和单次令牌。适配器不管理对话，也不联系模型提供商。",
     registrationCommand: "注册命令",
     configurationSnippet: "配置片段",
     configurationTarget: "配置位置",
