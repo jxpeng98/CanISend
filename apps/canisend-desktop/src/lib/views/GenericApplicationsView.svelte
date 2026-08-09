@@ -68,9 +68,25 @@
     activeWorkspace: WorkspaceReadModel;
     packId: BuiltInWorkflowPackId;
     presentation: WorkflowPackPresentationReadModel | null;
+    requestedApplicationId: string;
+    onContextChange: (context: {
+      workspacePath: string;
+      packId: BuiltInWorkflowPackId;
+      applications: StoredApplicationModelV3[];
+      selected: StoredApplicationModelV3 | null;
+      stages: ApplicationFlowStageV3[];
+    }) => void;
   };
 
-  let { copy, desktopRuntime, activeWorkspace, packId, presentation }: Props = $props();
+  let {
+    copy,
+    desktopRuntime,
+    activeWorkspace,
+    packId,
+    presentation,
+    requestedApplicationId,
+    onContextChange,
+  }: Props = $props();
 
   let applications = $state<StoredApplicationModelV3[]>([]);
   let selected = $state<StoredApplicationModelV3 | null>(null);
@@ -162,6 +178,23 @@
     deliverableSelections = {};
     deliverableDrafts = {};
     void refresh();
+  });
+
+  $effect(() => {
+    onContextChange({
+      workspacePath: activeWorkspace.path,
+      packId,
+      applications,
+      selected,
+      stages,
+    });
+  });
+
+  $effect(() => {
+    const requested = requestedApplicationId;
+    if (!requested || selected?.snapshot.application.id === requested) return;
+    const application = applications.find((item) => item.snapshot.application.id === requested);
+    if (application) void selectApplication(application);
   });
 
   $effect(() => {

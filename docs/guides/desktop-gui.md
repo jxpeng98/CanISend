@@ -110,6 +110,12 @@ private-read consent when the preview requires it. Committing the selection writ
 links; switching to another Application loads its independent selection. Closing and reopening the
 Workspace reconstructs the same choices from SQLite authority rather than browser state.
 
+On the Application workspace, the global context bar is backed by the same v4 collection shown in
+the page. It displays the selected Application's title, lifecycle, exact Pack, current stage, and
+progress, and its native selector changes the page selection within the active Pack. Switching the
+Pack replaces this v4 context; it never falls back to the retired Job list or claims that a mixed
+Workspace has no Applications.
+
 The Workspace, selected host resources, project-local MCP files, and registry shortcut are one
 setup transaction. Invalid input fails before mutation; later failure removes newly created files
 and restores a user-selected empty directory. Closing the dialog before submission performs no
