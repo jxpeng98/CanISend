@@ -12,10 +12,10 @@ from `main` is post-tag source, not a published Alpha.7. A local design preview 
 and must not be distributed as a qualified release. Workspace v3 remains an Alpha.6 historical
 contract; the App does not silently upgrade it through clean Workspace v4 setup.
 
-The clean-v4 public CLI has 28 exact leaves. Its MCP adapter currently exposes sixteen operations:
-fourteen body-free read/preview operations and two single-use guarded association commits. Source-level
-parity does not qualify changed bytes: Alpha.7 still requires packaged native, accessibility,
-lifecycle, and public-byte evidence.
+The clean-v4 public CLI has 28 exact leaves. Its MCP adapter currently exposes 29 operations:
+21 body-free read/preview operations and eight single-use guarded commits. Source-level parity does
+not qualify changed bytes: Alpha.7 still requires packaged native, accessibility, lifecycle, and
+public-byte evidence.
 
 ## Build and launch on Apple Silicon
 
@@ -129,10 +129,12 @@ authoritative SQLite/blob store as the CLI.
 
 The Generic view is a compact Pack-driven lifecycle. Its metadata fields, Requirement categories,
 stage labels, and Deliverable choices come from the exact verified Pack presentation. A Requirement
-must be an exact UTF-8 span of the reviewed source text. Every Plan, compose, approval, and export
-uses the currently displayed revision. Private Deliverable bodies remain closed until consent;
-approval remains disabled until the user confirms every current body was reviewed. Export uses the
-embedded bounded renderer and reports that external submission was not performed.
+must be an exact UTF-8 span of the reviewed source text. The user confirms or excludes every
+Requirement, reviews a single-use preview for Plan proposal and confirmation, and reviews another
+single-use preview before Deliverable drafts are committed. The former direct desktop Plan and
+Compose writes are not registered. Private Deliverable bodies remain closed until explicit audit
+consent; approval remains disabled until the user confirms every current body was reviewed. Export
+uses the embedded bounded renderer and reports that external submission was not performed.
 
 Clean-v4 intake supports pasted text, local text/PDF files, and user-supplied HTTP(S) sources
 through explicit preview, consent, and commit boundaries. Scanned PDFs still require separately

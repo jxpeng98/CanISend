@@ -24,26 +24,32 @@
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import {
     approveGenericApplication,
+    auditDeliverablesV4,
     chooseApplicationSource,
     commandErrorMessage,
+    commitDeliverableDraftV4,
     commitEvidenceAssociationV4,
+    commitPlanConfirmationV4,
+    commitPlanProposalV4,
     commitProfileAssociationV4,
+    commitRequirementConfirmationV4,
     discardEvidenceAssociationV4,
     discardProfileAssociationV4,
     commitApplicationIntakePreview,
-    composeGenericApplication,
     discardApplicationIntakePreview,
     exportGenericApplication,
     listGenericApplications,
     listEvidenceAssociationsV4,
     listProfileAssociationsV4,
-    planGenericApplication,
+    previewDeliverableDraftV4,
     previewLocalApplicationIntake,
+    previewPlanConfirmationV4,
+    previewPlanProposalV4,
     previewEvidenceAssociationV4,
     previewPastedApplicationIntake,
     previewProfileAssociationV4,
+    previewRequirementConfirmationV4,
     previewUrlApplicationIntake,
-    reviewGenericApplication,
     showGenericApplication,
     type ApplicationIntakeBaseRequestV4,
     type ApplicationIntakePreviewTokenReadModelV4,
@@ -52,9 +58,14 @@
     type EvidenceAssociationListReadModelV4,
     type EvidenceAssociationPreviewRequestV4,
     type ApplicationFlowDeliverableDraftV3,
+    type ApplicationFlowComposeRequestV3,
     type ApplicationFlowReviewReadModelV3,
     type ApplicationFlowStageV3,
     type BuiltInWorkflowPackId,
+    type ApplicationMutationApprovalPreviewV4,
+    type ApplicationPlanConfirmRequestV4,
+    type ApplicationPlanProposeRequestV4,
+    type ApplicationRequirementConfirmRequestV4,
     type ProfileAssociationListReadModelV4,
     type ProfileAssociationPreviewRequestV4,
     type StoredApplicationModelV3,
@@ -104,6 +115,7 @@
   let sourceText = $state("");
   let requirementCategory = $state("");
   let requirementPriority = $state<"mandatory" | "recommended" | "informational">("mandatory");
+  let requirementDecisions = $state<Record<string, "confirm" | "exclude">>({});
   let intakeMode = $state<"pasted" | "local" | "url">("pasted");
   let localSource = $state("");
   let sourceUrl = $state("");
@@ -124,6 +136,17 @@
   let evidenceSelections = $state<Record<string, boolean>>({});
   let associationPrivateConsent = $state(false);
   let pendingAssociationChanges = $state<PendingAssociationChange[]>([]);
+  let pendingLifecycleMutation = $state<PendingLifecycleMutation | null>(null);
+
+  type PendingLifecycleMutation = {
+    kind: "requirements" | "plan-proposal" | "plan-confirmation" | "deliverable-draft";
+    workspace: string;
+    applicationId: string;
+    previewToken: string;
+    previewSha256: string;
+    changes: string[];
+    summary: string;
+  };
 
   type PendingAssociationChange =
     | {
@@ -176,6 +199,7 @@
     profileAssociations = null;
     evidenceAssociations = null;
     pendingAssociationChanges = [];
+    void discardPendingLifecycleMutation();
     requirementCategory = presentation?.requirement_categories[0]?.id ?? "";
     opportunityValues = {};
     applicationValues = {};
@@ -283,6 +307,7 @@
   }
 
   async function selectApplication(application: StoredApplicationModelV3): Promise<void> {
+    await discardPendingLifecycleMutation();
     error = null;
     review = null;
     reviewConfirmed = false;
@@ -293,6 +318,12 @@
       );
       selected = receipt.data.stored;
       stages = receipt.data.stages;
+      requirementDecisions = Object.fromEntries(
+        receipt.data.stored.snapshot.requirements.map((requirement) => [
+          requirement.id,
+          requirement.confirmation === "excluded" ? "exclude" : "confirm",
+        ]),
+      );
       await loadAssociationContext(receipt.data.stored.snapshot.application.id);
       exportDestination = `applications/${receipt.data.stored.snapshot.application.id}/exports/revision-${receipt.data.stored.snapshot.application.revision}`;
       prepareDrafts();
@@ -630,37 +661,93 @@
     });
   }
 
-  async function submitPlan(): Promise<void> {
-    if (!selected || !presentation) return;
+  function rememberLifecyclePreview<T>(
+    kind: PendingLifecycleMutation["kind"],
+    preview: ApplicationMutationApprovalPreviewV4<T>,
+  ): void {
+    if (!selected) return;
+    pendingLifecycleMutation = {
+      kind,
+      workspace: activeWorkspace.path,
+      applicationId: selected.snapshot.application.id,
+      previewToken: preview.preview_token,
+      previewSha256: preview.preview.data.preview_sha256,
+      changes: preview.preview.data.changes,
+      summary: preview.preview.summary,
+    };
+    notice = preview.preview.summary;
+  }
+
+  async function previewRequirementDecisions(): Promise<void> {
+    if (!selected) return;
+    const decisions = Object.fromEntries(
+      selected.snapshot.requirements.map((requirement) => [
+        requirement.id,
+        requirementDecisions[requirement.id] ?? "confirm",
+      ]),
+    ) as ApplicationRequirementConfirmRequestV4["decisions"];
+    if (!Object.values(decisions).includes("confirm")) {
+      error = copy.confirmAtLeastOneRequirement;
+      return;
+    }
     await run(async () => {
-      const receipt = await planGenericApplication(
+      const preview = await previewRequirementConfirmationV4(
         activeWorkspace.path,
         selected!.snapshot.application.id,
-        {
-          expected_revision: selected!.snapshot.application.revision,
-          decision: "proceed",
-          deliverables: presentation!.deliverables.map((item) => ({
-            kind: item.id,
-            disposition: deliverableSelections[item.id]
-              ? item.minimum > 0
-                ? "required"
-                : "optional"
-              : "omitted",
-            rationale: "User confirmed this Pack Deliverable in the desktop plan.",
-            constraints: ["Use only reviewed local source material and confirmed evidence."],
-            execution_mode: "manual-import",
-          })),
-        },
+        { expected_revision: selected!.snapshot.application.revision, decisions },
       );
-      selected = receipt.data.commit.stored;
-      stages = receipt.data.stages;
-      prepareDrafts();
-      notice = receipt.summary;
-      await refresh(selected.snapshot.application.id);
+      rememberLifecyclePreview("requirements", preview);
     });
   }
 
-  async function submitCompose(): Promise<void> {
+  function planProposalRequest(): ApplicationPlanProposeRequestV4 | null {
+    if (!selected || !presentation) return null;
+    return {
+      expected_revision: selected.snapshot.application.revision,
+      decision: "proceed",
+      deliverables: presentation.deliverables.map((item) => ({
+        kind: item.id,
+        disposition: deliverableSelections[item.id]
+          ? item.minimum > 0
+            ? "required"
+            : "optional"
+          : "omitted",
+        rationale: "User reviewed this Pack Deliverable in the desktop plan.",
+        constraints: ["Use only reviewed local source material and confirmed evidence."],
+        execution_mode: "manual-import",
+      })),
+    };
+  }
+
+  async function previewPlanProposal(): Promise<void> {
+    const mutation = planProposalRequest();
+    if (!selected || !mutation) return;
+    await run(async () => {
+      const preview = await previewPlanProposalV4(
+        activeWorkspace.path,
+        selected!.snapshot.application.id,
+        mutation,
+      );
+      rememberLifecyclePreview("plan-proposal", preview);
+    });
+  }
+
+  async function previewPlanConfirmation(): Promise<void> {
+    if (!selected) return;
+    const mutation: ApplicationPlanConfirmRequestV4 = {
+      expected_revision: selected.snapshot.application.revision,
+    };
+    await run(async () => {
+      const preview = await previewPlanConfirmationV4(
+        activeWorkspace.path,
+        selected!.snapshot.application.id,
+        mutation,
+      );
+      rememberLifecyclePreview("plan-confirmation", preview);
+    });
+  }
+
+  async function previewCompose(): Promise<void> {
     if (!selected) return;
     const drafts: ApplicationFlowDeliverableDraftV3[] = plannedDeliverables.map((planned) => {
       const id = localId(planned.kind);
@@ -677,24 +764,67 @@
       return;
     }
     await run(async () => {
-      const receipt = await composeGenericApplication(
+      const mutation: ApplicationFlowComposeRequestV3 = {
+        expected_revision: selected!.snapshot.application.revision,
+        deliverables: drafts,
+      };
+      const preview = await previewDeliverableDraftV4(
         activeWorkspace.path,
         selected!.snapshot.application.id,
-        { expected_revision: selected!.snapshot.application.revision, deliverables: drafts },
+        mutation,
       );
-      selected = receipt.data.commit.stored;
-      stages = receipt.data.stages;
-      notice = receipt.summary;
-      review = null;
-      reviewConfirmed = false;
-      await refresh(selected.snapshot.application.id);
+      rememberLifecyclePreview("deliverable-draft", preview);
     });
+  }
+
+  async function invokePendingLifecycleMutation(
+    pending: PendingLifecycleMutation,
+    approved: boolean,
+  ) {
+    const options = {
+      workspace: pending.workspace,
+      applicationId: pending.applicationId,
+      previewToken: pending.previewToken,
+      previewSha256: pending.previewSha256,
+      approved,
+    };
+    if (pending.kind === "requirements") return commitRequirementConfirmationV4(options);
+    if (pending.kind === "plan-proposal") return commitPlanProposalV4(options);
+    if (pending.kind === "plan-confirmation") return commitPlanConfirmationV4(options);
+    return commitDeliverableDraftV4(options);
+  }
+
+  async function commitPendingLifecycleMutation(): Promise<void> {
+    if (!pendingLifecycleMutation) return;
+    await run(async () => {
+      const pending = pendingLifecycleMutation!;
+      try {
+        const receipt = await invokePendingLifecycleMutation(pending, true);
+        notice = receipt.summary;
+        review = null;
+        reviewConfirmed = false;
+      } finally {
+        pendingLifecycleMutation = null;
+        await refresh(pending.applicationId);
+      }
+    });
+  }
+
+  async function discardPendingLifecycleMutation(): Promise<void> {
+    const pending = pendingLifecycleMutation;
+    pendingLifecycleMutation = null;
+    if (!pending) return;
+    try {
+      await invokePendingLifecycleMutation(pending, false);
+    } catch {
+      // Denial is the expected broker result and consumes the exact single-use preview token.
+    }
   }
 
   async function loadReview(): Promise<void> {
     if (!selected || !privateReviewConsent) return;
     await run(async () => {
-      const receipt = await reviewGenericApplication(
+      const receipt = await auditDeliverablesV4(
         activeWorkspace.path,
         selected!.snapshot.application.id,
         privateReviewConsent,
@@ -1304,7 +1434,73 @@
           </Card.Content>
         </Card.Root>
 
-        {#if !selected.snapshot.plan}
+        {#if pendingLifecycleMutation}
+          <Alert.Root aria-live="polite" aria-atomic="true">
+            <ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+            <Alert.Title>{copy.reviewedLifecycleChange}</Alert.Title>
+            <Alert.Description>
+              <p>{pendingLifecycleMutation.summary}</p>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+                {#each pendingLifecycleMutation.changes as change, index (`${index}-${change}`)}
+                  <li>{change}</li>
+                {/each}
+              </ul>
+              <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button disabled={busy} onclick={commitPendingLifecycleMutation}>
+                  {copy.commitReviewedLifecycleChange}
+                </Button>
+                <Button variant="outline" disabled={busy} onclick={discardPendingLifecycleMutation}>
+                  {copy.discardPreview}
+                </Button>
+              </div>
+            </Alert.Description>
+          </Alert.Root>
+        {/if}
+
+        {#if selected.snapshot.requirements.some((item) => item.confirmation === "proposed")}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>{copy.reviewRequirements}</Card.Title>
+              <Card.Description>{copy.reviewRequirementsDescription}</Card.Description>
+            </Card.Header>
+            <Card.Content class="space-y-4">
+              <fieldset class="space-y-3">
+                <legend class="sr-only">{copy.reviewRequirements}</legend>
+                {#each selected.snapshot.requirements as requirement (requirement.id)}
+                  <div class="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_10rem]">
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium">{requirement.statement}</p>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {localId(requirement.category)} · {requirement.priority}
+                      </p>
+                    </div>
+                    <div class="space-y-2">
+                      <Label for={`requirement-decision-${requirement.id}`}
+                        >{copy.requirementDecision}</Label
+                      >
+                      <NativeSelect.Root
+                        id={`requirement-decision-${requirement.id}`}
+                        bind:value={requirementDecisions[requirement.id]}
+                        disabled={busy || Boolean(pendingLifecycleMutation)}
+                      >
+                        <NativeSelect.Option value="confirm">{copy.confirm}</NativeSelect.Option>
+                        <NativeSelect.Option value="exclude"
+                          >{copy.excludeRequirement}</NativeSelect.Option
+                        >
+                      </NativeSelect.Root>
+                    </div>
+                  </div>
+                {/each}
+              </fieldset>
+              <Button
+                disabled={busy || Boolean(pendingLifecycleMutation)}
+                onclick={previewRequirementDecisions}
+              >
+                {copy.reviewBeforeCommit}
+              </Button>
+            </Card.Content>
+          </Card.Root>
+        {:else if !selected.snapshot.plan}
           <Card.Root>
             <Card.Header>
               <Card.Title>{copy.confirmApplicationPlan}</Card.Title>
@@ -1336,9 +1532,39 @@
                   </div>
                 {/each}
               </fieldset>
-              <Button disabled={busy} onclick={submitPlan}>{copy.confirmApplicationPlan}</Button>
+              <Button
+                disabled={busy || Boolean(pendingLifecycleMutation)}
+                onclick={previewPlanProposal}>{copy.reviewBeforeCommit}</Button
+              >
             </Card.Content>
           </Card.Root>
+        {:else if selected.snapshot.plan.state === "draft"}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>{copy.confirmApplicationPlan}</Card.Title>
+              <Card.Description>{copy.reviewPlanDescription}</Card.Description>
+            </Card.Header>
+            <Card.Content class="space-y-4">
+              <ul class="space-y-2 text-sm">
+                {#each selected.snapshot.plan.deliverables as deliverable (deliverable.kind)}
+                  <li class="rounded-md border p-3">
+                    <span class="font-medium">{deliverableLabel(deliverable.kind)}</span>
+                    <span class="ml-2 text-xs text-muted-foreground">{deliverable.disposition}</span
+                    >
+                  </li>
+                {/each}
+              </ul>
+              <Button
+                disabled={busy || Boolean(pendingLifecycleMutation)}
+                onclick={previewPlanConfirmation}>{copy.reviewBeforeCommit}</Button
+              >
+            </Card.Content>
+          </Card.Root>
+        {:else if selected.snapshot.plan.state === "stale"}
+          <Alert.Root variant="destructive">
+            <Alert.Title>{copy.reviewRequired}</Alert.Title>
+            <Alert.Description>{copy.stalePlanDescription}</Alert.Description>
+          </Alert.Root>
         {:else if !selected.snapshot.deliverables.length}
           <Card.Root>
             <Card.Header><Card.Title>{copy.composeDeliverables}</Card.Title></Card.Header>
@@ -1347,7 +1573,7 @@
                 class="space-y-5"
                 onsubmit={(event) => {
                   event.preventDefault();
-                  submitCompose();
+                  previewCompose();
                 }}
               >
                 {#each plannedDeliverables as planned (planned.kind)}
@@ -1373,7 +1599,9 @@
                     </div>
                   </fieldset>
                 {/each}
-                <Button type="submit" disabled={busy}>{copy.composeDeliverables}</Button>
+                <Button type="submit" disabled={busy || Boolean(pendingLifecycleMutation)}
+                  >{copy.reviewBeforeCommit}</Button
+                >
               </form>
             </Card.Content>
           </Card.Root>

@@ -704,7 +704,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            124
+            122
         );
         assert_eq!(
             bindings
@@ -713,6 +713,15 @@ mod tests {
                 .count(),
             29
         );
+        assert!(bindings.iter().all(|binding| {
+            !matches!(
+                binding.leaf.as_str(),
+                "plan_generic_application" | "compose_generic_application"
+            ) && !matches!(
+                binding.operation.as_str(),
+                "application.plan" | "application.compose"
+            )
+        }));
         assert!(registry.compatibility_aliases.is_empty());
         assert!(registry.presentation_aliases.iter().all(|alias| {
             matches!(alias.id.as_str(), "schema.*" | "resource.*")

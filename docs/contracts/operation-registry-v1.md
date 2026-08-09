@@ -53,7 +53,7 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 28 |
-| Tauri | `tauri::generate_handler!` | 124 |
+| Tauri | `tauri::generate_handler!` | 122 |
 | MCP | `#[tool_router]` `canisend_*` methods | 29 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
@@ -90,6 +90,9 @@ preview/commit pairs on Tauri and MCP. Each preview is bound to the exact Worksp
 Application revision, snapshot and proposed bytes; each commit requires explicit approval and
 consumes its token on denial, success, stale context, or replay. The standalone CLI does not
 advertise these mutations until it has an equally explicit safe approval interaction.
+The desktop now uses those reviewed v4 operations directly, so the former direct
+`application.plan` and `application.compose` Tauri writes are no longer registered product
+surfaces.
 
 ## Source gate
 

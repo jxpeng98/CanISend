@@ -42,21 +42,23 @@ The current source contract covers:
 |---|---:|
 | Built-in Pack/surface cases | 6 |
 | Shared operations | 31 |
-| Revision-bound operations | 13 |
+| Revision-bound operations | 11 |
 | Preview/commit families | 12 |
 | Read families | 4 |
-| Qualified adapter bindings | 86 |
+| Qualified adapter bindings | 84 |
 
 The six Pack/surface cases are the Cartesian product of `generic-application` and
 `academic-job` with CLI, Tauri, and MCP. The clean CLI qualifies Workspace recovery and neutral
 Application create/list/show for both Packs; MCP qualifies the same Pack-neutral reads. Tauri
-fixtures run the full create, resume, plan, compose, review, approve, and export lifecycle and
+fixtures run the full create, resume, guarded Requirement/Plan/Deliverable, review, approve, and
+export lifecycle and
 still exercise the bounded academic compatibility families. Cross-linked fixtures prove the Pack
 boundary without treating retired CLI mutations as supported operations.
 
-The eleven preview/commit families include Application review, v4 desktop Application intake,
+The twelve preview/commit families include Application review, v4 desktop Application intake,
 desktop discovery and workflow rerun, Profile/Evidence association, Requirement confirmation,
-Plan proposal/confirmation, and Deliverable draft/revision. They share the app-owned approval
+Source-bound Requirement extraction, Plan proposal/confirmation, and Deliverable draft/revision.
+They share the app-owned approval
 broker and its exact Workspace, Pack, operation, source, expiry, replay, and recovery rules.
 Desktop Application intake additionally qualifies pasted text, local text/PDF, and URL previews
 against one neutral Workspace and either built-in Pack.
