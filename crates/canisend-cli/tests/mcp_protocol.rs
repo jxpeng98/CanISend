@@ -165,8 +165,8 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 21);
-    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 8);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 26);
+    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 10);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
         let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
@@ -509,6 +509,154 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
     );
     assert!(revised_audit.to_string().contains(revised_body));
     assert!(!revised_audit.to_string().contains(draft_body));
+
+    let refused_review = mcp.request(
+        18,
+        "tools/call",
+        json!({
+            "name": "canisend_review_inspect",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "confirmed_private_read": false
+            }
+        }),
+    );
+    assert!(
+        refused_review["error"].is_object() || refused_review["result"]["isError"] == json!(true)
+    );
+    assert!(!refused_review.to_string().contains(revised_body));
+    let review = mcp.request(
+        19,
+        "tools/call",
+        json!({
+            "name": "canisend_review_inspect",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert_eq!(
+        review["result"]["structuredContent"]["operation"],
+        json!("review.inspect")
+    );
+    assert!(review.to_string().contains(revised_body));
+
+    let disposition_preview = mcp.request(
+        20,
+        "tools/call",
+        json!({
+            "name": "canisend_review_disposition_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 7,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    let (token, digest) = mutation_preview_binding(&disposition_preview);
+    let disposition = mcp.request(
+        21,
+        "tools/call",
+        json!({
+            "name": "canisend_review_disposition_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": token,
+                "preview_sha256": digest,
+                "approved": true,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert_eq!(
+        disposition["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"],
+        json!(8)
+    );
+
+    let destination = format!("applications/{application_id}/exports/mcp-lifecycle");
+    let export_preview = mcp.request(
+        22,
+        "tools/call",
+        json!({
+            "name": "canisend_export_prepare_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "expected_revision": 8,
+                "destination": destination,
+                "confirmed_private_export": true
+            }
+        }),
+    );
+    let (export_token, export_digest) = mutation_preview_binding(&export_preview);
+    let exported = mcp.request(
+        23,
+        "tools/call",
+        json!({
+            "name": "canisend_export_prepare_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": export_token,
+                "preview_sha256": export_digest,
+                "approved": true,
+                "confirmed_private_export": true
+            }
+        }),
+    );
+    assert_eq!(
+        exported["result"]["structuredContent"]["operation"],
+        json!("export.prepare.commit")
+    );
+    assert_eq!(
+        exported["result"]["structuredContent"]["data"]["render"]["submission_performed"],
+        json!(false)
+    );
+    let exports = mcp.request(
+        24,
+        "tools/call",
+        json!({
+            "name": "canisend_export_list",
+            "arguments": {"application_id": application_id.as_str()}
+        }),
+    );
+    assert_eq!(
+        exports["result"]["structuredContent"]["data"]["exports"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    let shown = mcp.request(
+        25,
+        "tools/call",
+        json!({
+            "name": "canisend_export_show",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "destination": destination
+            }
+        }),
+    );
+    assert_eq!(
+        shown["result"]["structuredContent"]["operation"],
+        json!("export.show")
+    );
+    let export_replay = mcp.request(
+        26,
+        "tools/call",
+        json!({
+            "name": "canisend_export_prepare_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": export_token,
+                "preview_sha256": export_digest,
+                "approved": true,
+                "confirmed_private_export": true
+            }
+        }),
+    );
+    assert!(
+        export_replay["error"].is_object() || export_replay["result"]["isError"] == json!(true)
+    );
 
     drop(mcp);
     fs::remove_dir_all(root).expect("remove workspace");

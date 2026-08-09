@@ -697,21 +697,21 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            28
+            31
         );
         assert_eq!(
             bindings
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Tauri)
                 .count(),
-            122
+            129
         );
         assert_eq!(
             bindings
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            29
+            36
         );
         assert!(bindings.iter().all(|binding| {
             !matches!(

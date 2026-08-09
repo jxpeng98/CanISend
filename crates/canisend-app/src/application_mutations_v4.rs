@@ -5,7 +5,8 @@ use canisend_contracts::{
 };
 use canisend_store::{
     ApplicationAssociationServiceV4, ApplicationDeliverableReviseRequestV4,
-    ApplicationFlowComposeRequestV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
+    ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    ApplicationFlowExportReadModelV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
     ApplicationModelCommitResultV3, ApplicationMutationServiceV4, ApplicationPlanConfirmRequestV4,
     ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
     ApplicationRequirementExtractRequestV4, StoredApplicationModelV3,
@@ -16,8 +17,10 @@ use sha2::{Digest, Sha256};
 use crate::{
     ActionReceipt, Application, ApplicationError, ApprovalBinding, ApprovalBroker,
     ApprovalBrokerError, ApprovalDisposition, ApprovalKind, ApprovalScope, ApprovalSourceVersion,
-    PrivateReadConsent, application::open_workspace_v4,
-    application_flow_v3::requested_built_in_pack, approval_disposition_for_application_error,
+    PrivateExportConsent, PrivateReadConsent,
+    application::open_workspace_v4,
+    application_flow_v3::{ApplicationFlowExportRequestV3, requested_built_in_pack},
+    approval_disposition_for_application_error,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +67,14 @@ enum PendingApplicationMutationV4 {
     DeliverableRevise {
         workspace: PathBuf,
         preview: ApplicationMutationPreviewV4<ApplicationDeliverableReviseRequestV4>,
+    },
+    ReviewDisposition {
+        workspace: PathBuf,
+        preview: ApplicationMutationPreviewV4<ApplicationFlowApproveRequestV3>,
+    },
+    ExportPrepare {
+        workspace: PathBuf,
+        preview: ApplicationMutationPreviewV4<ApplicationFlowExportRequestV3>,
     },
 }
 
@@ -211,6 +222,51 @@ impl ApplicationMutationApprovalBrokerV4 {
                 workspace,
                 preview,
             },
+        )
+    }
+
+    pub fn preview_review_disposition(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowApproveRequestV3,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<
+        ApplicationMutationApprovalPreviewV4<ApplicationFlowApproveRequestV3>,
+        ApplicationMutationApprovalErrorV4,
+    > {
+        let receipt =
+            Application::preview_review_disposition_v4(root, application_id, request, consent)?;
+        self.insert(
+            root,
+            ApprovalKind::ReviewDisposition,
+            application_id,
+            receipt,
+            |workspace, preview| PendingApplicationMutationV4::ReviewDisposition {
+                workspace,
+                preview,
+            },
+        )
+    }
+
+    pub fn preview_export_prepare(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowExportRequestV3,
+        consent: Option<PrivateExportConsent>,
+    ) -> Result<
+        ApplicationMutationApprovalPreviewV4<ApplicationFlowExportRequestV3>,
+        ApplicationMutationApprovalErrorV4,
+    > {
+        let receipt =
+            Application::preview_export_prepare_v4(root, application_id, request, consent)?;
+        self.insert(
+            root,
+            ApprovalKind::ExportPrepare,
+            application_id,
+            receipt,
+            |workspace, preview| PendingApplicationMutationV4::ExportPrepare { workspace, preview },
         )
     }
 
@@ -390,6 +446,69 @@ impl ApplicationMutationApprovalBrokerV4 {
         )
     }
 
+    pub fn commit_review_disposition(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+        preview_sha256: &Sha256Digest,
+        approved: bool,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationMutationApprovalErrorV4> {
+        self.commit(
+            root,
+            application_id,
+            preview_token,
+            preview_sha256,
+            approved,
+            ApprovalKind::ReviewDisposition,
+            |pending| match pending {
+                PendingApplicationMutationV4::ReviewDisposition { workspace, preview } => {
+                    Ok(Application::commit_review_disposition_v4(
+                        &workspace,
+                        &preview.context.application_id,
+                        preview.request,
+                        preview.preview_sha256,
+                        consent,
+                    ))
+                }
+                _ => Err(ApplicationMutationApprovalErrorV4::BindingMismatch),
+            },
+        )
+    }
+
+    pub fn commit_export_prepare(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        preview_token: &str,
+        preview_sha256: &Sha256Digest,
+        approved: bool,
+        consent: Option<PrivateExportConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowExportReadModelV3>, ApplicationMutationApprovalErrorV4>
+    {
+        self.commit(
+            root,
+            application_id,
+            preview_token,
+            preview_sha256,
+            approved,
+            ApprovalKind::ExportPrepare,
+            |pending| match pending {
+                PendingApplicationMutationV4::ExportPrepare { workspace, preview } => {
+                    Ok(Application::commit_export_prepare_v4(
+                        &workspace,
+                        &preview.context.application_id,
+                        preview.request,
+                        preview.preview_sha256,
+                        consent,
+                    ))
+                }
+                _ => Err(ApplicationMutationApprovalErrorV4::BindingMismatch),
+            },
+        )
+    }
+
     fn insert<T, F>(
         &self,
         root: &Path,
@@ -426,7 +545,7 @@ impl ApplicationMutationApprovalBrokerV4 {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn commit<F>(
+    fn commit<R, F>(
         &self,
         root: &Path,
         application_id: &ApplicationId,
@@ -435,12 +554,12 @@ impl ApplicationMutationApprovalBrokerV4 {
         approved: bool,
         kind: ApprovalKind,
         operation: F,
-    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationMutationApprovalErrorV4>
+    ) -> Result<ActionReceipt<R>, ApplicationMutationApprovalErrorV4>
     where
         F: FnOnce(
             PendingApplicationMutationV4,
         ) -> Result<
-            Result<ActionReceipt<StoredApplicationModelV3>, ApplicationError>,
+            Result<ActionReceipt<R>, ApplicationError>,
             ApplicationMutationApprovalErrorV4,
         >,
     {
@@ -630,6 +749,53 @@ impl Application {
         ))
     }
 
+    pub fn inspect_review_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowReviewReadModelV3>, ApplicationError> {
+        let reviewed = Self::review_application_flow_v3(root, application_id.as_str(), consent)?;
+        Ok(ActionReceipt::new(
+            "review.inspect",
+            "private-content-available",
+            "Loaded the exact current Deliverables for evidence-bound review",
+            reviewed.data,
+        ))
+    }
+
+    pub fn preview_review_disposition_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowApproveRequestV3,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<
+        ActionReceipt<ApplicationMutationPreviewV4<ApplicationFlowApproveRequestV3>>,
+        ApplicationError,
+    > {
+        if consent.is_none() {
+            return Err(private_read_required(
+                "Review disposition preview reads the current private Deliverable bodies",
+            ));
+        }
+        Self::inspect_review_v4(root, application_id, consent)?;
+        review_disposition_preview(root, application_id, request)
+    }
+
+    pub fn preview_export_prepare_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowExportRequestV3,
+        consent: Option<PrivateExportConsent>,
+    ) -> Result<
+        ActionReceipt<ApplicationMutationPreviewV4<ApplicationFlowExportRequestV3>>,
+        ApplicationError,
+    > {
+        if consent.is_none() {
+            return Err(private_export_required());
+        }
+        export_prepare_preview(root, application_id, request)
+    }
+
     fn commit_requirement_confirmation_v4(
         root: &Path,
         application_id: &ApplicationId,
@@ -768,6 +934,163 @@ impl Application {
             "deliverable.revise.commit",
             "review-required",
         )
+    }
+
+    fn commit_review_disposition_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowApproveRequestV3,
+        expected_preview_sha256: Sha256Digest,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationError> {
+        if consent.is_none() {
+            return Err(private_read_required(
+                "Review disposition commit requires the reviewed private-read consent",
+            ));
+        }
+        ensure_preview(
+            review_disposition_preview(root, application_id, request.clone())?
+                .data
+                .preview_sha256,
+            expected_preview_sha256,
+        )?;
+        let pack = exact_pack(root, application_id)?;
+        let mut workspace = open_workspace_v4(root)?;
+        let workspace_root = workspace.paths.root.clone();
+        let committed = ApplicationFlowServiceV3::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace_root,
+        )
+        .approve_with_actor(&pack, application_id, request, ActorKind::HostAgent)?;
+        Ok(ActionReceipt::new(
+            "review.disposition.commit",
+            "approved",
+            "Committed the exact approved review disposition",
+            committed.commit.stored,
+        ))
+    }
+
+    fn commit_export_prepare_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: ApplicationFlowExportRequestV3,
+        expected_preview_sha256: Sha256Digest,
+        consent: Option<PrivateExportConsent>,
+    ) -> Result<ActionReceipt<ApplicationFlowExportReadModelV3>, ApplicationError> {
+        if consent.is_none() {
+            return Err(private_export_required());
+        }
+        ensure_preview(
+            export_prepare_preview(root, application_id, request.clone())?
+                .data
+                .preview_sha256,
+            expected_preview_sha256,
+        )?;
+        let pack = exact_pack(root, application_id)?;
+        let mut workspace = open_workspace_v4(root)?;
+        let workspace_root = workspace.paths.root.clone();
+        let exported = ApplicationFlowServiceV3::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace_root,
+        )
+        .export_with_actor(
+            &pack,
+            application_id,
+            request.expected_revision,
+            &request.destination,
+            ActorKind::HostAgent,
+        )?;
+        Ok(ActionReceipt::new(
+            "export.prepare.commit",
+            "exported",
+            "Rendered and exported the exact approved local artifacts; submission performed: no",
+            exported,
+        ))
+    }
+}
+
+fn review_disposition_preview(
+    root: &Path,
+    application_id: &ApplicationId,
+    request: ApplicationFlowApproveRequestV3,
+) -> Result<
+    ActionReceipt<ApplicationMutationPreviewV4<ApplicationFlowApproveRequestV3>>,
+    ApplicationError,
+> {
+    let pack = exact_pack(root, application_id)?;
+    let mut workspace = open_workspace_v4(root)?;
+    let workspace_root = workspace.paths.root.clone();
+    let stored =
+        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .validate_approval(&pack, application_id, request.expected_revision)?;
+    let count = stored.snapshot.deliverables.len();
+    mutation_preview(
+        "review.disposition.preview",
+        resource_context(&stored),
+        request,
+        vec![format!(
+            "Approve {count} exact current Deliverable disposition(s)"
+        )],
+    )
+}
+
+fn export_prepare_preview(
+    root: &Path,
+    application_id: &ApplicationId,
+    request: ApplicationFlowExportRequestV3,
+) -> Result<
+    ActionReceipt<ApplicationMutationPreviewV4<ApplicationFlowExportRequestV3>>,
+    ApplicationError,
+> {
+    if request.application_id != *application_id {
+        return Err(ApplicationError::InvalidInput(
+            "Export request does not match the selected Application".to_owned(),
+        ));
+    }
+    let pack = exact_pack(root, application_id)?;
+    let mut workspace = open_workspace_v4(root)?;
+    let workspace_root = workspace.paths.root.clone();
+    let stored =
+        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &workspace_root)
+            .validate_export(
+            &pack,
+            application_id,
+            request.expected_revision,
+            &request.destination,
+        )?;
+    let count = stored.snapshot.deliverables.len();
+    mutation_preview(
+        "export.prepare.preview",
+        resource_context(&stored),
+        request.clone(),
+        vec![format!(
+            "Render {count} approved Deliverable(s) to {}; submission performed: no",
+            request.destination
+        )],
+    )
+}
+
+fn private_read_required(message: &str) -> ApplicationError {
+    ApplicationError::ConsentRequired {
+        message: message.to_owned(),
+        remediation: canisend_contracts::NextAction {
+            action: "grant private read consent".to_owned(),
+            description: "Review the exact Application snapshot and authorize this local-only read"
+                .to_owned(),
+        },
+    }
+}
+
+fn private_export_required() -> ApplicationError {
+    ApplicationError::ConsentRequired {
+        message: "Export preview and commit require explicit private-export consent".to_owned(),
+        remediation: canisend_contracts::NextAction {
+            action: "grant private export consent".to_owned(),
+            description: "Review the exact destination and authorize this local-only export"
+                .to_owned(),
+        },
     }
 }
 
@@ -1444,6 +1767,100 @@ mod tests {
         )
         .expect("revised audit");
         assert_eq!(audit.data.deliverables[0].content, "PRIVATE-DRAFT-BODY-V2");
+
+        assert!(Application::inspect_review_v4(&root, &application_id, None).is_err());
+        let read_consent = PrivateReadConsent::granted_by_user();
+        let inspected = Application::inspect_review_v4(&root, &application_id, Some(read_consent))
+            .expect("review inspect");
+        assert_eq!(inspected.operation, "review.inspect");
+        assert_eq!(inspected.data.deliverables.len(), 1);
+
+        let disposition_request = ApplicationFlowApproveRequestV3 {
+            expected_revision: Revision::try_new(6).expect("revision"),
+        };
+        assert!(
+            broker
+                .preview_review_disposition(
+                    &root,
+                    &application_id,
+                    disposition_request.clone(),
+                    None,
+                )
+                .is_err()
+        );
+        let disposition = broker
+            .preview_review_disposition(
+                &root,
+                &application_id,
+                disposition_request,
+                Some(read_consent),
+            )
+            .expect("review disposition preview");
+        let approved = broker
+            .commit_review_disposition(
+                &root,
+                &application_id,
+                &disposition.preview_token,
+                &disposition.preview.data.preview_sha256,
+                true,
+                Some(read_consent),
+            )
+            .expect("review disposition commit");
+        assert_eq!(approved.data.snapshot.application.revision.get(), 7);
+
+        let destination = format!("applications/{application_id}/exports/agent-v4-test");
+        let export_request =
+            ApplicationFlowExportRequestV3::try_new(application_id.as_str(), 7, &destination)
+                .expect("export request");
+        assert!(
+            broker
+                .preview_export_prepare(&root, &application_id, export_request.clone(), None,)
+                .is_err()
+        );
+        let export_consent = PrivateExportConsent::granted_by_user();
+        let export = broker
+            .preview_export_prepare(&root, &application_id, export_request, Some(export_consent))
+            .expect("export preview");
+        let exported = broker
+            .commit_export_prepare(
+                &root,
+                &application_id,
+                &export.preview_token,
+                &export.preview.data.preview_sha256,
+                true,
+                Some(export_consent),
+            )
+            .expect("export commit");
+        assert_eq!(exported.operation, "export.prepare.commit");
+        assert!(!exported.data.render.submission_performed);
+        assert!(
+            root.join(&destination)
+                .join("render-manifest.json")
+                .is_file()
+        );
+        let listed =
+            Application::list_exports_v4(&root, application_id.as_str()).expect("export list");
+        assert_eq!(listed.data.exports.len(), 1);
+        let shown = Application::show_export_v4(&root, application_id.as_str(), &destination)
+            .expect("export show");
+        assert_eq!(shown.data.manifest, exported.data.render);
+        assert!(
+            broker
+                .commit_export_prepare(
+                    &root,
+                    &application_id,
+                    &export.preview_token,
+                    &export.preview.data.preview_sha256,
+                    true,
+                    Some(export_consent),
+                )
+                .is_err()
+        );
+        let pdf = root.join(shown.data.manifest.documents[0].relative_path.as_str());
+        let mut bytes = fs::read(&pdf).expect("exported PDF");
+        bytes[0] ^= 1;
+        fs::write(&pdf, bytes).expect("tamper exported PDF");
+        assert!(Application::show_export_v4(&root, application_id.as_str(), &destination).is_err());
 
         fs::remove_dir_all(root).expect("remove fixture");
     }

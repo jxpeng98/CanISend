@@ -8370,6 +8370,8 @@ fn validate_semantic_parity_policy(
         "plan.confirm.commit".to_owned(),
         "deliverable.draft.commit".to_owned(),
         "deliverable.revise.commit".to_owned(),
+        "review.disposition.commit".to_owned(),
+        "export.prepare.commit".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
     ]);
     let mut revision_bound = BTreeSet::new();
@@ -8405,6 +8407,8 @@ fn validate_semantic_parity_policy(
         "plan-confirm".to_owned(),
         "deliverable-draft".to_owned(),
         "deliverable-revise".to_owned(),
+        "review-disposition".to_owned(),
+        "export-prepare".to_owned(),
     ]);
     let mut preview_pairs = BTreeSet::new();
     let mut pair_operations = BTreeSet::new();
@@ -19189,8 +19193,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 31);
-        assert_eq!(current.preview_pairs, 12);
+        assert_eq!(current.shared_operations, 38);
+        assert_eq!(current.preview_pairs, 14);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();

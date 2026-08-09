@@ -8,14 +8,15 @@ use std::{
 
 use canisend_app::{
     Application, ApplicationDeliverableReviseRequestV4, ApplicationError,
-    ApplicationFlowComposeRequestV3, ApplicationFlowDeliverableDraftV3,
+    ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
+    ApplicationFlowDeliverableDraftV3, ApplicationFlowExportRequestV3,
     ApplicationFlowPlannedDeliverableV3, ApplicationFlowRequirementDraftV3,
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
     ApprovalBrokerError, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
-    AssociationChangeV4, EvidenceAssociationPreviewRequestV4, PrivateReadConsent,
-    ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
+    AssociationChangeV4, EvidenceAssociationPreviewRequestV4, PrivateExportConsent,
+    PrivateReadConsent, ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
 };
 use canisend_contracts::{
     ApplicationId, ContentRevisionReferenceV3, DeliverableId, ExecutionMode,
@@ -280,6 +281,64 @@ pub struct DeliverableAuditParameters {
         description = "True only after explicit consent to read private Deliverable bodies"
     )]
     pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewInspectParameters {
+    pub application_id: String,
+    #[schemars(
+        description = "True only after explicit consent to read private Deliverable bodies"
+    )]
+    pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewDispositionPreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    #[schemars(
+        description = "True only after explicit consent to read private Deliverable bodies"
+    )]
+    pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewDispositionCommitParameters {
+    pub application_id: String,
+    pub preview_token: String,
+    pub preview_sha256: Sha256Digest,
+    pub approved: bool,
+    pub confirmed_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExportPreparePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub destination: String,
+    #[schemars(description = "True only after explicit consent to export private artifacts")]
+    pub confirmed_private_export: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExportShowParameters {
+    pub application_id: String,
+    pub destination: String,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExportPrepareCommitParameters {
+    pub application_id: String,
+    pub preview_token: String,
+    pub preview_sha256: Sha256Digest,
+    pub approved: bool,
+    pub confirmed_private_export: bool,
 }
 
 impl CanISendMcpServer {
@@ -1018,6 +1077,193 @@ impl CanISendMcpServer {
                 .confirmed_private_read
                 .then(PrivateReadConsent::granted_by_user),
         ))
+    }
+
+    #[tool(
+        description = "Inspect exact current Deliverables for evidence-bound review after private-read consent",
+        annotations(
+            title = "Inspect Application review",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_review_inspect(
+        &self,
+        Parameters(parameters): Parameters<ReviewInspectParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::inspect_review_v4(
+            self.workspace(),
+            &application_id,
+            parameters
+                .confirmed_private_read
+                .then(PrivateReadConsent::granted_by_user),
+        ))
+    }
+
+    #[tool(
+        description = "Preview approval of all exact current review-required Deliverables",
+        annotations(
+            title = "Preview review disposition",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_review_disposition_preview(
+        &self,
+        Parameters(parameters): Parameters<ReviewDispositionPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.preview_review_disposition(
+                self.workspace(),
+                &application_id,
+                ApplicationFlowApproveRequestV3 {
+                    expected_revision: Self::revision(parameters.expected_revision)?,
+                },
+                parameters
+                    .confirmed_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Commit the exact approved review disposition; the preview token is single-use",
+        annotations(
+            title = "Commit review disposition",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_review_disposition_commit(
+        &self,
+        Parameters(parameters): Parameters<ReviewDispositionCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.commit_review_disposition(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.approved,
+                parameters
+                    .confirmed_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Preview one exact local-only export of approved Deliverables",
+        annotations(
+            title = "Preview local export",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_export_prepare_preview(
+        &self,
+        Parameters(parameters): Parameters<ExportPreparePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let request = ApplicationFlowExportRequestV3::try_new(
+            &parameters.application_id,
+            parameters.expected_revision,
+            &parameters.destination,
+        )
+        .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        Self::mutation_result(
+            self.mutation_approvals.preview_export_prepare(
+                self.workspace(),
+                &application_id,
+                request,
+                parameters
+                    .confirmed_private_export
+                    .then(PrivateExportConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "List verified local exports for one exact Application",
+        annotations(
+            title = "List local exports",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_export_list(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::list_exports_v4(
+            self.workspace(),
+            &parameters.application_id,
+        ))
+    }
+
+    #[tool(
+        description = "Load and verify one exact local export manifest and every document digest",
+        annotations(
+            title = "Show local export",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_export_show(
+        &self,
+        Parameters(parameters): Parameters<ExportShowParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::show_export_v4(
+            self.workspace(),
+            &parameters.application_id,
+            &parameters.destination,
+        ))
+    }
+
+    #[tool(
+        description = "Render and write the exact approved local export; never upload or submit",
+        annotations(
+            title = "Commit local export",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_export_prepare_commit(
+        &self,
+        Parameters(parameters): Parameters<ExportPrepareCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.commit_export_prepare(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.approved,
+                parameters
+                    .confirmed_private_export
+                    .then(PrivateExportConsent::granted_by_user),
+            ),
+        )
     }
 
     #[tool(

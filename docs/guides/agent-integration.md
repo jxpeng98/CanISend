@@ -119,15 +119,20 @@ read operations:
 - `canisend_plan_show`;
 - `canisend_deliverable_list`;
 - `canisend_deliverable_show`;
+- `canisend_export_list`;
+- `canisend_export_show`;
 - `canisend_profile_source_list`;
 - `canisend_profile_association_list`; and
 - `canisend_evidence_association_list`.
 
 Requirement, Plan, and Deliverable responses include the exact Application, Pack, revision, and
 snapshot digest. Deliverable list/show return metadata and content references only; reading a
-Deliverable body remains a separate consented operation and is not part of this surface.
+Deliverable body remains a separate consented audit or review operation.
 
-It exposes eight guarded mutation pairs:
+Private Deliverable bodies are available only through consented `canisend_deliverable_audit` or
+`canisend_review_inspect` calls.
+
+It exposes ten guarded mutation pairs:
 
 - `canisend_profile_association_preview` → `canisend_profile_association_commit`; and
 - `canisend_evidence_association_preview` → `canisend_evidence_association_commit`;
@@ -136,7 +141,9 @@ It exposes eight guarded mutation pairs:
 - `canisend_plan_propose_preview` → `canisend_plan_propose_commit`;
 - `canisend_plan_confirm_preview` → `canisend_plan_confirm_commit`;
 - `canisend_deliverable_draft_preview` → `canisend_deliverable_draft_commit`; and
-- `canisend_deliverable_revise_preview` → `canisend_deliverable_revise_commit`.
+- `canisend_deliverable_revise_preview` → `canisend_deliverable_revise_commit`;
+- `canisend_review_disposition_preview` → `canisend_review_disposition_commit`; and
+- `canisend_export_prepare_preview` → `canisend_export_prepare_commit`.
 
 Requirement extraction accepts only Pack-qualified candidates whose statements equal exact UTF-8
 spans in one current Source revision already associated with the selected Application. It appends

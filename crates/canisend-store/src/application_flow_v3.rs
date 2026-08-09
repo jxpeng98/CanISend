@@ -577,19 +577,17 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         application_id: &ApplicationId,
         request: ApplicationFlowApproveRequestV3,
     ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
-        let current = self.current_for_pack(pack, application_id, request.expected_revision)?;
-        if current.snapshot.deliverables.is_empty()
-            || current
-                .snapshot
-                .deliverables
-                .iter()
-                .any(|deliverable| deliverable.state != DeliverableStateV3::ReviewRequired)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "all current Deliverables must require review before approval".to_owned(),
-            ));
-        }
-        verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
+        self.approve_with_actor(pack, application_id, request, ActorKind::User)
+    }
+
+    pub fn approve_with_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationFlowApproveRequestV3,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
+        let current = self.validate_approval(pack, application_id, request.expected_revision)?;
         let mut candidate = current.snapshot;
         candidate.application.updated_at = now_utc()?;
         candidate.application.revision = next_revision(candidate.application.revision)?;
@@ -606,10 +604,32 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             application_id,
             request.expected_revision,
             candidate,
-            ActorKind::User,
+            actor,
             "application-flow-approve",
         )?;
         self.commit_read_model(pack, commit)
+    }
+
+    pub fn validate_approval(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+    ) -> Result<StoredApplicationModelV3, StoreError> {
+        let current = self.current_for_pack(pack, application_id, expected_revision)?;
+        if current.snapshot.deliverables.is_empty()
+            || current
+                .snapshot
+                .deliverables
+                .iter()
+                .any(|deliverable| deliverable.state != DeliverableStateV3::ReviewRequired)
+        {
+            return Err(StoreError::ApplicationModelConflict(
+                "all current Deliverables must require review before approval".to_owned(),
+            ));
+        }
+        verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
+        Ok(current)
     }
 
     pub fn review(
@@ -661,23 +681,26 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         expected_revision: Revision,
         destination: &SafeRelativePath,
     ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
-        ensure_export_destination(application_id, destination)?;
-        let current = self.current_for_pack(pack, application_id, expected_revision)?;
-        if current.snapshot.deliverables.is_empty()
-            || current
-                .snapshot
-                .deliverables
-                .iter()
-                .any(|deliverable| deliverable.state != DeliverableStateV3::Approved)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "all Deliverables must be approved before package and render".to_owned(),
-            ));
-        }
+        self.export_with_actor(
+            pack,
+            application_id,
+            expected_revision,
+            destination,
+            ActorKind::User,
+        )
+    }
+
+    pub fn export_with_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        destination: &SafeRelativePath,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
+        let current = self.validate_export(pack, application_id, expected_revision, destination)?;
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
             .map_err(pack_catalog_error)?;
-        validate_snapshot_deliverable_counts(&catalog, &current.snapshot.deliverables)?;
-        verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
 
         let package =
             ApplicationProjectionService::new(self.database, self.blobs, self.workspace_root)
@@ -772,10 +795,11 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         self.database.connection().execute(
             "INSERT INTO audit_events(
                 id, actor, action, subject_id, subject_revision, reason, created_at
-             ) VALUES (?1, 'user', 'application-flow.export', ?2, ?3,
-                       'export-pack-bound-approved-deliverables', ?4)",
+             ) VALUES (?1, ?2, 'application-flow.export', ?3, ?4,
+                       'export-pack-bound-approved-deliverables', ?5)",
             params![
                 generate_id()?.as_str(),
+                actor_kind_name(actor),
                 application_id.as_str(),
                 i64::try_from(current.snapshot.application.revision.get())
                     .map_err(|_| StoreError::Invariant("revision overflow".to_owned()))?,
@@ -789,6 +813,33 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             render: manifest,
             stages,
         })
+    }
+
+    pub fn validate_export(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        destination: &SafeRelativePath,
+    ) -> Result<StoredApplicationModelV3, StoreError> {
+        ensure_export_destination(application_id, destination)?;
+        let current = self.current_for_pack(pack, application_id, expected_revision)?;
+        if current.snapshot.deliverables.is_empty()
+            || current
+                .snapshot
+                .deliverables
+                .iter()
+                .any(|deliverable| deliverable.state != DeliverableStateV3::Approved)
+        {
+            return Err(StoreError::ApplicationModelConflict(
+                "all Deliverables must be approved before package and render".to_owned(),
+            ));
+        }
+        let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
+            .map_err(pack_catalog_error)?;
+        validate_snapshot_deliverable_counts(&catalog, &current.snapshot.deliverables)?;
+        verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
+        Ok(current)
     }
 
     fn current_for_pack(
@@ -1137,6 +1188,15 @@ fn ensure_export_destination(
         return Err(StoreError::ProjectionPathRejected);
     }
     Ok(())
+}
+
+const fn actor_kind_name(actor: ActorKind) -> &'static str {
+    match actor {
+        ActorKind::User => "user",
+        ActorKind::HostAgent => "host-agent",
+        ActorKind::ConfiguredProvider => "configured-provider",
+        ActorKind::System => "system",
+    }
 }
 
 fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
