@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use canisend_contracts::{
-    ActorKind, EvidenceCatalogRecord, PrivacyClassification, ProfileSourceKind, ProfileSourceRecord,
+    ActorKind, EvidenceCatalogRecord, NextAction, PrivacyClassification, ProfileSourceKind,
+    ProfileSourceRecord,
 };
 use canisend_io::{LocalTextKind, read_local_text};
 use canisend_store::{EvidenceService, NewProfileSource, ProfileService};
@@ -119,6 +120,59 @@ impl Application {
             "profile.source.add",
             "imported",
             format!("Imported {:?} profile source", source.kind),
+            ProfileSourceImportReadModel {
+                profile_revision,
+                source,
+            },
+        )
+        .with_artifacts(artifacts))
+    }
+
+    pub fn import_profile_source_v4(
+        root: &Path,
+        path: &Path,
+        sensitivity: PrivacyClassification,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<ActionReceipt<ProfileSourceImportReadModel>, ApplicationError> {
+        validate_profile_source_sensitivity(sensitivity)?;
+        if sensitivity == PrivacyClassification::PrivateLocal && consent.is_none() {
+            return Err(ApplicationError::ConsentRequired {
+                message: "Private-local Profile Source import requires explicit user read consent"
+                    .to_owned(),
+                remediation: NextAction {
+                    action: "confirm private-local Profile Source access".to_owned(),
+                    description: "Review the selected local file, then repeat the import with explicit private-read consent"
+                        .to_owned(),
+                },
+            });
+        }
+
+        // Open the strict v4 authority before reading the selected file so unsupported Workspaces
+        // fail closed without accessing private input or mutating either location.
+        let mut workspace = open_workspace_v4(root)?;
+        let document = read_local_text(path)?;
+        let kind = match document.kind {
+            LocalTextKind::Markdown => ProfileSourceKind::Markdown,
+            LocalTextKind::PlainText => ProfileSourceKind::PlainText,
+            LocalTextKind::Json => ProfileSourceKind::Json,
+        };
+        let mut service = ProfileService::new(&mut workspace.database, &workspace.blobs);
+        let source = service.import_source(
+            NewProfileSource {
+                kind,
+                original_bytes: document.original_bytes,
+                normalized_text: document.normalized_text,
+                content_type: document.content_type.to_owned(),
+                sensitivity,
+            },
+            ActorKind::User,
+        )?;
+        let profile_revision = service.revision()?;
+        let artifacts = [source.original.clone(), source.normalized_text.clone()];
+        Ok(ActionReceipt::new(
+            "profile-source.import",
+            "imported",
+            format!("Imported {:?} Workspace Profile Source", source.kind),
             ProfileSourceImportReadModel {
                 profile_revision,
                 source,
@@ -260,6 +314,21 @@ impl Application {
     }
 }
 
+fn validate_profile_source_sensitivity(
+    sensitivity: PrivacyClassification,
+) -> Result<(), ApplicationError> {
+    if matches!(
+        sensitivity,
+        PrivacyClassification::Public | PrivacyClassification::PrivateLocal
+    ) {
+        Ok(())
+    } else {
+        Err(ApplicationError::InvalidInput(
+            "Profile Source sensitivity must be public or private-local".to_owned(),
+        ))
+    }
+}
+
 fn normalize_profile_markdown(markdown: &str) -> Result<String, ApplicationError> {
     const MAX_PROFILE_MARKDOWN_BYTES: usize = 256 * 1024;
 
@@ -364,6 +433,43 @@ mod tests {
     }
 
     #[test]
+    fn clean_v4_profile_import_requires_consent_and_refuses_legacy_before_file_access() {
+        let root = temporary_root("source-v4-consent");
+        let missing_source = temporary_root("missing-private-source").with_extension("md");
+        Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+
+        let denied = Application::import_profile_source_v4(
+            &root,
+            &missing_source,
+            PrivacyClassification::PrivateLocal,
+            None,
+        )
+        .expect_err("private import requires consent before reading the file");
+        assert_eq!(denied.classify().code, ErrorCode::ConsentRequired);
+        assert_eq!(
+            Application::list_profile_sources_v4(&root)
+                .expect("list unchanged Profile Sources")
+                .data
+                .profile_revision,
+            0
+        );
+
+        let legacy = temporary_root("source-v3-refusal");
+        Application::initialize_workspace_v3(&legacy).expect("initialize Workspace v3");
+        let refused = Application::import_profile_source_v4(
+            &legacy,
+            &missing_source,
+            PrivacyClassification::Public,
+            None,
+        )
+        .expect_err("legacy Workspace must fail before reading the file");
+        assert_eq!(refused.classify().code, ErrorCode::CompatibilityUnavailable);
+
+        fs::remove_dir_all(root).expect("remove Workspace v4");
+        fs::remove_dir_all(legacy).expect("remove Workspace v3");
+    }
+
+    #[test]
     fn clean_v4_profile_source_list_is_neutral_and_body_free() {
         let root = temporary_root("source-v4");
         let source_path = temporary_root("private-v4").with_extension("md");
@@ -371,11 +477,11 @@ mod tests {
         fs::write(&source_path, format!("# Profile\n\n{sentinel}\n")).expect("write source");
         Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
 
-        let imported = Application::import_profile_source(
+        let imported = Application::import_profile_source_v4(
             &root,
             &source_path,
             PrivacyClassification::PrivateLocal,
-            PrivateReadConsent::granted_by_user(),
+            Some(PrivateReadConsent::granted_by_user()),
         )
         .expect("import profile source");
         let listed = Application::list_profile_sources_v4(&root).expect("list v4 Profile Sources");

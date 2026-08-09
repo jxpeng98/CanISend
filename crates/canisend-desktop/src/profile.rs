@@ -81,8 +81,14 @@ fn validate_candidate(candidate: &Value) -> Result<(), DesktopCommandError> {
 fn import_profile_source_impl(
     request: ProfileSourceImportRequest,
 ) -> Result<ActionReceipt<ProfileSourceImportReadModel>, DesktopCommandError> {
-    let consent = require_private_read(request.confirmed_private_read)?;
-    Application::import_profile_source(
+    let consent = if request.sensitivity == PrivacyClassification::PrivateLocal {
+        Some(require_private_read(request.confirmed_private_read)?)
+    } else {
+        request
+            .confirmed_private_read
+            .then(PrivateReadConsent::granted_by_user)
+    };
+    Application::import_profile_source_v4(
         &request.workspace,
         &request.source,
         request.sensitivity,
@@ -338,7 +344,7 @@ mod tests {
             confirmed_private_read: true,
         })
         .expect("import profile source");
-        assert_eq!(imported.operation, "profile.source.add");
+        assert_eq!(imported.operation, "profile-source.import");
         let listed = list_profile_sources_impl(ProfileWorkspaceRequest {
             workspace: workspace.clone(),
         })

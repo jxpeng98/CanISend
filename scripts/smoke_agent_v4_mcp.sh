@@ -22,6 +22,7 @@ mkdir -p "$smoke_root/candidates"
 workspace="$smoke_root/workspace"
 generic_candidate="$smoke_root/candidates/generic.json"
 academic_candidate="$smoke_root/candidates/academic.json"
+profile_source="$smoke_root/candidates/profile.md"
 
 jq -n \
   --arg source_text \
@@ -64,6 +65,12 @@ jq -n \
   }]
 }' > "$academic_candidate"
 
+printf '%s\n' \
+  '# Profile' \
+  '' \
+  'MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme.' \
+  > "$profile_source"
+
 "$binary" --workspace "$workspace" workspace init --json \
   > "$smoke_root/workspace-init.json"
 "$binary" --workspace "$workspace" application create \
@@ -74,6 +81,13 @@ jq -n \
   --pack org.canisend.academic-job \
   --candidate "$academic_candidate" \
   --json > "$smoke_root/academic-create.json"
+"$binary" --workspace "$workspace" profile-source import \
+  "$profile_source" \
+  --sensitivity private-local \
+  --confirm-private-read \
+  --json > "$smoke_root/profile-source-import.json"
+"$binary" --workspace "$workspace" profile-source list --json \
+  > "$smoke_root/profile-source-list.json"
 
 generic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/generic-create.json")"
 academic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/academic-create.json")"
@@ -135,6 +149,12 @@ write_initialize() {
     jsonrpc: "2.0",
     id: 8,
     method: "tools/call",
+    params: {name: "canisend_profile_source_list", arguments: {}}
+  }'
+  jq -nc '{
+    jsonrpc: "2.0",
+    id: 9,
+    method: "tools/call",
     params: {name: "canisend_agent_v3_context", arguments: {}}
   }'
 } > "$smoke_root/requests.jsonl"
@@ -148,11 +168,12 @@ fi
 
 if ! jq -s -e '
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 4) and
+  (map(select(.id == 2))[0].result.tools | length == 5) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status"
   ]) and
@@ -183,8 +204,13 @@ if ! jq -s -e '
     "org.canisend.generic-application") and
   (map(select(.id == 7))[0].result.structuredContent.data.snapshot.pack.id ==
     "org.canisend.academic-job") and
-  (map(select(.id == 8))[0].error.code == -32602) and
-  (map(select(.id == 8))[0].error.message == "tool not found")
+  (map(select(.id == 8))[0].result.structuredContent.operation ==
+    "profile-source.list") and
+  (map(select(.id == 8))[0].result.structuredContent.data.sources | length == 1) and
+  ((map(select(.id == 8))[0] | tostring |
+    contains("MCP-V4-PROFILE-PRIVATE-SENTINEL")) | not) and
+  (map(select(.id == 9))[0].error.code == -32602) and
+  (map(select(.id == 9))[0].error.message == "tool not found")
 ' "$smoke_root/responses.jsonl" >/dev/null; then
   echo "Agent v4 MCP smoke: response assertion failed" >&2
   jq -sc '

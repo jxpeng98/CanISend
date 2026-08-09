@@ -323,7 +323,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
             setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
-            Some(4)
+            Some(5)
         );
         assert_eq!(
             setup["data"]["mcp"]["guarded_write_tools"]
@@ -505,6 +505,96 @@ fn workspace_v4_holds_generic_and_academic_applications_together() {
         shown["data"]["snapshot"]["pack"]["id"],
         "org.canisend.academic-job"
     );
+}
+
+#[test]
+fn workspace_v4_profile_sources_import_and_list_without_the_app() {
+    let workspace = TestDirectory::new("profile-sources");
+    let inputs = TestDirectory::new("profile-source-inputs");
+    fs::create_dir_all(inputs.path()).expect("Profile Source input directory");
+    let public_source = inputs.path().join("public.md");
+    let private_source = inputs.path().join("private.txt");
+    let private_sentinel = "PRIVATE-PROFILE-BODY-MUST-NOT-LEAK";
+    fs::write(
+        &public_source,
+        "# Public profile\n\nPublished programme lead.\n",
+    )
+    .expect("write public Profile Source");
+    fs::write(&private_source, private_sentinel).expect("write private Profile Source");
+
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+
+    let before_denied = file_snapshot(workspace.path());
+    let denied = run(&[
+        "--workspace",
+        workspace.text(),
+        "profile-source",
+        "import",
+        private_source
+            .to_str()
+            .expect("private source path is UTF-8"),
+        "--sensitivity",
+        "private-local",
+        "--json",
+    ]);
+    assert!(!denied.status.success());
+    assert!(denied.stderr.is_empty());
+    let denied: Value = serde_json::from_slice(&denied.stdout).expect("consent refusal JSON");
+    assert_eq!(denied["error"]["code"], "consent.required");
+    assert_eq!(file_snapshot(workspace.path()), before_denied);
+
+    let public = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile-source",
+        "import",
+        public_source.to_str().expect("public source path is UTF-8"),
+        "--sensitivity",
+        "public",
+        "--json",
+    ]);
+    assert_eq!(public["operation"], "profile-source.import");
+    assert_eq!(public["data"]["source"]["sensitivity"], "public");
+
+    let private = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile-source",
+        "import",
+        private_source
+            .to_str()
+            .expect("private source path is UTF-8"),
+        "--sensitivity",
+        "private-local",
+        "--confirm-private-read",
+        "--json",
+    ]);
+    assert_eq!(private["operation"], "profile-source.import");
+    assert_eq!(private["data"]["source"]["sensitivity"], "private-local");
+
+    let listed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "profile-source",
+        "list",
+        "--json",
+    ]);
+    assert_eq!(listed["operation"], "profile-source.list");
+    assert_eq!(listed["data"]["profile_revision"], 2);
+    assert_eq!(listed["data"]["sources"].as_array().map(Vec::len), Some(2));
+    for response in [public, private, listed] {
+        assert!(
+            !serde_json::to_string(&response)
+                .expect("serialize response")
+                .contains(private_sentinel)
+        );
+    }
 }
 
 fn write_application_candidate(

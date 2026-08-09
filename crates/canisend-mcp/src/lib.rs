@@ -212,6 +212,20 @@ impl CanISendMcpServer {
             &parameters.application_id,
         ))
     }
+
+    #[tool(
+        description = "List body-free Workspace Profile Source metadata from authoritative Workspace v4 state",
+        annotations(
+            title = "List Workspace Profile Sources",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_profile_source_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::application_result(Application::list_profile_sources_v4(self.workspace()))
+    }
 }
 
 #[tool_handler(
