@@ -23,10 +23,10 @@ from these two optimization policies are not silently mixed.
 | Metric | Fixture and method | Threshold |
 | --- | --- | ---: |
 | `version_startup_median_ms` | Seven warm release-binary process launches | 100 ms |
-| `capabilities_startup_median_ms` | Seven warm `agent capabilities --json` launches | 150 ms |
-| `status_100_jobs_median_ms` | Five launches against a workspace containing at least 100 jobs | 500 ms |
-| `html_1_mib_intake_median_ms` | Three 1 MiB HTML normalize-and-commit operations, excluding network | 2,000 ms |
-| `pdf_50_page_intake_median_ms` | Three release CLI imports of a generated 50-page text PDF | 5,000 ms |
+| `host_status_startup_median_ms` | Seven warm clean-v4 `host status --host codex --json` launches | 150 ms |
+| `status_100_applications_median_ms` | Five launches against one Workspace v4 containing 100 Pack-bound Applications | 500 ms |
+| `html_1_mib_intake_median_ms` | Three 1 MiB HTML normalization and bounded-file-write operations, excluding network | 2,000 ms |
+| `pdf_50_page_intake_median_ms` | Three consented v4 local-file preview/commit operations for a generated 50-page text PDF | 5,000 ms |
 | `typst_render_median_ms` | Median of three embedded `doctor` render probes | 1,000 ms |
 | `release_binary_bytes` | Stripped/LTO release CLI executable | 67,108,864 bytes |
 | `full_synthetic_workflow_ms` | Exact service workflow from intake through four documents, review, package, PDF render, export, and invalidation | 15,000 ms |
@@ -36,10 +36,15 @@ from these two optimization policies are not silently mixed.
 | `dossier_list_max_ms` | Five in-process reads of 128 application Dossiers after warm-up | 2,000 ms |
 | `indexed_search_max_ms` | Five deterministic metadata-index rebuilds over at least 256 Catalog entries | 1,000 ms |
 
-Durations are rounded up to whole milliseconds. Medians reduce scheduler noise without hiding persistent
-regressions. The HTML test calls the same public parser used after safe HTTP transport and commits the resulting
-source to SQLite/blob authority; network and DNS time are deliberately excluded. The PDF test includes local file
-validation, parsing, 50-page text extraction, canonical storage, and job revision mutation.
+Durations are rounded up to whole milliseconds. Medians reduce scheduler noise without hiding
+persistent regressions. The HTML test calls the same public parser used after safe HTTP transport
+and writes its normalized bounded result; network and DNS time are deliberately excluded. The PDF
+test includes private-read consent, local-file validation, parsing, 50-page text extraction,
+Pack-qualified Requirement proposal, canonical Source/Application storage, and revision mutation.
+
+The initial baseline retains its historical `capabilities_startup_median_ms` and
+`status_100_jobs_median_ms` field names. Current Alpha.7 measurements use the clean-v4 names above;
+they are not silently compared as the same semantic fixture.
 
 The synthetic workflow gate measures only test execution. Cargo test discovery, compilation, and link time are not
 included. It covers the complete revision-bound material path and therefore catches performance regressions in

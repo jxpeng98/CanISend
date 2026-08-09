@@ -82,11 +82,11 @@ and keep the upgraded workspace for diagnosis. The full procedure is in the
 
 ## Supported input and security boundary
 
-The `1.0` line supports local text, text-extractable PDF, supplied URL/HTML, reviewed CSV/JSON and
-host-Agent imports, RSS/Atom discovery, the adapters advertised by `agent capabilities`, and the
-Apple Silicon macOS desktop workflow described above. Scanned/image-only PDFs without extractable
-text, browser/portal automation, automatic application submission, Windows/Linux desktop
-packages, and Linux arm64 archives are outside this support line.
+The `1.0` line supports local text, text-extractable PDF, supplied URL/HTML, reviewed CSV/JSON,
+the clean Workspace v4 CLI and MCP operations returned by `tools/list`, current Agent v4 host
+resources, and the Apple Silicon macOS desktop workflow described above. Scanned/image-only PDFs
+without extractable text, browser/portal automation, automatic application submission,
+Windows/Linux desktop packages, and Linux arm64 archives are outside this support line.
 
 External Codex and Claude handoff is the primary reasoning surface. Their credentials,
 conversations, provider entitlements, search, plugins, connectors, and retention remain owned by

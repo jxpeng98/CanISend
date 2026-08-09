@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     process::{Command, Output},
@@ -8,7 +9,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use canisend_app::{Application, PrivateReadConsent};
+use canisend_app::{
+    Application, GENERIC_APPLICATION_WORKFLOW_PACK_ID, LocalFileIntakeCommitRequestV4,
+    LocalFileIntakePreviewRequestV4, PastedTextIntakeCommitRequestV4,
+    PastedTextIntakePreviewRequestV4, PrivateReadConsent,
+};
+use canisend_contracts::{RequirementPriorityV3, WorkflowPackId, WorkflowPackItemId};
 use canisend_io::normalize_html_document;
 use lopdf::{
     Document, Object, Stream,
@@ -19,13 +25,13 @@ use serde::Serialize;
 use serde_json::Value;
 
 const STARTUP_VERSION_LIMIT_MS: u64 = 100;
-const STARTUP_CAPABILITIES_LIMIT_MS: u64 = 150;
+const STARTUP_HOST_STATUS_LIMIT_MS: u64 = 150;
 const LARGE_STATUS_LIMIT_MS: u64 = 500;
 const HTML_INTAKE_LIMIT_MS: u64 = 2_000;
 const PDF_INTAKE_LIMIT_MS: u64 = 5_000;
 const TYPST_RENDER_LIMIT_MS: u64 = 1_000;
 const RELEASE_BINARY_LIMIT_BYTES: u64 = 67_108_864;
-const LARGE_WORKSPACE_JOBS: usize = 100;
+const LARGE_WORKSPACE_APPLICATIONS: usize = 100;
 const PDF_PAGES: usize = 50;
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -60,8 +66,8 @@ struct PerformanceMetrics {
     target: String,
     release_binary_bytes: u64,
     version_startup_median_ms: u64,
-    capabilities_startup_median_ms: u64,
-    status_100_jobs_median_ms: u64,
+    host_status_startup_median_ms: u64,
+    status_100_applications_median_ms: u64,
     html_1_mib_intake_median_ms: u64,
     pdf_50_page_intake_median_ms: u64,
     typst_render_median_ms: u64,
@@ -75,12 +81,8 @@ fn release_binary_stays_within_product_performance_budgets() {
     let pdf_path = root.path().join("fifty-pages.pdf");
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_canisend"));
 
-    run_workspace(
-        &binary,
-        &workspace_path,
-        &["workspace", "init", "--pack", "academic-job", "--json"],
-    );
-    let (html_samples, pdf_job_ids) = prepare_large_workspace(&workspace_path);
+    run_workspace(&binary, &workspace_path, &["workspace", "init", "--json"]);
+    let html_samples = prepare_large_workspace(&workspace_path);
     fs::write(&pdf_path, make_text_pdf(PDF_PAGES)).expect("write PDF benchmark fixture");
 
     run_static(&binary, &["version", "--json"]);
@@ -88,21 +90,45 @@ fn release_binary_stays_within_product_performance_budgets() {
         run_static(&binary, &["version", "--json"]);
     });
 
-    run_static(&binary, &["agent", "capabilities", "--json"]);
-    let capabilities_startup_median_ms = median_command_millis(7, || {
-        run_static(&binary, &["agent", "capabilities", "--json"]);
+    let binary_text = binary.to_str().expect("UTF-8 release binary path");
+    run_workspace(
+        &binary,
+        &workspace_path,
+        &[
+            "host",
+            "setup",
+            "--host",
+            "codex",
+            "--executable",
+            binary_text,
+            "--json",
+        ],
+    );
+    let host_status_startup_median_ms = median_command_millis(7, || {
+        run_workspace(
+            &binary,
+            &workspace_path,
+            &[
+                "host",
+                "status",
+                "--host",
+                "codex",
+                "--executable",
+                binary_text,
+                "--json",
+            ],
+        );
     });
 
     run_workspace(&binary, &workspace_path, &["workspace", "status", "--json"]);
-    let status_100_jobs_median_ms = median_command_millis(5, || {
+    let status_100_applications_median_ms = median_command_millis(5, || {
         run_workspace(&binary, &workspace_path, &["workspace", "status", "--json"]);
     });
 
-    let mut pdf_job_index = 0;
+    let mut pdf_application_index = 0;
     let pdf_50_page_intake_median_ms = median_command_millis(PDF_PAGES.min(3), || {
-        let job_id = &pdf_job_ids[pdf_job_index];
-        pdf_job_index += 1;
-        run_job_import(&binary, &workspace_path, job_id, &pdf_path);
+        run_local_pdf_intake(&workspace_path, &pdf_path, pdf_application_index);
+        pdf_application_index += 1;
     });
 
     let mut typst_samples = Vec::new();
@@ -123,8 +149,8 @@ fn release_binary_stays_within_product_performance_budgets() {
             .expect("release binary metadata")
             .len(),
         version_startup_median_ms,
-        capabilities_startup_median_ms,
-        status_100_jobs_median_ms,
+        host_status_startup_median_ms,
+        status_100_applications_median_ms,
         html_1_mib_intake_median_ms: median(html_samples),
         pdf_50_page_intake_median_ms,
         typst_render_median_ms,
@@ -136,13 +162,13 @@ fn release_binary_stays_within_product_performance_budgets() {
         STARTUP_VERSION_LIMIT_MS,
     );
     enforce(
-        "capabilities startup",
-        metrics.capabilities_startup_median_ms,
-        STARTUP_CAPABILITIES_LIMIT_MS,
+        "Agent v4 host status startup",
+        metrics.host_status_startup_median_ms,
+        STARTUP_HOST_STATUS_LIMIT_MS,
     );
     enforce(
-        "status for 100 jobs",
-        metrics.status_100_jobs_median_ms,
+        "status for 100 Applications",
+        metrics.status_100_applications_median_ms,
         LARGE_STATUS_LIMIT_MS,
     );
     enforce(
@@ -175,35 +201,25 @@ fn release_binary_stays_within_product_performance_budgets() {
     }
 }
 
-fn prepare_large_workspace(workspace_path: &Path) -> (Vec<u64>, Vec<String>) {
-    for index in 0..LARGE_WORKSPACE_JOBS {
-        Application::create_job(
+fn prepare_large_workspace(workspace_path: &Path) -> Vec<u64> {
+    for index in 0..LARGE_WORKSPACE_APPLICATIONS {
+        let preview_request = pasted_text_request(
+            format!("Synthetic application {index:03}"),
+            "Synthetic benchmark Requirement.".to_owned(),
+        );
+        let preview =
+            Application::preview_pasted_text_intake_v4(workspace_path, preview_request.clone())
+                .expect("preview large Workspace Application")
+                .data;
+        Application::commit_pasted_text_intake_v4(
             workspace_path,
-            &format!("Synthetic application {index:03}"),
-            "Benchmark organisation",
+            PastedTextIntakeCommitRequestV4 {
+                preview: preview_request,
+                expected_preview_sha256: preview.preview_sha256,
+            },
         )
-        .expect("large workspace job");
+        .expect("commit large Workspace Application");
     }
-    let html_job = Application::create_job(
-        workspace_path,
-        "HTML intake benchmark",
-        "Benchmark organisation",
-    )
-    .expect("HTML job");
-    let pdf_job_ids = (0..3)
-        .map(|index| {
-            Application::create_job(
-                workspace_path,
-                &format!("PDF intake benchmark {index}"),
-                "Benchmark organisation",
-            )
-            .expect("PDF job")
-            .data
-            .id
-            .to_string()
-        })
-        .collect::<Vec<_>>();
-
     let html = one_mib_html();
     let normalized_path = workspace_path.join("benchmark-input.txt");
     let mut html_samples = Vec::new();
@@ -211,16 +227,54 @@ fn prepare_large_workspace(workspace_path: &Path) -> (Vec<u64>, Vec<String>) {
         let started = Instant::now();
         let normalized = normalize_html_document(&html).expect("normalize bounded HTML fixture");
         fs::write(&normalized_path, normalized).expect("write normalized HTML fixture");
-        Application::import_local_job_source(
-            workspace_path,
-            html_job.data.id.as_str(),
-            &normalized_path,
-            PrivateReadConsent::granted_by_user(),
-        )
-        .expect("commit normalized HTML");
         html_samples.push(duration_millis(started.elapsed()));
     }
-    (html_samples, pdf_job_ids)
+    html_samples
+}
+
+fn pasted_text_request(title: String, source_text: String) -> PastedTextIntakePreviewRequestV4 {
+    PastedTextIntakePreviewRequestV4 {
+        pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+            .expect("generic Pack ID"),
+        title,
+        opportunity_metadata: BTreeMap::new(),
+        application_metadata: BTreeMap::new(),
+        source_text,
+        requirement_category: WorkflowPackItemId::try_new("format")
+            .expect("generic Requirement category"),
+        requirement_priority: RequirementPriorityV3::Mandatory,
+    }
+}
+
+fn run_local_pdf_intake(workspace_path: &Path, file: &Path, index: usize) {
+    let preview_request = LocalFileIntakePreviewRequestV4 {
+        pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID)
+            .expect("generic Pack ID"),
+        title: format!("PDF intake benchmark {index}"),
+        opportunity_metadata: BTreeMap::new(),
+        application_metadata: BTreeMap::new(),
+        path: file.to_path_buf(),
+        requirement_category: WorkflowPackItemId::try_new("format")
+            .expect("generic Requirement category"),
+        requirement_priority: RequirementPriorityV3::Mandatory,
+    };
+    let consent = PrivateReadConsent::granted_by_user();
+    let preview = Application::preview_local_file_intake_v4(
+        workspace_path,
+        preview_request.clone(),
+        Some(consent),
+    )
+    .expect("preview 50-page PDF intake")
+    .data;
+    Application::commit_local_file_intake_v4(
+        workspace_path,
+        LocalFileIntakeCommitRequestV4 {
+            preview: preview_request,
+            expected_preview_sha256: preview.preview_sha256,
+        },
+        Some(consent),
+    )
+    .expect("commit 50-page PDF intake");
 }
 
 fn one_mib_html() -> Vec<u8> {
@@ -241,19 +295,6 @@ fn run_static(binary: &Path, arguments: &[&str]) -> Output {
 fn run_workspace(binary: &Path, workspace: &Path, arguments: &[&str]) -> Output {
     let mut command = Command::new(binary);
     command.arg("--workspace").arg(workspace).args(arguments);
-    run_success(&mut command)
-}
-
-fn run_job_import(binary: &Path, workspace: &Path, job_id: &str, file: &Path) -> Output {
-    let mut command = Command::new(binary);
-    command
-        .arg("--workspace")
-        .arg(workspace)
-        .args(["job", "import"])
-        .arg(job_id)
-        .arg("--file")
-        .arg(file)
-        .arg("--json");
     run_success(&mut command)
 }
 

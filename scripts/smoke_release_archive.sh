@@ -118,13 +118,12 @@ grep -q '"version":"' "$bundle/RELEASE.json"
 
 "$executable" version --json > "$smoke_root/version.json"
 "$executable" doctor --json > "$smoke_root/doctor.json"
-"$executable" agent capabilities --json > "$smoke_root/capabilities.json"
 grep -q '"python_required":false' "$smoke_root/doctor.json"
 grep -q '"embedded_typst":"verified"' "$smoke_root/doctor.json"
 grep -q '"runtime_package_downloads":false' "$smoke_root/doctor.json"
 
 "$script_dir/smoke_documented_quickstart.sh" "$executable" "$smoke_root/documented-workflow"
-"$script_dir/smoke_host_agent.sh" "$executable" "$smoke_root/host-agent-workflow"
+"$script_dir/smoke_host_v4.sh" "$executable" "$smoke_root/host-v4-workflow"
 "$script_dir/smoke_agent_v4_mcp.sh" "$executable" "$smoke_root/agent-v4-mcp-workflow"
 
 install_root="$smoke_root/user-install"
@@ -183,7 +182,8 @@ if [[ "$qualification" == true ]]; then
         "complete-notice-bundle": true,
         "version-and-doctor": true,
         "documented-quickstart": true,
-        "host-agent-smoke": true,
+        "agent-v4-host-smoke": true,
+        "agent-v4-mcp-lifecycle-smoke": true,
         "isolated-install": true,
         uninstall: true,
         "workspace-retained": true,

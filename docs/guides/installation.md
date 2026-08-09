@@ -50,11 +50,13 @@ After extraction:
 ```console
 canisend version
 canisend doctor
-canisend agent capabilities
+canisend --workspace /path/to/workspace workspace status --json
+canisend --workspace /path/to/workspace host status --host codex --json
 ```
 
 `doctor` must report verified embedded resources and schemas, an embedded Typst renderer, disabled system-font and
-runtime-package lookup, and `Python runtime: not required`. Do not continue with a binary that fails this check.
+runtime-package lookup, and `Python runtime: not required`. Workspace and host status must identify clean Workspace
+v4 and current Agent v4 resources. Do not continue with a binary that fails these checks.
 
 ## Install the macOS desktop application
 

@@ -1821,12 +1821,14 @@ fn check_documentation() -> Result<(), String> {
         (
             "quick-start.md",
             &[
-                "--pack generic-application",
-                "--pack academic-job",
+                "workspace init --json",
+                "application create",
                 "org.canisend.generic-application",
                 "org.canisend.academic-job",
-                "workspace migration-preview",
-                "--expected-plan-sha256",
+                "host setup --host codex",
+                "mcp serve",
+                "orient -> propose -> preview -> approve -> commit -> verify",
+                "Unsupported legacy boundary",
                 "submission_performed: false",
             ],
         ),
@@ -6256,8 +6258,8 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "exact-extracted-archive-binary",
                 "version-and-doctor",
                 "documented-quickstart",
-                "host-agent-smoke",
-                "agent-v4-mcp-smoke",
+                "agent-v4-host-smoke",
+                "agent-v4-mcp-lifecycle-smoke",
                 "isolated-install-uninstall-workspace-retention"
             ],
             "targets": [
@@ -6429,6 +6431,9 @@ fn check_native_test_ownership() -> Result<(), String> {
         "cargo run -p xtask --locked -- release check",
         "cargo build --locked -p canisend-cli -p canisend-gui",
         "--features canisend-gui/custom-protocol",
+        "Smoke Agent v4 host resources and MCP through the built CLI",
+        "./scripts/smoke_host_v4.sh",
+        "$RUNNER_TEMP/canisend-host-v4-smoke",
         "./scripts/smoke_agent_v4_mcp.sh",
         "./target/debug/canisend",
         "$RUNNER_TEMP/canisend-agent-v4-mcp-smoke",
@@ -6451,13 +6456,24 @@ fn check_native_test_ownership() -> Result<(), String> {
             "both macOS Rust jobs must consume the exact production desktop UI build".to_owned(),
         );
     }
-    let host_agent_smoke_path = root.join("scripts/smoke_host_agent.sh");
-    let host_agent_smoke = fs::read_to_string(&host_agent_smoke_path)
-        .map_err(|error| format!("host-agent smoke script is missing: {error}"))?;
-    if !host_agent_smoke.contains("workspace init --pack academic-job --json") {
-        return Err(
-            "Agent v2 host smoke must select the exact academic compatibility authority".to_owned(),
-        );
+    let host_v4_smoke_path = root.join("scripts/smoke_host_v4.sh");
+    let host_v4_smoke = fs::read_to_string(&host_v4_smoke_path)
+        .map_err(|error| format!("Agent v4 host smoke script is missing: {error}"))?;
+    for required in [
+        "workspace init --json",
+        "host setup",
+        "host status",
+        "host remove",
+        "--host codex",
+        "unsupported pre-v4 host resources",
+        "PRE-V4-HOST-RESOURCE-SENTINEL",
+        "Agent v4 host smoke: ok",
+    ] {
+        if !host_v4_smoke.contains(required) {
+            return Err(format!(
+                "Agent v4 host smoke script is missing invariant `{required}`"
+            ));
+        }
     }
     let agent_v4_mcp_smoke_path = root.join("scripts/smoke_agent_v4_mcp.sh");
     let agent_v4_mcp_smoke = fs::read_to_string(&agent_v4_mcp_smoke_path)
@@ -6481,6 +6497,19 @@ fn check_native_test_ownership() -> Result<(), String> {
         "canisend_evidence_association_list",
         "canisend_evidence_association_preview",
         "canisend_evidence_association_commit",
+        "canisend_requirement_extract_preview",
+        "canisend_requirement_extract_commit",
+        "canisend_requirement_confirm_preview",
+        "canisend_requirement_confirm_commit",
+        "canisend_plan_propose_preview",
+        "canisend_plan_propose_commit",
+        "canisend_plan_confirm_preview",
+        "canisend_plan_confirm_commit",
+        "canisend_deliverable_draft_preview",
+        "canisend_deliverable_draft_commit",
+        "canisend_deliverable_audit",
+        "approved: false",
+        "full guarded dual-Pack lifecycle passed",
         "MCP-V4-PROFILE-PRIVATE-SENTINEL",
         "MCP-V4-GENERIC-PRIVATE-SENTINEL",
         "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
@@ -6494,6 +6523,14 @@ fn check_native_test_ownership() -> Result<(), String> {
     let release_archive_smoke =
         fs::read_to_string(root.join("scripts/smoke_release_archive.sh"))
             .map_err(|error| format!("release archive smoke script is missing: {error}"))?;
+    if !release_archive_smoke
+        .contains("smoke_host_v4.sh\" \"$executable\" \"$smoke_root/host-v4-workflow")
+    {
+        return Err(
+            "release archive smoke must exercise clean Agent v4 host resources on every packaged CLI"
+                .to_owned(),
+        );
+    }
     if !release_archive_smoke
         .contains("smoke_agent_v4_mcp.sh\" \"$executable\" \"$smoke_root/agent-v4-mcp-workflow")
     {
@@ -6704,10 +6741,24 @@ fn check_native_test_ownership() -> Result<(), String> {
     let performance_contract =
         fs::read_to_string(root.join("crates/canisend-cli/tests/performance_contract.rs"))
             .map_err(|error| format!("release performance contract is missing: {error}"))?;
-    if !performance_contract.contains("\"academic-job\"") {
-        return Err(
-            "legacy job performance fixtures must select the exact academic Pack".to_owned(),
-        );
+    for required in [
+        "preview_pasted_text_intake_v4",
+        "preview_local_file_intake_v4",
+        "host_status_startup_median_ms",
+        "status_100_applications_median_ms",
+    ] {
+        if !performance_contract.contains(required) {
+            return Err(format!(
+                "clean-v4 release performance contract is missing `{required}`"
+            ));
+        }
+    }
+    for retired in ["Application::create_job", "agent\", \"capabilities"] {
+        if performance_contract.contains(retired) {
+            return Err(format!(
+                "release performance contract retains retired surface `{retired}`"
+            ));
+        }
     }
     for required in [
         "      - name: Build compile-only Intel macOS GUI\n        if: matrix.target == 'x86_64-apple-darwin' && needs.release-identity.outputs.stage != 'alpha'",
@@ -6957,6 +7008,7 @@ fn check_release_contract() -> Result<(), String> {
         "scripts/package_native_release.sh",
         "scripts/smoke_release_archive.sh",
         "scripts/smoke_agent_v4_mcp.sh",
+        "scripts/smoke_host_v4.sh",
         "scripts/stage_macos_gui_app.sh",
         "scripts/package_macos_gui_release.sh",
         "scripts/smoke_macos_gui_dmg.sh",
@@ -13115,7 +13167,8 @@ fn check_documentation_uninstall_policy() -> Result<(), String> {
         "complete-notice-bundle",
         "version-and-doctor",
         "documented-quickstart",
-        "host-agent-smoke",
+        "agent-v4-host-smoke",
+        "agent-v4-mcp-lifecycle-smoke",
         "isolated-install",
         "uninstall",
         "workspace-retained",
@@ -13726,7 +13779,8 @@ fn validate_documentation_uninstall_record(
         "complete-notice-bundle",
         "version-and-doctor",
         "documented-quickstart",
-        "host-agent-smoke",
+        "agent-v4-host-smoke",
+        "agent-v4-mcp-lifecycle-smoke",
         "isolated-install",
         "uninstall",
         "workspace-retained",
@@ -14622,8 +14676,9 @@ fn read_macos_gui_qualification(
             "outer_adhoc_signature": true,
             "version_match": true,
             "packaged_cli_doctor": true,
-            "packaged_cli_synthetic_workflow": true,
-            "packaged_host_agent_workflow": true,
+            "packaged_dual_pack_quickstart": true,
+            "packaged_agent_v4_host_resources": true,
+            "packaged_agent_v4_mcp_lifecycle": true,
             "packaged_gui_launch": true,
             "no_publication": true
         },
@@ -16217,7 +16272,8 @@ mod tests {
                 "complete-notice-bundle": true,
                 "version-and-doctor": true,
                 "documented-quickstart": true,
-                "host-agent-smoke": true,
+                "agent-v4-host-smoke": true,
+                "agent-v4-mcp-lifecycle-smoke": true,
                 "isolated-install": true,
                 "uninstall": true,
                 "workspace-retained": true,
@@ -18887,8 +18943,9 @@ mod tests {
                 "outer_adhoc_signature": true,
                 "version_match": true,
                 "packaged_cli_doctor": true,
-                "packaged_cli_synthetic_workflow": true,
-                "packaged_host_agent_workflow": true,
+                "packaged_dual_pack_quickstart": true,
+                "packaged_agent_v4_host_resources": true,
+                "packaged_agent_v4_mcp_lifecycle": true,
                 "packaged_gui_launch": true,
                 "no_publication": true
             },

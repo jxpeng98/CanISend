@@ -16,7 +16,92 @@ if [[ -e "$smoke_root" || -L "$smoke_root" ]]; then
   echo "Agent v4 MCP smoke: destination must not exist: $smoke_root" >&2
   exit 1
 fi
-command -v jq >/dev/null
+for command in jq mkfifo; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "Agent v4 MCP smoke: required command is missing: $command" >&2
+    exit 1
+  fi
+done
+
+mcp_pid=""
+mcp_fds_open=false
+cleanup_mcp_session() {
+  if [[ "$mcp_fds_open" == true ]]; then
+    exec 3>&-
+    exec 4<&-
+    mcp_fds_open=false
+  fi
+  if [[ -n "$mcp_pid" ]] && kill -0 "$mcp_pid" 2>/dev/null; then
+    kill "$mcp_pid" 2>/dev/null || true
+    wait "$mcp_pid" 2>/dev/null || true
+  fi
+  mcp_pid=""
+}
+trap cleanup_mcp_session EXIT
+
+MCP_RESPONSE=""
+MCP_NEXT_ID=100
+mcp_request() {
+  local request="$1"
+  printf '%s\n' "$request" >&3
+  if ! IFS= read -r MCP_RESPONSE <&4; then
+    echo "Agent v4 MCP smoke: server closed before a dynamic response" >&2
+    if [[ -f "$smoke_root/dynamic-mcp.stderr" ]]; then
+      sed -n '1,120p' "$smoke_root/dynamic-mcp.stderr" >&2
+    fi
+    exit 1
+  fi
+}
+
+mcp_tool_call() {
+  local tool="$1"
+  local arguments="$2"
+  MCP_NEXT_ID=$((MCP_NEXT_ID + 1))
+  mcp_request "$(
+    jq -nc \
+      --argjson id "$MCP_NEXT_ID" \
+      --arg tool "$tool" \
+      --argjson arguments "$arguments" \
+      '{jsonrpc: "2.0", id: $id, method: "tools/call", params: {
+        name: $tool,
+        arguments: $arguments
+      }}'
+  )"
+}
+
+assert_mcp_operation() {
+  local operation="$1"
+  if ! jq -e --arg operation "$operation" '
+    .result.isError == false
+    and (
+      .result.structuredContent.operation //
+      .result.structuredContent.preview.operation
+    ) == $operation
+  ' <<< "$MCP_RESPONSE" >/dev/null; then
+    echo "Agent v4 MCP smoke: expected successful operation $operation" >&2
+    jq -c . <<< "$MCP_RESPONSE" >&2 || true
+    exit 1
+  fi
+}
+
+assert_mcp_failure() {
+  if ! jq -e '
+    (.error | type == "object") or (.result.isError == true)
+  ' <<< "$MCP_RESPONSE" >/dev/null; then
+    echo "Agent v4 MCP smoke: expected a fail-closed MCP response" >&2
+    jq -c . <<< "$MCP_RESPONSE" >&2 || true
+    exit 1
+  fi
+}
+
+capture_preview_binding() {
+  MCP_PREVIEW_TOKEN="$(
+    jq -er '.result.structuredContent.preview_token' <<< "$MCP_RESPONSE"
+  )"
+  MCP_PREVIEW_SHA256="$(
+    jq -er '.result.structuredContent.preview.data.preview_sha256' <<< "$MCP_RESPONSE"
+  )"
+}
 
 mkdir -p "$smoke_root/candidates"
 workspace="$smoke_root/workspace"
@@ -24,9 +109,9 @@ generic_candidate="$smoke_root/candidates/generic.json"
 academic_candidate="$smoke_root/candidates/academic.json"
 profile_source="$smoke_root/candidates/profile.md"
 
+generic_source_text="MCP-V4-GENERIC-PRIVATE-SENTINEL requires a project narrative."
 jq -n \
-  --arg source_text \
-    "MCP-V4-GENERIC-PRIVATE-SENTINEL requires a project narrative." \
+  --arg source_text "$generic_source_text" \
   '{
   title: "Packaged generic MCP fixture",
   opportunity_metadata: {
@@ -46,9 +131,9 @@ jq -n \
   }]
 }' > "$generic_candidate"
 
+academic_source_text="MCP-V4-ACADEMIC-PRIVATE-SENTINEL requires an academic CV."
 jq -n \
-  --arg source_text \
-    "MCP-V4-ACADEMIC-PRIVATE-SENTINEL requires an academic CV." \
+  --arg source_text "$academic_source_text" \
   '{
   title: "Packaged academic MCP fixture",
   opportunity_metadata: {
@@ -93,6 +178,8 @@ generic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/generic
 academic_id="$(jq -er '.data.stored.snapshot.application.id' "$smoke_root/academic-create.json")"
 generic_requirement_id="$(jq -er '.data.stored.snapshot.requirements[0].id' "$smoke_root/generic-create.json")"
 academic_requirement_id="$(jq -er '.data.stored.snapshot.requirements[0].id' "$smoke_root/academic-create.json")"
+generic_source="$(jq -ec '.data.stored.snapshot.requirements[0].source_span.content' "$smoke_root/generic-create.json")"
+academic_source="$(jq -ec '.data.stored.snapshot.requirements[0].source_span.content' "$smoke_root/academic-create.json")"
 profile_source_id="$(jq -er '.data.source.id' "$smoke_root/profile-source-import.json")"
 profile_source_revision="$(jq -er '.data.source.revision' "$smoke_root/profile-source-import.json")"
 profile_source_sha256="$(jq -er '.data.source.original.sha256' "$smoke_root/profile-source-import.json")"
@@ -380,7 +467,483 @@ if ! jq -s -e '
   exit 1
 fi
 
+request_fifo="$smoke_root/dynamic-mcp.requests"
+response_fifo="$smoke_root/dynamic-mcp.responses"
+mkfifo "$request_fifo" "$response_fifo"
+"$binary" --workspace "$workspace" mcp serve \
+  < "$request_fifo" \
+  > "$response_fifo" \
+  2> "$smoke_root/dynamic-mcp.stderr" &
+mcp_pid="$!"
+exec 3> "$request_fifo"
+exec 4< "$response_fifo"
+mcp_fds_open=true
+
+mcp_request "$(
+  jq -nc '{
+    jsonrpc: "2.0",
+    id: 100,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: {name: "canisend-packaged-lifecycle", version: "1.0"}
+    }
+  }'
+)"
+if ! jq -e '.result.protocolVersion == "2025-11-25"' \
+  <<< "$MCP_RESPONSE" >/dev/null; then
+  echo "Agent v4 MCP smoke: dynamic lifecycle initialization failed" >&2
+  jq -c . <<< "$MCP_RESPONSE" >&2 || true
+  exit 1
+fi
+printf '%s\n' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&3
+
+qualify_application_lifecycle() {
+  local label="$1"
+  local application_id="$2"
+  local original_requirement_id="$3"
+  local source_reference="$4"
+  local source_text="$5"
+  local category="$6"
+  local extracted_statement="$7"
+  local valid_plan="$8"
+  local drafts="$9"
+  local expected_deliverable_count="${10}"
+  local expected_pack="${11}"
+  local invalid_kind="${12}"
+  local private_marker="${13}"
+  local start_byte end_byte arguments
+  local extracted_requirement_id preview_token preview_sha256
+
+  start_byte="$(
+    jq -nr \
+      --arg source_text "$source_text" \
+      --arg statement "$extracted_statement" \
+      '$source_text | index($statement)'
+  )"
+  if [[ ! "$start_byte" =~ ^[0-9]+$ ]]; then
+    echo "Agent v4 MCP smoke: extraction statement is not in $label source" >&2
+    exit 1
+  fi
+  end_byte=$((start_byte + ${#extracted_statement}))
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --argjson source "$source_reference" \
+      --arg category "$category" \
+      --arg statement "$extracted_statement" \
+      --argjson start_byte "$start_byte" \
+      --argjson end_byte "$end_byte" \
+      '{
+        application_id: $application_id,
+        expected_revision: 1,
+        source: $source,
+        requirements: [{
+          category: $category,
+          statement: $statement,
+          priority: "recommended",
+          start_byte: $start_byte,
+          end_byte: $end_byte
+        }],
+        confirmed_private_read: false
+      }'
+  )"
+  mcp_tool_call "canisend_requirement_extract_preview" "$arguments"
+  assert_mcp_operation "requirement.extract.preview"
+  capture_preview_binding
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+      '{
+        application_id: $application_id,
+        preview_token: $preview_token,
+        preview_sha256: $preview_sha256,
+        approved: true,
+        confirmed_private_read: false
+      }'
+  )"
+  mcp_tool_call "canisend_requirement_extract_commit" "$arguments"
+  assert_mcp_operation "requirement.extract.commit"
+  extracted_requirement_id="$(
+    jq -er '.result.structuredContent.data.snapshot.requirements[1].id' \
+      <<< "$MCP_RESPONSE"
+  )"
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg original_requirement_id "$original_requirement_id" \
+      --arg extracted_requirement_id "$extracted_requirement_id" \
+      '{
+        application_id: $application_id,
+        expected_revision: 2,
+        decisions: [
+          {requirement_id: $original_requirement_id, decision: "confirm"},
+          {requirement_id: $extracted_requirement_id, decision: "confirm"}
+        ]
+      }'
+  )"
+  mcp_tool_call "canisend_requirement_confirm_preview" "$arguments"
+  assert_mcp_operation "requirement.confirm.preview"
+  capture_preview_binding
+  preview_token="$MCP_PREVIEW_TOKEN"
+  preview_sha256="$MCP_PREVIEW_SHA256"
+
+  if [[ "$label" == "academic" ]]; then
+    arguments="$(
+      jq -nc \
+        --arg application_id "$application_id" \
+        --arg preview_token "$preview_token" \
+        --arg preview_sha256 "$preview_sha256" \
+        '{
+          application_id: $application_id,
+          preview_token: $preview_token,
+          preview_sha256: $preview_sha256,
+          approved: false
+        }'
+    )"
+    mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
+    assert_mcp_failure
+    mcp_tool_call "canisend_requirement_confirm_preview" "$(
+      jq -nc \
+        --arg application_id "$application_id" \
+        --arg original_requirement_id "$original_requirement_id" \
+        --arg extracted_requirement_id "$extracted_requirement_id" \
+        '{
+          application_id: $application_id,
+          expected_revision: 2,
+          decisions: [
+            {requirement_id: $original_requirement_id, decision: "confirm"},
+            {requirement_id: $extracted_requirement_id, decision: "confirm"}
+          ]
+        }'
+    )"
+    assert_mcp_operation "requirement.confirm.preview"
+    capture_preview_binding
+  else
+    mcp_tool_call "canisend_requirement_confirm_preview" "$arguments"
+    assert_mcp_operation "requirement.confirm.preview"
+    capture_preview_binding
+  fi
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+      '{
+        application_id: $application_id,
+        preview_token: $preview_token,
+        preview_sha256: $preview_sha256,
+        approved: true
+      }'
+  )"
+  mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
+  assert_mcp_operation "requirement.confirm.commit"
+  if ! jq -e '.result.structuredContent.data.snapshot.application.revision == 3' \
+    <<< "$MCP_RESPONSE" >/dev/null; then
+    echo "Agent v4 MCP smoke: $label Requirement commit has the wrong revision" >&2
+    exit 1
+  fi
+  mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
+  assert_mcp_failure
+
+  if [[ "$label" == "generic" ]]; then
+    arguments="$(
+      jq -nc \
+        --arg application_id "$application_id" \
+        --arg preview_token "$preview_token" \
+        --arg preview_sha256 "$preview_sha256" \
+        '{
+          application_id: $application_id,
+          preview_token: $preview_token,
+          preview_sha256: $preview_sha256,
+          approved: true
+        }'
+    )"
+    mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
+    assert_mcp_failure
+  fi
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg invalid_kind "$invalid_kind" \
+      '{
+        application_id: $application_id,
+        expected_revision: 3,
+        decision: "proceed",
+        deliverables: [{
+          kind: $invalid_kind,
+          disposition: "required",
+          rationale: "Cross-Pack kind must fail",
+          constraints: [],
+          execution_mode: "host-agent"
+        }]
+      }'
+  )"
+  mcp_tool_call "canisend_plan_propose_preview" "$arguments"
+  assert_mcp_failure
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --argjson deliverables "$valid_plan" \
+      '{
+        application_id: $application_id,
+        expected_revision: 3,
+        decision: "proceed",
+        deliverables: $deliverables
+      }'
+  )"
+  mcp_tool_call "canisend_plan_propose_preview" "$arguments"
+  assert_mcp_operation "plan.propose.preview"
+  capture_preview_binding
+  if [[ "$label" == "generic" ]]; then
+    arguments="$(
+      jq -nc \
+        --arg application_id "$academic_id" \
+        --arg preview_token "$MCP_PREVIEW_TOKEN" \
+        --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+        '{
+          application_id: $application_id,
+          preview_token: $preview_token,
+          preview_sha256: $preview_sha256,
+          approved: true
+        }'
+    )"
+    mcp_tool_call "canisend_plan_propose_commit" "$arguments"
+    assert_mcp_failure
+    arguments="$(
+      jq -nc \
+        --arg application_id "$application_id" \
+        --argjson deliverables "$valid_plan" \
+        '{
+          application_id: $application_id,
+          expected_revision: 3,
+          decision: "proceed",
+          deliverables: $deliverables
+        }'
+    )"
+    mcp_tool_call "canisend_plan_propose_preview" "$arguments"
+    assert_mcp_operation "plan.propose.preview"
+    capture_preview_binding
+  fi
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+      '{
+        application_id: $application_id,
+        preview_token: $preview_token,
+        preview_sha256: $preview_sha256,
+        approved: true
+      }'
+  )"
+  mcp_tool_call "canisend_plan_propose_commit" "$arguments"
+  assert_mcp_operation "plan.propose.commit"
+
+  arguments="$(
+    jq -nc --arg application_id "$application_id" '{
+      application_id: $application_id,
+      expected_revision: 4
+    }'
+  )"
+  mcp_tool_call "canisend_plan_confirm_preview" "$arguments"
+  assert_mcp_operation "plan.confirm.preview"
+  capture_preview_binding
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+      '{
+        application_id: $application_id,
+        preview_token: $preview_token,
+        preview_sha256: $preview_sha256,
+        approved: true
+      }'
+  )"
+  mcp_tool_call "canisend_plan_confirm_commit" "$arguments"
+  assert_mcp_operation "plan.confirm.commit"
+
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --argjson deliverables "$drafts" \
+      '{
+        application_id: $application_id,
+        expected_revision: 5,
+        deliverables: $deliverables
+      }'
+  )"
+  mcp_tool_call "canisend_deliverable_draft_preview" "$arguments"
+  assert_mcp_operation "deliverable.draft.preview"
+  capture_preview_binding
+  arguments="$(
+    jq -nc \
+      --arg application_id "$application_id" \
+      --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" \
+      '{
+        application_id: $application_id,
+        preview_token: $preview_token,
+        preview_sha256: $preview_sha256,
+        approved: true
+      }'
+  )"
+  mcp_tool_call "canisend_deliverable_draft_commit" "$arguments"
+  assert_mcp_operation "deliverable.draft.commit"
+  if ! jq -e \
+    --argjson expected_deliverable_count "$expected_deliverable_count" '
+      .result.structuredContent.data.snapshot.application.revision == 6
+      and (.result.structuredContent.data.snapshot.deliverables | length) ==
+        $expected_deliverable_count
+    ' <<< "$MCP_RESPONSE" >/dev/null; then
+    echo "Agent v4 MCP smoke: $label draft result is incomplete" >&2
+    exit 1
+  fi
+
+  arguments="$(
+    jq -nc --arg application_id "$application_id" '{
+      application_id: $application_id,
+      confirmed_private_read: false
+    }'
+  )"
+  mcp_tool_call "canisend_deliverable_audit" "$arguments"
+  assert_mcp_failure
+  if [[ "$MCP_RESPONSE" == *"$private_marker"* ]]; then
+    echo "Agent v4 MCP smoke: denied $label audit leaked private content" >&2
+    exit 1
+  fi
+
+  arguments="$(
+    jq -nc --arg application_id "$application_id" '{
+      application_id: $application_id,
+      confirmed_private_read: true
+    }'
+  )"
+  mcp_tool_call "canisend_deliverable_audit" "$arguments"
+  assert_mcp_operation "deliverable.audit"
+  if [[ "$MCP_RESPONSE" != *"$private_marker"* ]]; then
+    echo "Agent v4 MCP smoke: approved $label audit omitted private content" >&2
+    exit 1
+  fi
+
+  arguments="$(
+    jq -nc --arg application_id "$application_id" '{application_id: $application_id}'
+  )"
+  mcp_tool_call "canisend_application_show" "$arguments"
+  assert_mcp_operation "application.show"
+  if ! jq -e \
+    --arg expected_pack "$expected_pack" \
+    --argjson expected_deliverable_count "$expected_deliverable_count" '
+      .result.structuredContent.data.snapshot.application.revision == 6
+      and .result.structuredContent.data.snapshot.pack.id == $expected_pack
+      and .result.structuredContent.data.snapshot.plan.state == "confirmed"
+      and (.result.structuredContent.data.snapshot.requirements | length) == 2
+      and (.result.structuredContent.data.snapshot.requirements |
+        all(.[]; .confirmation == "confirmed"))
+      and (.result.structuredContent.data.snapshot.deliverables | length) ==
+        $expected_deliverable_count
+    ' <<< "$MCP_RESPONSE" >/dev/null; then
+    echo "Agent v4 MCP smoke: $label final snapshot failed parity assertions" >&2
+    jq -c . <<< "$MCP_RESPONSE" >&2 || true
+    exit 1
+  fi
+  printf '%s\n' "$MCP_RESPONSE" > "$smoke_root/$label-lifecycle-final.json"
+}
+
+generic_plan='[{
+  "kind": "primary-document",
+  "disposition": "required",
+  "rationale": "Required by the reviewed generic source",
+  "constraints": [],
+  "execution_mode": "host-agent"
+}]'
+generic_drafts='[{
+  "kind": "primary-document",
+  "title": "Reviewed project narrative",
+  "media_type": "text/markdown",
+  "content": "PRIVATE-MCP-GENERIC-DELIVERABLE"
+}]'
+academic_plan='[
+  {
+    "kind": "cover-letter",
+    "disposition": "required",
+    "rationale": "Required by the academic Pack",
+    "constraints": [],
+    "execution_mode": "host-agent"
+  },
+  {
+    "kind": "cv",
+    "disposition": "required",
+    "rationale": "Required by the reviewed academic source",
+    "constraints": [],
+    "execution_mode": "host-agent"
+  }
+]'
+academic_drafts='[
+  {
+    "kind": "cover-letter",
+    "title": "Reviewed academic cover letter",
+    "media_type": "text/markdown",
+    "content": "PRIVATE-MCP-ACADEMIC-COVER-LETTER"
+  },
+  {
+    "kind": "cv",
+    "title": "Reviewed academic CV",
+    "media_type": "text/markdown",
+    "content": "PRIVATE-MCP-ACADEMIC-CV"
+  }
+]'
+
+qualify_application_lifecycle \
+  generic \
+  "$generic_id" \
+  "$generic_requirement_id" \
+  "$generic_source" \
+  "$generic_source_text" \
+  format \
+  "project narrative" \
+  "$generic_plan" \
+  "$generic_drafts" \
+  1 \
+  org.canisend.generic-application \
+  cv \
+  PRIVATE-MCP-GENERIC
+qualify_application_lifecycle \
+  academic \
+  "$academic_id" \
+  "$academic_requirement_id" \
+  "$academic_source" \
+  "$academic_source_text" \
+  qualification \
+  "academic CV" \
+  "$academic_plan" \
+  "$academic_drafts" \
+  2 \
+  org.canisend.academic-job \
+  primary-document \
+  PRIVATE-MCP-ACADEMIC
+
+exec 3>&-
+if ! wait "$mcp_pid"; then
+  echo "Agent v4 MCP smoke: dynamic MCP server failed" >&2
+  sed -n '1,120p' "$smoke_root/dynamic-mcp.stderr" >&2
+  exit 1
+fi
+exec 4<&-
+mcp_fds_open=false
+mcp_pid=""
+
 "$binary" --workspace "$workspace" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
 
-echo "Agent v4 MCP smoke: ok"
+echo "Agent v4 MCP smoke: ok (full guarded dual-Pack lifecycle passed)"

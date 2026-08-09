@@ -86,8 +86,8 @@
       "exact-extracted-archive-binary",
       "version-and-doctor",
       "documented-quickstart",
-      "host-agent-smoke",
-      "agent-v4-mcp-smoke",
+      "agent-v4-host-smoke",
+      "agent-v4-mcp-lifecycle-smoke",
       "isolated-install-uninstall-workspace-retention"
     ],
     "targets": [

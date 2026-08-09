@@ -216,8 +216,11 @@ Before using private data, read `KNOWN_LIMITATIONS.md`, extract the archive, and
 ```console
 ./canisend version --json
 ./canisend doctor --json
-./canisend agent capabilities --json
+./canisend --workspace /path/to/workspace workspace status --json
+./canisend --workspace /path/to/workspace host status --host codex --json
 ```
 
 Use `canisend.exe` on Windows. `doctor` performs an offline embedded-renderer test and verifies embedded resources;
-it makes no provider request and sends no telemetry.
+it makes no provider request and sends no telemetry. The two Workspace-bound commands must report clean Workspace
+v4 authority, current Agent v4 Skills, and deterministic MCP registration guidance without mutating host
+configuration.
