@@ -144,6 +144,7 @@
     type AgentSkillsUninstallReadModel,
     type AgentTurnResult,
     type ApplicationDossierReadModel,
+    type ApplicationFlowStageV3,
     type CliInstallStatus,
     type ContentCatalogEntryReadModel,
     type ContentCatalogFilter,
@@ -173,6 +174,7 @@
     type ProductSummary,
     type RegisteredAction,
     type RegistrySnapshot,
+    type StoredApplicationModelV3,
     type TaskCompletionPreviewReadModel,
     type TaskExecutionMode,
     type TaskOperation,
@@ -303,6 +305,10 @@
   const copy = $derived(messages[language]);
   const selectedJobId = $derived(selectedJob?.job.id ?? "");
   let activePackId = $state<BuiltInWorkflowPackId>(GENERIC_APPLICATION_WORKFLOW_PACK_ID);
+  let v4Applications = $state<StoredApplicationModelV3[]>([]);
+  let selectedV4Application = $state<StoredApplicationModelV3 | null>(null);
+  let v4Stages = $state<ApplicationFlowStageV3[]>([]);
+  let requestedV4ApplicationId = $state("");
   const selectedDossier = $derived(
     applicationDossiers.find((dossier) => dossier.job.id === selectedJobId) ?? null,
   );
@@ -711,6 +717,31 @@
     void refreshWorkflowPackPresentation(language, packId);
   }
 
+  function handleV4ApplicationContext(context: {
+    workspacePath: string;
+    packId: BuiltInWorkflowPackId;
+    applications: StoredApplicationModelV3[];
+    selected: StoredApplicationModelV3 | null;
+    stages: ApplicationFlowStageV3[];
+  }): void {
+    if (context.workspacePath !== activeWorkspace?.path || context.packId !== activePackId) return;
+    v4Applications = context.applications;
+    selectedV4Application = context.selected;
+    v4Stages = context.stages;
+    requestedV4ApplicationId = context.selected?.snapshot.application.id ?? "";
+  }
+
+  function handleSelectV4Application(applicationId: string): void {
+    requestedV4ApplicationId = applicationId;
+  }
+
+  function resetV4ApplicationContext(): void {
+    v4Applications = [];
+    selectedV4Application = null;
+    v4Stages = [];
+    requestedV4ApplicationId = "";
+  }
+
   function handleLanguageChange(value: Language): void {
     language = value;
     void refreshWorkflowPackPresentation(value);
@@ -828,6 +859,7 @@
     registrySnapshot = session.registry;
     const canonicalPath = session.registry.registry.default_path ?? session.action.data.path;
     activeWorkspace = { ...session.action.data, path: canonicalPath };
+    resetV4ApplicationContext();
     navigationMemory = {
       ...navigationMemory,
       workspacePath: canonicalPath,
@@ -1066,6 +1098,7 @@
     registrySnapshot = result;
     if (activeWorkspace?.path === path) {
       activeWorkspace = null;
+      resetV4ApplicationContext();
       navigationMemory = {
         ...navigationMemory,
         workspacePath: result.registry.default_path,
@@ -2616,6 +2649,9 @@
         {activeWorkspace}
         {jobs}
         {selectedJob}
+        {v4Applications}
+        {selectedV4Application}
+        {v4Stages}
         dossier={selectedDossier}
         {activeView}
         {activeDetail}
@@ -2626,6 +2662,7 @@
         {busy}
         onSelectWorkspace={handleSelectWorkspace}
         onSelectJob={handleSelectJob}
+        onSelectV4Application={handleSelectV4Application}
         onNavigate={navigateTo}
       />
     </div>
@@ -2764,6 +2801,8 @@
             {activeWorkspace}
             packId={activePackId}
             presentation={workflowPackPresentation}
+            requestedApplicationId={requestedV4ApplicationId}
+            onContextChange={handleV4ApplicationContext}
           />
         {:else if applicationsViewFailed}
           <Alert.Root variant="destructive" class="min-h-12">

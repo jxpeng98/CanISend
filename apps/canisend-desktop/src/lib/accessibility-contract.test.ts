@@ -106,6 +106,11 @@ describe("desktop accessibility contract", () => {
     expect(app).toContain("aria-label={copy.workflowPack}");
     expect(app).toContain("aria-pressed={activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID}");
     expect(app).toContain("aria-pressed={activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID}");
+    expect(app).toContain("onContextChange={handleV4ApplicationContext}");
+    expect(app).toContain("onSelectV4Application={handleSelectV4Application}");
+    expect(contextBar).toContain("usesV4ApplicationContext");
+    expect(contextBar).toContain("selectedV4Application?.snapshot.application.id");
+    expect(contextBar).toContain("application.snapshot.opportunity.title");
     expect(workspacesView).not.toContain('id="create-workspace-pack"');
     expect(workspacesView).toContain("{copy.workflowPackDescription}");
   });
