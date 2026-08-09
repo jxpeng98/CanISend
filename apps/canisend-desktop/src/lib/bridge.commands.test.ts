@@ -257,8 +257,10 @@ describe("typed Tauri command requests", () => {
     await previewProfileAssociationV4("/tmp/workspace", preview);
     await commitProfileAssociationV4({
       workspace: "/tmp/workspace",
-      preview,
-      expectedPreviewSha256: "b".repeat(64),
+      applicationId: "application-id",
+      previewToken: "apv1_preview-token",
+      previewSha256: "b".repeat(64),
+      approved: true,
       confirmedPrivateRead: true,
     });
 
@@ -276,8 +278,10 @@ describe("typed Tauri command requests", () => {
     expect(mocks.invoke).toHaveBeenNthCalledWith(3, "profile_association_commit", {
       request: {
         workspace: "/tmp/workspace",
-        preview,
-        expected_preview_sha256: "b".repeat(64),
+        application_id: "application-id",
+        preview_token: "apv1_preview-token",
+        preview_sha256: "b".repeat(64),
+        approved: true,
         confirmed_private_read: true,
       },
     });

@@ -18,7 +18,8 @@ mod workflow;
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(agent_runtime::AgentRuntimeState::default())
-        .manage(approval::DesktopApprovalStore::default());
+        .manage(approval::DesktopApprovalStore::default())
+        .manage(canisend_app::AssociationApprovalBrokerV4::default());
     #[cfg(feature = "preview-qualification")]
     let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
     builder
@@ -43,9 +44,11 @@ pub fn run() {
             application_intake::preview_pasted_application_intake,
             application_intake::preview_url_application_intake,
             association_v4::evidence_association_commit,
+            association_v4::evidence_association_discard,
             association_v4::evidence_association_list,
             association_v4::evidence_association_preview,
             association_v4::profile_association_commit,
+            association_v4::profile_association_discard,
             association_v4::profile_association_list,
             association_v4::profile_association_preview,
             commands::application_dossier,

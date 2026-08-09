@@ -28,6 +28,8 @@
     commandErrorMessage,
     commitEvidenceAssociationV4,
     commitProfileAssociationV4,
+    discardEvidenceAssociationV4,
+    discardProfileAssociationV4,
     commitApplicationIntakePreview,
     composeGenericApplication,
     discardApplicationIntakePreview,
@@ -128,6 +130,7 @@
         resource: "profile";
         label: string;
         request: ProfileAssociationPreviewRequestV4;
+        previewToken: string;
         previewSha256: string;
         requiresPrivateRead: boolean;
       }
@@ -135,6 +138,7 @@
         resource: "evidence";
         label: string;
         request: EvidenceAssociationPreviewRequestV4;
+        previewToken: string;
         previewSha256: string;
         requiresPrivateRead: boolean;
       };
@@ -339,88 +343,103 @@
   async function previewAssociationChanges(): Promise<void> {
     if (!selected || !profileAssociations || !evidenceAssociations) return;
     await run(async () => {
+      await discardPendingAssociationChanges();
       const pending: PendingAssociationChange[] = [];
-      for (const source of profileAssociations!.profile_sources) {
-        const association = linkedProfile(source.id);
-        const selectedNow = profileSelections[source.id] ?? false;
-        if (selectedNow === Boolean(association)) continue;
-        const request: ProfileAssociationPreviewRequestV4 = {
-          application_id: selected!.snapshot.application.id,
-          profile_source: association?.profile_source ?? profileReference(source),
-          change: selectedNow ? "associate" : "unlink",
-        };
-        const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
-        pending.push({
-          resource: "profile",
-          label: `${source.kind} · ${source.id}`,
-          request,
-          previewSha256: preview.data.preview_sha256,
-          requiresPrivateRead: preview.data.requires_private_read,
-        });
-      }
-      for (const association of profileAssociations!.associations) {
-        if (
-          profileAssociations!.profile_sources.some(
-            (source) => source.id === association.profile_source.id,
-          ) ||
-          profileSelections[association.profile_source.id] !== false
-        ) {
-          continue;
+      try {
+        for (const source of profileAssociations!.profile_sources) {
+          const association = linkedProfile(source.id);
+          const selectedNow = profileSelections[source.id] ?? false;
+          if (selectedNow === Boolean(association)) continue;
+          const request: ProfileAssociationPreviewRequestV4 = {
+            application_id: selected!.snapshot.application.id,
+            profile_source: association?.profile_source ?? profileReference(source),
+            change: selectedNow ? "associate" : "unlink",
+          };
+          const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
+          pending.push({
+            resource: "profile",
+            label: `${source.kind} · ${source.id}`,
+            request,
+            previewToken: preview.preview_token,
+            previewSha256: preview.preview.data.preview_sha256,
+            requiresPrivateRead: preview.preview.data.requires_private_read,
+          });
         }
-        const request: ProfileAssociationPreviewRequestV4 = {
-          application_id: selected!.snapshot.application.id,
-          profile_source: association.profile_source,
-          change: "unlink",
-        };
-        const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
-        pending.push({
-          resource: "profile",
-          label: `${copy.staleAssociation} · ${association.profile_source.id}`,
-          request,
-          previewSha256: preview.data.preview_sha256,
-          requiresPrivateRead: false,
-        });
-      }
-      for (const item of evidenceAssociations!.evidence) {
-        const association = linkedEvidence(item.evidence.id);
-        const selectedNow = evidenceSelections[item.evidence.id] ?? false;
-        if (selectedNow === Boolean(association)) continue;
-        const request: EvidenceAssociationPreviewRequestV4 = {
-          application_id: selected!.snapshot.application.id,
-          evidence: association?.evidence ?? item.evidence,
-          change: selectedNow ? "associate" : "unlink",
-        };
-        const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
-        pending.push({
-          resource: "evidence",
-          label: `${item.kind} · ${item.evidence.id}`,
-          request,
-          previewSha256: preview.data.preview_sha256,
-          requiresPrivateRead: preview.data.requires_private_read,
-        });
-      }
-      for (const association of evidenceAssociations!.associations) {
-        if (
-          evidenceAssociations!.evidence.some(
-            (item) => item.evidence.id === association.evidence.id,
-          ) ||
-          evidenceSelections[association.evidence.id] !== false
-        ) {
-          continue;
+        for (const association of profileAssociations!.associations) {
+          if (
+            profileAssociations!.profile_sources.some(
+              (source) => source.id === association.profile_source.id,
+            ) ||
+            profileSelections[association.profile_source.id] !== false
+          ) {
+            continue;
+          }
+          const request: ProfileAssociationPreviewRequestV4 = {
+            application_id: selected!.snapshot.application.id,
+            profile_source: association.profile_source,
+            change: "unlink",
+          };
+          const preview = await previewProfileAssociationV4(activeWorkspace.path, request);
+          pending.push({
+            resource: "profile",
+            label: `${copy.staleAssociation} · ${association.profile_source.id}`,
+            request,
+            previewToken: preview.preview_token,
+            previewSha256: preview.preview.data.preview_sha256,
+            requiresPrivateRead: false,
+          });
         }
-        const request: EvidenceAssociationPreviewRequestV4 = {
-          application_id: selected!.snapshot.application.id,
-          evidence: association.evidence,
-          change: "unlink",
-        };
-        const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
-        pending.push({
-          resource: "evidence",
-          label: `${copy.staleAssociation} · ${association.evidence.id}`,
-          request,
-          previewSha256: preview.data.preview_sha256,
-          requiresPrivateRead: false,
-        });
+        for (const item of evidenceAssociations!.evidence) {
+          const association = linkedEvidence(item.evidence.id);
+          const selectedNow = evidenceSelections[item.evidence.id] ?? false;
+          if (selectedNow === Boolean(association)) continue;
+          const request: EvidenceAssociationPreviewRequestV4 = {
+            application_id: selected!.snapshot.application.id,
+            evidence: association?.evidence ?? item.evidence,
+            change: selectedNow ? "associate" : "unlink",
+          };
+          const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
+          pending.push({
+            resource: "evidence",
+            label: `${item.kind} · ${item.evidence.id}`,
+            request,
+            previewToken: preview.preview_token,
+            previewSha256: preview.preview.data.preview_sha256,
+            requiresPrivateRead: preview.preview.data.requires_private_read,
+          });
+        }
+        for (const association of evidenceAssociations!.associations) {
+          if (
+            evidenceAssociations!.evidence.some(
+              (item) => item.evidence.id === association.evidence.id,
+            ) ||
+            evidenceSelections[association.evidence.id] !== false
+          ) {
+            continue;
+          }
+          const request: EvidenceAssociationPreviewRequestV4 = {
+            application_id: selected!.snapshot.application.id,
+            evidence: association.evidence,
+            change: "unlink",
+          };
+          const preview = await previewEvidenceAssociationV4(activeWorkspace.path, request);
+          pending.push({
+            resource: "evidence",
+            label: `${copy.staleAssociation} · ${association.evidence.id}`,
+            request,
+            previewToken: preview.preview_token,
+            previewSha256: preview.preview.data.preview_sha256,
+            requiresPrivateRead: false,
+          });
+        }
+      } catch (value) {
+        pendingAssociationChanges = pending;
+        try {
+          await discardPendingAssociationChanges();
+        } catch {
+          // The broker expires any token that cannot be discarded during error recovery.
+        }
+        throw value;
       }
       pendingAssociationChanges = pending;
       notice = pending.length ? copy.associationPreviewReady : copy.noAssociationChanges;
@@ -444,15 +463,19 @@
           if (item.resource === "profile") {
             await commitProfileAssociationV4({
               workspace: activeWorkspace.path,
-              preview: item.request,
-              expectedPreviewSha256: item.previewSha256,
+              applicationId,
+              previewToken: item.previewToken,
+              previewSha256: item.previewSha256,
+              approved: true,
               confirmedPrivateRead: associationPrivateConsent,
             });
           } else {
             await commitEvidenceAssociationV4({
               workspace: activeWorkspace.path,
-              preview: item.request,
-              expectedPreviewSha256: item.previewSha256,
+              applicationId,
+              previewToken: item.previewToken,
+              previewSha256: item.previewSha256,
+              approved: true,
               confirmedPrivateRead: associationPrivateConsent,
             });
           }
@@ -461,6 +484,7 @@
       } finally {
         // Each reviewed change is an independent canonical mutation. Always reconcile the UI in
         // case a later stale preview fails after an earlier change has already committed.
+        await discardPendingAssociationChanges();
         await loadAssociationContext(applicationId);
         const receipt = await showGenericApplication(activeWorkspace.path, applicationId);
         selected = receipt.data.stored;
@@ -468,6 +492,26 @@
       }
       if (committed) notice = copy.associationChangesCommitted;
     });
+  }
+
+  async function discardPendingAssociationChanges(): Promise<void> {
+    const pending = pendingAssociationChanges;
+    pendingAssociationChanges = [];
+    for (const item of pending) {
+      if (item.resource === "profile") {
+        await discardProfileAssociationV4(
+          activeWorkspace.path,
+          item.request.application_id,
+          item.previewToken,
+        );
+      } else {
+        await discardEvidenceAssociationV4(
+          activeWorkspace.path,
+          item.request.application_id,
+          item.previewToken,
+        );
+      }
+    }
   }
 
   function prepareDrafts(): void {

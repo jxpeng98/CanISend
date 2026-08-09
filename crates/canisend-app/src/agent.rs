@@ -72,27 +72,36 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 7] = [
+pub const CANISEND_MCP_TOOLS: [&str; 11] = [
     "canisend_application_list",
     "canisend_application_show",
+    "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
+    "canisend_evidence_association_preview",
+    "canisend_profile_association_commit",
     "canisend_profile_association_list",
+    "canisend_profile_association_preview",
     "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 7] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 9] = [
     "canisend_application_list",
     "canisend_application_show",
     "canisend_evidence_association_list",
+    "canisend_evidence_association_preview",
     "canisend_profile_association_list",
+    "canisend_profile_association_preview",
     "canisend_profile_source_list",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 0] = [];
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 2] = [
+    "canisend_evidence_association_commit",
+    "canisend_profile_association_commit",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -736,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn clean_v4_mcp_configuration_is_host_specific_and_read_only() {
+    fn clean_v4_mcp_configuration_is_host_specific_and_exactly_classified() {
         let root = temporary_root("mcp-workspace");
         let executable = temporary_root("mcp O'Brien");
         Application::initialize_workspace_v4(&root).expect("Workspace v4");
@@ -760,8 +769,8 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(codex.tools.len(), 7);
-        assert!(codex.guarded_write_tools.is_empty());
+        assert_eq!(codex.tools.len(), 11);
+        assert_eq!(codex.guarded_write_tools.len(), 2);
         assert!(
             CANISEND_MCP_V2_TOOLS
                 .into_iter()

@@ -53,8 +53,8 @@ The built-in registry currently owns:
 | Adapter | Derived source | Registered leaves |
 |---|---|---:|
 | CLI | Compiled Clap command tree | 23 |
-| Tauri | `tauri::generate_handler!` | 104 |
-| MCP | `#[tool_router]` `canisend_*` methods | 7 |
+| Tauri | `tauri::generate_handler!` | 106 |
+| MCP | `#[tool_router]` `canisend_*` methods | 11 |
 
 Every leaf is listed. An unoverridden leaf receives a deterministic adapter-prefixed
 `adapter-only` ID. Overrides may target only a declared canonical operation. The Alpha.7 registry
@@ -64,10 +64,11 @@ cannot be introduced.
 The CLI graph contains only product inspection, Schema/resource inspection, Workspace v4
 lifecycle, Pack-bound Application create/list/show/archive, clean Agent v4 host
 setup/status/remove, Workspace Profile Source import/list, Application-scoped Profile/Evidence link
-inventories, and the read-only MCP server. Host setup installs only manifest-owned Skills
+inventories, and the guarded MCP server. Host setup installs only manifest-owned Skills
 and prepares deterministic MCP configuration; it does not rewrite host configuration. The MCP
 router contains only Workspace status/check, Application list/show, body-free Workspace Profile
-Source listing, and Application-scoped Profile/Evidence link inventories. Alpha.6-era CLI families
+Source listing, Application-scoped Profile/Evidence link inventories, and single-use guarded
+association preview/commit pairs. Alpha.6-era CLI families
 are refused before parsing or Workspace discovery and have no compiled command implementation.
 The Alpha.7 registry contains zero compatibility aliases. The six transitional read-only Tauri
 bindings have joined the already retired Alpha.6 mutation and preview bindings: legacy Agent, Job,

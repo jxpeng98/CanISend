@@ -150,12 +150,19 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS);
-    assert!(CANISEND_MCP_GUARDED_WRITE_TOOLS.is_empty());
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 9);
+    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 2);
     for tool in tools {
-        assert_eq!(tool["annotations"]["readOnlyHint"], json!(true));
-        assert_eq!(tool["annotations"]["destructiveHint"], json!(false));
-        assert_eq!(tool["annotations"]["idempotentHint"], json!(true));
+        let name = tool["name"].as_str().expect("tool name");
+        let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
+        let guarded_write = CANISEND_MCP_GUARDED_WRITE_TOOLS.contains(&name);
+        assert_ne!(read_only, guarded_write, "tool class must be exact: {name}");
+        assert_eq!(tool["annotations"]["readOnlyHint"], json!(read_only));
+        assert_eq!(tool["annotations"]["destructiveHint"], json!(guarded_write));
+        assert_eq!(
+            tool["annotations"]["idempotentHint"],
+            json!(!name.ends_with("_preview") && !name.ends_with("_commit"))
+        );
         assert_eq!(tool["annotations"]["openWorldHint"], json!(false));
     }
 
@@ -164,7 +171,7 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
 }
 
 #[test]
-fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
+fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
     let root = temporary_root("calls");
     let profile_source = temporary_root("calls-profile-source").with_extension("md");
     let private_sentinel = "PRIVATE-MCP-PROFILE-BODY-MUST-NOT-LEAK";
@@ -200,17 +207,15 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     .snapshot
     .application
     .id;
-    Application::import_profile_source_v4(
+    let imported_source = Application::import_profile_source_v4(
         &root,
         &profile_source,
         PrivacyClassification::PrivateLocal,
         Some(PrivateReadConsent::granted_by_user()),
     )
-    .expect("import Profile Source fixture");
-    let before = Application::workspace_status_v4(&root)
-        .expect("workspace before")
-        .data
-        .status;
+    .expect("import Profile Source fixture")
+    .data
+    .source;
     let mut mcp = McpProcess::start(&root);
     mcp.initialize();
 
@@ -294,10 +299,143 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
         json!("evidence.association.list")
     );
 
+    let profile_reference = json!({
+        "id": imported_source.id,
+        "revision": imported_source.revision,
+        "sha256": imported_source.original.sha256
+    });
+    let denied_preview = mcp.request(
+        8,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "profile_source": profile_reference,
+                "change": "associate"
+            }
+        }),
+    );
+    assert_eq!(denied_preview["result"]["isError"], json!(false));
+    assert!(!denied_preview.to_string().contains(private_sentinel));
+    let denied_token = denied_preview["result"]["structuredContent"]["preview_token"]
+        .as_str()
+        .expect("preview token");
+    assert_eq!(
+        denied_preview["result"]["structuredContent"]["preview"]["operation"],
+        json!("profile.association.preview")
+    );
+    let denied_digest =
+        denied_preview["result"]["structuredContent"]["preview"]["data"]["preview_sha256"]
+            .as_str()
+            .expect("preview digest");
+    let denied = mcp.request(
+        9,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": denied_token,
+                "preview_sha256": denied_digest,
+                "approved": false,
+                "confirmed_private_read": false
+            }
+        }),
+    );
+    assert!(denied["error"].is_object() || denied["result"]["isError"] == json!(true));
+    let denied_replay = mcp.request(
+        10,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": denied_token,
+                "preview_sha256": denied_digest,
+                "approved": true,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert!(
+        denied_replay["error"].is_object() || denied_replay["result"]["isError"] == json!(true)
+    );
+
+    let approved_preview = mcp.request(
+        11,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_preview",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "profile_source": profile_reference,
+                "change": "associate"
+            }
+        }),
+    );
+    let approved_token = approved_preview["result"]["structuredContent"]["preview_token"]
+        .as_str()
+        .expect("approved token");
+    let approved_digest =
+        approved_preview["result"]["structuredContent"]["preview"]["data"]["preview_sha256"]
+            .as_str()
+            .expect("approved digest");
+    let committed = mcp.request(
+        12,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": approved_token,
+                "preview_sha256": approved_digest,
+                "approved": true,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert_eq!(committed["result"]["isError"], json!(false));
+    assert_eq!(
+        committed["result"]["structuredContent"]["operation"],
+        json!("profile.association.commit")
+    );
+    assert!(!committed.to_string().contains(private_sentinel));
+    let replay = mcp.request(
+        13,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_commit",
+            "arguments": {
+                "application_id": application_id.as_str(),
+                "preview_token": approved_token,
+                "preview_sha256": approved_digest,
+                "approved": true,
+                "confirmed_private_read": true
+            }
+        }),
+    );
+    assert!(replay["error"].is_object() || replay["result"]["isError"] == json!(true));
+    let linked = mcp.request(
+        14,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_list",
+            "arguments": {"application_id": application_id.as_str()}
+        }),
+    );
+    assert_eq!(
+        linked["result"]["structuredContent"]["data"]["associations"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert!(!linked.to_string().contains(private_sentinel));
+
     for (id, legacy) in [
-        (8, "canisend_agent_v3_context"),
-        (9, "canisend_application_create"),
-        (10, "canisend_job_intake_commit"),
+        (15, "canisend_agent_v3_context"),
+        (16, "canisend_application_create"),
+        (17, "canisend_job_intake_commit"),
     ] {
         let refused = mcp.request(id, "tools/call", json!({"name": legacy, "arguments": {}}));
         assert!(
@@ -307,11 +445,6 @@ fn serves_v4_reads_and_refuses_legacy_tools_without_mutation() {
     }
 
     drop(mcp);
-    let after = Application::workspace_status_v4(&root)
-        .expect("workspace after")
-        .data
-        .status;
-    assert_eq!(before, after);
     fs::remove_dir_all(root).expect("remove workspace");
     fs::remove_file(profile_source).expect("remove Profile Source fixture");
 }

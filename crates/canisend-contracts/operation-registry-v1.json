@@ -29,11 +29,11 @@
     {"id": "profile-source.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "profile-source.import", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "profile.association.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "profile.association.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "profile.association.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "profile.association.preview", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "profile.association.commit", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "evidence.association.list", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "evidence.association.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
-    {"id": "evidence.association.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "evidence.association.preview", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "evidence.association.commit", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "agent-v3.task.show", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "agent-v3.task.latest", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
     {"id": "agent-v3.task.prepare", "class": "canonical-leaf", "status": "implemented", "pack_scope": "generic-application"},
@@ -92,7 +92,7 @@
         "commit_discovery_preview", "discard_discovery_preview", "discovery_adapters", "list_discovery_leads", "list_discovery_sources", "preview_discovery_file", "preview_discovery_network", "promote_discovery_lead", "show_discovery_lead", "suggest_discovery_duplicates",
         "approve_generic_application", "commit_application_intake_preview", "compose_generic_application", "create_generic_application", "discard_application_intake_preview", "export_generic_application", "list_generic_applications", "plan_generic_application", "preview_local_application_intake", "preview_pasted_application_intake", "preview_url_application_intake", "review_generic_application", "show_generic_application",
         "discard_job_source_preview", "preview_url_job_source",
-        "confirm_criteria", "confirm_plan", "confirm_profile_evidence", "criteria_template", "current_matches", "current_plan", "evidence_association_commit", "evidence_association_list", "evidence_association_preview", "import_profile_source", "initialize_profile", "list_profile_sources", "plan_template", "profile_association_commit", "profile_association_list", "profile_association_preview", "profile_evidence_template",
+        "confirm_criteria", "confirm_plan", "confirm_profile_evidence", "criteria_template", "current_matches", "current_plan", "evidence_association_commit", "evidence_association_discard", "evidence_association_list", "evidence_association_preview", "import_profile_source", "initialize_profile", "list_profile_sources", "plan_template", "profile_association_commit", "profile_association_discard", "profile_association_list", "profile_association_preview", "profile_evidence_template",
         "check_for_updates", "cli_install_status", "configure_cli_path", "desktop_cli_defaults", "export_resource_catalog", "inspection_catalog", "install_cli", "resource_detail", "schema_detail", "uninstall_cli",
         "begin_workflow_stage", "commit_workflow_rerun", "complete_workflow_stage", "discard_workflow_preview", "preview_workflow_rerun", "start_workflow"
       ],
@@ -125,7 +125,7 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
-        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_profile_source_list", "canisend_profile_association_list", "canisend_evidence_association_list"
+        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_profile_source_list", "canisend_profile_association_list", "canisend_profile_association_preview", "canisend_profile_association_commit", "canisend_evidence_association_list", "canisend_evidence_association_preview", "canisend_evidence_association_commit"
       ],
       "bindings": [
         {"leaf": "canisend_workspace_status", "operation": "workspace.status", "pack_scope": "any"},
@@ -134,7 +134,11 @@
         {"leaf": "canisend_application_show", "operation": "application.show", "pack_scope": "any"},
         {"leaf": "canisend_profile_source_list", "operation": "profile-source.list", "pack_scope": "any"},
         {"leaf": "canisend_profile_association_list", "operation": "profile.association.list", "pack_scope": "any"},
-        {"leaf": "canisend_evidence_association_list", "operation": "evidence.association.list", "pack_scope": "any"}
+        {"leaf": "canisend_profile_association_preview", "operation": "profile.association.preview", "pack_scope": "any"},
+        {"leaf": "canisend_profile_association_commit", "operation": "profile.association.commit", "pack_scope": "any"},
+        {"leaf": "canisend_evidence_association_list", "operation": "evidence.association.list", "pack_scope": "any"},
+        {"leaf": "canisend_evidence_association_preview", "operation": "evidence.association.preview", "pack_scope": "any"},
+        {"leaf": "canisend_evidence_association_commit", "operation": "evidence.association.commit", "pack_scope": "any"}
       ]
     }
   ]

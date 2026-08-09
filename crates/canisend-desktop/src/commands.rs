@@ -950,9 +950,18 @@ mod tests {
         for host in &created.hosts {
             assert!(host.skills.manifest_path.is_file());
             assert!(!host.skills.files.is_empty());
-            assert_eq!(host.mcp.tools.len(), 7);
-            assert_eq!(host.mcp.read_only_tools, host.mcp.tools);
-            assert!(host.mcp.guarded_write_tools.is_empty());
+            assert_eq!(host.mcp.tools.len(), 11);
+            assert_eq!(host.mcp.read_only_tools.len(), 9);
+            assert_eq!(host.mcp.guarded_write_tools.len(), 2);
+            assert_eq!(
+                host.mcp
+                    .read_only_tools
+                    .iter()
+                    .chain(&host.mcp.guarded_write_tools)
+                    .cloned()
+                    .collect::<BTreeSet<_>>(),
+                host.mcp.tools.iter().cloned().collect::<BTreeSet<_>>()
+            );
             assert_eq!(
                 fs::read_to_string(&host.configuration_path).expect("read MCP configuration"),
                 host.mcp.configuration_snippet

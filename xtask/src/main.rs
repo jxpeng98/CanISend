@@ -1837,7 +1837,11 @@ fn check_documentation() -> Result<(), String> {
                 "canisend_application_show",
                 "canisend_profile_source_list",
                 "canisend_profile_association_list",
+                "canisend_profile_association_preview",
+                "canisend_profile_association_commit",
                 "canisend_evidence_association_list",
+                "canisend_evidence_association_preview",
+                "canisend_evidence_association_commit",
                 "canisend-workspace",
                 "canisend-agent-v4.json",
                 "orient -> propose -> preview -> approve -> commit -> verify",
@@ -6472,7 +6476,11 @@ fn check_native_test_ownership() -> Result<(), String> {
         "evidence association list",
         "canisend_profile_source_list",
         "canisend_profile_association_list",
+        "canisend_profile_association_preview",
+        "canisend_profile_association_commit",
         "canisend_evidence_association_list",
+        "canisend_evidence_association_preview",
+        "canisend_evidence_association_commit",
         "MCP-V4-PROFILE-PRIVATE-SENTINEL",
         "MCP-V4-GENERIC-PRIVATE-SENTINEL",
         "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
@@ -7772,12 +7780,15 @@ fn check_approval_broker() -> Result<(), String> {
     let desktop_discovery = read("crates/canisend-desktop/src/discovery.rs")?;
     let desktop_workflow = read("crates/canisend-desktop/src/workflow.rs")?;
     let desktop_application = read("crates/canisend-desktop/src/application_intake.rs")?;
+    let application_association = read("crates/canisend-app/src/association_v4.rs")?;
+    let desktop_association = read("crates/canisend-desktop/src/association_v4.rs")?;
     let bridge = read("apps/canisend-desktop/src/lib/bridge.ts")?;
     validate_approval_broker_sources(
         &app,
         &mcp,
         &desktop_state,
         &desktop_host,
+        [&application_association, &desktop_association],
         [
             &desktop_job,
             &desktop_discovery,
@@ -7787,7 +7798,7 @@ fn check_approval_broker() -> Result<(), String> {
         &bridge,
     )?;
     println!(
-        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 4 desktop families; MCP clean-v4 read-only)"
+        "approval broker: ok (10-minute monotonic TTL, 16-entry bound, 5 desktop families; MCP guarded associations)"
     );
     Ok(())
 }
@@ -7797,9 +7808,11 @@ fn validate_approval_broker_sources(
     mcp: &str,
     desktop_state: &str,
     desktop_host: &str,
+    association_sources: [&str; 2],
     desktop_families: [&str; 4],
     bridge: &str,
 ) -> Result<(), String> {
+    let [application_association, desktop_association] = association_sources;
     for required in [
         "pub const APPROVAL_DEFAULT_CAPACITY: usize = 16",
         "Duration::from_secs(10 * 60)",
@@ -7816,42 +7829,30 @@ fn validate_approval_broker_sources(
             ));
         }
     }
-    if mcp.contains("This Alpha.7 MCP surface is read-only") {
-        for required in [
-            "This Alpha.7 MCP surface is read-only",
-            "read_only_hint = true",
-            "destructive_hint = false",
-        ] {
-            if !mcp.contains(required) {
-                return Err(format!(
-                    "clean-v4 read-only MCP source is missing boundary evidence: {required}"
-                ));
-            }
+    for required in [
+        "AssociationApprovalBrokerV4",
+        "preview_token",
+        "approved: bool",
+        "confirmed_private_read",
+        "destructive_hint = true",
+    ] {
+        if !mcp.contains(required) {
+            return Err(format!(
+                "MCP association approval adapter is missing boundary evidence: {required}"
+            ));
         }
-        for forbidden in [
-            "ApprovalBroker<PendingMutation>",
-            "fn mutation_result",
-            "fn insert_preview",
-            "fn take_preview",
-        ] {
-            if mcp.contains(forbidden) {
-                return Err(format!(
-                    "clean-v4 read-only MCP source retains mutation evidence: {forbidden}"
-                ));
-            }
-        }
-    } else {
-        for required in [
-            "ApprovalBroker<PendingMutation>",
-            "approval_disposition_for_application_error",
-            "remaining_ttl_seconds",
-            "expires_at_unix_ms",
-        ] {
-            if !mcp.contains(required) {
-                return Err(format!(
-                    "MCP approval adapter is missing shared broker evidence: {required}"
-                ));
-            }
+    }
+    for required in [
+        "ApprovalBroker<PendingAssociationApprovalV4>",
+        "approval_disposition_for_application_error",
+        "ApprovalSourceVersion::RevisionAndSnapshot",
+        "remaining_ttl_seconds",
+        "expires_at_unix_ms",
+    ] {
+        if !application_association.contains(required) {
+            return Err(format!(
+                "Application association approval facade is missing invariant evidence: {required}"
+            ));
         }
     }
     for required in [
@@ -7872,6 +7873,13 @@ fn validate_approval_broker_sources(
     {
         return Err("desktop host must manage exactly one shared DesktopApprovalStore".to_owned());
     }
+    if desktop_host
+        .matches("AssociationApprovalBrokerV4::default()")
+        .count()
+        != 1
+    {
+        return Err("desktop host must manage exactly one AssociationApprovalBrokerV4".to_owned());
+    }
     for (index, family) in desktop_families.into_iter().enumerate() {
         for required in [
             "tauri::State<'_, DesktopApprovalStore>",
@@ -7886,19 +7894,35 @@ fn validate_approval_broker_sources(
             }
         }
     }
-    if bridge.matches("remaining_ttl_seconds: number").count() < 5
-        || bridge.matches("expires_at_unix_ms: number").count() < 5
+    for required in [
+        "tauri::State<'_, AssociationApprovalBrokerV4>",
+        "preview_token",
+        "approved",
+    ] {
+        if !desktop_association.contains(required) {
+            return Err(format!(
+                "desktop association approval family is missing broker evidence: {required}"
+            ));
+        }
+    }
+    if bridge.matches("remaining_ttl_seconds: number").count() < 6
+        || bridge.matches("expires_at_unix_ms: number").count() < 6
     {
         return Err(
-            "desktop bridge must expose expiry metadata for all five preview read models"
-                .to_owned(),
+            "desktop bridge must expose expiry metadata for all six preview read models".to_owned(),
         );
     }
-    let adapter_sources = [mcp, desktop_state, desktop_host]
-        .into_iter()
-        .chain(desktop_families)
-        .collect::<Vec<_>>()
-        .join("\n");
+    let adapter_sources = [
+        mcp,
+        desktop_state,
+        desktop_host,
+        application_association,
+        desktop_association,
+    ]
+    .into_iter()
+    .chain(desktop_families)
+    .collect::<Vec<_>>()
+    .join("\n");
     for forbidden in [
         "struct MutationPreviewStore",
         "struct JobIntakePreviewStore",
@@ -8246,6 +8270,8 @@ fn validate_semantic_parity_policy(
         "application.approve".to_owned(),
         "application.export".to_owned(),
         "application.intake.commit".to_owned(),
+        "evidence.association.commit".to_owned(),
+        "profile.association.commit".to_owned(),
         "tauri.commit.workflow.rerun".to_owned(),
     ]);
     let mut revision_bound = BTreeSet::new();
@@ -8273,6 +8299,8 @@ fn validate_semantic_parity_policy(
         "desktop-application-intake".to_owned(),
         "desktop-discovery".to_owned(),
         "desktop-workflow-rerun".to_owned(),
+        "evidence-association".to_owned(),
+        "profile-association".to_owned(),
     ]);
     let mut preview_pairs = BTreeSet::new();
     let mut pair_operations = BTreeSet::new();
@@ -18993,12 +19021,15 @@ mod tests {
         let discovery = read("crates/canisend-desktop/src/discovery.rs");
         let workflow = read("crates/canisend-desktop/src/workflow.rs");
         let application = read("crates/canisend-desktop/src/application_intake.rs");
+        let application_association = read("crates/canisend-app/src/association_v4.rs");
+        let desktop_association = read("crates/canisend-desktop/src/association_v4.rs");
         let mut bridge = read("apps/canisend-desktop/src/lib/bridge.ts");
         validate_approval_broker_sources(
             &app,
             &mcp,
             &desktop_state,
             &desktop_host,
+            [&application_association, &desktop_association],
             [&job, &discovery, &workflow, &application],
             &bridge,
         )
@@ -19011,6 +19042,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
+                [&application_association, &desktop_association],
                 [&job, &discovery, &workflow, &application],
                 &bridge,
             )
@@ -19025,6 +19057,7 @@ mod tests {
                 &mcp,
                 &desktop_state,
                 &desktop_host,
+                [&application_association, &desktop_association],
                 [&job, &discovery, &workflow, &application],
                 &bridge,
             )
@@ -19042,8 +19075,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 9);
-        assert_eq!(current.preview_pairs, 4);
+        assert_eq!(current.shared_operations, 13);
+        assert_eq!(current.preview_pairs, 6);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();

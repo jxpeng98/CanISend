@@ -5,7 +5,12 @@ use std::{
     sync::Arc,
 };
 
-use canisend_app::{Application, ApplicationError};
+use canisend_app::{
+    Application, ApplicationError, ApprovalBrokerError, AssociationApprovalBrokerV4,
+    AssociationApprovalErrorV4, AssociationChangeV4, EvidenceAssociationPreviewRequestV4,
+    PrivateReadConsent, ProfileAssociationPreviewRequestV4,
+};
+use canisend_contracts::{ApplicationId, ContentRevisionReferenceV3, Sha256Digest};
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
     handler::server::wrapper::{Json, Parameters},
@@ -58,6 +63,7 @@ pub enum McpServerError {
 #[derive(Debug, Clone)]
 pub struct CanISendMcpServer {
     workspace: Arc<PathBuf>,
+    association_approvals: AssociationApprovalBrokerV4,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -67,11 +73,62 @@ pub struct ApplicationParameters {
     pub application_id: String,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum AssociationChangeParameters {
+    Associate,
+    Unlink,
+}
+
+impl From<AssociationChangeParameters> for AssociationChangeV4 {
+    fn from(value: AssociationChangeParameters) -> Self {
+        match value {
+            AssociationChangeParameters::Associate => Self::Associate,
+            AssociationChangeParameters::Unlink => Self::Unlink,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileAssociationPreviewParameters {
+    #[schemars(description = "CanISend Application ID")]
+    pub application_id: String,
+    pub profile_source: ContentRevisionReferenceV3,
+    pub change: AssociationChangeParameters,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceAssociationPreviewParameters {
+    #[schemars(description = "CanISend Application ID")]
+    pub application_id: String,
+    pub evidence: ContentRevisionReferenceV3,
+    pub change: AssociationChangeParameters,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AssociationCommitParameters {
+    #[schemars(description = "CanISend Application ID bound to the preview")]
+    pub application_id: String,
+    #[schemars(description = "Opaque single-use preview token")]
+    pub preview_token: String,
+    pub preview_sha256: Sha256Digest,
+    #[schemars(description = "True only after the user explicitly approves this exact preview")]
+    pub approved: bool,
+    #[schemars(
+        description = "True only after explicit consent to read the selected private input"
+    )]
+    pub confirmed_private_read: bool,
+}
+
 impl CanISendMcpServer {
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
         let workspace = Application::resolve_workspace_root_v4(Some(workspace))?;
         Ok(Self {
             workspace: Arc::new(workspace),
+            association_approvals: AssociationApprovalBrokerV4::default(),
         })
     }
 
@@ -123,6 +180,52 @@ impl CanISendMcpServer {
             ));
         }
         Ok(())
+    }
+
+    fn parse_application_id(application_id: &str) -> Result<ApplicationId, McpError> {
+        Self::validate_application_id(application_id)?;
+        ApplicationId::try_new(application_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))
+    }
+
+    fn association_result<T: Serialize>(
+        result: Result<T, AssociationApprovalErrorV4>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        match result {
+            Ok(value) => Self::application_result(Ok(value)),
+            Err(AssociationApprovalErrorV4::Application(error)) => {
+                Self::application_result::<T>(Err(error))
+            }
+            Err(AssociationApprovalErrorV4::Approval(error)) => Err(McpError::invalid_params(
+                error.to_string(),
+                Some(serde_json::json!({"code": approval_error_code(&error)})),
+            )),
+            Err(AssociationApprovalErrorV4::Denied) => Err(McpError::invalid_params(
+                "association approval was denied",
+                Some(serde_json::json!({"code": "approval.denied"})),
+            )),
+            Err(AssociationApprovalErrorV4::BindingMismatch) => Err(McpError::invalid_params(
+                "association approval does not match the reviewed Application or preview",
+                Some(serde_json::json!({"code": "approval.binding-mismatch"})),
+            )),
+        }
+    }
+}
+
+fn approval_error_code(error: &ApprovalBrokerError) -> &'static str {
+    match error {
+        ApprovalBrokerError::InvalidConfiguration(_) => "approval.invalid-configuration",
+        ApprovalBrokerError::Unavailable => "approval.unavailable",
+        ApprovalBrokerError::TokenGeneration(_) | ApprovalBrokerError::TokenCollision => {
+            "approval.token-generation-failed"
+        }
+        ApprovalBrokerError::CapacityFull { .. } => "approval.capacity-full",
+        ApprovalBrokerError::MalformedToken => "approval.token-malformed",
+        ApprovalBrokerError::Missing => "approval.missing-or-replayed",
+        ApprovalBrokerError::Expired => "approval.expired",
+        ApprovalBrokerError::WrongKind { .. } => "approval.wrong-kind",
+        ApprovalBrokerError::WrongContext => "approval.wrong-context",
+        ApprovalBrokerError::RestoreCollision => "approval.restore-collision",
     }
 }
 
@@ -249,6 +352,60 @@ impl CanISendMcpServer {
     }
 
     #[tool(
+        description = "Preview an exact Application Profile Source link change and issue a bounded single-use approval token",
+        annotations(
+            title = "Preview an Application Profile Source link change",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_profile_association_preview(
+        &self,
+        Parameters(parameters): Parameters<ProfileAssociationPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::association_result(self.association_approvals.preview_profile(
+            self.workspace(),
+            ProfileAssociationPreviewRequestV4 {
+                application_id,
+                profile_source: parameters.profile_source,
+                change: parameters.change.into(),
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit one explicitly approved Profile Source link preview; the token is single-use",
+        annotations(
+            title = "Commit an approved Application Profile Source link change",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_profile_association_commit(
+        &self,
+        Parameters(parameters): Parameters<AssociationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::association_result(
+            self.association_approvals.commit_profile(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.approved,
+                parameters
+                    .confirmed_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
         description = "List body-free confirmed Workspace Evidence and explicit links for one Application",
         annotations(
             title = "List Application Evidence links",
@@ -268,11 +425,65 @@ impl CanISendMcpServer {
             &parameters.application_id,
         ))
     }
+
+    #[tool(
+        description = "Preview an exact Application Evidence link change and issue a bounded single-use approval token",
+        annotations(
+            title = "Preview an Application Evidence link change",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_evidence_association_preview(
+        &self,
+        Parameters(parameters): Parameters<EvidenceAssociationPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::association_result(self.association_approvals.preview_evidence(
+            self.workspace(),
+            EvidenceAssociationPreviewRequestV4 {
+                application_id,
+                evidence: parameters.evidence,
+                change: parameters.change.into(),
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Commit one explicitly approved Evidence link preview; the token is single-use",
+        annotations(
+            title = "Commit an approved Application Evidence link change",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_evidence_association_commit(
+        &self,
+        Parameters(parameters): Parameters<AssociationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        Self::association_result(
+            self.association_approvals.commit_evidence(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.approved,
+                parameters
+                    .confirmed_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
 }
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. This Alpha.7 MCP surface is read-only; guarded v4 mutations are exposed only after their preview, approval, revision, and audit contracts are complete. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded association changes require preview, exact digest review, explicit approval and consent, and a single-use token. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {}
 

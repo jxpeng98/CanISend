@@ -110,14 +110,28 @@ read operations:
 - `canisend_profile_association_list`; and
 - `canisend_evidence_association_list`.
 
+It also exposes two guarded mutation pairs:
+
+- `canisend_profile_association_preview` → `canisend_profile_association_commit`; and
+- `canisend_evidence_association_preview` → `canisend_evidence_association_commit`.
+
 Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
 without the App through `canisend profile-source import`; `private-local` input requires the
 explicit `--confirm-private-read` flag. Both CLI listing and the MCP tool return IDs, revisions,
 digests, kinds, and privacy metadata without returning original or normalized body text.
 The two association-list tools require one exact Application ID and distinguish Workspace
-candidates from explicit links. They do not imply consent or create an association. Association
-preview/commit tools remain unavailable until their Agent v4 single-use approval-token boundary is
-implemented end to end.
+candidates from explicit links. They do not imply consent or create an association. A preview
+validates the exact current resource revision and returns a CSPRNG `apv1_` token, preview digest,
+expiry, and private-read requirement without mutating Workspace authority. Commit requires that
+same Application, Pack, revision, digest, token, explicit `approved: true`, and any required private
+read consent. Denial, wrong context, malformed binding, expiry, and successful commit consume the
+token; replay fails without mutation. Only explicitly classified transient I/O or database failures
+restore the same still-valid token.
+
+Direct CLI association preview/commit is intentionally absent: independent CLI processes cannot
+share the in-memory single-use Broker safely. Headless Agent writes use one running `mcp serve`
+session; CLI retains the equivalent body-free list operations until a separately designed durable
+approval authority exists.
 
 Do not infer that an operation from the canonical registry is callable when it is absent from the
 runtime tool list. Use a native CLI operation only when it exposes the same operation ID, or stop
