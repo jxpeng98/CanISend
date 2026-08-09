@@ -61,10 +61,12 @@ the integration contract. Human-readable command prose, whitespace, progress tex
 machine API. Integrations must use `--json`, advertised capabilities, and generated schemas rather than scrape human
 output.
 
-Codex and Claude Code Skills are generated from one canonical Agent v4 resource source. Use
-`host setup`, `host status`, and `host remove` with the matching CanISend binary; never merge
-an earlier Skill layout into v4. Generated resources exclude private Workspace bodies and host
-configuration is not silently rewritten.
+Codex and Claude Code Skills are generated from one canonical Agent v4 resource source. Claude
+Desktop can consume the same local stdio MCP server from its separate user-level configuration,
+but does not consume the project-local Claude Code Skills. Use `host setup`, `host status`, and
+`host remove` with the matching CanISend binary; never merge an earlier Skill layout into v4.
+Generated resources exclude private Workspace bodies and host configuration is not silently
+rewritten.
 
 ## Workspace support and rollback
 
@@ -90,10 +92,10 @@ resources, and the Apple Silicon macOS desktop workflow described above. Scanned
 without extractable text, browser/portal automation, automatic application submission,
 Windows/Linux desktop packages, and Linux arm64 archives are outside this support line.
 
-External Codex and Claude handoff is the primary reasoning surface. Their credentials,
-conversations, provider entitlements, search, plugins, connectors, and retention remain owned by
-those hosts. CanISend supplies body-free context and guarded tools but does not promise that every
-host exposes identical capabilities.
+External Codex, Claude Code, and Claude Desktop handoff is the primary reasoning surface. Their
+credentials, conversations, provider entitlements, search, plugins, connectors, and retention
+remain owned by those hosts. CanISend supplies body-free context and guarded tools but does not
+promise that every host exposes identical capabilities.
 
 CanISend has no default telemetry. Public issues must not contain private advert, profile, application, workspace,
 provider, or credential content. Provider send and private export remain explicit consent boundaries; installation
