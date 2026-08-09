@@ -146,7 +146,6 @@ fn public_help_excludes_every_alpha6_legacy_command_family() {
         "task",
         "criteria",
         "match",
-        "plan",
         "document",
         "review",
         "package",
@@ -328,13 +327,13 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
             setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
-            Some(11)
+            Some(16)
         );
         assert_eq!(
             setup["data"]["mcp"]["read_only_tools"]
                 .as_array()
                 .map(Vec::len),
-            Some(9)
+            Some(14)
         );
         assert_eq!(
             setup["data"]["mcp"]["guarded_write_tools"]
@@ -516,6 +515,72 @@ fn workspace_v4_holds_generic_and_academic_applications_together() {
         shown["data"]["snapshot"]["pack"]["id"],
         "org.canisend.academic-job"
     );
+
+    let generic_id = generic["data"]["stored"]["snapshot"]["application"]["id"]
+        .as_str()
+        .expect("generic Application ID");
+    for (application_id, pack_id) in [
+        (generic_id, "org.canisend.generic-application"),
+        (academic_id, "org.canisend.academic-job"),
+    ] {
+        let requirements = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "requirement",
+            "list",
+            "--application",
+            application_id,
+            "--json",
+        ]);
+        assert_eq!(requirements["operation"], "requirement.list");
+        assert_eq!(requirements["data"]["context"]["pack"]["id"], pack_id);
+        let requirement_id = requirements["data"]["requirements"][0]["id"]
+            .as_str()
+            .expect("Requirement ID");
+        let requirement = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "requirement",
+            "show",
+            "--application",
+            application_id,
+            "--requirement",
+            requirement_id,
+            "--json",
+        ]);
+        assert_eq!(requirement["operation"], "requirement.show");
+        assert_eq!(requirement["data"]["requirement"]["id"], requirement_id);
+
+        let plan = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "plan",
+            "show",
+            "--application",
+            application_id,
+            "--json",
+        ]);
+        assert_eq!(plan["operation"], "plan.show");
+        assert_eq!(plan["status"], "not-created");
+        assert!(plan["data"]["plan"].is_null());
+
+        let deliverables = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "deliverable",
+            "list",
+            "--application",
+            application_id,
+            "--json",
+        ]);
+        assert_eq!(deliverables["operation"], "deliverable.list");
+        assert_eq!(
+            deliverables["data"]["deliverables"]
+                .as_array()
+                .map(Vec::len),
+            Some(0)
+        );
+    }
 }
 
 #[test]

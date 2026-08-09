@@ -3,6 +3,7 @@
 mod agent;
 mod agent_runtime;
 mod application_intake;
+mod application_resources_v4;
 mod approval;
 mod association_v4;
 mod commands;
@@ -43,6 +44,11 @@ pub fn run() {
             application_intake::preview_local_application_intake,
             application_intake::preview_pasted_application_intake,
             application_intake::preview_url_application_intake,
+            application_resources_v4::deliverable_list,
+            application_resources_v4::deliverable_show,
+            application_resources_v4::plan_show,
+            application_resources_v4::requirement_list,
+            application_resources_v4::requirement_show,
             association_v4::evidence_association_commit,
             association_v4::evidence_association_discard,
             association_v4::evidence_association_list,

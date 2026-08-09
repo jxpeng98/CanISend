@@ -33,6 +33,11 @@
       "marker": "fn profile_association_preview_commit_is_exact_consent_bound_and_body_free()"
     },
     {
+      "id": "application-resources-v4",
+      "path": "crates/canisend-app/src/application_resources_v4.rs",
+      "marker": "fn exact_application_resource_reads_are_pack_revision_bound_and_body_free()"
+    },
+    {
       "id": "mixed-cli-workspace",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
       "marker": "fn workspace_v4_holds_generic_and_academic_applications_together()"
@@ -214,43 +219,78 @@
       "revision_bound": true,
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
       "fixtures": ["workspace-v4-mcp-reads", "application-association-v4", "approval-broker", "approval-context"]
+    },
+    {
+      "operation": "requirement.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "wrong-context", "no-mutation"],
+      "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "requirement.show",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "wrong-context", "no-mutation"],
+      "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "plan.show",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "deliverable.list",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "no-mutation"],
+      "fixtures": ["application-resources-v4", "mixed-cli-workspace", "workspace-v4-mcp-reads"]
+    },
+    {
+      "operation": "deliverable.show",
+      "kind": "read",
+      "revision_bound": false,
+      "outcomes": ["success", "wrong-context", "no-mutation"],
+      "fixtures": ["application-resources-v4", "generic-tauri-lifecycle"]
     }
   ],
   "pack_surface_cases": [
     {
       "pack": "generic-application",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "generic-application",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["generic-tauri-lifecycle", "academic-tauri-profile", "application-association-v4"]
     },
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     },
     {
       "pack": "academic-job",
       "surface": "cli",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "application.create", "profile-source.list", "profile-source.import", "profile.association.list", "evidence.association.list", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["workspace-v4-cli-recovery", "mixed-cli-workspace", "profile-source-cli"]
     },
     {
       "pack": "academic-job",
       "surface": "tauri",
-      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
+      "operations": ["application.list", "application.show", "application.create", "application.plan", "application.compose", "application.review", "application.approve", "application.export", "profile-source.list", "profile-source.import", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["neutral-tauri-registry", "academic-tauri-profile", "mixed-tauri-workspace", "generic-tauri-lifecycle", "application-association-v4"]
     },
     {
       "pack": "academic-job",
       "surface": "mcp",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["workspace-v4-mcp-reads", "mixed-mcp-workspace"]
     }
   ],
@@ -335,12 +375,12 @@
   "read_families": [
     {
       "id": "generic-application",
-      "operations": ["workspace.status", "workspace.check", "application.list", "application.show"],
+      "operations": ["workspace.status", "workspace.check", "application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["workspace-v4-cli-recovery", "workspace-v4-mcp-reads", "mixed-cli-workspace", "generic-tauri-lifecycle", "mixed-mcp-workspace"]
     },
     {
       "id": "academic-application",
-      "operations": ["application.list", "application.show"],
+      "operations": ["application.list", "application.show", "requirement.list", "requirement.show", "plan.show", "deliverable.list", "deliverable.show"],
       "fixtures": ["mixed-cli-workspace", "mixed-tauri-workspace", "mixed-mcp-workspace"]
     },
     {

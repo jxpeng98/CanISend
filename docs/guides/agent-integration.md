@@ -104,11 +104,20 @@ read operations:
 
 - `canisend_workspace_status`;
 - `canisend_workspace_check`;
-- `canisend_application_list`; and
-- `canisend_application_show`; and
+- `canisend_application_list`;
+- `canisend_application_show`;
+- `canisend_requirement_list`;
+- `canisend_requirement_show`;
+- `canisend_plan_show`;
+- `canisend_deliverable_list`;
+- `canisend_deliverable_show`;
 - `canisend_profile_source_list`;
 - `canisend_profile_association_list`; and
 - `canisend_evidence_association_list`.
+
+Requirement, Plan, and Deliverable responses include the exact Application, Pack, revision, and
+snapshot digest. Deliverable list/show return metadata and content references only; reading a
+Deliverable body remains a separate consented operation and is not part of this surface.
 
 It also exposes two guarded mutation pairs:
 
