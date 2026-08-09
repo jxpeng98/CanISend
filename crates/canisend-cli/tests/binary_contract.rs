@@ -92,8 +92,15 @@ fn file_snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
 #[test]
 fn version_truth_remains_bound_to_the_current_source_release() {
     let value = run_json(&["version", "--json"]);
+    assert_eq!(value["protocol"], "canisend.agent/v4");
     assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["data"]["product"], "canisend");
+    assert_eq!(value["data"]["protocol"], "canisend.agent/v4");
+    assert_eq!(value["data"]["workspace_format"], "canisend.workspace/v4");
+    assert_eq!(
+        value["data"]["resource_format"],
+        "canisend.agent-host-resources/v4"
+    );
 }
 
 #[test]

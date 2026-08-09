@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, PUBLIC_SCHEMA_VERSION, PublicSchemaId, RESOURCE_FORMAT, WORKSPACE_FORMAT,
+    AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, PublicSchemaId, WORKSPACE_V4_FORMAT,
 };
 use canisend_io::{EmbeddedTypstCompiler, render_acceptance_probe};
 use serde::{Deserialize, Serialize};
@@ -48,10 +48,10 @@ impl Application {
         ProductSummary {
             product: "canisend".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            protocol: AGENT_PROTOCOL.to_owned(),
-            workspace_format: WORKSPACE_FORMAT.to_owned(),
-            resource_format: RESOURCE_FORMAT.to_owned(),
-            public_schema_version: PUBLIC_SCHEMA_VERSION.to_owned(),
+            protocol: AGENT_V4_PROTOCOL.to_owned(),
+            workspace_format: WORKSPACE_V4_FORMAT.to_owned(),
+            resource_format: canisend_resources::AGENT_HOST_RESOURCE_FORMAT.to_owned(),
+            public_schema_version: AGENT_V4_SCHEMA_VERSION.to_owned(),
             target_os: std::env::consts::OS.to_owned(),
             target_arch: std::env::consts::ARCH.to_owned(),
         }

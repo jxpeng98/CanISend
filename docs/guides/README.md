@@ -28,8 +28,7 @@ Start here:
 9. [Diagnose common failures](troubleshooting.md).
 10. [Try the macOS-first desktop GUI](desktop-gui.md).
 
-The machine contracts are [Agent protocol v2](../contracts/agent-protocol-v2.md) for the academic
-compatibility surface and [Agent v3/MCP](../contracts/agent-v3-mcp.md) for canonical generic
-operations.
+The active machine contract is [Agent v4](../contracts/agent-v4.md) for both built-in Packs. Earlier
+Agent protocols and compatibility surfaces are historical and unsupported by Alpha.7.
 Security assumptions are in the [threat model](../security/threat-model.md). CanISend prepares and
 exports local material; it never logs in, uploads, or submits an Application.

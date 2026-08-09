@@ -26,9 +26,11 @@ fn unified_executable_dispatches_the_public_cli_contract_without_opening_the_gui
         String::from_utf8_lossy(&output.stderr)
     );
     let value: Value = serde_json::from_slice(&output.stdout).expect("stdout is JSON");
-    assert_eq!(value["protocol"], "canisend.agent/v2");
+    assert_eq!(value["protocol"], "canisend.agent/v4");
     assert_eq!(value["operation"], "product.version");
     assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(value["data"]["protocol"], "canisend.agent/v4");
+    assert_eq!(value["data"]["workspace_format"], "canisend.workspace/v4");
 }
 
 #[test]
