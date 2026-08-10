@@ -6,17 +6,17 @@ Beta, Beta to RC, sequential RC iteration, and RC to Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
-The Alpha-to-Beta transition is deliberately narrower than the structural stage rule: only the
-qualified public `v1.0.0-alpha.7` dual-Pack checkpoint may authorize Beta. Alpha.4, Alpha.5, and
-Alpha.6 readiness records remain historical evidence for their exact bytes and cannot be reused as
-the v4 Beta baseline.
+The Alpha-to-Beta transition is deliberately narrower than the structural stage rule: only a
+qualified public dual-Pack Alpha iteration of 7 or greater may authorize Beta. Alpha.4, Alpha.5,
+and Alpha.6 readiness records remain historical evidence for their exact bytes and cannot be
+reused as the v4 Beta baseline.
 
 ## Preview first
 
 The command is read-only unless the final `--write` flag is present:
 
 ```console
-cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.6
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.8
 cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1
 ```
 
@@ -48,8 +48,9 @@ Refresh is also dry-run first:
 
 The script queries only public issue number/state and public release identity; it never downloads issue titles,
 bodies, comments, attachments, or private application data. Any open issue stops the refresh for manual blocker
-triage. It accepts only Alpha.7, resolves the exact source manifest, reuses the provider-qualified candidate
-run, and binds Agent/Workspace v4, Pack v1, and both embedded Pack digests. The explicit JSON input is the
+triage. It accepts only the active eligible Alpha recorded in the pending ledger, resolves that exact source
+manifest, reuses the provider-qualified candidate run, and binds Agent/Workspace v4, Pack v1, and both embedded
+Pack digests. The explicit JSON input is the
 body-free cumulative user record: it must bind that exact candidate; record at least 5 invited and 8 cumulative
 users, 20 completed flows, one mixed-Application Workspace, both Pack IDs, two academic and three non-academic
 scenario-family tokens; retain numerator/denominator pairs for unassisted completion, claim traceability,
