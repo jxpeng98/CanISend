@@ -1,15 +1,15 @@
 # Known limitations
 
-It applies to the `1.0.0-alpha.7` development line. It is not publication
-evidence; the exact downloaded release notes and manifest remain the installed-binary authority.
+It applies to the published `v1.0.0-alpha.7` checkpoint and later source with the same version.
+It is not publication evidence; the exact downloaded release notes and manifest remain the
+installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Alpha.7 is not a release merely
-  because the source version still says `1.0.0-alpha.7`; exact five-target CLI and supported
-  macOS App artifacts must pass build-once qualification, promotion, download, and independent
-  public reverification.
-- `v1.0.0-alpha.5` and earlier tags remain immutable historical checkpoints.
+- `v1.0.0-alpha.7` is the latest publicly qualified checkpoint. It was built once from
+  `9986a6a63b596b7760b4721a7e97c36aedce6d51`, promoted without rebuilding, downloaded, and
+  independently reverified.
+- `v1.0.0-alpha.6` and earlier tags remain immutable historical checkpoints.
 - Windows and Linux public GUI artifacts are not qualified. Their standalone CLI targets have
   separate native release-matrix owners.
 - Community signatures do not establish an operating-system-trusted publisher. Notarization,
@@ -47,8 +47,8 @@ evidence; the exact downloaded release notes and manifest remain the installed-b
   automation, and portal automation are outside the current scope.
 - CanISend does not provide model credentials or a hosted provider. Codex, Claude Code, and other
   MCP clients own their authentication, conversations, plugins, search, and retention.
-- Exact Codex and Claude Code dogfood, another conforming MCP client, the packaged desktop journey,
-  and invited-user evidence remain Alpha.7 release gates.
+- Exact Codex and Claude Code dogfood, another conforming MCP client, and the packaged desktop
+  journey passed Alpha.7 qualification. Real invited-user evidence remains a Beta-readiness gate.
 
 ## Product boundary
 

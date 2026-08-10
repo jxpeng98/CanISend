@@ -1859,9 +1859,9 @@ fn check_documentation() -> Result<(), String> {
             &[
                 "org.canisend.generic-application",
                 "org.canisend.academic-job",
-                "Workspace v3",
-                "v2→v3 migration",
-                "Generic Pack Application",
+                "neutral Workspace v4",
+                "application list --json",
+                "Agent v4",
             ],
         ),
         (
@@ -1876,24 +1876,23 @@ fn check_documentation() -> Result<(), String> {
         (
             "backup-and-recovery.md",
             &[
-                "exact workflow Pack identity and digest",
-                "v2→v3 semantic migration",
-                "preserves the Academic Pack",
+                "Workspace v4 authority",
+                "workflow Pack identity and digest",
+                "application list",
             ],
         ),
         (
             "upgrade-and-rollback.md",
             &[
-                "Discover Pack and Workspace authority before mutation",
-                "workspace migration-preview",
-                "--expected-plan-sha256",
-                "does not silently perform",
+                "Confirm Workspace v4 authority before mutation",
+                "Workspace v2/v3",
+                "does not import unsupported",
             ],
         ),
         (
             "known-limitations.md",
             &[
-                "v1.0.0-alpha.5",
+                "v1.0.0-alpha.7",
                 "Pack installation",
                 "image-only PDFs",
                 "submission_performed: false",
@@ -1973,7 +1972,7 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
         "# CanISend generic framework 1.0 delivery roadmap",
         "**Status:** Active — authoritative",
         "**Current machine stage:** Alpha / `pre-beta`",
-        "**Next intended checkpoint:** `v1.0.0-alpha.7`",
+        "**Next intended checkpoint:** `v1.0.0-beta.1`",
     ] {
         if !roadmap.contains(required) {
             return Err(format!("active 1.0 roadmap header is missing `{required}`"));
@@ -17489,7 +17488,7 @@ mod tests {
              **Status:** Active — authoritative\n\n\
              **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
              **Current machine stage:** Alpha / `pre-beta`\n\n\
-             **Next intended checkpoint:** `v1.0.0-alpha.7` is the breaking v4 checkpoint.\n",
+             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n",
         )
         .expect("write active roadmap fixture");
         write_pretty_json(

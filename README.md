@@ -25,12 +25,12 @@ export, and external submission decision.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.7`. It is the active clean Workspace v4 and Agent
-v4 development line; it is not a published release until exact candidate artifacts pass the
-native release gates. The latest publicly qualified checkpoint is `v1.0.0-alpha.6`, whose
-Workspace v3, Agent v2/v3, migration, artifact, and license facts remain immutable at its tag.
+The checked-in source version is `1.0.0-alpha.7`. The latest publicly qualified checkpoint is `v1.0.0-alpha.7`
+([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7)), built from
+`9986a6a63b596b7760b4721a7e97c36aedce6d51`. Later `main` changes are not part of those published
+bytes. Earlier release facts remain immutable at their tags.
 
-Active Alpha.7 source provides:
+Published Alpha.7 provides:
 
 - `canisend.workspace/v4` with clean initialization, check, backup, restore, repair, and explicit
   unsupported-legacy refusal;

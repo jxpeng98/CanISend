@@ -32,22 +32,16 @@ navigation memory without deleting or changing a CanISend workspace.
 
 ## Host-agent mode
 
-`--mode host-agent` means the already active Codex, Claude, or other host performs reasoning. Preparing a task does
-not reveal bodies. To export only its declared inputs, the user must approve private reading:
+Codex, Claude Code, Claude Desktop, or another MCP host performs reasoning while CanISend remains
+the local state authority. Start one version-matched Agent v4 MCP process:
 
 ```console
-canisend --workspace ./applications task inputs TASK_ID \
-  --destination ./agent-work/TASK_ID \
-  --allow-private-read
+canisend --workspace ./applications mcp serve
 ```
 
-The exported manifest freezes exact artifact IDs, revisions, and SHA-256 values. The host should read only that
-directory and return candidate JSON through `task complete`.
-
-The command above is the Academic Agent v2 compatibility task loop. Generic Agent v3 uses
-Pack-bound MCP operations: routine context remains body-free, `canisend_application_review`
-requires private-read consent, and `canisend_application_export` requires private-export consent.
-Neither protocol may be used against the other Pack.
+Routine orientation is body-free. Private inspection, provider send, network fetch, and local
+export require the exact consent declared by the v4 preview. Academic and generic Applications use
+the same protocol while retaining separate Pack bindings and Application-scoped data access.
 
 External-host handoff is the recommended desktop integration. Codex or Claude owns its session, transcript, search,
 plugins, connectors, and approvals; CanISend owns application state. The optional in-App bridge stores only a
@@ -58,34 +52,25 @@ lifetime. A token is bound to the canonical Workspace, exact Pack and operation,
 and expected revision. Expiry, replay, wrong Pack, wrong Workspace, or stale revision causes no
 mutation; a token is approval for exactly one reviewed commit, not future work.
 
-Cancelling an in-App bridge turn terminates only the exact workspace/runtime/job-scoped local process. CanISend does
+Cancelling an in-App bridge turn terminates only the exact Workspace/runtime/Application-scoped local process. CanISend does
 not parse or persist partial output, and a cancelled new turn cannot replace the last successful external session
 binding. The host may still retain provider-side activity according to its own policy if transmission occurred
 before cancellation.
 
-## Configured-provider mode
+## Provider-send consent
 
-`--mode configured-provider` adds a second boundary. Export requires both flags:
-
-```console
-canisend --workspace ./applications task inputs TASK_ID \
-  --destination ./provider-work/TASK_ID \
-  --allow-private-read \
-  --allow-provider-send
-```
-
-`--allow-provider-send` confirms only the descriptor's frozen input scope. It is not blanket permission for the
-workspace, future revisions, unrelated profile sources, or later tasks. CanISend does not silently discover provider
-credentials or transmit undeclared workspace files. The external host/provider integration remains responsible for
-its own retention, regional processing, model-training, and account policies.
+`send-to-configured-provider` confirms only the exact preview's frozen input scope. It is not
+blanket permission for the Workspace, future revisions, unrelated Profile Sources, or later
+tasks. CanISend does not discover provider credentials or transmit undeclared Workspace files.
+The external host/provider remains responsible for retention, regional processing, model training,
+and account policies.
 
 ## Public discovery versus private Application data
 
-RSS/Atom, jobs.ac.uk, Greenhouse, and Lever discovery adapters are part of the Academic compatibility
-journey. They perform bounded, read-only fetches from exact public hosts. Discovery requests do not
-include Profile Evidence, drafts, reviews, or Workspace bodies. Promoting a lead creates a local
-academic job; it does not send private data back to the discovery source. Direct public discovery
-is not currently a Generic Pack intake feature.
+RSS/Atom, jobs.ac.uk, Greenhouse, and Lever discovery adapters are Academic Pack opportunity
+sources. They perform bounded, read-only fetches from exact public hosts and never include Profile
+Evidence, drafts, reviews, or Workspace bodies. Agent v4 connected intake also accepts a reviewed
+URL, pasted text, local file, or text PDF for an exact Application in either built-in Pack.
 
 User-supplied job URLs require explicit command invocation and are fetched through the same per-hop SSRF boundary.
 Redirects are recorded as source metadata. Provider-specific discovery redirects must remain inside the adapter's
@@ -93,11 +78,10 @@ exact allowlist.
 
 ## Export boundaries
 
-Editable Academic projections and PDFs require `--allow-private-export` and remain under safe
-`jobs/JOB_ID/` paths. Generic v3 PDF destinations remain under safe
-`applications/APPLICATION_ID/` paths. Unmanaged files and user edits are never overwritten
-implicitly. Export means local filesystem publication, not Application submission, and receipts
-record `submission_performed: false`.
+Private projections and PDFs require explicit private-export consent and remain under safe
+Application-scoped paths. Unmanaged files and user edits are never overwritten implicitly. Export
+means local filesystem publication, not Application submission, and receipts record
+`submission_performed: false`.
 
 Backups contain authoritative private data. Store, copy, encrypt, retain, and delete them according to the same or
 stronger policy as the workspace. CanISend does not upload backups or implement automatic secure erasure.

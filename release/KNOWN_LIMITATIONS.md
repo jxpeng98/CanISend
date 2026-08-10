@@ -33,7 +33,7 @@ preserve the `0.6.x` command tree, or implement `canisend.agent/v1`.
   regression cannot authorize publication or support; Beta and later require exact-candidate
   compile-only evidence, while native Intel qualification and Windows/Linux GUI packages remain
   future work until explicitly supported.
-- The GUI supports English and Simplified Chinese. CLI and Agent v2 structured contracts remain
+- The GUI supports English and Simplified Chinese. CLI and Agent v4 structured contracts remain
   locale-neutral; terminal human-readable output is English in this Alpha.
 - The GUI covers all 32 declared operation families and connects them through one persistent
   workspace/application header and six-stage journey. Some advanced candidate editors expose

@@ -1,28 +1,27 @@
 # CanISend user guides
 
-CanISend source is a local-first framework with two exact-bound built-in workflow Packs:
+CanISend is a local-first framework with two exact-bound built-in workflow Packs:
 
-- `org.canisend.generic-application` is the domain-neutral default and uses Workspace/Agent v3.
-- `org.canisend.academic-job` is the academic-job reference Pack and retains the Workspace/Agent
-  v2 compatibility journey.
+- `org.canisend.generic-application` is the domain-neutral reference Pack.
+- `org.canisend.academic-job` is the academic-job reference Pack.
 
-The latest publicly qualified checkpoint is `v1.0.0-alpha.5`. The post-tag `main` source contains
-additional roadmap work; it is not a published Alpha.6 or Alpha.7 until exact artifacts pass the
-release gates. Always compare `canisend version --json` with the release manifest before following
-a source-only command.
+The latest publicly qualified checkpoint is
+[`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7). Later `main`
+changes are not part of those published bytes. Always compare `canisend version --json` with the
+release manifest before following a source-only command.
 
-Choose a Pack before creating a Workspace. A Workspace is then bound to that exact Pack identity
-and digest; it is not a domain selector that can be changed later. A v2→v3 migration preserves the
-academic Pack and does not convert academic records into generic Applications.
+Initialize one neutral Workspace v4, then choose a Pack for each Application. Academic and generic
+Applications may coexist in that Workspace; each Application keeps its own exact Pack identity,
+digest, revisions, and associations.
 
 Start here:
 
 1. [Install the native binary](installation.md).
 2. [Verify checksums, provenance, and release contents](release-verification.md).
-3. [Choose a Pack and complete its quick start](quick-start.md).
+3. [Create Pack-bound Applications and complete the quick start](quick-start.md).
 4. [Connect Codex, Claude, or another Agent host](agent-integration.md).
 5. [Understand privacy and consent boundaries](privacy-and-consent.md).
-6. [Back up and restore the exact Pack-bound Workspace](backup-and-recovery.md).
+6. [Back up and restore the neutral Workspace](backup-and-recovery.md).
 7. [Upgrade, migrate, roll back, or uninstall safely](upgrade-and-rollback.md).
 8. [Review current product and distribution limits](known-limitations.md).
 9. [Diagnose common failures](troubleshooting.md).
