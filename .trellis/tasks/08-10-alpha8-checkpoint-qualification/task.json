@@ -31,8 +31,8 @@
   "notes": "",
   "meta": {
     "roadmap_id": "M3-ALPHA8-001",
-    "github_issue": "to-create",
-    "github_milestone": "Alpha.8 — Cohort checkpoint (to create)",
+    "github_issue": 176,
+    "github_milestone": "Alpha.8 — Cohort checkpoint",
     "owner_role": "release",
     "dependencies": [
       "M3-ALPHA7-001",

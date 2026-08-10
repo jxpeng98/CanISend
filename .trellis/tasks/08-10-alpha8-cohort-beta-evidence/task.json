@@ -29,7 +29,7 @@
   "meta": {
     "roadmap_id": "M3-EVID-005",
     "github_issue": 70,
-    "github_milestone": "Alpha.8 — Cohort checkpoint (to create)",
+    "github_milestone": "Alpha.8 — Cohort checkpoint",
     "owner_role": "validation",
     "dependencies": [
       "M3-ALPHA8-001",
