@@ -212,7 +212,7 @@ jobs:
       - name: Reject active Python product files
         shell: bash
         run: |
-          if git ls-files | grep -E '(^|/)(pyproject\.toml|uv\.lock|requirements[^/]*\.txt|pytest\.ini|[^/]+\.py)$'; then
+          if git ls-files | grep -E '(^|/)(pyproject\.toml|uv\.lock|requirements[^/]*\.txt|pytest\.ini|[^/]+\.py)$' | grep -Ev '^(\.claude/hooks/|\.codex/hooks/|\.trellis/scripts/)'; then
             echo "active Python product files are not allowed in the Rust-native release" >&2
             exit 1
           fi

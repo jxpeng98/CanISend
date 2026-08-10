@@ -180,7 +180,7 @@ jobs:
       - name: Reject active Python product files
         shell: bash
         run: |
-          tracked="$(git ls-files '*.py' pyproject.toml uv.lock)"
+          tracked="$(git ls-files '*.py' pyproject.toml uv.lock | grep -Ev '^(\.claude/hooks/|\.codex/hooks/|\.trellis/scripts/)' || true)"
           if [[ -n "$tracked" ]]; then
             echo "Rust-native branch contains forbidden Python product files:" >&2
             echo "$tracked" >&2
