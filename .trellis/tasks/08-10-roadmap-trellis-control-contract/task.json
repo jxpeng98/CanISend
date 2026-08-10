@@ -1,0 +1,38 @@
+{
+  "id": "roadmap-trellis-control-contract",
+  "name": "roadmap-trellis-control-contract",
+  "title": "Define Roadmap-backed Trellis control contract",
+  "description": "Align the Master Roadmap and local Trellis project-control contract without duplicating backlog",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "governance",
+  "package": null,
+  "priority": "P1",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/guides/project-control.md"
+  ],
+  "notes": "",
+  "meta": {
+    "roadmap_id": "PROGRAM-1.0-CONTROL",
+    "owner_role": "product",
+    "authoritative_files": [
+      "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+      ".trellis/spec/guides/project-control.md"
+    ],
+    "expected_evidence": "consistent local governance contract and passing release source gate",
+    "verification_tier": 2
+  }
+}

@@ -1,3 +1,18 @@
+<!-- TRELLIS:START -->
+# Trellis Instructions
+
+This project uses Trellis for current-task execution and cross-session memory. Product and release
+truth still belongs to the authorities named in `.trellis/spec/guides/project-control.md`.
+
+- Read `.trellis/workflow.md` before creating or advancing a Trellis task.
+- Read the relevant `.trellis/spec/` files before changing their layer.
+- Keep active PRDs and research under `.trellis/tasks/`; archive completed work through Trellis.
+- Use `.agents/skills/` and `.codex/agents/` only as generated Trellis platform adapters.
+
+Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a
+future `trellis update`.
+<!-- TRELLIS:END -->
+
 # CanISend Repository Instructions
 
 ## Product scope

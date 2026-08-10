@@ -1,6 +1,16 @@
 .DS_Store
 .env
-.claude/
+# Track Trellis's Claude Code project integration while retaining local-only settings.
+.claude/*
+!.claude/agents/
+!.claude/agents/**
+!.claude/commands/
+!.claude/commands/**
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/settings.json
 .idea/
 .vscode/
 
@@ -24,7 +34,7 @@
 *.sqlite3-shm
 *.sqlite3-wal
 
-# Ignore caches left by historical Python worktrees without making Python an active dependency.
+# Python is used only by Trellis development control; never track its caches or virtualenvs.
 .venv/
 __pycache__/
 *.py[cod]
