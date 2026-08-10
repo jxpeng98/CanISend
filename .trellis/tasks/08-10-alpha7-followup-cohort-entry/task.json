@@ -1,11 +1,11 @@
 {
   "id": "alpha7-followup-cohort-entry",
   "name": "alpha7-followup-cohort-entry",
-  "title": "Reconcile Alpha.7 follow-up and cohort entry",
-  "description": "Reconcile post-Alpha.7 fixes, exact candidate identity, and the invited-cohort entry gate without weakening release authority",
+  "title": "Qualify Alpha.8 and enter the invited cohort",
+  "description": "Qualify the post-Alpha.7 bootstrap fixes as exact Alpha.8 bytes, then collect the measured cohort evidence required for Beta entry",
   "status": "planning",
   "dev_type": null,
-  "scope": "validation",
+  "scope": "release-validation",
   "package": null,
   "priority": "P0",
   "creator": "pengjiaxin",
@@ -18,7 +18,10 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "08-10-alpha8-checkpoint-qualification",
+    "08-10-alpha8-cohort-beta-evidence"
+  ],
   "parent": "08-10-1-0-roadmap-trellis-control",
   "relatedFiles": [
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
@@ -27,9 +30,12 @@
   ],
   "notes": "",
   "meta": {
-    "roadmap_id": "M3-EVID-005",
+    "roadmap_ids": [
+      "M3-ALPHA8-001",
+      "M3-EVID-005"
+    ],
     "github_issue": 70,
-    "github_milestone": "Alpha.7 — Multi-application workspace and Agent v4",
+    "github_milestone": "Alpha.8 — Cohort checkpoint (to create)",
     "owner_role": "validation",
     "dependencies": [
       "M3-ALPHA7-001",
@@ -40,7 +46,8 @@
       "release/beta-readiness.json",
       "release/provider-dogfood.json"
     ],
-    "expected_evidence": "body-free cohort metrics bound to one exact qualified checkpoint",
-    "verification_tier": 2
+    "expected_evidence": "publicly reverified Alpha.8 bytes plus body-free cohort metrics bound to that exact checkpoint",
+    "verification_tier": 3,
+    "replacement_checkpoint": "v1.0.0-alpha.8"
   }
 }
