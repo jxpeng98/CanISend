@@ -222,9 +222,15 @@ export const messages = {
       "Choose a new or empty directory. CanISend creates its private database and managed files there.",
     agentSetup: "Agent setup",
     agentSetupDescription:
-      "Install the clean v4 Skills and project-local MCP configuration for the Agent hosts you use.",
-    codexSetupDescription: "Creates .agents Skills and a project-local .codex/config.toml.",
-    claudeSetupDescription: "Creates .claude Skills and a project-local .mcp.json.",
+      "Install the clean v4 Skills at your chosen scope. MCP configuration stays project-local.",
+    codexSetupDescription: "Installs Codex Skills and creates a project-local .codex/config.toml.",
+    claudeSetupDescription: "Installs Claude Skills and creates a project-local .mcp.json.",
+    skillsInstallationLocation: "Skills installation location",
+    skillsProject: "This project",
+    skillsGlobal: "Global for this user",
+    skillsProjectDescription: "Store Skills inside this Workspace so the setup travels with it.",
+    skillsGlobalDescription:
+      "Store Skills in your user home so every project can discover the same managed files.",
     agentSetupOptional:
       "Agent setup is optional. You can install it later without changing this Workspace's application scope.",
     workspaceBootstrapBoundary:
@@ -506,22 +512,22 @@ export const messages = {
     profileRevision: "Profile revision",
     noProfileSources: "No profile sources imported",
     noProfileSourcesDescription:
-      "Add Markdown, plain text, or JSON evidence material from a file you control.",
+      "Add Typst, Markdown, plain text, or JSON evidence material from a file you control.",
     initializeProfile: "Initialize profile",
     initializeProfileDescription:
-      "Review and edit a local Markdown scaffold to create the first reusable profile source.",
+      "Review and edit a local scaffold, or import the starter Typst file created with this Workspace.",
     profileMarkdown: "Profile Markdown",
     profileStorageDescription:
       "CanISend stores the original and normalized Markdown as immutable local blobs and keeps only revision metadata in SQLite. It is not sent to a provider by this action.",
     profileInitializationConsent:
       "I confirm CanISend may store this reviewed profile text in the active local workspace.",
     profileInitializationTemplate:
-      "# Academic profile\n\n" +
-      "## Research\n\nDescribe your research areas, methods, and strongest contributions.\n\n" +
-      "## Teaching\n\nDescribe courses, levels, methods, and evidence of teaching effectiveness.\n\n" +
-      "## Education and employment\n\nList relevant degrees, roles, institutions, and dates.\n\n" +
-      "## Publications and outputs\n\nList selected publications, working papers, grants, software, or impact.\n\n" +
-      "## Service and leadership\n\nDescribe relevant academic service, mentoring, administration, or leadership.\n",
+      "# Profile evidence\n\n" +
+      "## Summary\n\nWrite a concise factual summary.\n\n" +
+      "## Experience and outcomes\n\nList roles or projects, responsibilities, methods, dates, and measurable outcomes.\n\n" +
+      "## Education and qualifications\n\nList relevant qualifications, institutions, and dates.\n\n" +
+      "## Selected work\n\nList relevant outputs, publications, products, grants, service, or other results.\n\n" +
+      "## Skills\n\nList each skill with the context and evidence that supports it.\n",
     profileSensitivity: "Sensitivity",
     publicProfileSource: "Public",
     privateProfileSource: "Private local",
@@ -1075,9 +1081,14 @@ export const messages = {
     removeWorkspace: "移除快捷入口",
     createWorkspaceDescription: "请选择新的或空的目录，CanISend 会在其中创建私有数据库与托管文件。",
     agentSetup: "Agent 初始化",
-    agentSetupDescription: "为你使用的 Agent 主机安装全新的 v4 Skills 与项目级 MCP 配置。",
-    codexSetupDescription: "创建 .agents Skills 和项目级 .codex/config.toml。",
-    claudeSetupDescription: "创建 .claude Skills 和项目级 .mcp.json。",
+    agentSetupDescription: "把全新的 v4 Skills 安装到所选范围；MCP 配置始终保留在项目内。",
+    codexSetupDescription: "安装 Codex Skills，并创建项目级 .codex/config.toml。",
+    claudeSetupDescription: "安装 Claude Skills，并创建项目级 .mcp.json。",
+    skillsInstallationLocation: "Skills 安装位置",
+    skillsProject: "当前项目",
+    skillsGlobal: "当前用户全局",
+    skillsProjectDescription: "把 Skills 保存在当前工作区中，便于随项目一起使用。",
+    skillsGlobalDescription: "把 Skills 保存在用户主目录中，所有项目都能发现同一组托管文件。",
     agentSetupOptional: "Agent 初始化是可选的，之后仍可安装，且不会改变此工作区可容纳的申请类型。",
     workspaceBootstrapBoundary:
       "此步骤只保存显示名称和本地集成文件；不会创建 Profile、私密正文、Application 或工作区模式。",
@@ -1341,22 +1352,21 @@ export const messages = {
     profileSources: "个人资料来源",
     profileRevision: "个人资料修订",
     noProfileSources: "尚未导入个人资料来源",
-    noProfileSourcesDescription: "从你控制的文件中添加 Markdown、纯文本或 JSON 证据资料。",
+    noProfileSourcesDescription: "从你控制的文件中添加 Typst、Markdown、纯文本或 JSON 证据资料。",
     initializeProfile: "初始化个人资料",
-    initializeProfileDescription:
-      "审查并编辑本地 Markdown 模板，用它创建第一份可复用的个人资料来源。",
+    initializeProfileDescription: "审查并编辑本地模板，或者导入随工作区创建的 Typst 示例文件。",
     profileMarkdown: "个人资料 Markdown",
     profileStorageDescription:
       "CanISend 会把原始和规范化后的 Markdown 作为不可变本地数据块保存，SQLite 只记录修订元数据；此操作不会把内容发送给提供商。",
     profileInitializationConsent:
       "我确认允许 CanISend 将这份已审查的个人资料文本保存到当前本地工作区。",
     profileInitializationTemplate:
-      "# 学术个人资料\n\n" +
-      "## 研究\n\n说明你的研究领域、方法和最重要的贡献。\n\n" +
-      "## 教学\n\n说明课程、教学层级、教学方法和教学成效证据。\n\n" +
-      "## 教育与任职经历\n\n列出相关学位、职位、机构和日期。\n\n" +
-      "## 论文与成果\n\n列出代表性论文、工作论文、项目、软件或影响力成果。\n\n" +
-      "## 服务与领导力\n\n说明相关学术服务、指导、行政或领导经历。\n",
+      "# 个人证据资料\n\n" +
+      "## 简介\n\n写一段简洁且可由下列内容支持的事实性简介。\n\n" +
+      "## 经历与成果\n\n列出职位或项目、职责、方法、日期和可衡量成果。\n\n" +
+      "## 教育与资质\n\n列出相关资质、机构和日期。\n\n" +
+      "## 代表性工作\n\n列出相关成果、论文、产品、项目、服务或其他结果。\n\n" +
+      "## 技能\n\n列出每项技能及其使用场景和支持证据。\n",
     profileSensitivity: "敏感级别",
     publicProfileSource: "公开",
     privateProfileSource: "仅本地私有",

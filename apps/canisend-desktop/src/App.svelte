@@ -135,6 +135,7 @@
     type AgentContextReadModel,
     type AgentHandoffReadModel,
     type AgentHost,
+    type AgentSkillsInstallScope,
     type AgentMcpConfigurationReadModel,
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
@@ -1064,8 +1065,9 @@
     alias: string,
     path: string,
     hosts: AgentHost[],
+    skillsScope: AgentSkillsInstallScope,
   ): Promise<boolean> {
-    const result = await runAction(() => createWorkspace(alias, path, hosts), {
+    const result = await runAction(() => createWorkspace(alias, path, hosts, skillsScope), {
       operation: "workspace.create",
       route: { view: "applications" },
       jobId: null,
@@ -2444,7 +2446,7 @@
 
 <Sidebar.DesktopProvider
   class="desktop-shell min-h-screen bg-background text-foreground"
-  style="--sidebar-width: 14rem;"
+  style="--sidebar-width: 18rem;"
   data-density={compact ? "compact" : "comfortable"}
 >
   <a
@@ -2477,6 +2479,29 @@
     </Sidebar.Header>
 
     <Sidebar.Content class="pr-1">
+      <WorkspaceContextBar
+        {copy}
+        snapshot={registrySnapshot}
+        {activeWorkspace}
+        {jobs}
+        {selectedJob}
+        {v4Applications}
+        {selectedV4Application}
+        {v4Stages}
+        dossier={selectedDossier}
+        {activeView}
+        {activeDetail}
+        {recommendation}
+        lastAction={lastSuccessfulAction?.workspacePath === (activeWorkspace?.path ?? null)
+          ? lastSuccessfulAction
+          : null}
+        {busy}
+        onSelectWorkspace={handleSelectWorkspace}
+        onSelectJob={handleSelectJob}
+        onSelectV4Application={handleSelectV4Application}
+        onNavigate={navigateTo}
+      />
+      <Separator class="mb-2 bg-sidebar-border" />
       <nav class="min-w-0 space-y-1" aria-label={copy.primaryNavigation}>
         <Sidebar.Menu>
           <Sidebar.MenuItem>
@@ -2552,36 +2577,13 @@
     </Sidebar.Content>
 
     <Sidebar.Footer class="mt-auto space-y-[var(--density-panel-gap)] p-0 pt-2">
-      {#if activeWorkspace}
-        <Sidebar.Menu>
-          <Sidebar.MenuItem>
-            <Sidebar.DesktopMenuButton
-              variant="outline"
-              size="lg"
-              class="h-auto min-h-14 flex-col items-start gap-1 p-2.5"
-              onclick={() => void navigateTo({ view: "workspaces" })}
-            >
-              <span class="flex items-center gap-2 text-xs font-medium">
-                <Database size={15} strokeWidth={1.8} aria-hidden="true" />
-                <span>{copy.activeWorkspace}</span>
-              </span>
-              <span class="w-full truncate text-xs font-normal text-muted-foreground">
-                {registrySnapshot?.registry.entries.find(
-                  (entry) => entry.path === activeWorkspace?.path,
-                )?.alias ?? activeWorkspace.path}
-              </span>
-            </Sidebar.DesktopMenuButton>
-          </Sidebar.MenuItem>
-        </Sidebar.Menu>
-      {:else}
-        <div
-          class="flex min-h-9 items-center gap-2 rounded-lg border border-sidebar-border bg-background/55 px-2.5 py-2"
-          title={copy.localDescription}
-        >
-          <ShieldCheck size={15} strokeWidth={1.8} class="shrink-0" aria-hidden="true" />
-          <span class="truncate text-xs font-medium">{copy.localFirst}</span>
-        </div>
-      {/if}
+      <div
+        class="flex min-h-9 items-center gap-2 rounded-lg border border-sidebar-border bg-background/55 px-2.5 py-2"
+        title={copy.localDescription}
+      >
+        <ShieldCheck size={15} strokeWidth={1.8} class="shrink-0" aria-hidden="true" />
+        <span class="truncate text-xs font-medium">{copy.localFirst}</span>
+      </div>
       <div class="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
         <span>{product?.version ?? "1.0.0-alpha.7"}</span>
         <Badge variant="outline" class="text-[10px]">Svelte</Badge>
@@ -2643,28 +2645,6 @@
           </Button>
         </div>
       </header>
-      <WorkspaceContextBar
-        {copy}
-        snapshot={registrySnapshot}
-        {activeWorkspace}
-        {jobs}
-        {selectedJob}
-        {v4Applications}
-        {selectedV4Application}
-        {v4Stages}
-        dossier={selectedDossier}
-        {activeView}
-        {activeDetail}
-        {recommendation}
-        lastAction={lastSuccessfulAction?.workspacePath === (activeWorkspace?.path ?? null)
-          ? lastSuccessfulAction
-          : null}
-        {busy}
-        onSelectWorkspace={handleSelectWorkspace}
-        onSelectJob={handleSelectJob}
-        onSelectV4Application={handleSelectV4Application}
-        onNavigate={navigateTo}
-      />
     </div>
 
     <div

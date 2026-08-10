@@ -7,6 +7,7 @@ use canisend_contracts::ActorKind;
 use canisend_contracts::{
     BackupManifestData, WORKSPACE_V4_FORMAT, WorkspaceCheckData, WorkspaceStatusData,
 };
+use canisend_resources::{ResourceId, export_if_missing};
 use canisend_store::{
     ApplicationModelRepository, BACKUP_FORMAT, BackupResult, ProjectionService, Workspace,
 };
@@ -86,6 +87,9 @@ impl Application {
             require_new_or_empty_directory(root)?;
         }
         let workspace = Workspace::init_v4(root)?;
+        for resource in WORKSPACE_STARTER_RESOURCES {
+            export_if_missing(resource, &workspace.paths.root)?;
+        }
         let status = workspace.status()?;
         Ok(ActionReceipt::new(
             "workspace.initialize.commit",
@@ -275,6 +279,20 @@ impl Application {
     }
 }
 
+const WORKSPACE_STARTER_RESOURCES: [ResourceId; 11] = [
+    ResourceId::ExampleWorkspaceReadme,
+    ResourceId::ExampleProfileTypst,
+    ResourceId::ExampleGenericV4Admission,
+    ResourceId::ExampleGenericV4Grant,
+    ResourceId::ExampleGenericV4InternalDossier,
+    ResourceId::ExampleGenericV4ProfessionalJob,
+    ResourceId::ExampleGenericV4TenderProposal,
+    ResourceId::TemplateApplicationDocument,
+    ResourceId::TemplateCoverLetter,
+    ResourceId::TemplateModernproCoverletter,
+    ResourceId::TemplateModernproCv,
+];
+
 fn workspace_check_receipt(
     workspace: Workspace,
     operation: &'static str,
@@ -446,6 +464,14 @@ mod tests {
             canisend_contracts::WORKSPACE_V4_FORMAT
         );
         assert_eq!(initialized.status.application_count, 0);
+        for starter in [
+            "README.md",
+            "profile/profile-example.typ",
+            "examples/generic-v4/grant.json",
+            "templates/application-document.typ",
+        ] {
+            assert!(root.join(starter).is_file(), "missing starter: {starter}");
+        }
 
         let reopened = Application::workspace_status_v4(&root)
             .expect("reopen neutral Workspace v4")
@@ -544,6 +570,8 @@ mod tests {
         fs::create_dir_all(&root).expect("create existing project directory");
         let sentinel = root.join("keep.txt");
         fs::write(&sentinel, "user-owned").expect("write user-owned sentinel");
+        let readme = root.join("README.md");
+        fs::write(&readme, "user-owned README").expect("write user-owned README");
 
         let initialized = Application::initialize_workspace_v4_with_policy(
             &root,
@@ -560,6 +588,11 @@ mod tests {
             fs::read_to_string(&sentinel).expect("read preserved sentinel"),
             "user-owned"
         );
+        assert_eq!(
+            fs::read_to_string(&readme).expect("read preserved README"),
+            "user-owned README"
+        );
+        assert!(root.join("profile/profile-example.typ").is_file());
 
         fs::remove_dir_all(root).expect("remove Workspace v4 fixture");
     }

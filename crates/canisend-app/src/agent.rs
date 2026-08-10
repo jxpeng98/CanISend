@@ -221,6 +221,16 @@ pub struct AgentPackExportRequest {
 pub struct AgentSkillsInstallRequest {
     pub host: AgentHost,
     pub workspace: PathBuf,
+    #[serde(default)]
+    pub scope: AgentSkillsInstallScope,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSkillsInstallScope {
+    #[default]
+    Project,
+    Global,
 }
 
 pub type AgentSkillsStatusRequest = AgentSkillsInstallRequest;
@@ -575,7 +585,8 @@ impl Application {
     ) -> Result<ActionReceipt<AgentSkillsInstallReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
         let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
-        let installed = install_embedded_agent_skills(request.host, &workspace)?;
+        let root = agent_skills_install_root(&workspace, request.scope)?;
+        let installed = install_embedded_agent_skills(request.host, &root)?;
         Ok(ActionReceipt::new(
             "agent.skills.install",
             match installed.state {
@@ -597,7 +608,8 @@ impl Application {
     ) -> Result<ActionReceipt<AgentSkillsStatusReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
         let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
-        let status = inspect_embedded_agent_skills(request.host, &workspace)?;
+        let root = agent_skills_install_root(&workspace, request.scope)?;
+        let status = inspect_embedded_agent_skills(request.host, &root)?;
         Ok(ActionReceipt::new(
             "agent.skills.status",
             match status.state {
@@ -622,7 +634,8 @@ impl Application {
     ) -> Result<ActionReceipt<AgentSkillsUninstallReadModel>, ApplicationError> {
         canisend_resources::verify().map_err(ApplicationError::ResourceIntegrity)?;
         let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
-        let removed = uninstall_embedded_agent_skills(request.host, &workspace)?;
+        let root = agent_skills_install_root(&workspace, request.scope)?;
+        let removed = uninstall_embedded_agent_skills(request.host, &root)?;
         Ok(ActionReceipt::new(
             "agent.skills.uninstall",
             match removed.state {
@@ -636,6 +649,32 @@ impl Application {
             ),
             removed,
         ))
+    }
+}
+
+fn agent_skills_install_root(
+    workspace: &Path,
+    scope: AgentSkillsInstallScope,
+) -> Result<PathBuf, ApplicationError> {
+    agent_skills_install_root_with_home(
+        workspace,
+        scope,
+        std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from),
+    )
+}
+
+fn agent_skills_install_root_with_home(
+    workspace: &Path,
+    scope: AgentSkillsInstallScope,
+    home: Option<PathBuf>,
+) -> Result<PathBuf, ApplicationError> {
+    match scope {
+        AgentSkillsInstallScope::Project => Ok(workspace.to_path_buf()),
+        AgentSkillsInstallScope::Global => home.ok_or_else(|| {
+            ApplicationError::InvalidInput(
+                "global Agent Skills installation requires a user home directory".to_owned(),
+            )
+        }),
     }
 }
 
@@ -772,8 +811,9 @@ mod tests {
     use super::{
         AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffRequest, AgentHost,
         AgentMcpConfigurationRequest, AgentPackExportReadModel, AgentPackExportRequest,
-        AgentSkillsInstallRequest, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
-        CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, CANISEND_MCP_V2_TOOLS, shell_quote_path,
+        AgentSkillsInstallRequest, AgentSkillsInstallScope, CANISEND_MCP_GUARDED_WRITE_TOOLS,
+        CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS,
+        CANISEND_MCP_V2_TOOLS, agent_skills_install_root_with_home, shell_quote_path,
     };
     use crate::{ActionReceipt, Application, PrivateReadConsent};
 
@@ -792,6 +832,30 @@ mod tests {
         let quoted =
             shell_quote_path(std::path::Path::new("/tmp/O'Brien/$workspace")).expect("shell quote");
         assert_eq!(quoted, "'/tmp/O'\"'\"'Brien/$workspace'");
+    }
+
+    #[test]
+    fn skills_scope_selects_only_the_workspace_or_user_home_root() {
+        let workspace = std::path::Path::new("/workspace");
+        let home = std::path::PathBuf::from("/user-home");
+        assert_eq!(
+            agent_skills_install_root_with_home(workspace, AgentSkillsInstallScope::Project, None,)
+                .expect("project scope"),
+            workspace
+        );
+        assert_eq!(
+            agent_skills_install_root_with_home(
+                workspace,
+                AgentSkillsInstallScope::Global,
+                Some(home.clone()),
+            )
+            .expect("global scope"),
+            home
+        );
+        assert!(
+            agent_skills_install_root_with_home(workspace, AgentSkillsInstallScope::Global, None,)
+                .is_err()
+        );
     }
 
     #[test]
@@ -969,6 +1033,7 @@ mod tests {
         let installed = Application::install_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
             workspace: host_workspace.clone(),
+            scope: AgentSkillsInstallScope::Project,
         })
         .expect("install workflow skills");
         assert_eq!(installed.operation, "agent.skills.install");
@@ -982,12 +1047,14 @@ mod tests {
         let unchanged = Application::install_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
             workspace: host_workspace.clone(),
+            scope: AgentSkillsInstallScope::Project,
         })
         .expect("check workflow skills");
         assert_eq!(unchanged.status, "up-to-date");
         let status = Application::agent_skills_status(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
             workspace: host_workspace.clone(),
+            scope: AgentSkillsInstallScope::Project,
         })
         .expect("inspect workflow skills");
         assert_eq!(status.operation, "agent.skills.status");
@@ -997,6 +1064,7 @@ mod tests {
         let removed = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
             workspace: host_workspace.clone(),
+            scope: AgentSkillsInstallScope::Project,
         })
         .expect("remove workflow skills");
         assert_eq!(removed.operation, "agent.skills.uninstall");

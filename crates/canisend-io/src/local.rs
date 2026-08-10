@@ -11,6 +11,7 @@ pub const MAX_LOCAL_SOURCE_BYTES: u64 = 16 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LocalTextKind {
     Markdown,
+    Typst,
     PlainText,
     Json,
 }
@@ -40,6 +41,9 @@ pub fn read_local_text(path: &Path) -> Result<LocalTextDocument, IoAdapterError>
     let (kind, content_type) = match path.extension().and_then(|extension| extension.to_str()) {
         Some(extension) if extension.eq_ignore_ascii_case("md") => {
             (LocalTextKind::Markdown, "text/markdown; charset=utf-8")
+        }
+        Some(extension) if extension.eq_ignore_ascii_case("typ") => {
+            (LocalTextKind::Typst, "text/x-typst; charset=utf-8")
         }
         Some(extension) if extension.eq_ignore_ascii_case("txt") => {
             (LocalTextKind::PlainText, "text/plain; charset=utf-8")
@@ -150,6 +154,12 @@ mod tests {
         assert_eq!(
             read_local_text(&json).expect("profile JSON").kind,
             super::LocalTextKind::Json
+        );
+        let typst = root.join("profile.typ");
+        fs::write(&typst, b"= Profile evidence\n").expect("Typst fixture");
+        assert_eq!(
+            read_local_text(&typst).expect("profile Typst").kind,
+            super::LocalTextKind::Typst
         );
 
         let unsupported = root.join("advert.html");

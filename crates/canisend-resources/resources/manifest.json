@@ -10,6 +10,8 @@
   {"id":"example.generic-v4.professional-job","kind":"example","path":"examples/generic-v4/professional-job.json","version":"1.0.0"},
   {"id":"example.generic-v4.tender-proposal","kind":"example","path":"examples/generic-v4/tender-proposal.json","version":"1.0.0"},
   {"id":"example.generic-v4.internal-dossier","kind":"example","path":"examples/generic-v4/internal-dossier.json","version":"1.0.0"},
+  {"id":"example.profile-typst","kind":"example","path":"profile/profile-example.typ","version":"1.0.0"},
+  {"id":"example.workspace-readme","kind":"example","path":"README.md","version":"1.0.0"},
   {"id":"example.agent-v4.orientation-request","kind":"example","path":"examples/agent-v4/orientation-request.json","version":"4.0.0"},
   {"id":"example.agent-v4.source-intake-commit","kind":"example","path":"examples/agent-v4/source-intake-commit.json","version":"4.0.0"},
   {"id":"prompt.job-parse","kind":"prompt","path":"prompts/job-parse.md","version":"2.0.0"},

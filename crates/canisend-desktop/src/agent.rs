@@ -10,8 +10,9 @@ use canisend_app::{
     ActionReceipt, AgentAssistanceReadModel, AgentHandoffReadModel, AgentHandoffRequest, AgentHost,
     AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest, AgentPackExportReadModel,
     AgentPackExportRequest, AgentSkillsInstallReadModel, AgentSkillsInstallRequest,
-    AgentSkillsStatusReadModel, AgentSkillsStatusRequest, AgentSkillsUninstallReadModel,
-    AgentSkillsUninstallRequest, Application, desktop_cli_source_path,
+    AgentSkillsInstallScope, AgentSkillsStatusReadModel, AgentSkillsStatusRequest,
+    AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest, Application,
+    desktop_cli_source_path,
 };
 use serde::Deserialize;
 
@@ -119,6 +120,7 @@ pub(crate) async fn install_agent_skills(
         Application::install_agent_skills(&AgentSkillsInstallRequest {
             host: request.host,
             workspace: request.workspace,
+            scope: AgentSkillsInstallScope::Project,
         })
         .map_err(DesktopCommandError::application)
     })
@@ -133,6 +135,7 @@ pub(crate) async fn agent_skills_status(
         Application::agent_skills_status(&AgentSkillsStatusRequest {
             host: request.host,
             workspace: request.workspace,
+            scope: AgentSkillsInstallScope::Project,
         })
         .map_err(DesktopCommandError::application)
     })
@@ -147,6 +150,7 @@ pub(crate) async fn uninstall_agent_skills(
         Application::uninstall_agent_skills(&AgentSkillsUninstallRequest {
             host: request.host,
             workspace: request.workspace,
+            scope: AgentSkillsInstallScope::Project,
         })
         .map_err(DesktopCommandError::application)
     })

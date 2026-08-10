@@ -404,6 +404,27 @@ pub fn export(id: ResourceId, root: &Path) -> Result<PathBuf, ResourceError> {
     Ok(destination)
 }
 
+pub fn export_if_missing(id: ResourceId, root: &Path) -> Result<PathBuf, ResourceError> {
+    let resource = get(id);
+    ensure_export_root(root)?;
+    let destination = root.join(resource.descriptor.path);
+    match fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(ResourceError::UnsafeExportPath(destination));
+        }
+        Ok(_) => return Ok(destination),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => {
+            return Err(ResourceError::ExportIo {
+                path: destination,
+                source,
+            });
+        }
+    }
+    write_new_file(root, &destination, resource.bytes)?;
+    Ok(destination)
+}
+
 pub fn export_all(root: &Path) -> Result<Vec<PathBuf>, ResourceError> {
     ResourceId::ALL
         .into_iter()
