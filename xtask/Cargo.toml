@@ -10,9 +10,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-canisend-cli = { path = "../crates/canisend-cli", version = "=1.0.0-alpha.7" }
-canisend-contracts = { path = "../crates/canisend-contracts", version = "=1.0.0-alpha.7" }
-canisend-resources = { path = "../crates/canisend-resources", version = "=1.0.0-alpha.7" }
+canisend-cli = { path = "../crates/canisend-cli", version = "=1.0.0-alpha.8" }
+canisend-contracts = { path = "../crates/canisend-contracts", version = "=1.0.0-alpha.8" }
+canisend-resources = { path = "../crates/canisend-resources", version = "=1.0.0-alpha.8" }
 hex.workspace = true
 schemars.workspace = true
 semver.workspace = true

@@ -2585,7 +2585,7 @@
         <span class="truncate text-xs font-medium">{copy.localFirst}</span>
       </div>
       <div class="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-        <span>{product?.version ?? "1.0.0-alpha.7"}</span>
+        <span>{product?.version ?? "1.0.0-alpha.8"}</span>
         <Badge variant="outline" class="text-[10px]">Svelte</Badge>
       </div>
     </Sidebar.Footer>

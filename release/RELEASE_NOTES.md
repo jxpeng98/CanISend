@@ -1,4 +1,4 @@
-# CanISend 1.0.0-alpha.7
+# CanISend 1.0.0-alpha.8
 
 ## Highlights
 

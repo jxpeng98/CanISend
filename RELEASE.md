@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-alpha.7`, with additional post-tag changes that are not yet a
+- Checked-in source: `1.0.0-alpha.8`, with additional post-tag changes that are not yet a
   qualified release.
 - Latest public checkpoint: [`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7),
   built from `9986a6a63b596b7760b4721a7e97c36aedce6d51` and independently reverified after download.
