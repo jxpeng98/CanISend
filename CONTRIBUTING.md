@@ -2,7 +2,9 @@
 
 ## Toolchain
 
-Use the toolchain pinned in `rust-toolchain.toml`. The active product does not use Python development tooling.
+Use the toolchain pinned in `rust-toolchain.toml`. CanISend's product, build, tests, and release
+artifacts do not depend on Python. Trellis uses Python 3.9+ only for repository-local development
+hooks and task bookkeeping.
 
 ## Minimum sufficient checks
 
@@ -39,3 +41,11 @@ unplanned end-user runtime.
 Update the Rust-native roadmap when a tracked task is completed. Add a dated note for phase transitions, dependency
 decisions, material risks, and release evidence. Commits use Conventional Commits and should represent one auditable
 milestone.
+
+## Trellis project control
+
+Run `trellis init -u <name>` once after cloning, then let Codex or Claude Code load the tracked
+`.trellis/` workflow. Use a Trellis task for durable multi-file work; keep a contained one-turn edit
+inline when task history would add no value. Trellis task status is execution bookkeeping, not
+release authority: every Roadmap item still needs its exact GitHub Issue/milestone and committed
+evidence. See `.trellis/spec/guides/project-control.md` before creating roadmap-linked tasks.
