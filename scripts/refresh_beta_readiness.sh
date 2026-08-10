@@ -2,13 +2,14 @@
 set -euo pipefail
 
 repository="${1:-jxpeng98/CanISend}"
-mode="${2:-}"
+user_evidence="${2:-}"
+mode="${3:-}"
 if [[ ! "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo "repository must use OWNER/REPOSITORY syntax" >&2
   exit 2
 fi
-if [[ -n "$mode" && "$mode" != "--write" ]]; then
-  echo "usage: $0 [OWNER/REPOSITORY] [--write]" >&2
+if [[ -z "$user_evidence" || ! -f "$user_evidence" || ( -n "$mode" && "$mode" != "--write" ) ]]; then
+  echo "usage: $0 [OWNER/REPOSITORY] BODY_FREE_USER_EVIDENCE_JSON [--write]" >&2
   exit 2
 fi
 
@@ -18,6 +19,10 @@ for command_name in gh jq cargo git; do
     exit 1
   fi
 done
+jq -s -e 'length == 1 and (.[0] | type == "object")' "$user_evidence" >/dev/null || {
+  echo "Beta user evidence must be one JSON object" >&2
+  exit 2
+}
 
 root="$(git rev-parse --show-toplevel)"
 ledger="$root/release/beta-readiness.json"
@@ -55,17 +60,23 @@ gh release download "$alpha_tag" --repo "$repository" \
   --pattern "canisend-$version-manifest.json" --dir "$temporary"
 manifest="$temporary/canisend-$version-manifest.json"
 source_commit="$(jq -er --arg tag "$alpha_tag" \
-  '.tag == $tag and .contracts.agent_protocol == "canisend.agent/v3"
-   and .contracts.workspace_format == "canisend.workspace/v3"
+  '.tag == $tag and .contracts.agent_protocol == "canisend.agent/v4"
+   and .contracts.workspace_format == "canisend.workspace/v4"
    and .source.commit' "$manifest")"
-if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ || "$(git -C "$root" rev-parse HEAD)" != "$source_commit" ]]; then
-  echo "beta readiness refresh requires a clean checkout of the exact Alpha.7 source commit" >&2
+if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]] || ! git -C "$root" cat-file -e "$source_commit^{commit}"; then
+  echo "beta readiness refresh could not verify the exact Alpha.7 source commit" >&2
   exit 1
 fi
-release_run="$(gh api "repos/$repository/actions/workflows/release.yml/runs?head_sha=$source_commit&status=success&per_page=100" \
-  --jq '[.workflow_runs[] | select(.conclusion == "success") | .id] | max // empty')"
+provider_record="$root/release/provider-dogfood.json"
+provider_tag="$(jq -er '.candidate.tag' "$provider_record")"
+provider_source="$(jq -er '.candidate.source_commit' "$provider_record")"
+release_run="$(jq -er '.candidate.release_run' "$provider_record")"
 if [[ ! "$release_run" =~ ^[1-9][0-9]*$ ]]; then
-  echo "beta readiness refresh could not resolve the successful Alpha.7 release run" >&2
+  echo "beta readiness refresh has no provider-qualified Alpha.7 candidate run" >&2
+  exit 1
+fi
+if [[ "$provider_tag" != "$alpha_tag" || "$provider_source" != "$source_commit" ]]; then
+  echo "beta readiness refresh found public Alpha bytes that differ from provider qualification" >&2
   exit 1
 fi
 
@@ -75,8 +86,8 @@ jq -n \
   --slurpfile academic "$academic_pack" \
   --slurpfile generic "$generic_pack" '
   {
-    agent_protocol: "canisend.agent/v3",
-    workspace_format: "canisend.workspace/v3",
+    agent_protocol: "canisend.agent/v4",
+    workspace_format: "canisend.workspace/v4",
     workflow_pack_format: "canisend.workflow-pack/v1",
     workflow_packs: [$academic[0], $generic[0]]
       | map({id, version, content_digest})
@@ -91,6 +102,7 @@ jq \
   --arg release_url "$expected_url" \
   --argjson release_run "$release_run" \
   --slurpfile contracts "$temporary/contracts.json" \
+  --slurpfile user_evidence "$user_evidence" \
   --argjson all_issue_count "$all_issue_count" \
   --argjson open_issue_count "$open_issue_count" \
   '.status = "qualified"
@@ -108,6 +120,7 @@ jq \
      }
    | .known_limitations_reviewed = true
    | .contracts = $contracts[0]
+   | .user_evidence = $user_evidence[0]
    | .blocker_classes = [
        "data-loss",
        "protocol-compatibility",

@@ -154,18 +154,19 @@ independently inspected. An invented run ID or status string is not qualificatio
 
 ## Pre-Beta boundary
 
-The current source remains `1.0.0-alpha.5` in `pre-beta` while Alpha.6 is prepared as the migration
-checkpoint. The retained Alpha.4 Beta-readiness and contract-freeze records are historical inputs;
-they cannot qualify Alpha.5, Alpha.6, the dual-Pack source, or a Beta transition. Sequential Alpha
-planning resets those authorities to a canonical pending identity for the new Alpha.
+The current source remains `1.0.0-alpha.7` in `pre-beta` while the Workspace v4 and Agent v4
+checkpoint is qualified. Earlier Beta-readiness and contract-freeze records are historical inputs;
+they cannot qualify Alpha.7 or a Beta transition. Sequential Alpha planning resets those authorities
+to a canonical pending identity for the new Alpha.
 
 Alpha.6 must first prove Pack v1, Agent/Workspace v3 migration, Academic Pack parity, bounded v2
 compatibility, and exact candidate lifecycle. Alpha.7 then proves both built-in Packs and canonical
-v3 surfaces. Only a publicly qualified and independently reverified Alpha.7 may be refreshed into
+v4 surfaces. Only a publicly qualified and independently reverified Alpha.7 may be refreshed into
 the Beta-readiness record. That refresh binds the exact tag, source commit, successful release run,
-public URL, Agent/Workspace v3 contracts, Pack v1, and both embedded Pack digests. Alpha.4, Alpha.5,
-and Alpha.6 are rejected as Beta baselines even if their historical evidence remains valid for the
-bytes it originally described.
+public URL, Agent/Workspace v4 contracts, Pack v1, both embedded Pack digests, provider dogfood, and
+body-free cumulative user evidence with measured mixed-Application coverage. Alpha.4, Alpha.5, and
+Alpha.6 are rejected as Beta baselines even if their historical evidence remains valid for the bytes
+it originally described.
 
 `prepared-local` proves only that the documentation/uninstall control exists locally; it is
 deliberately weaker than `passed`, which requires the signed RC-stage matrix named by the Stable

@@ -9,7 +9,7 @@ package-candidate evidence that explains how the release reached that state.
 The Alpha-to-Beta transition is deliberately narrower than the structural stage rule: only the
 qualified public `v1.0.0-alpha.7` dual-Pack checkpoint may authorize Beta. Alpha.4, Alpha.5, and
 Alpha.6 readiness records remain historical evidence for their exact bytes and cannot be reused as
-the v3 Beta baseline.
+the v4 Beta baseline.
 
 ## Preview first
 
@@ -42,17 +42,53 @@ than five minutes in the future. Do not put any credential value in the reposito
 Refresh is also dry-run first:
 
 ```console
-./scripts/refresh_beta_readiness.sh jxpeng98/CanISend
-./scripts/refresh_beta_readiness.sh jxpeng98/CanISend --write
+./scripts/refresh_beta_readiness.sh jxpeng98/CanISend BODY_FREE_USER_EVIDENCE_JSON
+./scripts/refresh_beta_readiness.sh jxpeng98/CanISend BODY_FREE_USER_EVIDENCE_JSON --write
 ```
 
 The script queries only public issue number/state and public release identity; it never downloads issue titles,
 bodies, comments, attachments, or private application data. Any open issue stops the refresh for manual blocker
-triage. It accepts only Alpha.7, resolves the exact successful release run and source manifest,
-requires the local checkout to equal that source, and binds Agent/Workspace v3, Pack v1, and both
-embedded Pack digests. With no open issue, the candidate combines the public issue snapshot with
-the exact dual-Pack release-matrix evidence and must pass `xtask release verify-beta-readiness`
-before an explicitly requested clean-worktree write.
+triage. It accepts only Alpha.7, resolves the exact source manifest, reuses the provider-qualified candidate
+run, and binds Agent/Workspace v4, Pack v1, and both embedded Pack digests. The explicit JSON input is the
+body-free cumulative user record: it must bind that exact candidate; record at least 5 invited and 8 cumulative
+users, 20 completed flows, one mixed-Application Workspace, both Pack IDs, two academic and three non-academic
+scenario-family tokens; retain numerator/denominator pairs for unassisted completion, claim traceability,
+backup/restore, and unsupported claims; list exclusions only as counts, dispositions, and maintainer Issue
+numbers; and bind a checked-in `docs/notes/` note by SHA-256. With no open issue, the candidate combines the
+public issue snapshot with this user evidence and must pass `xtask release verify-beta-readiness` before an
+explicitly requested clean-worktree write. Missing or synthetic cohort values are not accepted as a substitute
+for completed invited-user evidence.
+
+The input has this exact shape; every number and token must come from the reviewed body-free cohort note:
+
+```json
+{
+  "schema": "canisend.beta-user-evidence/v1",
+  "status": "qualified",
+  "exact_build": {
+    "tag": "FROM_PROVIDER_DOGFOOD_RECORD",
+    "source_commit": "FROM_PROVIDER_DOGFOOD_RECORD",
+    "release_run": 0,
+    "artifact_id": 0,
+    "artifact_name": "FROM_PROVIDER_DOGFOOD_RECORD"
+  },
+  "cohort": {"invited_users": 0, "cumulative_users": 0, "completed_flows": 0},
+  "coverage": {
+    "mixed_application_workspaces": 0,
+    "workflow_pack_ids": [],
+    "academic_scenario_families": [],
+    "non_academic_scenario_families": []
+  },
+  "metrics": {
+    "unassisted_completion": {"numerator": 0, "denominator": 0},
+    "claim_traceability": {"numerator": 0, "denominator": 0},
+    "backup_restore_success": {"numerator": 0, "denominator": 0},
+    "unsupported_claims": {"numerator": 0, "denominator": 0}
+  },
+  "exclusions": [],
+  "evidence_note": {"path": "docs/notes/REVIEWED-NOTE.md", "sha256": "SHA256"}
+}
+```
 
 ## Apply intentionally
 

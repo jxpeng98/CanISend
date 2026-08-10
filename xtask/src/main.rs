@@ -30,6 +30,7 @@ const DESKTOP_PROFILE_RECORD_SCHEMA: &str = "canisend.desktop-profile-record/v1"
 const DESKTOP_PROFILE_SUMMARY_SCHEMA: &str = "canisend.desktop-profile-summary/v1";
 const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
+const BETA_USER_EVIDENCE_SCHEMA: &str = "canisend.beta-user-evidence/v1";
 const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
@@ -2826,6 +2827,9 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "gh api --paginate --slurp",
         "select(has(\"pull_request\") | not)",
         "verify-beta-readiness",
+        "BODY_FREE_USER_EVIDENCE_JSON",
+        "canisend.agent/v4",
+        ".user_evidence = $user_evidence[0]",
         "open_issue_count",
         "--write",
     ] {
@@ -5329,6 +5333,7 @@ fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Res
             "Beta readiness does not bind canonical v4 contracts and both Pack digests".to_owned(),
         );
     }
+    validate_alpha_seven_evidence_bindings(&readiness, root)?;
     let freeze: Value = serde_json::from_slice(
         &fs::read(root.join("release/beta-contract-freeze.json"))
             .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
@@ -9591,16 +9596,37 @@ fn check_provider_dogfood() -> Result<(), String> {
     Ok(())
 }
 
-fn provider_exact_fields(value: &Value, context: &str, expected: &[&str]) -> Result<(), String> {
+fn exact_json_fields(value: &Value, context: &str, expected: &[&str]) -> Result<(), String> {
     let object = value
         .as_object()
-        .ok_or_else(|| format!("provider dogfood {context} must be an object"))?;
+        .ok_or_else(|| format!("{context} must be an object"))?;
     let expected = expected.iter().copied().collect::<BTreeSet<_>>();
     let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
     if actual != expected {
         return Err(format!(
-            "provider dogfood {context} fields must be {expected:?}, found {actual:?}"
+            "{context} fields must be {expected:?}, found {actual:?}"
         ));
+    }
+    Ok(())
+}
+
+fn validate_evidence_note(value: &Value, context: &str, root: &Path) -> Result<(), String> {
+    exact_json_fields(value, context, &["path", "sha256"])?;
+    let relative = required_string(value, "path", context)?;
+    let relative_path = Path::new(relative);
+    if relative_path.is_absolute()
+        || relative.contains('\\')
+        || relative_path
+            .components()
+            .any(|part| !matches!(part, std::path::Component::Normal(_)))
+        || !relative.starts_with("docs/notes/")
+    {
+        return Err(format!("{context} path is unsafe"));
+    }
+    let digest = required_string(value, "sha256", context)?;
+    validate_lower_hex(&format!("{context} SHA-256"), digest, 64)?;
+    if sha256_file(&root.join(relative_path))? != digest {
+        return Err(format!("{context} digest is stale"));
     }
     Ok(())
 }
@@ -9613,9 +9639,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         )
     })?)
     .map_err(|error| format!("provider dogfood record is invalid JSON: {error}"))?;
-    provider_exact_fields(
+    exact_json_fields(
         &record,
-        "record",
+        "provider dogfood record",
         &[
             "candidate",
             "consent",
@@ -9634,9 +9660,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     }
 
     let candidate = &record["candidate"];
-    provider_exact_fields(
+    exact_json_fields(
         candidate,
-        "candidate",
+        "provider dogfood candidate",
         &[
             "archive_sha256",
             "artifact_id",
@@ -9678,9 +9704,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     }
 
     let consent = &record["consent"];
-    provider_exact_fields(
+    exact_json_fields(
         consent,
-        "consent",
+        "provider dogfood consent",
         &[
             "content_scope",
             "provider_send",
@@ -9700,9 +9726,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     }
 
     let contracts = &record["contracts"];
-    provider_exact_fields(
+    exact_json_fields(
         contracts,
-        "contracts",
+        "provider dogfood contracts",
         &[
             "agent_protocol",
             "resource_format",
@@ -9724,27 +9750,7 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     }
 
     let evidence = &record["evidence_note"];
-    provider_exact_fields(evidence, "evidence note", &["path", "sha256"])?;
-    let relative = required_string(evidence, "path", "provider dogfood evidence note")?;
-    let relative_path = Path::new(relative);
-    if relative_path.is_absolute()
-        || relative.contains('\\')
-        || relative_path
-            .components()
-            .any(|part| !matches!(part, std::path::Component::Normal(_)))
-        || !relative.starts_with("docs/notes/")
-    {
-        return Err("provider dogfood evidence note path is unsafe".to_owned());
-    }
-    let evidence_digest = required_string(evidence, "sha256", "provider dogfood evidence note")?;
-    validate_lower_hex(
-        "provider dogfood evidence note SHA-256",
-        evidence_digest,
-        64,
-    )?;
-    if sha256_file(&root.join(relative_path))? != evidence_digest {
-        return Err("provider dogfood evidence note digest is stale".to_owned());
-    }
+    validate_evidence_note(evidence, "provider dogfood evidence note", root)?;
 
     let expected_packs = beta_readiness_contracts(root)?["workflow_packs"].clone();
     if record["packs"] != expected_packs {
@@ -9793,9 +9799,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         return Err("provider dogfood must contain the three canonical scenarios".to_owned());
     }
     for (scenario, (scenario_id, host, pack_id)) in scenarios.iter().zip(expected_scenarios) {
-        provider_exact_fields(
+        exact_json_fields(
             scenario,
-            "scenario",
+            "provider dogfood scenario",
             &[
                 "application_revision_after",
                 "application_revision_before",
@@ -9843,9 +9849,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     if excluded.len() != 1 {
         return Err("provider dogfood must record the rejected stale-host attempt".to_owned());
     }
-    provider_exact_fields(
+    exact_json_fields(
         &excluded[0],
-        "excluded attempt",
+        "provider dogfood excluded attempt",
         &[
             "disposition",
             "host",
@@ -9880,6 +9886,239 @@ fn validate_provider_dogfood_readiness_binding(
         }
     }
     Ok(())
+}
+
+fn beta_metric(value: &Value, name: &str) -> Result<(u64, u64), String> {
+    let context = format!("Beta user-evidence metric `{name}`");
+    exact_json_fields(value, &context, &["denominator", "numerator"])?;
+    let numerator = value["numerator"]
+        .as_u64()
+        .ok_or_else(|| format!("{context} numerator must be a non-negative integer"))?;
+    let denominator = value["denominator"]
+        .as_u64()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("{context} denominator must be positive"))?;
+    if numerator > denominator {
+        return Err(format!("{context} numerator exceeds its denominator"));
+    }
+    Ok((numerator, denominator))
+}
+
+fn beta_token_set(value: &Value, context: &str) -> Result<BTreeSet<String>, String> {
+    let values = string_set(value, context)?;
+    for value in &values {
+        validate_beta_token(value, context)?;
+    }
+    Ok(values)
+}
+
+fn validate_beta_token(value: &str, context: &str) -> Result<(), String> {
+    if value.len() > 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        return Err(format!(
+            "{context} entries must be 1..64 character lowercase body-free tokens"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_beta_user_evidence(
+    evidence: &Value,
+    provider: &Value,
+    root: &Path,
+) -> Result<(), String> {
+    exact_json_fields(
+        evidence,
+        "Beta user evidence",
+        &[
+            "cohort",
+            "coverage",
+            "evidence_note",
+            "exact_build",
+            "exclusions",
+            "metrics",
+            "schema",
+            "status",
+        ],
+    )?;
+    if evidence["schema"] != BETA_USER_EVIDENCE_SCHEMA || evidence["status"] != "qualified" {
+        return Err("Beta user evidence must use v1 schema and qualified status".to_owned());
+    }
+
+    let exact_build = &evidence["exact_build"];
+    exact_json_fields(
+        exact_build,
+        "Beta user-evidence exact build",
+        &[
+            "artifact_id",
+            "artifact_name",
+            "release_run",
+            "source_commit",
+            "tag",
+        ],
+    )?;
+    for field in [
+        "artifact_id",
+        "artifact_name",
+        "release_run",
+        "source_commit",
+        "tag",
+    ] {
+        if exact_build[field] != provider["candidate"][field] {
+            return Err(format!(
+                "Beta user evidence is not bound to the provider-qualified candidate `{field}`"
+            ));
+        }
+    }
+
+    let cohort = &evidence["cohort"];
+    exact_json_fields(
+        cohort,
+        "Beta user-evidence cohort",
+        &["completed_flows", "cumulative_users", "invited_users"],
+    )?;
+    let invited_users = cohort["invited_users"]
+        .as_u64()
+        .ok_or_else(|| "Beta user evidence invited_users must be an integer".to_owned())?;
+    let cumulative_users = cohort["cumulative_users"]
+        .as_u64()
+        .ok_or_else(|| "Beta user evidence cumulative_users must be an integer".to_owned())?;
+    let completed_flows = cohort["completed_flows"]
+        .as_u64()
+        .ok_or_else(|| "Beta user evidence completed_flows must be an integer".to_owned())?;
+    if invited_users < 5
+        || cumulative_users < 8
+        || cumulative_users < invited_users
+        || completed_flows < 20
+    {
+        return Err(
+            "Beta user evidence does not meet the 5 invited / 8 cumulative user / 20 flow minimums"
+                .to_owned(),
+        );
+    }
+
+    let coverage = &evidence["coverage"];
+    exact_json_fields(
+        coverage,
+        "Beta user-evidence coverage",
+        &[
+            "academic_scenario_families",
+            "mixed_application_workspaces",
+            "non_academic_scenario_families",
+            "workflow_pack_ids",
+        ],
+    )?;
+    if coverage["mixed_application_workspaces"]
+        .as_u64()
+        .filter(|value| *value > 0)
+        .is_none()
+    {
+        return Err("Beta user evidence has no mixed-Application Workspace".to_owned());
+    }
+    let expected_packs = BTreeSet::from([
+        "org.canisend.academic-job".to_owned(),
+        "org.canisend.generic-application".to_owned(),
+    ]);
+    if string_set(
+        &coverage["workflow_pack_ids"],
+        "Beta user-evidence workflow Pack IDs",
+    )? != expected_packs
+    {
+        return Err("Beta user evidence must cover both built-in workflow Packs".to_owned());
+    }
+    if beta_token_set(
+        &coverage["academic_scenario_families"],
+        "Beta user-evidence academic scenario families",
+    )?
+    .len()
+        < 2
+        || beta_token_set(
+            &coverage["non_academic_scenario_families"],
+            "Beta user-evidence non-academic scenario families",
+        )?
+        .len()
+            < 3
+    {
+        return Err(
+            "Beta user evidence must cover two academic and three non-academic scenario families"
+                .to_owned(),
+        );
+    }
+
+    let metrics = &evidence["metrics"];
+    exact_json_fields(
+        metrics,
+        "Beta user-evidence metrics",
+        &[
+            "backup_restore_success",
+            "claim_traceability",
+            "unassisted_completion",
+            "unsupported_claims",
+        ],
+    )?;
+    let (unassisted, unassisted_total) =
+        beta_metric(&metrics["unassisted_completion"], "unassisted_completion")?;
+    let (traceable, audited_claims) =
+        beta_metric(&metrics["claim_traceability"], "claim_traceability")?;
+    let (restored, restore_attempts) =
+        beta_metric(&metrics["backup_restore_success"], "backup_restore_success")?;
+    let (unsupported, unsupported_total) =
+        beta_metric(&metrics["unsupported_claims"], "unsupported_claims")?;
+    if unassisted_total != completed_flows
+        || u128::from(unassisted) * 100 < u128::from(unassisted_total) * 80
+        || traceable != audited_claims
+        || restored != restore_attempts
+        || unsupported != 0
+        || unsupported_total != audited_claims
+    {
+        return Err("Beta user-evidence metrics do not meet the Roadmap scorecard".to_owned());
+    }
+
+    let exclusions = evidence["exclusions"]
+        .as_array()
+        .ok_or_else(|| "Beta user-evidence exclusions must be an array".to_owned())?;
+    for exclusion in exclusions {
+        exact_json_fields(
+            exclusion,
+            "Beta user-evidence exclusion",
+            &["category", "count", "disposition", "issue_numbers"],
+        )?;
+        validate_beta_token(
+            required_string(exclusion, "category", "Beta user-evidence exclusion")?,
+            "Beta user-evidence exclusion category",
+        )?;
+        validate_beta_token(
+            required_string(exclusion, "disposition", "Beta user-evidence exclusion")?,
+            "Beta user-evidence exclusion disposition",
+        )?;
+        if exclusion["count"]
+            .as_u64()
+            .filter(|value| *value > 0)
+            .is_none()
+            || exclusion["issue_numbers"].as_array().is_none_or(|issues| {
+                issues.is_empty()
+                    || issues
+                        .iter()
+                        .any(|issue| issue.as_u64().filter(|value| *value > 0).is_none())
+            })
+        {
+            return Err(
+                "Beta user-evidence exclusions require a positive count and maintainer Issue"
+                    .to_owned(),
+            );
+        }
+    }
+    validate_evidence_note(&evidence["evidence_note"], "Beta user-evidence note", root)
+}
+
+fn validate_alpha_seven_evidence_bindings(readiness: &Value, root: &Path) -> Result<(), String> {
+    let provider =
+        validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), root)?;
+    validate_provider_dogfood_readiness_binding(&provider, readiness)?;
+    validate_beta_user_evidence(&readiness["user_evidence"], &provider, root)
 }
 
 fn check_beta_readiness() -> Result<(), String> {
@@ -9937,9 +10176,7 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
     }
     if alpha_tag.ends_with("-alpha.7") {
         let root = repository_root();
-        let provider =
-            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)?;
-        validate_provider_dogfood_readiness_binding(&provider, &ledger)?;
+        validate_alpha_seven_evidence_bindings(&ledger, &root)?;
     }
     let audited_at = ledger["audited_at"]
         .as_str()
@@ -15986,6 +16223,42 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn beta_user_evidence_fixture(provider: &Value) -> Value {
+        json!({
+            "schema": BETA_USER_EVIDENCE_SCHEMA,
+            "status": "qualified",
+            "exact_build": {
+                "tag": provider["candidate"]["tag"],
+                "source_commit": provider["candidate"]["source_commit"],
+                "release_run": provider["candidate"]["release_run"],
+                "artifact_id": provider["candidate"]["artifact_id"],
+                "artifact_name": provider["candidate"]["artifact_name"],
+            },
+            "cohort": {
+                "invited_users": 5,
+                "cumulative_users": 8,
+                "completed_flows": 20,
+            },
+            "coverage": {
+                "mixed_application_workspaces": 1,
+                "workflow_pack_ids": [
+                    "org.canisend.academic-job",
+                    "org.canisend.generic-application",
+                ],
+                "academic_scenario_families": ["faculty-role", "research-role"],
+                "non_academic_scenario_families": ["grant", "professional-role", "tender"],
+            },
+            "metrics": {
+                "unassisted_completion": {"numerator": 16, "denominator": 20},
+                "claim_traceability": {"numerator": 12, "denominator": 12},
+                "backup_restore_success": {"numerator": 2, "denominator": 2},
+                "unsupported_claims": {"numerator": 0, "denominator": 12},
+            },
+            "exclusions": [],
+            "evidence_note": provider["evidence_note"],
+        })
+    }
+
     #[test]
     fn domain_coupling_inventory_is_current_and_fails_closed_on_drift() {
         let root = repository_root();
@@ -17055,6 +17328,45 @@ mod tests {
     }
 
     #[test]
+    fn beta_user_evidence_rejects_missing_stale_inconsistent_or_unbound_records() {
+        let root = repository_root();
+        let provider =
+            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
+                .expect("provider dogfood record");
+        let evidence = beta_user_evidence_fixture(&provider);
+        validate_beta_user_evidence(&evidence, &provider, &root)
+            .expect("qualified Beta user evidence fixture");
+
+        for (name, mut rejected) in [
+            ("missing", Value::Null),
+            ("stale", evidence.clone()),
+            ("inconsistent", evidence.clone()),
+            ("single-pack", evidence.clone()),
+            ("unbound", evidence.clone()),
+            ("private", evidence.clone()),
+        ] {
+            match name {
+                "missing" => {}
+                "stale" => rejected["evidence_note"]["sha256"] = json!("0".repeat(64)),
+                "inconsistent" => {
+                    rejected["metrics"]["unassisted_completion"]["denominator"] = json!(19)
+                }
+                "single-pack" => {
+                    rejected["coverage"]["workflow_pack_ids"] =
+                        json!(["org.canisend.generic-application"])
+                }
+                "unbound" => rejected["exact_build"]["source_commit"] = json!("0".repeat(40)),
+                "private" => rejected["body"] = json!("must not be retained"),
+                _ => unreachable!(),
+            }
+            assert!(
+                validate_beta_user_evidence(&rejected, &provider, &root).is_err(),
+                "{name} Beta user evidence must fail"
+            );
+        }
+    }
+
+    #[test]
     fn beta_transition_accepts_only_exact_dual_pack_alpha_seven() {
         let root = std::env::temp_dir().join(format!(
             "canisend-alpha7-beta-authority-{}",
@@ -17063,20 +17375,37 @@ mod tests {
         if root.exists() {
             fs::remove_dir_all(&root).expect("remove stale Alpha.7 authority fixture");
         }
-        fs::create_dir_all(root.join("release")).expect("create release fixture");
-        for (id, digest) in [
-            ("org.canisend.academic-job", "a".repeat(64)),
-            ("org.canisend.generic-application", "b".repeat(64)),
+        let repository = repository_root();
+        for relative in [
+            "release/provider-dogfood.json",
+            "docs/notes/rust-native/2026-08-10-alpha7-exact-candidate-host-dogfood.md",
+            "crates/canisend-resources/resources/agent/v4/task-resource-model.json",
+            "crates/canisend-resources/resources/skills/canisend-intake/SKILL.md",
+            "crates/canisend-resources/resources/skills/canisend-materials/SKILL.md",
+            "crates/canisend-resources/resources/skills/canisend-review-export/SKILL.md",
+            "crates/canisend-resources/resources/skills/canisend-workspace/SKILL.md",
+            "crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json",
+            "crates/canisend-resources/resources/workflow-packs/org.canisend.generic-application/manifest.json",
         ] {
-            write_pretty_json(
-                &root.join(format!(
-                    "crates/canisend-resources/resources/workflow-packs/{id}/manifest.json"
-                )),
-                &json!({"id": id, "version": "1.0.0", "content_digest": digest}),
-            )
-            .expect("write embedded Pack fixture");
+            let destination = root.join(relative);
+            fs::create_dir_all(destination.parent().expect("fixture parent"))
+                .expect("create Alpha.7 evidence fixture parent");
+            fs::copy(repository.join(relative), destination)
+                .expect("copy Alpha.7 evidence fixture");
         }
-        let source = "7".repeat(40);
+        let provider =
+            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
+                .expect("fixture provider dogfood record");
+        let source = required_string(
+            &provider["candidate"],
+            "source_commit",
+            "fixture provider candidate",
+        )
+        .expect("fixture provider source")
+        .to_owned();
+        let release_run = provider["candidate"]["release_run"]
+            .as_u64()
+            .expect("fixture provider run");
         write_pretty_json(
             &root.join("release/beta-readiness.json"),
             &json!({
@@ -17085,10 +17414,11 @@ mod tests {
                 "alpha_release": {
                     "tag": "v1.0.0-alpha.7",
                     "source_commit": source,
-                    "release_run": 77_u64,
+                    "release_run": release_run,
                     "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7"
                 },
-                "contracts": beta_readiness_contracts(&root).expect("Beta contracts")
+                "contracts": beta_readiness_contracts(&root).expect("Beta contracts"),
+                "user_evidence": beta_user_evidence_fixture(&provider),
             }),
         )
         .expect("write readiness fixture");
