@@ -61,6 +61,7 @@
     "ProfileSourceKind": {
       "enum": [
         "markdown",
+        "typst",
         "plain-text",
         "json"
       ],

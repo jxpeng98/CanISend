@@ -155,14 +155,14 @@
 
 <Collapsible.Root bind:open={detailsOpen}>
   <section
-    class="min-w-0 border-b bg-background px-4 py-[var(--workspace-context-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
+    class="min-w-0 px-1 pb-2"
     aria-label={copy.workspaceContext}
     data-testid="workspace-context-bar"
   >
     <div
-      class="mx-auto flex max-w-[1480px] flex-col gap-[var(--workspace-context-gap)] rounded-lg border bg-card p-[var(--workspace-context-padding)] shadow-sm transition-[gap,padding] duration-200 ease-out motion-reduce:transition-none"
+      class="flex min-w-0 flex-col gap-[var(--workspace-context-gap)] rounded-lg border border-sidebar-border bg-card p-[var(--workspace-context-padding)] shadow-sm"
     >
-      <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-end">
+      <div class="flex min-w-0 flex-col gap-2">
         <div class="workspace-context-grid min-w-0 flex-1 gap-[var(--workspace-context-gap)]">
           <div class="min-w-0 space-y-1.5">
             <label
@@ -270,7 +270,7 @@
               <Button
                 variant="ghost"
                 size="desktop"
-                class="w-full shrink-0 justify-between text-muted-foreground lg:w-auto"
+                class="w-full shrink-0 justify-between text-muted-foreground"
                 {...props}
               >
                 {copy.applicationSnapshot}
@@ -351,7 +351,7 @@
               </div>
             </dl>
 
-            <div class="flex flex-col justify-between gap-2 2xl:flex-row 2xl:items-center">
+            <div class="flex flex-col justify-between gap-2">
               <nav class="min-w-0 flex-1" aria-label={copy.applicationWorkspaceNavigation}>
                 <ol class="workspace-section-grid gap-1.5 rounded-lg bg-muted/55 p-1">
                   {#each sections as section, index (section.id)}
@@ -405,9 +405,7 @@
             </div>
 
             {#if dossier?.blockers[0] || lastAction}
-              <div
-                class="flex flex-col justify-between gap-2 border-t pt-2 lg:flex-row lg:items-center"
-              >
+              <div class="flex flex-col justify-between gap-2 border-t pt-2">
                 <div class="flex min-w-0 items-center gap-2">
                   {#if dossier?.blockers[0]}
                     <TriangleAlert

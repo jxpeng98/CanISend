@@ -28,6 +28,7 @@ pub enum SourceKind {
 #[serde(rename_all = "kebab-case")]
 pub enum ProfileSourceKind {
     Markdown,
+    Typst,
     PlainText,
     Json,
 }

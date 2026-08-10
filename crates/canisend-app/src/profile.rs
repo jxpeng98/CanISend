@@ -99,6 +99,7 @@ impl Application {
         let document = read_local_text(path)?;
         let kind = match document.kind {
             LocalTextKind::Markdown => ProfileSourceKind::Markdown,
+            LocalTextKind::Typst => ProfileSourceKind::Typst,
             LocalTextKind::PlainText => ProfileSourceKind::PlainText,
             LocalTextKind::Json => ProfileSourceKind::Json,
         };
@@ -153,6 +154,7 @@ impl Application {
         let document = read_local_text(path)?;
         let kind = match document.kind {
             LocalTextKind::Markdown => ProfileSourceKind::Markdown,
+            LocalTextKind::Typst => ProfileSourceKind::Typst,
             LocalTextKind::PlainText => ProfileSourceKind::PlainText,
             LocalTextKind::Json => ProfileSourceKind::Json,
         };
@@ -472,9 +474,9 @@ mod tests {
     #[test]
     fn clean_v4_profile_source_list_is_neutral_and_body_free() {
         let root = temporary_root("source-v4");
-        let source_path = temporary_root("private-v4").with_extension("md");
+        let source_path = temporary_root("private-v4").with_extension("typ");
         let sentinel = "PRIVATE-V4-PROFILE-SENTINEL-DO-NOT-LEAK";
-        fs::write(&source_path, format!("# Profile\n\n{sentinel}\n")).expect("write source");
+        fs::write(&source_path, format!("= Profile\n\n{sentinel}\n")).expect("write source");
         Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
 
         let imported = Application::import_profile_source_v4(
@@ -489,6 +491,14 @@ mod tests {
         assert_eq!(listed.operation, "profile-source.list");
         assert_eq!(listed.data.profile_revision, 1);
         assert_eq!(listed.data.sources[0].id, imported.data.source.id);
+        assert_eq!(
+            listed.data.sources[0].kind,
+            canisend_contracts::ProfileSourceKind::Typst
+        );
+        assert_eq!(
+            listed.data.sources[0].content_type,
+            "text/x-typst; charset=utf-8"
+        );
         assert!(listed.compatibility.is_none());
         assert!(
             !serde_json::to_string(&listed)

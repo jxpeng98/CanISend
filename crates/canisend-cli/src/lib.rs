@@ -11,8 +11,8 @@ use std::{
 };
 
 use canisend_app::{
-    AgentHost, AgentMcpConfigurationRequest, AgentSkillsInstallRequest, Application,
-    ApplicationArchiveRequest, ApplicationError, ApplicationFlowCreateRequestV3,
+    AgentHost, AgentMcpConfigurationRequest, AgentSkillsInstallRequest, AgentSkillsInstallScope,
+    Application, ApplicationArchiveRequest, ApplicationError, ApplicationFlowCreateRequestV3,
     ApplicationFlowCreateRequestV4, PrivateReadConsent, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
@@ -201,7 +201,7 @@ enum ApplicationCommand {
 enum ProfileSourceCommand {
     /// List body-free Profile Source metadata from the current Workspace v4.
     List(OutputArgs),
-    /// Import one reviewed Markdown, plain-text, or JSON file into Workspace v4 authority.
+    /// Import one reviewed Typst, Markdown, plain-text, or JSON file into Workspace v4 authority.
     Import(ProfileSourceImportArgs),
 }
 
@@ -420,7 +420,7 @@ struct ApplicationArchiveArgs {
 
 #[derive(Debug, Args)]
 struct ProfileSourceImportArgs {
-    /// Reviewed local Markdown, plain-text, or JSON file.
+    /// Reviewed local Typst, Markdown, plain-text, or JSON file.
     source: PathBuf,
     /// Privacy classification stored with the source.
     #[arg(long, value_enum)]
@@ -1092,6 +1092,7 @@ fn host_setup(
     let skills = Application::install_agent_skills(&AgentSkillsInstallRequest {
         host,
         workspace: root,
+        scope: AgentSkillsInstallScope::Project,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
@@ -1128,6 +1129,7 @@ fn host_status(
     let skills = Application::agent_skills_status(&AgentSkillsInstallRequest {
         host,
         workspace: root.clone(),
+        scope: AgentSkillsInstallScope::Project,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
@@ -1174,6 +1176,7 @@ fn host_remove(
     let skills = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
         host,
         workspace: root,
+        scope: AgentSkillsInstallScope::Project,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;

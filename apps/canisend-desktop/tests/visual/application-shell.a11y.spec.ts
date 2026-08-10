@@ -150,9 +150,15 @@ test("keyboard traversal reaches the skip link and primary navigation", async ({
   await expect(skipLink).toBeFocused();
   await expect(skipLink).toBeVisible();
 
+  const workspace = page.getByRole("button", { name: "Choose a workspace to begin", exact: true });
+  await page.keyboard.press("Tab");
+  await expect(workspace).toBeFocused();
+
   const today = page.getByRole("button", { name: "Today", exact: true });
   await page.keyboard.press("Tab");
   await expect(today).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(workspace).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(skipLink).toBeFocused();
 

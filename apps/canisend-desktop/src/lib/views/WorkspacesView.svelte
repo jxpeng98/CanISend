@@ -26,11 +26,13 @@
   import { Input } from "$lib/components/ui/input/index.js";
   import * as Item from "$lib/components/ui/item/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import * as NativeSelect from "$lib/components/ui/native-select/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { Skeleton } from "$lib/components/ui/skeleton/index.js";
   import {
     chooseWorkspaceDirectory,
     type AgentHost,
+    type AgentSkillsInstallScope,
     type RegistrySnapshot,
     type WorkspaceHealthReadModel,
     type WorkspaceReadModel,
@@ -47,7 +49,12 @@
     busy: boolean;
     onRefresh: () => Promise<boolean>;
     onSelect: (path: string) => Promise<boolean>;
-    onCreate: (alias: string, path: string, hosts: AgentHost[]) => Promise<boolean>;
+    onCreate: (
+      alias: string,
+      path: string,
+      hosts: AgentHost[],
+      skillsScope: AgentSkillsInstallScope,
+    ) => Promise<boolean>;
     onConnect: (alias: string, path: string) => Promise<boolean>;
     onRemove: (path: string) => Promise<boolean>;
     onCheck: () => Promise<boolean>;
@@ -83,6 +90,7 @@
   let createPath = $state("");
   let createCodex = $state(true);
   let createClaude = $state(false);
+  let createSkillsScope = $state<AgentSkillsInstallScope>("project");
   let connectAlias = $state("");
   let connectPath = $state("");
   let pendingRemove = $state<string | null>(null);
@@ -112,12 +120,13 @@
     const hosts: AgentHost[] = [];
     if (createCodex) hosts.push("codex");
     if (createClaude) hosts.push("claude");
-    if (await onCreate(createAlias.trim(), createPath, hosts)) {
+    if (await onCreate(createAlias.trim(), createPath, hosts, createSkillsScope)) {
       createOpen = false;
       createAlias = "";
       createPath = "";
       createCodex = true;
       createClaude = false;
+      createSkillsScope = "project";
     }
   }
 
@@ -426,6 +435,22 @@
             <Label for="create-workspace-claude">{copy.claude}</Label>
             <p class="text-xs text-muted-foreground">{copy.claudeSetupDescription}</p>
           </div>
+        </div>
+        <div class="space-y-2">
+          <Label for="create-workspace-skills-scope">{copy.skillsInstallationLocation}</Label>
+          <NativeSelect.Root
+            id="create-workspace-skills-scope"
+            class="w-full"
+            bind:value={createSkillsScope}
+          >
+            <NativeSelect.Option value="project">{copy.skillsProject}</NativeSelect.Option>
+            <NativeSelect.Option value="global">{copy.skillsGlobal}</NativeSelect.Option>
+          </NativeSelect.Root>
+          <p class="text-xs text-muted-foreground">
+            {createSkillsScope === "project"
+              ? copy.skillsProjectDescription
+              : copy.skillsGlobalDescription}
+          </p>
         </div>
         <p class="text-xs text-muted-foreground">{copy.agentSetupOptional}</p>
       </fieldset>

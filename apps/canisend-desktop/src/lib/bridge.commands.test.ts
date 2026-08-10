@@ -71,13 +71,14 @@ describe("typed Tauri command requests", () => {
   });
 
   it("creates one neutral Workspace without a Workspace-level Pack field", async () => {
-    await createWorkspace("Mixed applications", "/tmp/workspace", ["codex", "claude"]);
+    await createWorkspace("Mixed applications", "/tmp/workspace", ["codex", "claude"], "global");
 
     expect(mocks.invoke).toHaveBeenCalledWith("create_workspace", {
       request: {
         alias: "Mixed applications",
         path: "/tmp/workspace",
         hosts: ["codex", "claude"],
+        skills_scope: "global",
       },
     });
   });

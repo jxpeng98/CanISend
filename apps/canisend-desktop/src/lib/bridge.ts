@@ -157,6 +157,7 @@ export interface WorkspaceReadModel {
 }
 
 export type AgentHost = "codex" | "claude" | "generic";
+export type AgentSkillsInstallScope = "project" | "global";
 
 export interface WorkspaceBootstrapHostReadModel {
   host: AgentHost;
@@ -863,7 +864,7 @@ export type AssociationChangeV4 = "associate" | "unlink";
 
 export interface ProfileSourceRecord {
   id: string;
-  kind: "markdown" | "plain-text" | "json";
+  kind: "markdown" | "typst" | "plain-text" | "json";
   original: Record<string, unknown>;
   normalized_text: Record<string, unknown>;
   content_type: string;
@@ -1628,9 +1629,10 @@ export async function createWorkspace(
   alias: string,
   path: string,
   hosts: AgentHost[],
+  skillsScope: AgentSkillsInstallScope,
 ): Promise<WorkspaceBootstrapReadModel> {
   return invoke("create_workspace", {
-    request: { alias, path, hosts },
+    request: { alias, path, hosts, skills_scope: skillsScope },
   });
 }
 
@@ -3273,7 +3275,7 @@ export async function chooseProfileSource(): Promise<string | null> {
     filters: [
       {
         name: "Profile source",
-        extensions: ["md", "markdown", "txt", "json"],
+        extensions: ["typ", "md", "markdown", "txt", "json"],
       },
     ],
   });

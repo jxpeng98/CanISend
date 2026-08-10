@@ -8,14 +8,14 @@ use std::{
 use canisend_app::{
     ACADEMIC_JOB_WORKFLOW_PACK_ID, ActionReceipt, AgentHost, AgentMcpConfigurationReadModel,
     AgentMcpConfigurationRequest, AgentSkillsInstallReadModel, AgentSkillsInstallRequest,
-    Application, ApplicationDossierListReadModel, ApplicationDossierReadModel, ApplicationError,
-    ApprovalBrokerError, BackupReadModel, ContentCatalogFilter, ContentCatalogReadModel,
-    ContentSearchReadModel, ContentSearchRequest, DoctorSummary,
-    GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PrivateReadConsent, ProductSummary,
-    SourceImportReadModel, WorkflowPackPresentationLocale, WorkflowPackPresentationReadModel,
-    WorkspaceHealthReadModel, WorkspaceRegistry, WorkspaceRepairReadModel,
-    WorkspaceRestoreReadModel, WorkspaceV4ReadModel, default_registry_path,
-    desktop_cli_source_path, validate_workspace_alias,
+    AgentSkillsInstallScope, Application, ApplicationDossierListReadModel,
+    ApplicationDossierReadModel, ApplicationError, ApprovalBrokerError, BackupReadModel,
+    ContentCatalogFilter, ContentCatalogReadModel, ContentSearchReadModel, ContentSearchRequest,
+    DoctorSummary, GENERIC_APPLICATION_WORKFLOW_PACK_ID, NetworkFetchConsent, PrivateReadConsent,
+    ProductSummary, SourceImportReadModel, WorkflowPackPresentationLocale,
+    WorkflowPackPresentationReadModel, WorkspaceHealthReadModel, WorkspaceRegistry,
+    WorkspaceRepairReadModel, WorkspaceRestoreReadModel, WorkspaceV4ReadModel,
+    default_registry_path, desktop_cli_source_path, validate_workspace_alias,
 };
 use canisend_contracts::ApplicationPackBindingV3;
 use serde::{Deserialize, Serialize};
@@ -146,6 +146,8 @@ pub(crate) struct WorkspaceCreateRequest {
     path: PathBuf,
     #[serde(default)]
     hosts: Vec<AgentHost>,
+    #[serde(default)]
+    skills_scope: AgentSkillsInstallScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -334,6 +336,7 @@ fn create_workspace_impl(
         let skills = Application::install_agent_skills(&AgentSkillsInstallRequest {
             host,
             workspace: action.data.path.clone(),
+            scope: request.skills_scope,
         })
         .map_err(DesktopCommandError::application)?
         .data;
@@ -834,6 +837,7 @@ mod tests {
                 alias: "Mixed applications".to_owned(),
                 path: root.clone(),
                 hosts: Vec::new(),
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             None,
         )
@@ -883,6 +887,7 @@ mod tests {
                 alias: "Mixed applications".to_owned(),
                 path: root.clone(),
                 hosts: Vec::new(),
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             None,
         )
@@ -924,6 +929,7 @@ mod tests {
                 alias: "One library".to_owned(),
                 path: root.clone(),
                 hosts: vec![AgentHost::Codex, AgentHost::Claude],
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             Some(executable.clone()),
         )
@@ -986,6 +992,7 @@ mod tests {
                 alias: "Duplicate hosts".to_owned(),
                 path: root.clone(),
                 hosts: vec![AgentHost::Codex, AgentHost::Codex],
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             None,
         )
@@ -1009,6 +1016,7 @@ mod tests {
                 alias: "Rollback".to_owned(),
                 path: root.clone(),
                 hosts: Vec::new(),
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             None,
         )
@@ -1033,6 +1041,7 @@ mod tests {
                 alias: "Rollback".to_owned(),
                 path: root.clone(),
                 hosts: Vec::new(),
+                skills_scope: AgentSkillsInstallScope::Project,
             },
             None,
         )
