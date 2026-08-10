@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — `1.0.0-alpha.7` development
+## Published `v1.0.0-alpha.7`
 
 - Replaced Workspace modes with clean `canisend.workspace/v4`: one neutral Workspace can hold
   independently Pack-bound academic and generic Applications.
@@ -14,12 +14,13 @@
   migration from the Alpha.7 surface; unsupported legacy inputs fail before mutation.
 - Added packaged host and full guarded dual-Pack MCP lifecycle smoke on Linux, Windows, and macOS.
 
-These entries describe checked-in development source. Alpha.7 is not published until exact
-candidate artifacts pass the Roadmap release gates.
+Published from `9986a6a63b596b7760b4721a7e97c36aedce6d51` on 2026-08-10 after build-once native
+qualification and independent public-download verification. The immutable release unit is at
+https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7.
 
 ## Published `v1.0.0-alpha.6`
 
-`v1.0.0-alpha.6` is the latest publicly qualified checkpoint. Its Workspace v3/Agent v2-v3
+`v1.0.0-alpha.6` is the previous publicly qualified checkpoint. Its Workspace v3/Agent v2-v3
 contracts, release notes, manifest, artifacts, and qualification evidence remain immutable at the
 tag.
 

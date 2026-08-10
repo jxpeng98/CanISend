@@ -33,43 +33,23 @@ candidates until their signed RC/Stable lifecycle matrices pass.
 
 Never copy an executable, database, or release file into `.canisend/`. Never edit `schema_migrations` manually.
 
-## Discover Pack and Workspace authority before mutation
+## Confirm Workspace v4 authority before mutation
 
-An executable upgrade and the semantic Workspace v2→v3 transition are separate operations. With
-the new binary, inspect each Workspace before running a job, Application, task, or Agent write:
+With the new binary, inspect each Workspace before running an Application or Agent write:
 
 ```console
 canisend --workspace ./applications workspace status
 ```
 
-Confirm the reported authority and exact Pack:
-
-- `org.canisend.generic-application` is a canonical Workspace v3 and uses Generic CLI/Agent v3.
-- `org.canisend.academic-job` retains the Academic compatibility journey. A v2 Workspace can be
-  previewed and migrated, but its Pack remains academic.
-
-Do not interpret v2→v3 as academic-to-generic conversion. To use the Generic Pack, create a new
-Workspace with `workspace init --pack generic-application`.
-
-For an eligible existing Workspace v2, stop all writers and create the body-free plan:
+Confirm `canisend.workspace/v4`, then list the independently Pack-bound Applications. One neutral
+Workspace may contain both built-in Packs:
 
 ```console
-canisend --workspace ./academic-applications workspace check --json
-canisend --workspace ./academic-applications workspace migration-preview --json
+canisend --workspace ./applications application list --json
 ```
 
-Review the exact Pack binding, Application count, projection conflicts, required backup bytes, and
-`migration_plan_sha256`. Commit only that digest to a new backup destination:
-
-```console
-canisend --workspace ./academic-applications workspace migrate \
-  --expected-plan-sha256 MIGRATION_PLAN_SHA256 \
-  --backup-destination ./backups/academic-before-v3 --json
-```
-
-CanISend revalidates the plan, creates and verifies the backup before mutation, and fails without a
-commit when revisions, Pack identity, managed projections, or digest changed. Keep the generated
-backup even after the migrated Workspace passes `workspace check`.
+Alpha.7 does not migrate Workspace v2/v3. An unsupported Workspace fails before mutation with
+clean-v4 initialization guidance; preserve it for use with its exact historical release.
 
 ## Upgrade from an archive
 
@@ -92,8 +72,8 @@ canisend --workspace ./applications workspace check --json
 ```
 
 Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
-binary. It does not silently perform the separately approved semantic v2→v3 transition. Migration
-history, exact Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
+binary. It does not import unsupported Workspace v2/v3 state. Migration history, exact
+Application Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
 regenerate any exported host pack or update project Skills from the desktop Agent setup journey.
 Use a new export directory; do not overwrite a pack used by an active host session.
 
@@ -142,10 +122,6 @@ check the restored workspace with the old executable:
 Only redirect normal work to the restored path after the old binary accepts it. Never restore over either workspace.
 If Beta and RC have the same schema, an older binary may still open the workspace, but the release qualification
 matrix—not an assumption—must prove that exact version pair.
-
-A backup automatically created by a newer binary's semantic v2→v3 migration is not a substitute
-for this old-binary backup: it already contains the database schema used by the newer binary even
-though v2 semantic authority remains. Keep both backups and label their creating binary/version.
 
 User-edited Markdown or Typst projections are not migration authority. Preserve them separately before choosing
 between an upgraded workspace and a restored pre-upgrade workspace; never copy an edited projection into SQLite or

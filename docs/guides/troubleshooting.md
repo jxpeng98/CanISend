@@ -22,12 +22,12 @@ canisend --workspace ./applications workspace init
 
 ### Pack or Workspace generation mismatch
 
-Run `workspace status` and use the reported Pack. Generic v3 operations require
-`org.canisend.generic-application`; Academic `job`, `profile`, `task`, and Agent v2 compatibility
-operations require `org.canisend.academic-job`. Do not retry by editing `canisend.toml` or SQLite.
-Create a separate Workspace for another Pack. For an eligible Academic Workspace v2, follow the
-reviewed `workspace migration-preview` and digest-bound migration procedure in the
-[upgrade guide](upgrade-and-rollback.md); migration preserves the Academic Pack.
+Run `workspace status` and `application list`. Alpha.7 accepts only `canisend.workspace/v4`; one
+neutral Workspace may contain independently bound `org.canisend.generic-application` and
+`org.canisend.academic-job` Applications. Use the selected Application's exact Pack, revision, and
+snapshot. Do not retry by editing `canisend.toml` or SQLite. Workspace v2/v3 and Agent v2/v3 are
+unsupported and fail before mutation; initialize a clean v4 Workspace or use the exact historical
+release with a preserved legacy Workspace.
 
 ### `pdf_text_unavailable`
 
@@ -42,9 +42,9 @@ time-budget rejection is also reported as a bounded PDF/input error; splitting c
 
 ### `consent.required`
 
-Read the response's exact scopes and artifacts. Use `--allow-private-read` only after approving the declared task
-inputs, `--allow-provider-send` only for a configured-provider task, and `--allow-private-export` only for a local
-package/PDF destination. A flag applies to that command, not future work.
+Read the response's exact scopes, artifacts, and preview digest. Grant private-read, provider-send,
+network-fetch, or private-export consent only for that reviewed operation. Consent applies to the
+exact preview, not future work.
 
 ### `candidate.schema_invalid` or `candidate.semantic_invalid`
 

@@ -7,16 +7,16 @@ generic Applications coexist in one Workspace without a Workspace mode. The firs
 `org.canisend.academic-job` and `org.canisend.generic-application` Packs are equal reference Packs
 at that boundary. The frontend never parses CLI output or reads `.canisend` internals.
 
-The latest publicly qualified checkpoint is `v1.0.0-alpha.6`. The clean-v4 desktop work described
-from `main` is post-tag source, not a published Alpha.7. A local design preview is ad-hoc signed
-and must not be distributed as a qualified release. Workspace v3 remains an Alpha.6 historical
-contract; the App does not silently upgrade it through clean Workspace v4 setup.
+The latest publicly qualified checkpoint is
+[`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7), built from
+`9986a6a63b596b7760b4721a7e97c36aedce6d51`. Later `main` changes and local design previews are
+not part of those published bytes. Workspace v3 remains an Alpha.6 historical contract; the App
+does not silently upgrade it through clean Workspace v4 setup.
 
-The clean-v4 public CLI has 31 exact leaves. Its MCP adapter currently exposes 36 operations:
+The clean-v4 public CLI has 31 exact leaves. Its MCP adapter exposes 36 operations:
 26 read/preview operations and ten single-use guarded commits, including canonical review and
-local-only export. Source-level parity does
-not qualify changed bytes: Alpha.7 still requires packaged native, accessibility, lifecycle, and
-public-byte evidence.
+local-only export. Alpha.7 passed packaged native, accessibility, lifecycle, and public-byte
+qualification; later changed bytes require a new exact candidate.
 
 ## Build and launch on Apple Silicon
 
@@ -291,10 +291,10 @@ stage. The GUI never accepts a caller-supplied kind, revision, or digest. Rerun 
 affected descendant stage and current output, then requires explicit confirmation. Each dialog
 also shows a copyable equivalent CLI command as text; it does not execute that command.
 
-Academic compatibility stage completion still requires an existing compatible artifact from the
-CLI or Agent v2. Evidence, criteria, and plan decisions use their dedicated structured GUI controls
-rather than an artifact-ID field. Match creation remains an Agent v2 task operation; the GUI
-displays the current revision-bound match without synthesizing one.
+Stage completion still requires an existing compatible artifact. Evidence, Requirements, and Plan
+decisions use dedicated structured controls rather than a caller-supplied artifact ID. Relationship
+or match creation remains a guarded Agent v4 operation; the GUI displays the current
+revision-bound result without synthesizing one.
 
 ## Review evidence and make an application decision
 
@@ -505,12 +505,13 @@ directory at any time when no GUI mutation is running:
 
 ```console
 canisend --workspace /path/to/applications workspace status
-canisend --workspace /path/to/applications workflow status --job JOB_ID
-canisend --workspace /path/to/applications agent context --job JOB_ID --json
+canisend --workspace /path/to/applications application list --json
+canisend --workspace /path/to/applications application show --application APPLICATION_ID --json
+canisend --workspace /path/to/applications mcp serve
 ```
 
-Codex and Claude use the Pack-selected Agent v3 or Agent v2 contract rather than GUI automation.
-The GUI and CLI share the same exact Pack binding, revisions, authoritative records, immutable
+Codex, Claude Code, and Claude Desktop use Agent v4 rather than GUI automation. The GUI, CLI, and
+MCP adapter share the same exact Application Pack binding, revisions, authoritative records, immutable
 artifacts, approvals, and render/export receipts through the application facade. A protocol or
 Pack mismatch is rejected without mutation.
 
@@ -534,23 +535,19 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 - Native CanISend version detection, one-click user-level install/migration/update/uninstall,
   rollback restoration, PATH diagnostics, online release checks, and copyable terminal checks.
 - Workspace create/register/switch/status/check/backup/restore/repair and registry removal.
-- Explicit Generic/Academic Pack selection, body-free v2→v3 migration preview, digest-bound
-  approval, and verified pre-migration backup.
-- Generic Pack Application creation from reviewed text, exact Requirement spans, Plan confirmation,
-  Deliverable composition, consented review, explicit approval, bounded PDF rendering, and local
-  export with `submission_performed: false`.
-- Job search, active/archive visibility, create, detail, archive, and source metadata.
-- Local Markdown/text/JSON/text-PDF and supplied public URL intake.
-- Profile source catalog/import plus structured evidence review, correction, exclusion, and
-  confirmation.
-- Structured criteria review and confirmation, read-only current match inspection, and explicit
-  application-plan decision and confirmation.
+- Neutral Workspace v4 creation plus independently Pack-bound generic and academic Applications in
+  the same Workspace.
+- Connected URL, pasted-text, local-file, and text-PDF intake for an exact Application.
+- Profile Source catalog/import plus explicit Application associations and structured Evidence
+  review.
+- Requirement, Plan, Deliverable, review, rendering, and local export flows with
+  `submission_performed: false`.
 - Discovery source/lead inspection, reviewed local imports, consent-bound public refresh,
   duplicate suggestions, and explicit lead promotion.
-- Revision-bound Agent task preparation, scoped input export, completion preview/commit, cancel,
-  stale detection, and prepare-again recovery.
-- Pack-routed body-free Agent v3/Agent v2 capability and context inspection plus verified Codex,
-  Claude, or generic resource-pack export.
+- Revision-bound Agent v4 orientation, proposal, preview, approval, single-use commit, verification,
+  stale detection, and retry recovery.
+- Body-free Agent v4 capability and context inspection plus integrity-managed Codex, Claude Code,
+  or generic resource export.
 - Private-read structured document inspection with accepted-set, revision, claim, citation,
   placeholder, and generation metadata.
 - Human-review dispositions, deterministic package readiness, private projection export,
@@ -564,6 +561,5 @@ the workspace, SQLite database, blobs, projections, exports, or backups.
 Not yet implemented in the GUI:
 
 - Developer ID/notarized release signing, Intel native qualification, or non-macOS GUI packages.
-- Direct URL, PDF, or local-file normalization into a Generic v3 Application request.
 
 The desktop application still never submits an application.

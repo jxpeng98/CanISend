@@ -4,11 +4,11 @@
 
 - Checked-in source: `1.0.0-alpha.7`, with additional post-tag changes that are not yet a
   qualified release.
-- Latest public checkpoint: [`v1.0.0-alpha.6`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.6).
-- Next authorized checkpoint: `v1.0.0-alpha.7`, the breaking clean-v4 release described by the
-  [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). It introduces a neutral
-  multi-Application Workspace, Application-level Pack binding, connected intake, App/CLI
-  initialization, Agent v4, and new Codex/Claude Code Skills without a legacy-compatibility claim.
+- Latest public checkpoint: [`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7),
+  built from `9986a6a63b596b7760b4721a7e97c36aedce6d51` and independently reverified after download.
+- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until the public Alpha.7
+  readiness record, real target-user cohort, frozen v4 contracts, and required integrity matrix
+  satisfy the [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md).
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
 - Machine stage: Alpha / `pre-beta`; Beta, RC, and Stable are not authorized.
@@ -72,10 +72,10 @@ independent artifact verification. See the
   semantic parity, retained Academic v2 compatibility, five CLI targets, and Apple Silicon GUI
   must pass exact source, native, lifecycle, accessibility, Agent, integrity, and public-download
   verification.
-- **Alpha.7:** Workspace v4, Agent v4, new Skills/resources, both Packs in one Workspace, connected
-  intake, App/CLI/MCP parity, headless operation, and unsupported-legacy no-mutation must pass
-  broader target-user validation and the same exact-package gates. Alpha.7 is the only Alpha
-  eligible to become the Beta baseline.
+- **Alpha.7:** Published Workspace v4, Agent v4, new Skills/resources, both Packs in one Workspace,
+  connected intake, App/CLI/MCP parity, headless operation, and unsupported-legacy no-mutation
+  passed the exact-package gates. Post-release target-user validation determines whether Alpha.7
+  may become the Beta baseline.
 - **Beta:** readiness must be refreshed from qualified public Alpha.7 within 24 hours; Workspace
   v4, Agent v4, Skills/resource, operation, approval, and both Pack digests must freeze; and the
   signed/integrity matrix must pass.

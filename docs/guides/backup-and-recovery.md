@@ -4,10 +4,9 @@ The authoritative workspace is `canisend.toml`, SQLite state, and referenced imm
 `applications/`, `jobs/`, `profile/`, and `agent/` are projections or scoped exports; they can be rebuilt where
 deterministic and are not backup authority.
 
-The configuration also freezes the exact workflow Pack identity and digest. A backup of
-`org.canisend.generic-application` restores a Generic Workspace; a backup of
-`org.canisend.academic-job` restores the Academic compatibility authority. Restore never changes
-Packs or converts Workspace v2 content into a different ontology.
+The configuration freezes Workspace v4 authority. Each Application record freezes its exact
+workflow Pack identity and digest, so one backup may contain both built-in Packs. Restore never
+changes those bindings or converts an Application into another Pack.
 
 Application Dossiers, the Content Catalog, Agent guidance, and search indexes are not additional
 workspace files. Dossiers, Catalog entries, metadata search, and body-free Agent guidance are
@@ -32,11 +31,6 @@ a non-empty directory.
 Store the backup separately from the workspace. It contains private adverts, evidence, drafts, review state, and
 rendered artifacts even though derived projection files are omitted.
 
-A Workspace v2→v3 semantic migration creates its own verified pre-migration backup at the exact
-destination approved with `workspace migrate`. Keep that backup separate from routine backups and
-record the binary version that created it. The migration backup preserves the Academic Pack; it is
-not a Generic Workspace seed.
-
 ## Restore
 
 Never restore over an existing workspace:
@@ -46,12 +40,12 @@ canisend workspace restore ./applications-backup ./applications-restored
 canisend --workspace ./applications-restored workspace check
 ```
 
-Restore verifies the source, copies it to a unique staging directory, rebuilds missing neutral Application and
-legacy raw/Markdown/JSON/Typst projections from authoritative records and blobs, and only then publishes the new
-destination. Failure removes staging.
+Restore verifies the source, copies it to a unique staging directory, rebuilds missing managed
+projections from authoritative records and blobs, and only then publishes the new destination.
+Failure removes staging.
 
-After restore, inspect `workspace status` before any mutation and confirm that its Pack ID and
-Workspace authority generation match the backup you intended to restore. The application services
+After restore, inspect `workspace status` and `application list` before any mutation. Confirm the
+Workspace authority and Application Pack bindings match the intended backup. Application services
 continue to validate the exact embedded Pack digest before Pack-bound operations.
 
 The macOS GUI exposes the same operation under **Workspaces → Restore backup**. It shows the backup

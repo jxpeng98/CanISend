@@ -109,8 +109,10 @@ canisend doctor
 ```
 
 The first packaged GUI channel began at `1.0.0-alpha.1` on Apple Silicon; the latest publicly
-qualified checkpoint is `v1.0.0-alpha.5`. Verify the exact release manifest because post-tag source
-is not a published update. Intel macOS users can use the standalone CLI archive during Alpha.
+qualified checkpoint is
+[`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7). Verify the
+exact release manifest because later source is not a published update. Intel macOS users can use
+the standalone CLI archive during Alpha.
 Scheduled Intel GUI compilation is a development regression check, not an installable package.
 Beta and later require exact-candidate Intel compilation evidence; native Intel runtime
 qualification is required before CanISend makes an Intel GUI support claim.
