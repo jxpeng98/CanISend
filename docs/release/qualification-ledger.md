@@ -161,8 +161,9 @@ to a canonical pending identity for the new Alpha.
 
 Alpha.6 must first prove Pack v1, Agent/Workspace v3 migration, Academic Pack parity, bounded v2
 compatibility, and exact candidate lifecycle. Alpha.7 then proves both built-in Packs and canonical
-v4 surfaces. Only a publicly qualified and independently reverified Alpha.7 may be refreshed into
-the Beta-readiness record. That refresh binds the exact tag, source commit, successful release run,
+v4 surfaces. Only a publicly qualified and independently reverified dual-Pack Alpha iteration of 7
+or greater may be refreshed into the Beta-readiness record. That refresh binds the exact tag,
+source commit, successful release run,
 public URL, Agent/Workspace v4 contracts, Pack v1, both embedded Pack digests, provider dogfood, and
 body-free cumulative user evidence with measured mixed-Application coverage. Alpha.4, Alpha.5, and
 Alpha.6 are rejected as Beta baselines even if their historical evidence remains valid for the bytes

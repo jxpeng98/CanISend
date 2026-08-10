@@ -2803,9 +2803,13 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "prepare-stage v{}.{}.{}-beta.1",
         version.major, version.minor, version.patch
     );
+    let alpha_example = format!(
+        "prepare-stage v{}.{}.{}-alpha.",
+        version.major, version.minor, version.patch
+    );
     for required in [
         "release/stage-transition-policy.json",
-        "prepare-stage v1.0.0-alpha.6",
+        alpha_example.as_str(),
         "sequential Alpha",
         beta_example.as_str(),
         "--write",
@@ -5095,20 +5099,7 @@ fn insert_sequential_alpha_updates(
     let limitations_relative = "docs/guides/known-limitations.md";
     let limitations = fs::read_to_string(root.join(limitations_relative))
         .map_err(|error| format!("could not read {limitations_relative}: {error}"))?;
-    let limitations = replace_exact_count(
-        &limitations,
-        &format!("It applies to the `{from}` development line"),
-        &format!("It applies to the `{to}` development line"),
-        1,
-        "known-limitations development version",
-    )?;
-    let limitations = replace_exact_count(
-        &limitations,
-        &format!("source version still says `{from}`"),
-        &format!("source version still says `{to}`"),
-        1,
-        "known-limitations source version",
-    )?;
+    let limitations = sequential_alpha_limitations_body(&limitations, from_version, to_version)?;
     files.insert(limitations_relative.to_owned(), limitations.into_bytes());
 
     let contract_relative = "release/alpha-package-contract.json";
@@ -5155,6 +5146,36 @@ fn insert_sequential_alpha_updates(
         pretty_json_bytes(&pending_release_feedback(to_version)?)?,
     );
     Ok(())
+}
+
+fn sequential_alpha_limitations_body(
+    body: &str,
+    from_version: &Version,
+    to_version: &Version,
+) -> Result<String, String> {
+    let development = format!("It applies to the `{from_version}` development line.");
+    let published = format!(
+        "It applies to the published `v{from_version}` checkpoint and later source with the same version."
+    );
+    let target = format!("It applies to the `{to_version}` development line.");
+    let development_count = body.matches(&development).count();
+    let published_count = body.matches(&published).count();
+    if development_count + published_count != 1 {
+        return Err(format!(
+            "known limitations must contain exactly one canonical {from_version} development or published-current statement"
+        ));
+    }
+    replace_exact_count(
+        body,
+        if development_count == 1 {
+            &development
+        } else {
+            &published
+        },
+        &target,
+        1,
+        "known-limitations Alpha state",
+    )
 }
 
 fn alpha_package_contract_schema(version: &Version) -> Result<&'static str, String> {
@@ -5291,55 +5312,61 @@ fn validate_transition_ledger_preconditions(
 }
 
 fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Result<(), String> {
-    if prerelease_iteration(from_version, "alpha")? != 7 {
-        return Err(
-            "Beta transition is authorized only from the qualified dual-pack Alpha.7 checkpoint"
-                .to_owned(),
-        );
-    }
+    check_beta_eligible_alpha(from_version)?;
     let readiness: Value = serde_json::from_slice(
         &fs::read(root.join("release/beta-readiness.json"))
             .map_err(|error| format!("Beta transition readiness is missing: {error}"))?,
     )
     .map_err(|error| format!("Beta transition readiness is invalid JSON: {error}"))?;
     if readiness["status"] != "qualified" || readiness["schema"] != BETA_READINESS_SCHEMA {
-        return Err("Beta transition requires qualified Alpha.7 readiness evidence".to_owned());
+        return Err(
+            "Beta transition requires qualified eligible-Alpha readiness evidence".to_owned(),
+        );
     }
     let tag = format!("v{from_version}");
     if readiness["alpha_release"]["tag"] != tag {
-        return Err("Beta readiness does not bind the active Alpha.7 tag".to_owned());
+        return Err("Beta readiness does not bind the active eligible Alpha tag".to_owned());
     }
     let source = required_string(
         &readiness["alpha_release"],
         "source_commit",
-        "Alpha.7 release",
+        "Alpha release",
     )?;
-    validate_lower_hex("Alpha.7 release source commit", source, 40)?;
+    validate_lower_hex("Alpha release source commit", source, 40)?;
     if readiness["alpha_release"]["release_run"]
         .as_u64()
         .filter(|run| *run > 0)
         .is_none()
-        || required_string(
-            &readiness["alpha_release"],
-            "release_url",
-            "Alpha.7 release",
-        )? != format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
+        || required_string(&readiness["alpha_release"], "release_url", "Alpha release")?
+            != format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
     {
-        return Err("Beta readiness does not bind the exact public Alpha.7 run and URL".to_owned());
+        return Err("Beta readiness does not bind the exact public Alpha run and URL".to_owned());
     }
     if readiness["contracts"] != beta_readiness_contracts(root)? {
         return Err(
             "Beta readiness does not bind canonical v4 contracts and both Pack digests".to_owned(),
         );
     }
-    validate_alpha_seven_evidence_bindings(&readiness, root)?;
+    validate_alpha_evidence_bindings(&readiness, root)?;
     let freeze: Value = serde_json::from_slice(
         &fs::read(root.join("release/beta-contract-freeze.json"))
             .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
     )
     .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
     if freeze["baseline"]["release"] != tag || freeze["baseline"]["source_commit"] != source {
-        return Err("Beta contract freeze does not bind the qualified Alpha.7 source".to_owned());
+        return Err("Beta contract freeze does not bind the qualified Alpha source".to_owned());
+    }
+    Ok(())
+}
+
+fn check_beta_eligible_alpha(version: &Version) -> Result<(), String> {
+    if ReleaseStage::from_version(version) != Ok(ReleaseStage::Alpha)
+        || prerelease_iteration(version, "alpha")? < 7
+    {
+        return Err(
+            "Beta transition requires a qualified dual-Pack Alpha iteration of 7 or greater"
+                .to_owned(),
+        );
     }
     Ok(())
 }
@@ -10113,7 +10140,7 @@ fn validate_beta_user_evidence(
     validate_evidence_note(&evidence["evidence_note"], "Beta user-evidence note", root)
 }
 
-fn validate_alpha_seven_evidence_bindings(readiness: &Value, root: &Path) -> Result<(), String> {
+fn validate_alpha_evidence_bindings(readiness: &Value, root: &Path) -> Result<(), String> {
     let provider =
         validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), root)?;
     validate_provider_dogfood_readiness_binding(&provider, readiness)?;
@@ -10152,31 +10179,29 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
         );
     }
     let alpha_tag = required_string(&ledger["alpha_release"], "tag", "Alpha release")?;
-    validate_alpha_baseline_tag(&version, alpha_tag)?;
+    let alpha_version = validate_alpha_baseline_tag(&version, alpha_tag)?;
+    check_beta_eligible_alpha(&alpha_version)?;
     validate_lower_hex(
         "Beta readiness Alpha source commit",
         required_string(&ledger["alpha_release"], "source_commit", "Alpha release")?,
         40,
     )?;
-    if alpha_tag.ends_with("-alpha.7")
-        && (ledger["status"] != "qualified"
-            || ledger["alpha_release"]["release_run"]
-                .as_u64()
-                .filter(|run| *run > 0)
-                .is_none()
-            || required_string(&ledger["alpha_release"], "release_url", "Alpha release")?
-                != format!("https://github.com/jxpeng98/CanISend/releases/tag/{alpha_tag}")
-            || ledger["contracts"] != beta_readiness_contracts(&repository_root())?)
+    if ledger["status"] != "qualified"
+        || ledger["alpha_release"]["release_run"]
+            .as_u64()
+            .filter(|run| *run > 0)
+            .is_none()
+        || required_string(&ledger["alpha_release"], "release_url", "Alpha release")?
+            != format!("https://github.com/jxpeng98/CanISend/releases/tag/{alpha_tag}")
+        || ledger["contracts"] != beta_readiness_contracts(&repository_root())?
     {
         return Err(
-            "Alpha.7 Beta readiness must bind its tag, source, public run/URL, v3 contracts, and both Pack digests"
+            "Beta readiness must bind its eligible Alpha tag, source, public run/URL, v4 contracts, and both Pack digests"
                 .to_owned(),
         );
     }
-    if alpha_tag.ends_with("-alpha.7") {
-        let root = repository_root();
-        validate_alpha_seven_evidence_bindings(&ledger, &root)?;
-    }
+    let root = repository_root();
+    validate_alpha_evidence_bindings(&ledger, &root)?;
     let audited_at = ledger["audited_at"]
         .as_str()
         .filter(|value| value.ends_with('Z') && value.contains('T'))
@@ -17448,6 +17473,16 @@ mod tests {
     }
 
     #[test]
+    fn beta_eligibility_starts_at_alpha_seven_and_includes_later_alphas() {
+        let alpha_six = Version::parse("1.0.0-alpha.6").expect("Alpha.6");
+        let alpha_seven = Version::parse("1.0.0-alpha.7").expect("Alpha.7");
+        let alpha_eight = Version::parse("1.0.0-alpha.8").expect("Alpha.8");
+        assert!(check_beta_eligible_alpha(&alpha_six).is_err());
+        check_beta_eligible_alpha(&alpha_seven).expect("Alpha.7 eligibility");
+        check_beta_eligible_alpha(&alpha_eight).expect("Alpha.8 eligibility");
+    }
+
+    #[test]
     fn beta_agent_and_workspace_contracts_match_freeze() {
         check_beta_contract_freeze().expect("Beta contract freeze");
     }
@@ -18045,7 +18080,7 @@ mod tests {
         .expect("write root release guide fixture");
         fs::write(
             root.join("docs/guides/known-limitations.md"),
-            "It applies to the `1.0.0-alpha.5` development line. The source version still says `1.0.0-alpha.5`.\n",
+            "It applies to the `1.0.0-alpha.5` development line.\n",
         )
         .expect("write known-limitations fixture");
         write_pretty_json(
@@ -18117,6 +18152,30 @@ mod tests {
                 .expect("target feedback boundary")
         );
         fs::remove_dir_all(root).expect("remove sequential-Alpha fixture");
+    }
+
+    #[test]
+    fn sequential_alpha_accepts_published_or_development_limitations_state() {
+        let from = Version::parse("1.0.0-alpha.7").expect("Alpha.7");
+        let to = Version::parse("1.0.0-alpha.8").expect("Alpha.8");
+        let target = "It applies to the `1.0.0-alpha.8` development line.";
+        for source in [
+            "It applies to the `1.0.0-alpha.7` development line.",
+            "It applies to the published `v1.0.0-alpha.7` checkpoint and later source with the same version.",
+        ] {
+            let rendered = sequential_alpha_limitations_body(source, &from, &to)
+                .expect("canonical Alpha limitations state");
+            assert_eq!(rendered, target);
+        }
+        assert!(sequential_alpha_limitations_body("unrecognized", &from, &to).is_err());
+        assert!(
+            sequential_alpha_limitations_body(
+                &format!("{target}\n{target}"),
+                &to,
+                &Version::parse("1.0.0-alpha.9").expect("Alpha.9")
+            )
+            .is_err()
+        );
     }
 
     #[test]

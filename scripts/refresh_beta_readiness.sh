@@ -42,8 +42,9 @@ if [[ "$open_issue_count" -ne 0 ]]; then
 fi
 
 alpha_tag="$(jq -r '.alpha_release.tag' "$ledger")"
-if [[ ! "$alpha_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.7$ ]]; then
-  echo "beta readiness refresh requires the dual-Pack Alpha.7 checkpoint" >&2
+if [[ ! "$alpha_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.([0-9]+)$ ]] \
+  || (( BASH_REMATCH[1] < 7 )); then
+  echo "beta readiness refresh requires a dual-Pack Alpha iteration of 7 or greater" >&2
   exit 1
 fi
 version="${alpha_tag#v}"
@@ -64,7 +65,7 @@ source_commit="$(jq -er --arg tag "$alpha_tag" \
    and .contracts.workspace_format == "canisend.workspace/v4"
    and .source.commit' "$manifest")"
 if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]] || ! git -C "$root" cat-file -e "$source_commit^{commit}"; then
-  echo "beta readiness refresh could not verify the exact Alpha.7 source commit" >&2
+  echo "beta readiness refresh could not verify the exact eligible Alpha source commit" >&2
   exit 1
 fi
 provider_record="$root/release/provider-dogfood.json"
@@ -72,7 +73,7 @@ provider_tag="$(jq -er '.candidate.tag' "$provider_record")"
 provider_source="$(jq -er '.candidate.source_commit' "$provider_record")"
 release_run="$(jq -er '.candidate.release_run' "$provider_record")"
 if [[ ! "$release_run" =~ ^[1-9][0-9]*$ ]]; then
-  echo "beta readiness refresh has no provider-qualified Alpha.7 candidate run" >&2
+  echo "beta readiness refresh has no provider-qualified Alpha candidate run" >&2
   exit 1
 fi
 if [[ "$provider_tag" != "$alpha_tag" || "$provider_source" != "$source_commit" ]]; then
@@ -132,7 +133,7 @@ jq \
        open_issue_numbers: [],
        evidence: [
          "Public GitHub issue snapshot contains no unresolved issue",
-         "Alpha.7 release run " + ($release_run | tostring) +
+         $alpha_tag + " release run " + ($release_run | tostring) +
            " passed the exact public dual-Pack release matrix"
        ]
      })
