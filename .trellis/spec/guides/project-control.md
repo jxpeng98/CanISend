@@ -23,15 +23,15 @@ regression only when drift can be detected mechanically.
   for Roadmap work that is Ready or In progress; do not mirror the full GitHub backlog.
 - Keep one critical-path child current. At most one architecture/safety child and one
   qualification/evidence child may run beside it.
-- The current delivery child is `M3-EVID-005` / Issue #70. Create `M4-READY-001` / Issue #71 only
-  after the M3 exit gate passes; later Beta, RC, and Stable work remains in GitHub until its entry
-  gate is satisfied.
+- The current delivery child is `M3-ALPHA8-001`. Resume `M3-EVID-005` / Issue #70 after exact
+  Alpha.8 qualification. Create `M4-READY-001` / Issue #71 only after the M3 exit gate passes;
+  later Beta, RC, and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** finish the first unchecked item in the Master Roadmap execution queue or an
-  observed P0/P1 blocker. Public Alpha.7 is the current checkpoint; later source is not published
-  Alpha.7 bytes.
+- **Current:** qualify exact Alpha.8 as the approved replacement cohort checkpoint. Public Alpha.7
+  remains the current release until Alpha.8 is independently qualified and promoted; later source
+  is not published Alpha.7 bytes.
 - **Near term:** complete exact mixed-Application cohort and provider evidence, close supported
   blockers, refresh Beta readiness, qualify Beta.1, and activate feature freeze.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
