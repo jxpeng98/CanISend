@@ -1964,6 +1964,17 @@ fn check_active_release_truth(root: &Path) -> Result<(), String> {
     check_active_release_truth_for_version(root, &version)
 }
 
+fn current_public_checkpoint_tag(roadmap: &str) -> Result<&str, String> {
+    roadmap
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("**Current public checkpoint:** [`")
+                .and_then(|value| value.split('`').next())
+        })
+        .filter(|tag| tag.starts_with('v'))
+        .ok_or_else(|| "active 1.0 roadmap has no current public checkpoint tag".to_owned())
+}
+
 fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Result<(), String> {
     let roadmap_relative = "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md";
     let roadmap = fs::read_to_string(root.join(roadmap_relative))
@@ -1978,14 +1989,7 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
             return Err(format!("active 1.0 roadmap header is missing `{required}`"));
         }
     }
-    let public_tag = roadmap
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix("**Current public checkpoint:** [`")
-                .and_then(|value| value.split('`').next())
-        })
-        .filter(|tag| tag.starts_with('v'))
-        .ok_or_else(|| "active 1.0 roadmap has no current public checkpoint tag".to_owned())?;
+    let public_tag = current_public_checkpoint_tag(&roadmap)?;
 
     let parity: Value = serde_json::from_slice(
         &fs::read(root.join("docs/contracts/cli-gui-parity-v1.json"))
@@ -9614,6 +9618,10 @@ fn check_provider_dogfood() -> Result<(), String> {
     let root = repository_root();
     let record =
         validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)?;
+    let roadmap =
+        fs::read_to_string(root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"))
+            .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
+    validate_provider_dogfood_public_binding(&record, current_public_checkpoint_tag(&roadmap)?)?;
     println!(
         "provider dogfood: ok ({} scenarios, {} excluded attempt)",
         record["scenarios"].as_array().map_or(0, Vec::len),
@@ -9699,10 +9707,11 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
             "tag",
         ],
     )?;
-    let version = env!("CARGO_PKG_VERSION");
-    if required_string(candidate, "tag", "provider dogfood candidate")? != format!("v{version}")
+    let candidate_tag = required_string(candidate, "tag", "provider dogfood candidate")?;
+    let (_, candidate_stage) = parse_release_tag(candidate_tag)?;
+    if candidate_stage != ReleaseStage::Alpha
         || required_string(candidate, "artifact_name", "provider dogfood candidate")?
-            != format!("canisend-v{version}-release-assets")
+            != format!("canisend-{candidate_tag}-release-assets")
         || candidate["artifact_id"]
             .as_u64()
             .filter(|value| *value > 0)
@@ -9713,7 +9722,7 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
             .is_none()
     {
         return Err(
-            "provider dogfood candidate does not identify the exact Alpha artifact".to_owned(),
+            "provider dogfood candidate does not identify an exact Alpha artifact".to_owned(),
         );
     }
     validate_lower_hex(
@@ -9898,6 +9907,18 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         return Err("provider dogfood stale-host exclusion is not canonical".to_owned());
     }
     Ok(record)
+}
+
+fn validate_provider_dogfood_public_binding(
+    record: &Value,
+    public_tag: &str,
+) -> Result<(), String> {
+    if required_string(&record["candidate"], "tag", "provider dogfood candidate")? != public_tag {
+        return Err(
+            "provider dogfood candidate does not match the current public checkpoint".to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn validate_provider_dogfood_readiness_binding(
@@ -17307,6 +17328,7 @@ mod tests {
         let canonical_path = repository.join("release/provider-dogfood.json");
         let canonical = validate_provider_dogfood_file(&canonical_path, &repository)
             .expect("canonical provider dogfood record");
+        assert!(validate_provider_dogfood_public_binding(&canonical, "v1.0.0-alpha.6").is_err());
         let fixture =
             std::env::temp_dir().join(format!("canisend-provider-dogfood-{}", std::process::id()));
         if fixture.exists() {
