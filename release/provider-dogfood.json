@@ -1,0 +1,115 @@
+{
+  "candidate": {
+    "archive_sha256": "0610935c8e5ebbddae33b93dd6fb413d0c064b64908bdf8916ec7632d17e7ed1",
+    "artifact_id": 9045783528,
+    "artifact_name": "canisend-v1.0.0-alpha.7-release-assets",
+    "binary_sha256": "ef082fdd73810c0668c74fbacb5ad63de819b76c028f69cb60999d7259cde6a9",
+    "release_run": 31339441501,
+    "source_commit": "9986a6a63b596b7760b4721a7e97c36aedce6d51",
+    "tag": "v1.0.0-alpha.7"
+  },
+  "consent": {
+    "content_scope": "synthetic-metadata-only",
+    "provider_send": "explicitly-authorized",
+    "retained_private_content": false,
+    "retained_secret_material": false
+  },
+  "contracts": {
+    "agent_protocol": "canisend.agent/v4",
+    "resource_format": "canisend.agent-host-resources/v4",
+    "task_resource_model_sha256": "3d0ed27c1f244810dffc14eeb5bd678565934d244d5c433c2ca32d432b06f648",
+    "workspace_format": "canisend.workspace/v4"
+  },
+  "evidence_note": {
+    "path": "docs/notes/rust-native/2026-08-10-alpha7-exact-candidate-host-dogfood.md",
+    "sha256": "c29095844da72c40432545502fdfcc19575ab2a1455539fd16984760247a94bc"
+  },
+  "excluded_attempts": [
+    {
+      "disposition": "rejected-as-evidence",
+      "host": "claude-desktop",
+      "reason": "stale-host-memory",
+      "scenario_id": "claude-desktop-standard-chat-stale-memory",
+      "tracking_issue": 67
+    }
+  ],
+  "packs": [
+    {
+      "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+      "id": "org.canisend.academic-job",
+      "version": "1.0.0"
+    },
+    {
+      "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
+      "id": "org.canisend.generic-application",
+      "version": "1.0.0"
+    }
+  ],
+  "scenarios": [
+    {
+      "application_revision_after": 1,
+      "application_revision_before": 1,
+      "host": "claude-code",
+      "host_version": "2.1.222",
+      "mutation_performed": false,
+      "operation": "requirement.confirm.preview-cancel",
+      "pack_id": "org.canisend.academic-job",
+      "preview_status": "previewed",
+      "requirement_state_after": "proposed",
+      "requirement_state_before": "proposed",
+      "scenario_id": "claude-code-academic-requirement-preview-cancel",
+      "status": "passed",
+      "submission_performed": false
+    },
+    {
+      "application_revision_after": 1,
+      "application_revision_before": 1,
+      "host": "claude-desktop",
+      "host_version": "1.26832.0",
+      "mutation_performed": false,
+      "operation": "requirement.confirm.preview-cancel",
+      "pack_id": "org.canisend.generic-application",
+      "preview_status": "previewed",
+      "requirement_state_after": "proposed",
+      "requirement_state_before": "proposed",
+      "scenario_id": "claude-desktop-generic-requirement-preview-cancel",
+      "status": "passed",
+      "submission_performed": false
+    },
+    {
+      "application_revision_after": 1,
+      "application_revision_before": 1,
+      "host": "codex-cli",
+      "host_version": "0.146.0",
+      "mutation_performed": false,
+      "operation": "requirement.confirm.preview-cancel",
+      "pack_id": "org.canisend.generic-application",
+      "preview_status": "previewed",
+      "requirement_state_after": "proposed",
+      "requirement_state_before": "proposed",
+      "scenario_id": "codex-cli-generic-requirement-preview-cancel",
+      "status": "passed",
+      "submission_performed": false
+    }
+  ],
+  "schema": "canisend.provider-dogfood/v1",
+  "skills": [
+    {
+      "id": "canisend-intake",
+      "sha256": "4c26eed5f18cc183b78733203d025cd0003a66a2d96b59356f46614cc952b0ec"
+    },
+    {
+      "id": "canisend-materials",
+      "sha256": "8106c5ec0052e4430240b38a88109cba1255a03da7f4e3b9a2b322f4eed94580"
+    },
+    {
+      "id": "canisend-review-export",
+      "sha256": "868f39b71bbd496e6731fffb2d13cb39cf3beca0da1b98d5326e02c2816b1efd"
+    },
+    {
+      "id": "canisend-workspace",
+      "sha256": "012d2cf2f4e53c5cdf489554c2588bec03b4f1cdad4c20b4059ec6b2f132adf1"
+    }
+  ],
+  "status": "passed"
+}

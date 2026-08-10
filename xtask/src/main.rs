@@ -30,6 +30,7 @@ const DESKTOP_PROFILE_RECORD_SCHEMA: &str = "canisend.desktop-profile-record/v1"
 const DESKTOP_PROFILE_SUMMARY_SCHEMA: &str = "canisend.desktop-profile-summary/v1";
 const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
+const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v1";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const STABLE_CHANNEL_PUBLICATION_SCHEMA: &str = "canisend.stable-channel-publication/v1";
@@ -169,6 +170,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             check_dependency_assurance()?;
             check_rust_toolchain_alignment()?;
             check_desktop_distribution_versions()?;
+            check_provider_dogfood()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
@@ -9577,6 +9579,309 @@ fn check_alpha_package_contract_identity_and_bindings(
     Ok(())
 }
 
+fn check_provider_dogfood() -> Result<(), String> {
+    let root = repository_root();
+    let record =
+        validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)?;
+    println!(
+        "provider dogfood: ok ({} scenarios, {} excluded attempt)",
+        record["scenarios"].as_array().map_or(0, Vec::len),
+        record["excluded_attempts"].as_array().map_or(0, Vec::len)
+    );
+    Ok(())
+}
+
+fn provider_exact_fields(value: &Value, context: &str, expected: &[&str]) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("provider dogfood {context} must be an object"))?;
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    if actual != expected {
+        return Err(format!(
+            "provider dogfood {context} fields must be {expected:?}, found {actual:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, String> {
+    let record: Value = serde_json::from_slice(&fs::read(path).map_err(|error| {
+        format!(
+            "provider dogfood record is missing at {}: {error}",
+            path.display()
+        )
+    })?)
+    .map_err(|error| format!("provider dogfood record is invalid JSON: {error}"))?;
+    provider_exact_fields(
+        &record,
+        "record",
+        &[
+            "candidate",
+            "consent",
+            "contracts",
+            "evidence_note",
+            "excluded_attempts",
+            "packs",
+            "scenarios",
+            "schema",
+            "skills",
+            "status",
+        ],
+    )?;
+    if record["schema"] != PROVIDER_DOGFOOD_SCHEMA || record["status"] != "passed" {
+        return Err("provider dogfood record must use v1 schema and passed status".to_owned());
+    }
+
+    let candidate = &record["candidate"];
+    provider_exact_fields(
+        candidate,
+        "candidate",
+        &[
+            "archive_sha256",
+            "artifact_id",
+            "artifact_name",
+            "binary_sha256",
+            "release_run",
+            "source_commit",
+            "tag",
+        ],
+    )?;
+    let version = env!("CARGO_PKG_VERSION");
+    if required_string(candidate, "tag", "provider dogfood candidate")? != format!("v{version}")
+        || required_string(candidate, "artifact_name", "provider dogfood candidate")?
+            != format!("canisend-v{version}-release-assets")
+        || candidate["artifact_id"]
+            .as_u64()
+            .filter(|value| *value > 0)
+            .is_none()
+        || candidate["release_run"]
+            .as_u64()
+            .filter(|value| *value > 0)
+            .is_none()
+    {
+        return Err(
+            "provider dogfood candidate does not identify the exact Alpha artifact".to_owned(),
+        );
+    }
+    validate_lower_hex(
+        "provider dogfood source commit",
+        required_string(candidate, "source_commit", "provider dogfood candidate")?,
+        40,
+    )?;
+    for field in ["archive_sha256", "binary_sha256"] {
+        validate_lower_hex(
+            &format!("provider dogfood {field}"),
+            required_string(candidate, field, "provider dogfood candidate")?,
+            64,
+        )?;
+    }
+
+    let consent = &record["consent"];
+    provider_exact_fields(
+        consent,
+        "consent",
+        &[
+            "content_scope",
+            "provider_send",
+            "retained_private_content",
+            "retained_secret_material",
+        ],
+    )?;
+    if consent
+        != &json!({
+            "content_scope": "synthetic-metadata-only",
+            "provider_send": "explicitly-authorized",
+            "retained_private_content": false,
+            "retained_secret_material": false,
+        })
+    {
+        return Err("provider dogfood consent boundary is not canonical".to_owned());
+    }
+
+    let contracts = &record["contracts"];
+    provider_exact_fields(
+        contracts,
+        "contracts",
+        &[
+            "agent_protocol",
+            "resource_format",
+            "task_resource_model_sha256",
+            "workspace_format",
+        ],
+    )?;
+    let task_model =
+        root.join("crates/canisend-resources/resources/agent/v4/task-resource-model.json");
+    if contracts
+        != &json!({
+            "agent_protocol": AGENT_V4_PROTOCOL,
+            "resource_format": canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
+            "task_resource_model_sha256": sha256_file(&task_model)?,
+            "workspace_format": WORKSPACE_V4_FORMAT,
+        })
+    {
+        return Err("provider dogfood Agent v4 contract binding is stale".to_owned());
+    }
+
+    let evidence = &record["evidence_note"];
+    provider_exact_fields(evidence, "evidence note", &["path", "sha256"])?;
+    let relative = required_string(evidence, "path", "provider dogfood evidence note")?;
+    let relative_path = Path::new(relative);
+    if relative_path.is_absolute()
+        || relative.contains('\\')
+        || relative_path
+            .components()
+            .any(|part| !matches!(part, std::path::Component::Normal(_)))
+        || !relative.starts_with("docs/notes/")
+    {
+        return Err("provider dogfood evidence note path is unsafe".to_owned());
+    }
+    let evidence_digest = required_string(evidence, "sha256", "provider dogfood evidence note")?;
+    validate_lower_hex(
+        "provider dogfood evidence note SHA-256",
+        evidence_digest,
+        64,
+    )?;
+    if sha256_file(&root.join(relative_path))? != evidence_digest {
+        return Err("provider dogfood evidence note digest is stale".to_owned());
+    }
+
+    let expected_packs = beta_readiness_contracts(root)?["workflow_packs"].clone();
+    if record["packs"] != expected_packs {
+        return Err("provider dogfood Pack identity or digest is stale".to_owned());
+    }
+
+    let mut expected_skills = Vec::new();
+    for id in [
+        "canisend-intake",
+        "canisend-materials",
+        "canisend-review-export",
+        "canisend-workspace",
+    ] {
+        expected_skills.push(json!({
+            "id": id,
+            "sha256": sha256_file(&root.join(format!(
+                "crates/canisend-resources/resources/skills/{id}/SKILL.md"
+            )))?,
+        }));
+    }
+    if record["skills"] != Value::Array(expected_skills) {
+        return Err("provider dogfood Skill identity or digest is stale".to_owned());
+    }
+
+    let scenarios = record["scenarios"]
+        .as_array()
+        .ok_or_else(|| "provider dogfood scenarios must be an array".to_owned())?;
+    let expected_scenarios = [
+        (
+            "claude-code-academic-requirement-preview-cancel",
+            "claude-code",
+            "org.canisend.academic-job",
+        ),
+        (
+            "claude-desktop-generic-requirement-preview-cancel",
+            "claude-desktop",
+            "org.canisend.generic-application",
+        ),
+        (
+            "codex-cli-generic-requirement-preview-cancel",
+            "codex-cli",
+            "org.canisend.generic-application",
+        ),
+    ];
+    if scenarios.len() != expected_scenarios.len() {
+        return Err("provider dogfood must contain the three canonical scenarios".to_owned());
+    }
+    for (scenario, (scenario_id, host, pack_id)) in scenarios.iter().zip(expected_scenarios) {
+        provider_exact_fields(
+            scenario,
+            "scenario",
+            &[
+                "application_revision_after",
+                "application_revision_before",
+                "host",
+                "host_version",
+                "mutation_performed",
+                "operation",
+                "pack_id",
+                "preview_status",
+                "requirement_state_after",
+                "requirement_state_before",
+                "scenario_id",
+                "status",
+                "submission_performed",
+            ],
+        )?;
+        let revision = scenario["application_revision_before"]
+            .as_u64()
+            .filter(|value| *value > 0);
+        if scenario["scenario_id"] != scenario_id
+            || scenario["host"] != host
+            || scenario["pack_id"] != pack_id
+            || required_string(scenario, "host_version", "provider dogfood scenario")?
+                .trim()
+                .is_empty()
+            || scenario["operation"] != "requirement.confirm.preview-cancel"
+            || scenario["preview_status"] != "previewed"
+            || scenario["status"] != "passed"
+            || scenario["requirement_state_before"] != "proposed"
+            || scenario["requirement_state_after"] != "proposed"
+            || revision.is_none()
+            || scenario["application_revision_after"].as_u64() != revision
+            || scenario["mutation_performed"] != false
+            || scenario["submission_performed"] != false
+        {
+            return Err(format!(
+                "provider dogfood scenario `{scenario_id}` did not pass safely"
+            ));
+        }
+    }
+
+    let excluded = record["excluded_attempts"]
+        .as_array()
+        .ok_or_else(|| "provider dogfood excluded_attempts must be an array".to_owned())?;
+    if excluded.len() != 1 {
+        return Err("provider dogfood must record the rejected stale-host attempt".to_owned());
+    }
+    provider_exact_fields(
+        &excluded[0],
+        "excluded attempt",
+        &[
+            "disposition",
+            "host",
+            "reason",
+            "scenario_id",
+            "tracking_issue",
+        ],
+    )?;
+    if excluded[0]
+        != json!({
+            "disposition": "rejected-as-evidence",
+            "host": "claude-desktop",
+            "reason": "stale-host-memory",
+            "scenario_id": "claude-desktop-standard-chat-stale-memory",
+            "tracking_issue": 67,
+        })
+    {
+        return Err("provider dogfood stale-host exclusion is not canonical".to_owned());
+    }
+    Ok(record)
+}
+
+fn validate_provider_dogfood_readiness_binding(
+    record: &Value,
+    readiness: &Value,
+) -> Result<(), String> {
+    for field in ["tag", "source_commit", "release_run"] {
+        if readiness["alpha_release"][field] != record["candidate"][field] {
+            return Err(format!(
+                "Beta readiness Alpha release does not match provider dogfood candidate `{field}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn check_beta_readiness() -> Result<(), String> {
     let path = repository_root().join("release/beta-readiness.json");
     check_beta_readiness_file(&path)
@@ -9629,6 +9934,12 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
             "Alpha.7 Beta readiness must bind its tag, source, public run/URL, v3 contracts, and both Pack digests"
                 .to_owned(),
         );
+    }
+    if alpha_tag.ends_with("-alpha.7") {
+        let root = repository_root();
+        let provider =
+            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)?;
+        validate_provider_dogfood_readiness_binding(&provider, &ledger)?;
     }
     let audited_at = ledger["audited_at"]
         .as_str()
@@ -16691,6 +17002,56 @@ mod tests {
     #[test]
     fn beta_readiness_has_no_unresolved_alpha_blockers() {
         check_beta_readiness().expect("Beta readiness ledger");
+    }
+
+    #[test]
+    fn provider_dogfood_rejects_missing_stale_failed_or_private_records() {
+        let repository = repository_root();
+        let canonical_path = repository.join("release/provider-dogfood.json");
+        let canonical = validate_provider_dogfood_file(&canonical_path, &repository)
+            .expect("canonical provider dogfood record");
+        let fixture =
+            std::env::temp_dir().join(format!("canisend-provider-dogfood-{}", std::process::id()));
+        if fixture.exists() {
+            fs::remove_dir_all(&fixture).expect("remove stale provider dogfood fixture");
+        }
+        fs::create_dir_all(&fixture).expect("create provider dogfood fixture");
+        assert!(
+            validate_provider_dogfood_file(&fixture.join("missing.json"), &repository).is_err()
+        );
+
+        for (name, mut record) in [
+            ("failed", canonical.clone()),
+            ("stale", canonical.clone()),
+            ("private", canonical.clone()),
+            ("pack-mismatch", canonical.clone()),
+        ] {
+            match name {
+                "failed" => record["status"] = json!("failed"),
+                "stale" => {
+                    record["contracts"]["task_resource_model_sha256"] = json!("0".repeat(64))
+                }
+                "private" => record["scenarios"][0]["body"] = json!("must not be retained"),
+                "pack-mismatch" => record["packs"][0]["content_digest"] = json!("0".repeat(64)),
+                _ => unreachable!(),
+            }
+            let path = fixture.join(format!("{name}.json"));
+            write_pretty_json(&path, &record).expect("write rejected provider dogfood fixture");
+            assert!(
+                validate_provider_dogfood_file(&path, &repository).is_err(),
+                "{name} record must fail"
+            );
+        }
+
+        let readiness = json!({
+            "alpha_release": {
+                "tag": canonical["candidate"]["tag"],
+                "source_commit": "0".repeat(40),
+                "release_run": canonical["candidate"]["release_run"],
+            }
+        });
+        assert!(validate_provider_dogfood_readiness_binding(&canonical, &readiness).is_err());
+        fs::remove_dir_all(fixture).expect("remove provider dogfood fixture");
     }
 
     #[test]
