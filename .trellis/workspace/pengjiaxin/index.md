@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-08-10
+- **Total Sessions**: 2
+- **Last Active**: 2026-08-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~28 | Active |
+| `journal-1.md` | ~53 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-08-11 | Qualify and merge Alpha.8 checkpoint | `ef33029c`, `f61b55ca`, `b614f1c8`, `f160db42`, `9fca660e` | `chore/archive-alpha8-checkpoint` |
 | 1 | 2026-08-10 | Integrate Trellis project control | `8c52ff5a`, `dccef867` | `chore/trellis-project-control` |
 <!-- @@@/auto:session-history -->
 
