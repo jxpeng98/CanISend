@@ -34,7 +34,7 @@ the minimum release-authority repair, then bind fresh provider/host evidence to 
       verification on all supported release targets.
 - [x] Provider/host evidence binds Alpha.8, Agent v4, Workspace v4, Skills/resources, both Pack
       digests, consent, scenarios, and body-free outcomes.
-- [ ] `M3-ALPHA8-001` is Verified and Issue #70 can start without an unresolved supported blocker.
+- [x] `M3-ALPHA8-001` is Verified and Issue #70 can start without an unresolved supported blocker.
 
 ## Constraints
 

@@ -43,4 +43,4 @@
 - [x] Commit the body-free provider record and validation note with exact resource/Pack digests.
 - [x] Re-review date-bound dependency and Store→IO exceptions without moving their hard expiry.
 - [x] Make release-policy tests derive current evidence paths and dates from machine authorities.
-- [ ] Reconcile Roadmap/GitHub/public truth and mark `M3-ALPHA8-001` Verified.
+- [x] Reconcile Roadmap/GitHub/public truth and mark `M3-ALPHA8-001` Verified.
