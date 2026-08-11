@@ -29,9 +29,11 @@ Every exception records:
 - a concrete removal condition; and
 - an HTTPS upstream issue, commit, or advisory-tracking reference.
 
-Reviews are valid for at most 14 days and exceptions for at most 30 days. The current set uses a
-seven-day review and fourteen-day hard expiry. A missing, new, reordered, stale, expired, or
-lock-mismatched exception fails before `cargo deny` can treat it as accepted.
+Reviews are valid for at most 14 days and exceptions for at most 30 days. The current lock-bound
+set was re-reviewed on 2026-08-11 against the unchanged 751-package fingerprint and a fresh
+`cargo deny` advisory, ban, license, and source check. Its next review and unchanged hard expiry
+are 2026-08-17. A missing, new, reordered, stale, expired, or lock-mismatched exception fails
+before `cargo deny` can treat it as accepted.
 
 ## Vulnerability boundary
 

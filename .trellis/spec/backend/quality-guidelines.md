@@ -35,6 +35,16 @@ workspace, native matrix, or extended assurance suite.
 4. Desktop: affected pnpm check/test; build only when bundling changed.
 5. Native/extended assurance: only the owning scheduled or release workflow.
 
+## Date-Bound Release Authority
+
+- Recheck UTC `review_by` and `expires_on` values immediately before push or qualification; a
+  passing local gate can become stale after a date rollover.
+- An overdue gate requires an explicit owner review of the current lock/graph and reachability
+  evidence. Update the machine policy and owning ADR together; never unblock CI by changing only a
+  date or silently moving the hard expiry.
+- Use the owning policy check, the relevant fresh audit, any named compensating regression, and one
+  final `release check`. Do not repeat unrelated suites when product source is unchanged.
+
 ## Code Review Checklist
 
 - Correct authority/layer and smallest root-cause change.
