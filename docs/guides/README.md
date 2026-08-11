@@ -6,7 +6,7 @@ CanISend is a local-first framework with two exact-bound built-in workflow Packs
 - `org.canisend.academic-job` is the academic-job reference Pack.
 
 The latest publicly qualified checkpoint is
-[`v1.0.0-alpha.7`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7). Later `main`
+[`v1.0.0-alpha.8`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8). Later `main`
 changes are not part of those published bytes. Always compare `canisend version --json` with the
 release manifest before following a source-only command.
 
@@ -28,6 +28,6 @@ Start here:
 10. [Try the macOS-first desktop GUI](desktop-gui.md).
 
 The active machine contract is [Agent v4](../contracts/agent-v4.md) for both built-in Packs. Earlier
-Agent protocols and compatibility surfaces are historical and unsupported by Alpha.7.
+Agent protocols and compatibility surfaces are historical and unsupported by Alpha.7 and later.
 Security assumptions are in the [threat model](../security/threat-model.md). CanISend prepares and
 exports local material; it never logs in, uploads, or submits an Application.

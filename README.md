@@ -25,12 +25,12 @@ export, and external submission decision.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.8`. The latest publicly qualified checkpoint is `v1.0.0-alpha.7`
-([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7)), built from
-`9986a6a63b596b7760b4721a7e97c36aedce6d51`. Later `main` changes are not part of those published
+The checked-in source version is `1.0.0-alpha.8`. The latest publicly qualified checkpoint is `v1.0.0-alpha.8`
+([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8)), built from
+`35e7c822ea2f469ab726a31b5d08e622f6810c55`. Later `main` changes are not part of those published
 bytes. Earlier release facts remain immutable at their tags.
 
-Published Alpha.7 provides:
+Published Alpha.8 provides:
 
 - `canisend.workspace/v4` with clean initialization, check, backup, restore, repair, and explicit
   unsupported-legacy refusal;
@@ -38,6 +38,8 @@ Published Alpha.7 provides:
   explicit Profile Source/Evidence associations, and independent revisions;
 - App-led bootstrap plus standalone CLI initialization, host setup/status/remove, basic-data
   import/read, recovery, and MCP stdio;
+- sidebar Workspace/Application context, project or global Agent Skill installation, Typst Profile
+  import, and verified starter resources for a new Workspace;
 - `canisend.agent/v4`, schema version `4.0.0`, and generated integrity-managed Codex and Claude
   Code Skills from one canonical resource source;
 - digest-bound preview/approval/commit operations for Requirement, Plan, and Deliverable work in
@@ -47,8 +49,8 @@ Published Alpha.7 provides:
 - five standalone CLI release targets and an Apple Silicon macOS App candidate channel.
 
 Alpha.6-or-earlier Skills, Agent v2/v3 requests, job aliases, host-resource layouts, and Workspace
-v2/v3 migration are not Alpha.7 compatibility targets. They fail before mutation and direct users
-to initialize a clean v4 Workspace.
+v2/v3 migration are not Alpha.7-or-later compatibility targets. They fail before mutation and
+direct users to initialize a clean v4 Workspace.
 
 The [1.0 delivery roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md) is the
 execution authority. [ADR-RN-0020](docs/architecture/rust-native/decisions/0020-adopt-a-neutral-multi-application-workspace-and-new-agent-surface.md)

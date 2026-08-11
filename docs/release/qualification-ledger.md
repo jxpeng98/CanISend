@@ -154,14 +154,15 @@ independently inspected. An invented run ID or status string is not qualificatio
 
 ## Pre-Beta boundary
 
-The current source remains `1.0.0-alpha.7` in `pre-beta` while the Workspace v4 and Agent v4
+The current source remains `1.0.0-alpha.8` in `pre-beta` while the Workspace v4 and Agent v4
 checkpoint is qualified. Earlier Beta-readiness and contract-freeze records are historical inputs;
-they cannot qualify Alpha.7 or a Beta transition. Sequential Alpha planning resets those authorities
+they cannot qualify Alpha.8 or a Beta transition. Sequential Alpha planning resets those authorities
 to a canonical pending identity for the new Alpha.
 
 Alpha.6 must first prove Pack v1, Agent/Workspace v3 migration, Academic Pack parity, bounded v2
-compatibility, and exact candidate lifecycle. Alpha.7 then proves both built-in Packs and canonical
-v4 surfaces. Only a publicly qualified and independently reverified dual-Pack Alpha iteration of 7
+compatibility, and exact candidate lifecycle. Alpha.7 first proved both built-in Packs and canonical
+v4 surfaces; Alpha.8 carries that boundary with the approved bootstrap fixes. Only a publicly
+qualified and independently reverified dual-Pack Alpha iteration of 7
 or greater may be refreshed into the Beta-readiness record. That refresh binds the exact tag,
 source commit, successful release run,
 public URL, Agent/Workspace v4 contracts, Pack v1, both embedded Pack digests, provider dogfood, and

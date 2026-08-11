@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-10",
   "completedAt": null,
-  "branch": "agent/alpha8-release-authority",
+  "branch": "agent/alpha8-public-qualification",
   "base_branch": "main",
   "worktree_path": null,
   "commit": "1f38506adf9e08e791baa0d100aa8f52c8616b2f",
@@ -28,7 +28,7 @@
     "release/provider-dogfood.json",
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
   ],
-  "notes": "Trellis control merged as PR #175 at 5d30c6756cfc454f61ee011c52c438020abe7d19; bootstrap blocker PR #174 merged at b4b785823262a295397e79ea7ab6dcfc35e39fc6.",
+  "notes": "Trellis control merged as PR #175 at 5d30c6756cfc454f61ee011c52c438020abe7d19; bootstrap blocker PR #174 merged at b4b785823262a295397e79ea7ab6dcfc35e39fc6; release-authority PR #177 and source-transition PR #179 merged; exact source 35e7c822ea2f469ab726a31b5d08e622f6810c55 was published as v1.0.0-alpha.8 through candidate run 31424861083 and promotion run 31441308337.",
   "meta": {
     "roadmap_id": "M3-ALPHA8-001",
     "github_issue": 176,

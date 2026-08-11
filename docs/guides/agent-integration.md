@@ -7,10 +7,10 @@ projections.
 
 ## Clean v4 boundary
 
-Alpha.7 host resources require `canisend.workspace/v4` and `canisend.agent/v4`. One Workspace can
-contain academic, generic, or other Pack-bound Applications together. Select one exact Application
-and preserve its Pack ID, Pack version, Pack digest, revision, and snapshot digest; never select a
-Workspace mode.
+Alpha.7 and later host resources require `canisend.workspace/v4` and `canisend.agent/v4`. One
+Workspace can contain academic, generic, or other Pack-bound Applications together. Select one
+exact Application and preserve its Pack ID, Pack version, Pack digest, revision, and snapshot
+digest; never select a Workspace mode.
 
 Earlier Skills, protocol requests, command aliases, and host-resource layouts are unsupported.
 CanISend detects those resources before installation and returns clean-install guidance without
