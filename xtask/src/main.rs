@@ -16371,7 +16371,12 @@ mod tests {
         .expect("dependency policy JSON");
         let (packages, edges) =
             current_workspace_dependency_facts(&root).expect("workspace dependency facts");
-        let today = Date::from_calendar_date(2026, Month::August, 8).expect("fixture date");
+        let today = parse_policy_date(
+            required_string(&policy, "reviewed_at", "workspace dependency policy")
+                .expect("policy review date"),
+            "reviewed_at",
+        )
+        .expect("fixture date");
         let summary = validate_workspace_dependency_policy(&policy, &packages, &edges, today)
             .expect("current policy");
         assert_eq!(summary.actual_edges, 28);
@@ -17413,18 +17418,26 @@ mod tests {
     }
 
     #[test]
-    fn beta_transition_accepts_only_exact_dual_pack_alpha_seven() {
-        let root = std::env::temp_dir().join(format!(
-            "canisend-alpha7-beta-authority-{}",
-            std::process::id()
-        ));
+    fn beta_transition_accepts_only_exact_current_dual_pack_alpha() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-beta-authority-{}", std::process::id()));
         if root.exists() {
-            fs::remove_dir_all(&root).expect("remove stale Alpha.7 authority fixture");
+            fs::remove_dir_all(&root).expect("remove stale Beta authority fixture");
         }
         let repository = repository_root();
+        let canonical_provider: Value = serde_json::from_slice(
+            &fs::read(repository.join("release/provider-dogfood.json"))
+                .expect("canonical provider dogfood record"),
+        )
+        .expect("canonical provider dogfood JSON");
+        let evidence_note = required_string(
+            &canonical_provider["evidence_note"],
+            "path",
+            "canonical provider evidence note",
+        )
+        .expect("canonical provider evidence path");
         for relative in [
             "release/provider-dogfood.json",
-            "docs/notes/rust-native/2026-08-10-alpha7-exact-candidate-host-dogfood.md",
             "crates/canisend-resources/resources/agent/v4/task-resource-model.json",
             "crates/canisend-resources/resources/skills/canisend-intake/SKILL.md",
             "crates/canisend-resources/resources/skills/canisend-materials/SKILL.md",
@@ -17432,16 +17445,23 @@ mod tests {
             "crates/canisend-resources/resources/skills/canisend-workspace/SKILL.md",
             "crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json",
             "crates/canisend-resources/resources/workflow-packs/org.canisend.generic-application/manifest.json",
-        ] {
+        ]
+        .into_iter()
+        .chain(std::iter::once(evidence_note))
+        {
             let destination = root.join(relative);
             fs::create_dir_all(destination.parent().expect("fixture parent"))
-                .expect("create Alpha.7 evidence fixture parent");
+                .expect("create Beta evidence fixture parent");
             fs::copy(repository.join(relative), destination)
-                .expect("copy Alpha.7 evidence fixture");
+                .expect("copy Beta evidence fixture");
         }
         let provider =
             validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
                 .expect("fixture provider dogfood record");
+        let tag = required_string(&provider["candidate"], "tag", "fixture provider candidate")
+            .expect("fixture provider tag")
+            .to_owned();
+        let (eligible_alpha, _) = parse_release_tag(&tag).expect("eligible Alpha tag");
         let source = required_string(
             &provider["candidate"],
             "source_commit",
@@ -17458,10 +17478,10 @@ mod tests {
                 "schema": BETA_READINESS_SCHEMA,
                 "status": "qualified",
                 "alpha_release": {
-                    "tag": "v1.0.0-alpha.7",
+                    "tag": tag,
                     "source_commit": source,
                     "release_run": release_run,
-                    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.7"
+                    "release_url": format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
                 },
                 "contracts": beta_readiness_contracts(&root).expect("Beta contracts"),
                 "user_evidence": beta_user_evidence_fixture(&provider),
@@ -17472,14 +17492,14 @@ mod tests {
             &root.join("release/beta-contract-freeze.json"),
             &json!({
                 "baseline": {
-                    "release": "v1.0.0-alpha.7",
+                    "release": tag,
                     "source_commit": source
                 }
             }),
         )
         .expect("write freeze fixture");
-        let alpha_seven = Version::parse("1.0.0-alpha.7").expect("Alpha.7 version");
-        check_beta_transition_authorities(&root, &alpha_seven).expect("exact Alpha.7 authority");
+        check_beta_transition_authorities(&root, &eligible_alpha)
+            .expect("exact current Alpha authority");
         let alpha_six = Version::parse("1.0.0-alpha.6").expect("Alpha.6 version");
         assert!(check_beta_transition_authorities(&root, &alpha_six).is_err());
 
@@ -17490,8 +17510,8 @@ mod tests {
         stale["contracts"]["workflow_packs"][1]["content_digest"] = json!(&"c".repeat(64));
         write_pretty_json(&root.join("release/beta-readiness.json"), &stale)
             .expect("write stale Pack digest");
-        assert!(check_beta_transition_authorities(&root, &alpha_seven).is_err());
-        fs::remove_dir_all(root).expect("remove Alpha.7 authority fixture");
+        assert!(check_beta_transition_authorities(&root, &eligible_alpha).is_err());
+        fs::remove_dir_all(root).expect("remove Beta authority fixture");
     }
 
     #[test]

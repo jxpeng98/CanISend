@@ -42,6 +42,9 @@ workspace, native matrix, or extended assurance suite.
 - An overdue gate requires an explicit owner review of the current lock/graph and reachability
   evidence. Update the machine policy and owning ADR together; never unblock CI by changing only a
   date or silently moving the hard expiry.
+- Release-policy fixtures read current tags, evidence paths, and review dates from their machine
+  authorities. Hard-coded release iterations or calendar dates are only for explicit historical or
+  negative cases.
 - Use the owning policy check, the relevant fresh audit, any named compensating regression, and one
   final `release check`. Do not repeat unrelated suites when product source is unchanged.
 
