@@ -21,24 +21,26 @@
 - [x] Update active release docs and error wording without rewriting historical notes.
 - [x] Add focused Alpha.8-positive, Alpha.6-negative, and mismatch-negative tests.
 - [x] Run focused tests, `bash -n`, Alpha.8 dry-run, `git diff --check`, and the final source gate.
-- [ ] Commit, push, open a protected PR, and merge only after explicit authorization.
+- [x] Commit, push, open a protected PR, and merge only after explicit authorization.
 
 ## 4. Apply the Alpha.8 source transition
 
-- [ ] From a clean updated branch, save and review the full dry-run plan.
-- [ ] Run `prepare-stage v1.0.0-alpha.8 --write` only after explicit authorization.
-- [ ] Verify the written paths/digests equal the preview; run the source gate once.
-- [ ] Commit only controlled stage files, push, and merge through protected CI.
+- [x] From a clean updated branch, save and review the full dry-run plan.
+- [x] Run `prepare-stage v1.0.0-alpha.8 --write` only after explicit authorization.
+- [x] Verify the written paths/digests equal the preview; run the source gate once.
+- [x] Commit only controlled stage files, push, and merge through protected CI.
 
 ## 5. Qualify and publish exact bytes
 
-- [ ] Freeze the exact merged source and request release-operator authorization.
-- [ ] Run the build-once candidate matrix and inspect every required target/artifact/integrity job.
-- [ ] Create the reviewed annotated tag and promote the same artifacts without recompilation.
-- [ ] Download and independently verify every public asset and update-channel response.
+- [x] Freeze the exact merged source and request release-operator authorization.
+- [x] Run the build-once candidate matrix and inspect every required target/artifact/integrity job.
+- [x] Create the reviewed annotated tag and promote the same artifacts without recompilation.
+- [x] Download and independently verify every public asset and update-channel response.
 
 ## 6. Rebind provider evidence
 
-- [ ] Run exact Alpha.8 Codex, Claude Code, Claude Desktop, and bounded MCP-host scenarios.
-- [ ] Commit the body-free provider record and validation note with exact resource/Pack digests.
+- [x] Run exact Alpha.8 Codex, Claude Code, Claude Desktop, and bounded MCP-host scenarios.
+- [x] Commit the body-free provider record and validation note with exact resource/Pack digests.
+- [x] Re-review date-bound dependency and Store→IO exceptions without moving their hard expiry.
+- [x] Make release-policy tests derive current evidence paths and dates from machine authorities.
 - [ ] Reconcile Roadmap/GitHub/public truth and mark `M3-ALPHA8-001` Verified.

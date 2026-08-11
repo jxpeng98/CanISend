@@ -1,12 +1,12 @@
 {
   "candidate": {
-    "archive_sha256": "0610935c8e5ebbddae33b93dd6fb413d0c064b64908bdf8916ec7632d17e7ed1",
-    "artifact_id": 9045783528,
-    "artifact_name": "canisend-v1.0.0-alpha.7-release-assets",
-    "binary_sha256": "ef082fdd73810c0668c74fbacb5ad63de819b76c028f69cb60999d7259cde6a9",
-    "release_run": 31339441501,
-    "source_commit": "9986a6a63b596b7760b4721a7e97c36aedce6d51",
-    "tag": "v1.0.0-alpha.7"
+    "archive_sha256": "115e39e634a6e597918f55822c8ce7070bdc2b2dcc25a529637b8b15e64b27fe",
+    "artifact_id": 9077805013,
+    "artifact_name": "canisend-v1.0.0-alpha.8-release-assets",
+    "binary_sha256": "0e431779a59d1ac93eec695a1ad80bb7e86a1494141739bf19fdeb7c857c9f71",
+    "release_run": 31424861083,
+    "source_commit": "35e7c822ea2f469ab726a31b5d08e622f6810c55",
+    "tag": "v1.0.0-alpha.8"
   },
   "consent": {
     "content_scope": "synthetic-metadata-only",
@@ -21,8 +21,8 @@
     "workspace_format": "canisend.workspace/v4"
   },
   "evidence_note": {
-    "path": "docs/notes/rust-native/2026-08-10-alpha7-exact-candidate-host-dogfood.md",
-    "sha256": "c29095844da72c40432545502fdfcc19575ab2a1455539fd16984760247a94bc"
+    "path": "docs/notes/rust-native/2026-08-11-alpha8-exact-public-host-dogfood.md",
+    "sha256": "fb859e1cbdfa326b1fd5291dad785adffe1a9daded35d3cbb171cb6c5b4c728e"
   },
   "excluded_attempts": [
     {

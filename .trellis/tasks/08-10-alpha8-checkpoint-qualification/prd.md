@@ -25,14 +25,14 @@ the minimum release-authority repair, then bind fresh provider/host evidence to 
 
 ## Acceptance Criteria
 
-- [ ] PR #174 and every release-authority change have explicit protected dispositions.
-- [ ] Focused tests prove published-source Alpha.7→Alpha.8 preview, Alpha.8 Beta eligibility, and
+- [x] PR #174 and every release-authority change have explicit protected dispositions.
+- [x] Focused tests prove published-source Alpha.7→Alpha.8 preview, Alpha.8 Beta eligibility, and
       rejection of Alpha.6 plus stale/mismatched readiness and provider identities.
-- [ ] Alpha.8 transition dry-run and final source gate pass before write; the written transition
+- [x] Alpha.8 transition dry-run and final source gate pass before write; the written transition
       matches the reviewed controlled-file plan.
-- [ ] Public Alpha.8 artifacts are the exact qualified candidate bytes and pass independent public
+- [x] Public Alpha.8 artifacts are the exact qualified candidate bytes and pass independent public
       verification on all supported release targets.
-- [ ] Provider/host evidence binds Alpha.8, Agent v4, Workspace v4, Skills/resources, both Pack
+- [x] Provider/host evidence binds Alpha.8, Agent v4, Workspace v4, Skills/resources, both Pack
       digests, consent, scenarios, and body-free outcomes.
 - [ ] `M3-ALPHA8-001` is Verified and Issue #70 can start without an unresolved supported blocker.
 

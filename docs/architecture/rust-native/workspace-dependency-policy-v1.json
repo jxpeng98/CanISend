@@ -1,7 +1,7 @@
 {
   "format": "canisend.workspace-dependency-policy/v1",
   "adr": "ADR-RN-0019",
-  "reviewed_at": "2026-08-08",
+  "reviewed_at": "2026-08-11",
   "product_crates": [
     "canisend-app",
     "canisend-cli",
@@ -85,8 +85,8 @@
     {
       "edge": {"from":"canisend-store","to":"canisend-io","kind":"normal","target":null,"optional":false,"default_features":true,"features":[],"rename":null},
       "owner": "CanISend maintainer",
-      "rationale": "The 2026-08-03 review retained this edge for the Alpha.6 source checkpoint because an immediate split would change legacy render, projection repair, generic v3 export, and backup/migration rebuild transaction boundaries together. Named render/projector failure tests compensate until the app-owned port is introduced.",
-      "review_by": "2026-08-10",
+      "rationale": "The 2026-08-11 review retained this edge for the published Alpha.8 checkpoint because an immediate split would still change legacy render, projection repair, generic v3 export, and backup/migration rebuild transaction boundaries together. Named render/projector failure tests compensate until the app-owned port is introduced.",
+      "review_by": "2026-08-17",
       "expires_on": "2026-08-17",
       "removal_condition": "Move orchestration to an app-owned prepare-render-project-commit port with stale, atomicity, Blob-ledger, cleanup, and repair-convergence tests, or accept a newly reviewed exception before expiry.",
       "tracking": "M1-ARCH-001,M1-ARCH-002,M1-ARCH-004"

@@ -1,15 +1,15 @@
 # Known limitations
 
-It applies to the `1.0.0-alpha.8` development line.
+It applies to the published `v1.0.0-alpha.8` checkpoint and later source with the same version.
 It is not publication evidence; the exact downloaded release notes and manifest remain the
 installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.7` is the latest publicly qualified checkpoint. It was built once from
-  `9986a6a63b596b7760b4721a7e97c36aedce6d51`, promoted without rebuilding, downloaded, and
+- `v1.0.0-alpha.8` is the latest publicly qualified checkpoint. It was built once from
+  `35e7c822ea2f469ab726a31b5d08e622f6810c55`, promoted without rebuilding, downloaded, and
   independently reverified.
-- `v1.0.0-alpha.6` and earlier tags remain immutable historical checkpoints.
+- `v1.0.0-alpha.7` and earlier tags remain immutable historical checkpoints.
 - Windows and Linux public GUI artifacts are not qualified. Their standalone CLI targets have
   separate native release-matrix owners.
 - Community signatures do not establish an operating-system-trusted publisher. Notarization,
@@ -18,7 +18,7 @@ installed-binary authority.
 
 ## Clean v4 compatibility boundary
 
-- Alpha.7 initializes only `canisend.workspace/v4` and uses `canisend.agent/v4`.
+- Alpha.7 and later initialize only `canisend.workspace/v4` and use `canisend.agent/v4`.
 - Alpha.6-or-earlier Skills, Agent v2/v3 requests, job aliases, host-resource layouts, and Workspace
   v2/v3 files are unsupported. They fail before mutation; there is no hidden migration or
   compatibility negotiation.
@@ -47,8 +47,8 @@ installed-binary authority.
   automation, and portal automation are outside the current scope.
 - CanISend does not provide model credentials or a hosted provider. Codex, Claude Code, and other
   MCP clients own their authentication, conversations, plugins, search, and retention.
-- Exact Codex and Claude Code dogfood, another conforming MCP client, and the packaged desktop
-  journey passed Alpha.7 qualification. Real invited-user evidence remains a Beta-readiness gate.
+- Exact Codex CLI, Claude Code, Claude Desktop, and bounded MCP-host dogfood passed Alpha.8
+  qualification. Real invited-user evidence remains a Beta-readiness gate.
 
 ## Product boundary
 

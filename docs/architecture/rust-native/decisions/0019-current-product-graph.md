@@ -155,9 +155,12 @@ risk.
 - Review decision: accepted on 2026-08-03 for the Alpha.6 source checkpoint only. The review found
   that an immediate split would change legacy render, legacy projection/repair, generic v3
   deliverable export, and backup/migration rebuild paths at once.
+- Re-review decision: accepted on 2026-08-11 for the published Alpha.8 checkpoint. The actual and
+  target graphs, Store/IO ownership boundary, compensating failure tests, and removal condition are
+  unchanged from the independently qualified source.
 - Tracking: M1-ARCH-001, M1-ARCH-002, and M1-ARCH-004.
-- Review by: 2026-08-10.
-- Hard expiry: 2026-08-17.
+- Initial review by: 2026-08-10; completed by the dated re-review above.
+- Next review and hard expiry: 2026-08-17.
 - Removal condition: move rendering/projection orchestration behind an app-owned neutral port with
   stale, failure-atomicity, Blob-ledger, cleanup, and repair-convergence tests; otherwise accept a
   new explicitly reviewed exception before this one expires.
@@ -170,6 +173,11 @@ failure records `repair-required` before converging idempotently. CanISend never
 deletes an unreferenced digest, so a failed attempt cannot delete pre-existing or shared content.
 The exact evidence and limits are recorded in the
 [M1 exception review](../../../notes/rust-native/2026-08-03-m1-store-render-exception.md).
+
+The 2026-08-11 re-review compared the current branch with published Alpha.8 source
+`35e7c822ea2f469ab726a31b5d08e622f6810c55`: the locked dependency graph, Store render and
+projection paths, and both named regressions are unchanged. The exception is retained only until
+the existing hard expiry; this review does not authorize another date-only renewal.
 
 The source gate fails after the review date or expiry. Policy forbids renewing only the date; a
 renewal requires an explicit architecture review and accepted ADR/policy update whose owner,

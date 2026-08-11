@@ -1,5 +1,19 @@
 # Changelog
 
+## Published `v1.0.0-alpha.8`
+
+- Moved active Workspace and Application context into the desktop sidebar.
+- Added project or global installation scope for managed Agent Skills while keeping MCP
+  configuration project-local.
+- Added Typst Profile import and verified starter resources for new Workspace directories.
+- Preserved exact Alpha provider evidence across sequential source transitions and made Alpha.8
+  eligible for the same fail-closed Beta-readiness checks as Alpha.7.
+
+Published from `35e7c822ea2f469ab726a31b5d08e622f6810c55` on 2026-08-10 after build-once native
+qualification, promotion without recompilation, and independent public-download verification. The
+immutable release unit is at
+https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8.
+
 ## Published `v1.0.0-alpha.7`
 
 - Replaced Workspace modes with clean `canisend.workspace/v4`: one neutral Workspace can hold
