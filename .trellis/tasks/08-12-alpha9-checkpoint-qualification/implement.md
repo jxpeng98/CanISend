@@ -47,11 +47,19 @@ artifact inspection because its active manifest and SBOM declared legacy v2 cont
 be promoted. The changed-byte repair must merge through protected CI and obtain a separate
 replacement-candidate authorization before this section is considered qualification evidence.
 
-- [ ] Merge the reviewed metadata repair through protected CI and freeze replacement source `S2`.
-- [ ] Obtain separate authorization and dispatch one replacement candidate from `S2`; record
+- [x] Merge the reviewed metadata repair through protected CI and freeze replacement source `S2`.
+- [x] Obtain separate authorization and dispatch one replacement candidate from `S2`; record
       replacement run `C2` and artifact `A2`.
-- [ ] Verify the corrected v4 manifest/SBOM tuple, checksums, signatures, and provenance before
+- [x] Verify the corrected v4 manifest/SBOM tuple, checksums, signatures, and provenance before
       requesting tag or promotion authorization.
+
+PR #187 merged through protected CI as `S2`
+`4876c5669b7ae48ca053b5e06e0005419d2051f6`. Replacement candidate `C2` is successful run
+`31609344160`; its complete release artifact `A2` is `9147597003` with GitHub digest
+`sha256:da3c6a5c0aab4cc7f41c2fb1a33fc3c2769232ed74d0333e73f0a33cd5d489d9`. Independent download
+verification passed all 15 checksum-listed files, the active manifest and SBOM contain the exact
+v4 tuple, and signed provenance binds all 16 local files to `S2` and the release workflow with no
+digest mismatch. Tagging and promotion remain separately authorized.
 
 ## 5. Promote the same bytes and verify them publicly
 
