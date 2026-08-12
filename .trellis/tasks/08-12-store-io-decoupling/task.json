@@ -16,7 +16,7 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
-  "pr_url": null,
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/184",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -29,7 +29,7 @@
     "docs/architecture/rust-native/workspace-dependency-policy-v1.json",
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
   ],
-  "notes": "Implementation removes the normal Store-to-IO edge; local checks precede protected PR and CI evidence.",
+  "notes": "Implementation and source gates are complete in protected PR #184; the task awaits separately authorized merge and GitHub state reconciliation.",
   "meta": {
     "roadmap_id": "M3-ARCH-001",
     "github_issue": 182,

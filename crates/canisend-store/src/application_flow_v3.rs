@@ -1236,9 +1236,10 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
+    use canisend_contracts::{ArtifactReference, DocumentRecord};
     use canisend_core::{
-        WorkflowPackByteLoader, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
-        WorkflowPackRuntime,
+        RenderedPdfOutput, WorkflowPackByteLoader, WorkflowPackCapabilityRegistry,
+        WorkflowPackOrigin, WorkflowPackRuntime,
     };
     use canisend_resources::{
         EmbeddedWorkflowPack, academic_job_workflow_pack, generic_application_workflow_pack,
@@ -1282,6 +1283,42 @@ mod tests {
         ))
     }
 
+    struct InvalidApplicationPdfExecutor;
+
+    impl RenderExecutor for InvalidApplicationPdfExecutor {
+        fn project_document(
+            &mut self,
+            _source_artifact: &ArtifactReference,
+            _document: &DocumentRecord,
+        ) -> Result<String, RenderError> {
+            Err(RenderError::DocumentTemplateEncoding)
+        }
+
+        fn render_pdf(&mut self, _source: &str) -> Result<RenderedPdfOutput, RenderError> {
+            Ok(RenderedPdfOutput {
+                pdf_bytes: b"not-a-pdf".to_vec(),
+                page_count: 1,
+                warning_count: 0,
+                elapsed_millis: 0,
+            })
+        }
+
+        fn validate_pdf(&mut self, _bytes: &[u8]) -> Result<u32, RenderError> {
+            Err(RenderError::InvalidPdf)
+        }
+
+        fn project_deliverable(
+            &mut self,
+            _template: &[u8],
+            _pack: &ApplicationPackBindingV3,
+            _application_revision: Revision,
+            _deliverable: &DeliverableRecordV3,
+            _content: &[u8],
+        ) -> Result<String, RenderError> {
+            Ok("= Invalid executor output\n".to_owned())
+        }
+    }
+
     #[test]
     fn omitted_deliverable_cannot_select_an_execution_mode() {
         let generic = bundle(generic_application_workflow_pack());
@@ -1307,7 +1344,7 @@ mod tests {
     }
 
     #[test]
-    fn current_evidence_associations_drive_stage_and_deliverable_inputs() {
+    fn current_evidence_associations_drive_inputs_and_invalid_export_is_atomic() {
         let root = root();
         let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
         let generic = bundle(generic_application_workflow_pack());
@@ -1420,6 +1457,44 @@ mod tests {
                 revision: Revision::try_new(1).expect("revision"),
             }]
         );
+
+        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .approve(
+                &generic,
+                &application_id,
+                ApplicationFlowApproveRequestV3 {
+                    expected_revision: Revision::try_new(3).expect("revision"),
+                },
+            )
+            .expect("approve Deliverable");
+        let destination =
+            SafeRelativePath::try_new(format!("applications/{application_id}/exports/invalid-pdf"))
+                .expect("export destination");
+        let audit_before: i64 = workspace
+            .database
+            .connection()
+            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+            .expect("audit count before invalid export");
+        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(
+                &generic,
+                &application_id,
+                Revision::try_new(4).expect("revision"),
+                &destination,
+                &mut InvalidApplicationPdfExecutor,
+            )
+            .expect_err("invalid executor PDF must fail before export writes");
+        assert!(matches!(
+            error,
+            StoreError::EmbeddedRender(RenderError::InvalidPdf)
+        ));
+        assert!(!root.join(destination.as_str()).exists());
+        let audit_after: i64 = workspace
+            .database
+            .connection()
+            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+            .expect("audit count after invalid export");
+        assert_eq!(audit_after, audit_before);
 
         drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");

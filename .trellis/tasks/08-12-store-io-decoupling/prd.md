@@ -56,7 +56,7 @@ instead of renewing the 2026-08-17 exception.
       and restores using the existing verified resources and render limits.
 - [x] Existing stable error classifications remain unchanged for encrypted/malformed PDF,
       invalid input, stale work, workspace conflict, external IO, and internal render failure.
-- [ ] `cargo fmt`, affected-package Clippy/tests, dependency-policy verification, and one final
+- [x] `cargo fmt`, affected-package Clippy/tests, dependency-policy verification, and one final
       `cargo run -p xtask --locked -- release check` pass.
 - [x] Roadmap task `M3-ARCH-001` is linked to a public Issue before implementation becomes Ready;
       release/publication work remains separately authorized.
@@ -71,5 +71,6 @@ instead of renewing the 2026-08-17 exception.
 
 ## Execution State
 
-This task is In progress. The reviewed plan, linked Roadmap Issue, and user approval are complete;
-implementation still requires the final source gate, protected PR, and CI evidence.
+This task is In progress. Implementation, the final source gate, protected PR, and PR-head CI
+evidence are complete; the task remains open until the separately authorized merge and linked
+GitHub state reconciliation.

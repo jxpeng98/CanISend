@@ -50,11 +50,11 @@
 
 ## 7. Validate and prepare protected integration
 
-- [ ] Run `git diff --check` and `cargo fmt --all -- --check`.
-- [ ] Run focused Core, IO, Store, and App owner tests plus affected-package Clippy.
-- [ ] Run the workspace dependency-policy check and named atomicity/recovery regressions.
-- [ ] Run one final `cargo run -p xtask --locked -- release check` on the complete PR head.
-- [ ] Review with `trellis-check`, update specs with `trellis-update-spec`, commit, push, and open a
+- [x] Run `git diff --check` and `cargo fmt --all -- --check`.
+- [x] Run focused Core, IO, Store, and App owner tests plus affected-package Clippy.
+- [x] Run the workspace dependency-policy check and named atomicity/recovery regressions.
+- [x] Run one final `cargo run -p xtask --locked -- release check` on the complete PR head.
+- [x] Review with `trellis-check`, update specs with `trellis-update-spec`, commit, push, and open a
       protected PR. Do not merge or publish without separate authorization.
 
 ## Rollback points
