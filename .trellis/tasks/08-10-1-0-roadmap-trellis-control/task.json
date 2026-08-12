@@ -32,9 +32,9 @@
   "meta": {
     "roadmap_id": "PROGRAM-1.0",
     "current_milestone": "M3",
-    "current_roadmap_id": "M3-ARCH-001",
-    "github_issue": 182,
-    "open_roadmap_issues": 28,
+    "current_roadmap_id": "M3-ALPHA9-001",
+    "github_issue": 183,
+    "open_roadmap_issues": 27,
     "management_mode": "just-in-time"
   }
 }
