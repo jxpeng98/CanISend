@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
   "completedAt": null,
-  "branch": "agent/alpha9-release-metadata-v4",
+  "branch": "agent/alpha9-v4-candidate-evidence",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -32,7 +32,7 @@
     "scripts/smoke_agent_v4_mcp.sh",
     "xtask/src/main.rs"
   ],
-  "notes": "Candidate run 31600099628 was rejected before tagging because active manifest and SBOM metadata used legacy v2 constants. The authorized changed-byte repair requires a new protected source and replacement candidate; merge, candidate dispatch, tag, promotion, publication, and external-host dogfood remain separately authorized.",
+  "notes": "Replacement Alpha.9 candidate 31609344160 from protected source 4876c566 passed the native matrix and independent v4 artifact/provenance verification. Tag, promotion, publication, and external-host dogfood remain separately authorized.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -51,6 +51,22 @@
       "reason": "active-release-contract-metadata-v2",
       "run_id": 31600099628,
       "source_commit": "8ca0c0a47dcb600d8933168f168543c1388345e8"
+    },
+    "replacement_candidate": {
+      "artifact_digest": "sha256:da3c6a5c0aab4cc7f41c2fb1a33fc3c2769232ed74d0333e73f0a33cd5d489d9",
+      "artifact_expires_at": "2026-09-11T15:23:46Z",
+      "artifact_id": 9147597003,
+      "artifact_name": "canisend-v1.0.0-alpha.9-release-assets",
+      "checksum_file_count": 15,
+      "provenance_subject_count": 16,
+      "run_id": 31609344160,
+      "source_commit": "4876c5669b7ae48ca053b5e06e0005419d2051f6",
+      "verified_contracts": {
+        "agent_protocol": "canisend.agent/v4",
+        "public_schema_version": "4.0.0",
+        "resource_format": "canisend.agent-host-resources/v4",
+        "workspace_format": "canisend.workspace/v4"
+      }
     },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3

@@ -91,3 +91,31 @@ SBOM writer, and verifier all used the same compatibility constants, so the stal
 self-validate. The repair must make every active release projection consume one supported v4
 tuple and leave historical v2 evidence unchanged. Candidate run `31600099628` is diagnostic only;
 a protected changed-byte repair requires a new source and replacement candidate.
+
+## Qualified replacement candidate
+
+PR #187 passed all protected Fast CI and dependency-policy checks and merged on 2026-08-12 as
+replacement source `S2` `4876c5669b7ae48ca053b5e06e0005419d2051f6`. Protected `main` resolved to
+the same commit, no `v1.0.0-alpha.9` tag existed, and no other release workflow was active before
+the separately authorized replacement dispatch.
+
+Replacement candidate run `C2` `31609344160` completed successfully from `S2`. Its release asset
+`A2` is artifact `9147597003`, named `canisend-v1.0.0-alpha.9-release-assets`, with GitHub digest
+`sha256:da3c6a5c0aab4cc7f41c2fb1a33fc3c2769232ed74d0333e73f0a33cd5d489d9` and expiry
+`2026-09-11T15:23:46Z`. Release identity, signing readiness, source gates, Windows release tests,
+all five CLI targets, the supported macOS App package, assembly, packaged smokes, and attestation
+passed. Promotion and publication jobs were skipped by candidate mode.
+
+An independent download contained 16 files. `xtask release verify` passed all 15 checksum-listed
+files. The manifest binds `S2` and the exact active tuple `canisend.agent/v4`, schema `4.0.0`,
+`canisend.agent-host-resources/v4`, and `canisend.workspace/v4`; the SBOM exposes the same Agent,
+Workspace, and schema values. The manifest, SBOM, and `SHA256SUMS` digests are respectively
+`6d3e5e64dcb6663b5122c70420dc3e16d8c8e3aed8c3bcec35b4ba101537ba5b`,
+`2d513827ef284cf214124ad6909e1176502acda4ba59c8b18e659560708673e9`, and
+`13e9de63e54fa0a011d58146fd83ae4ee0cdd05cc25b6dba0d2d2ba59202573f`.
+
+GitHub OIDC provenance verified against `jxpeng98/CanISend/.github/workflows/release.yml`, source
+digest `S2`, and `refs/heads/main`. Its signed statement contains all 16 subjects; recomputing every
+local SHA-256 produced zero mismatches and zero missing files. Community Alpha signing remains
+stage-accurate: Apple artifacts are ad-hoc signed, the Windows CLI carries self-signed Authenticode,
+Linux relies on checksums and provenance, and no trusted-publisher or notarization claim is made.
