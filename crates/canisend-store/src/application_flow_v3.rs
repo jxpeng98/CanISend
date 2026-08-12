@@ -28,7 +28,7 @@ use crate::{
     DEFAULT_MAX_BLOB_BYTES, Database, NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
     association_v4::{prepare_source, validate_new_source_consent},
     generate_id, now_utc,
-    render::{create_empty_export_directory, join_path, write_new_file},
+    render::{create_empty_export_directory, join_path, validate_render_output, write_new_file},
 };
 
 pub const APPLICATION_FLOW_EXPORT_FORMAT_V3: &str = "canisend.application-flow-export/v3";
@@ -745,6 +745,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 )
                 .map_err(deliverable_projection_error)?;
             let pdf = executor.render_pdf(&source)?;
+            validate_render_output(executor, &pdf.pdf_bytes, pdf.page_count)?;
             let local_id = deliverable.kind.local_id_str().to_owned();
             let index = counts.entry(local_id.clone()).or_insert(0);
             *index = index.checked_add(1).ok_or_else(|| {

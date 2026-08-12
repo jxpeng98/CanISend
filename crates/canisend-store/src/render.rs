@@ -85,12 +85,7 @@ impl<'a> RenderService<'a> {
             let elapsed_millis = u64::try_from(rendered.elapsed_millis)
                 .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
             let pdf_bytes = rendered.pdf_bytes;
-            let validated_page_count = executor.validate_pdf(&pdf_bytes)?;
-            if validated_page_count != page_count {
-                return Err(StoreError::DependencyConflict(
-                    "render executor page count does not match its validated PDF".to_owned(),
-                ));
-            }
+            validate_render_output(executor, &pdf_bytes, page_count)?;
             let byte_count = u64::try_from(pdf_bytes.len())
                 .map_err(|_| StoreError::Invariant("render byte count overflow".to_owned()))?;
 
@@ -616,6 +611,19 @@ pub(crate) fn write_new_file(
     file.write_all(bytes)
         .map_err(|source| io_error(&path, source))?;
     file.sync_all().map_err(|source| io_error(&path, source))
+}
+
+pub(crate) fn validate_render_output(
+    executor: &mut impl RenderExecutor,
+    pdf_bytes: &[u8],
+    reported_page_count: u32,
+) -> Result<(), StoreError> {
+    if executor.validate_pdf(pdf_bytes)? != reported_page_count {
+        return Err(StoreError::DependencyConflict(
+            "render executor page count does not match its validated PDF".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn join_path(
