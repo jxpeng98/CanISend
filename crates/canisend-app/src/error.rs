@@ -224,7 +224,13 @@ fn classify_render(error: &EmbeddedRenderError) -> Classification {
         | EmbeddedRenderError::CompileFailed { .. }
         | EmbeddedRenderError::PdfExportFailed { .. }
         | EmbeddedRenderError::PdfTooLarge { .. }
-        | EmbeddedRenderError::TimeBudgetExceeded { .. } => ErrorCode::InternalInvariantFailed,
+        | EmbeddedRenderError::TimeBudgetExceeded { .. }
+        | EmbeddedRenderError::DocumentTemplateEncoding
+        | EmbeddedRenderError::UnresolvedTemplateFields { .. }
+        | EmbeddedRenderError::ProjectionSourceTooLarge { .. }
+        | EmbeddedRenderError::PackTemplateEncoding
+        | EmbeddedRenderError::DeliverableContentEncoding
+        | EmbeddedRenderError::DeliverableNotApproved => ErrorCode::InternalInvariantFailed,
     };
     ("render-failed", code, false, None, None)
 }
@@ -406,6 +412,7 @@ mod tests {
     use std::path::PathBuf;
 
     use canisend_contracts::ErrorCode;
+    use canisend_core::RenderError;
     use canisend_io::IoAdapterError;
     use canisend_resources::ResourceError;
     use canisend_store::StoreError;
@@ -444,6 +451,23 @@ mod tests {
         assert_eq!(pdf.code, ErrorCode::PdfTextUnavailable);
         assert_eq!(pdf.status, "text-unavailable");
         assert!(pdf.remediation.is_some());
+
+        for (error, expected) in [
+            (RenderError::EncryptedPdf, ErrorCode::PdfEncrypted),
+            (RenderError::InvalidPdf, ErrorCode::PdfMalformed),
+            (
+                RenderError::CompileFailed {
+                    kind: "source",
+                    diagnostic_count: 1,
+                },
+                ErrorCode::InternalInvariantFailed,
+            ),
+        ] {
+            let render = ApplicationError::from(StoreError::EmbeddedRender(error)).classify();
+            assert_eq!(render.code, expected);
+            assert_eq!(render.status, "render-failed");
+            assert!(!render.retryable);
+        }
 
         let unsafe_export =
             ApplicationError::from(ResourceError::UnsafeExportPath(PathBuf::from("/unsafe")))

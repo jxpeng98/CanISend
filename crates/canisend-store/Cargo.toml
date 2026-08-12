@@ -12,7 +12,6 @@ publish.workspace = true
 [dependencies]
 canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.8" }
 canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.8" }
-canisend-io = { path = "../canisend-io", version = "=1.0.0-alpha.8" }
 getrandom.workspace = true
 hex.workspace = true
 rusqlite.workspace = true
@@ -26,6 +25,7 @@ time.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
+canisend-io = { path = "../canisend-io", version = "=1.0.0-alpha.8" }
 canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.8" }
 
 [lints]

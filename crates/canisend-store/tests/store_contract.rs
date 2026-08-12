@@ -12,17 +12,20 @@ use std::{
 };
 
 use canisend_contracts::{
-    ActorKind, ApplicationDecision, ApplicationFieldValueV3, ApplicationId, ArtifactKind,
-    ArtifactReference, BackupManifestData, DocumentKind, DocumentRecord, EntityId, ExecutionMode,
+    ActorKind, ApplicationDecision, ApplicationFieldValueV3, ApplicationId,
+    ApplicationPackBindingV3, ArtifactKind, ArtifactReference, BackupManifestData,
+    DeliverableRecordV3, DocumentKind, DocumentRecord, EntityId, ExecutionMode,
     ExpectedInputRevision, PlannedDocumentRecord, PrivacyClassification, ProfileSourceKind,
     RequirementPriorityV3, Revision, SafeRelativePath, Sha256Digest, SourceKind,
     StageExecutionStatus, TaskCompletionRequest, TaskStatus, WORKSPACE_FORMAT, WORKSPACE_V4_FORMAT,
     WorkflowPackItemId, WorkflowStage,
 };
 use canisend_core::{
+    RenderError, RenderExecutionOutput, RenderExecutor, RenderedPdfOutput,
     VerifiedWorkflowPackBundle, WorkflowPackByteLoader, WorkflowPackCapabilityRegistry,
     WorkflowPackOrigin, WorkflowPackRuntime,
 };
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_resources::{
     EmbeddedWorkflowPack, academic_job_workflow_pack, generic_application_workflow_pack,
 };
@@ -30,10 +33,9 @@ use canisend_store::{
     ApplicationFlowCreateRequestV3, ApplicationFlowRequirementDraftV3, ApplicationFlowServiceV3,
     ApplicationModelRepository, ApplicationProjectionKindV3, ApplicationProjectionService,
     ArtifactService, CriteriaService, DATABASE_SCHEMA_VERSION, DEFAULT_MAX_BLOB_BYTES,
-    DocumentService, EmbeddedRenderExecutor, EvidenceService, JobService, MatchService,
-    NewProfileSource, NewSource, PackageService, PlanService, ProfileService, ProjectionService,
-    RenderExecutionOutput, RenderExecutor, RenderService, ReviewService, StoreError, TaskService,
-    WorkflowService, Workspace, WorkspacePaths, verify_backup,
+    DocumentService, EvidenceService, JobService, MatchService, NewProfileSource, NewSource,
+    PackageService, PlanService, ProfileService, ProjectionService, RenderService, ReviewService,
+    StoreError, TaskService, WorkflowService, Workspace, WorkspacePaths, verify_backup,
 };
 use rusqlite::{Connection, params};
 use serde_json::{Value, json};
@@ -317,26 +319,73 @@ fn transition_render_stage(
     Ok(())
 }
 
-struct FailingRenderExecutor;
+macro_rules! delegate_render_operations {
+    () => {
+        fn project_document(
+            &mut self,
+            source_artifact: &ArtifactReference,
+            document: &DocumentRecord,
+        ) -> Result<String, RenderError> {
+            self.delegate.project_document(source_artifact, document)
+        }
+
+        fn render_pdf(&mut self, source: &str) -> Result<RenderedPdfOutput, RenderError> {
+            self.delegate.render_pdf(source)
+        }
+
+        fn validate_pdf(&mut self, bytes: &[u8]) -> Result<u32, RenderError> {
+            self.delegate.validate_pdf(bytes)
+        }
+
+        fn project_deliverable(
+            &mut self,
+            template: &[u8],
+            pack: &ApplicationPackBindingV3,
+            application_revision: Revision,
+            deliverable: &DeliverableRecordV3,
+            content: &[u8],
+        ) -> Result<String, RenderError> {
+            self.delegate.project_deliverable(
+                template,
+                pack,
+                application_revision,
+                deliverable,
+                content,
+            )
+        }
+    };
+}
+
+#[derive(Default)]
+struct FailingRenderExecutor {
+    delegate: EmbeddedTypstCompiler,
+}
 
 impl RenderExecutor for FailingRenderExecutor {
+    delegate_render_operations!();
+
     fn render_document(
         &mut self,
         _document_artifact: &ArtifactReference,
         _document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError> {
-        Err(StoreError::TypstProjectionInvariant)
+    ) -> Result<RenderExecutionOutput, RenderError> {
+        Err(RenderError::DocumentTemplateEncoding)
     }
 }
 
-struct InvalidPdfRenderExecutor;
+#[derive(Default)]
+struct InvalidPdfRenderExecutor {
+    delegate: EmbeddedTypstCompiler,
+}
 
 impl RenderExecutor for InvalidPdfRenderExecutor {
+    delegate_render_operations!();
+
     fn render_document(
         &mut self,
         _document_artifact: &ArtifactReference,
         _document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError> {
+    ) -> Result<RenderExecutionOutput, RenderError> {
         Ok(RenderExecutionOutput {
             typst_source: "= Untrusted executor output\n".to_owned(),
             pdf_bytes: b"not-a-pdf".to_vec(),
@@ -349,7 +398,7 @@ impl RenderExecutor for InvalidPdfRenderExecutor {
 
 struct StalingRenderExecutor {
     database_path: PathBuf,
-    delegate: EmbeddedRenderExecutor,
+    delegate: EmbeddedTypstCompiler,
     stale_once: bool,
 }
 
@@ -357,21 +406,24 @@ impl StalingRenderExecutor {
     fn new(database_path: PathBuf) -> Self {
         Self {
             database_path,
-            delegate: EmbeddedRenderExecutor::new(),
+            delegate: EmbeddedTypstCompiler::new(),
             stale_once: false,
         }
     }
 }
 
 impl RenderExecutor for StalingRenderExecutor {
+    delegate_render_operations!();
+
     fn render_document(
         &mut self,
         document_artifact: &ArtifactReference,
         document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError> {
+    ) -> Result<RenderExecutionOutput, RenderError> {
         let output = self.delegate.render_document(document_artifact, document)?;
         if !self.stale_once {
-            transition_render_stage(&self.database_path, &document.job_id, "ready", "pending")?;
+            transition_render_stage(&self.database_path, &document.job_id, "ready", "pending")
+                .expect("stale render fixture changes the stage");
             self.stale_once = true;
         }
         Ok(output)
@@ -600,6 +652,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     let performance_started = Instant::now();
     let root = TestDirectory::new("evidence-workflow");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let mut executor = EmbeddedTypstCompiler::new();
     let job = JobService::new(&mut workspace.database, &workspace.blobs)
         .create("Lecturer", "University X", ActorKind::User)
         .expect("job");
@@ -1355,7 +1408,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     let workspace_root = workspace.paths.root.clone();
     let (export_artifact, export_receipt) =
         ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .export(&job.id, &export_directory)
+            .export(&job.id, &export_directory, &mut executor)
             .expect("structured Markdown and JSON export");
     assert_eq!(export_artifact.kind, ArtifactKind::ExportManifest);
     assert_eq!(export_receipt.package_artifact, ready_package_artifact);
@@ -1421,7 +1474,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     }));
     let restored =
         ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .replace(&job.id, &cover_typst)
+            .replace(&job.id, &cover_typst, &mut executor)
             .expect("explicitly restore generated Typst source");
     assert!(!restored.authoritative_changed);
     assert!(
@@ -1451,8 +1504,11 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
             && !record.authoritative_changed
     }));
     assert!(matches!(
-        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .export(&job.id, &export_directory),
+        ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root).export(
+            &job.id,
+            &export_directory,
+            &mut executor
+        ),
         Err(StoreError::ProjectionEdited(_))
     ));
     let preserved_path = SafeRelativePath::try_new(format!(
@@ -1461,7 +1517,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     ))
     .expect("preserved edit path");
     let copied = ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-        .copy_as_new(&job.id, &cover_markdown, &preserved_path)
+        .copy_as_new(&job.id, &cover_markdown, &preserved_path, &mut executor)
         .expect("preserve edit and restore managed projection");
     assert_eq!(
         copied.action,
@@ -1482,7 +1538,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     fs::write(&markdown_path, "temporary replacement edit\n").expect("second edit");
     let replaced =
         ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .replace(&job.id, &cover_markdown)
+            .replace(&job.id, &cover_markdown, &mut executor)
             .expect("explicitly discard edit");
     assert_eq!(
         replaced.action,
@@ -1499,7 +1555,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
             && record.projection.edit_status == canisend_contracts::ProjectionEditStatus::Missing
     }));
     ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-        .replace(&job.id, &cover_json)
+        .replace(&job.id, &cover_json, &mut executor)
         .expect("restore missing JSON projection");
     assert!(workspace_root.join(cover_json.as_str()).is_file());
 
@@ -1533,7 +1589,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
 
     let renderer_error =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .build_with_executor(&job.id, &mut FailingRenderExecutor)
+            .build(&job.id, &mut FailingRenderExecutor::default())
             .expect_err("renderer failure must abort the build");
     assert!(matches!(
         renderer_error,
@@ -1562,7 +1618,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
 
     let invalid_pdf_error =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .build_with_executor(&job.id, &mut InvalidPdfRenderExecutor)
+            .build(&job.id, &mut InvalidPdfRenderExecutor::default())
             .expect_err("Store must independently reject an executor's invalid PDF");
     assert!(matches!(invalid_pdf_error, StoreError::EmbeddedRender(_)));
     assert_eq!(
@@ -1582,7 +1638,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     let mut staling_executor = StalingRenderExecutor::new(workspace.paths.database.clone());
     let stale_error =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .build_with_executor(&job.id, &mut staling_executor)
+            .build(&job.id, &mut staling_executor)
             .expect_err("a stage revision change while compiling must abort the commit");
     assert!(matches!(stale_error, StoreError::TaskStale(_)));
     assert_eq!(
@@ -1629,7 +1685,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
 
     let (render_artifact, render_manifest) =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .build(&job.id)
+            .build(&job.id, &mut executor)
             .expect("in-process revision-bound render");
     assert_eq!(render_artifact.kind, ArtifactKind::RenderManifest);
     assert_eq!(render_manifest.package_artifact, ready_package_artifact);
@@ -1676,7 +1732,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     }
     assert_eq!(
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .build(&job.id)
+            .build(&job.id, &mut executor)
             .expect("idempotent render"),
         (render_artifact.clone(), render_manifest.clone())
     );
@@ -1684,7 +1740,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         SafeRelativePath::try_new(format!("jobs/{}/rendered", job.id)).expect("render directory");
     let (exported_artifact, exported_manifest, rendered_paths) =
         RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .export(&job.id, &rendered_directory)
+            .export(&job.id, &rendered_directory, &mut executor)
             .expect("explicit PDF export service");
     assert_eq!(exported_artifact, render_artifact);
     assert_eq!(exported_manifest, render_manifest);
@@ -1698,7 +1754,7 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
     for document in &render_manifest.documents {
         let (preview_document, preview_bytes) =
             RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .preview(&job.id, document.kind)
+                .preview(&job.id, document.kind, &mut executor)
                 .expect("read exact current PDF for preview");
         assert_eq!(preview_document, *document);
         let exported_path = workspace_root
@@ -1711,8 +1767,11 @@ fn evidence_and_match_tasks_enforce_stable_revision_bound_identities() {
         );
     }
     assert!(matches!(
-        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-            .export(&job.id, &rendered_directory),
+        RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root).export(
+            &job.id,
+            &rendered_directory,
+            &mut executor
+        ),
         Err(StoreError::ProjectionUnmanagedConflict(_))
     ));
     let status = WorkflowService::new(&mut workspace.database)
@@ -2554,6 +2613,7 @@ fn workspace_and_blob_symlinks_fail_closed() {
 fn artifact_commit_stales_dependents_and_projection_repairs() {
     let root = TestDirectory::new("artifact");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let mut executor = EmbeddedTypstCompiler::new();
     let (source, derived) = {
         let mut service = ArtifactService::new(
             &mut workspace.database,
@@ -2632,7 +2692,12 @@ fn artifact_commit_stales_dependents_and_projection_repairs() {
             b"derived v1"
         );
         fs::remove_file(&collision).expect("remove collision");
-        assert_eq!(service.repair_projections().expect("repair projection"), 1);
+        assert_eq!(
+            service
+                .repair_projections(&mut executor)
+                .expect("repair projection"),
+            1
+        );
         (source, derived)
     };
     let check = workspace.check().expect("workspace check");
@@ -2657,6 +2722,7 @@ fn workspace_v4_recovery_preserves_mixed_pack_authority_and_fails_closed() {
     let restore_path = restore.path().join("workspace");
     let rejected_path = rejected.path().join("workspace");
     let mut workspace = Workspace::init_v4(root.path()).expect("clean Workspace v4");
+    let mut executor = EmbeddedTypstCompiler::new();
     let generic_pack = verified_workflow_pack(generic_application_workflow_pack());
     let academic_pack = verified_workflow_pack(academic_job_workflow_pack());
     let generic_id = create_workspace_v4_application(
@@ -2788,15 +2854,15 @@ fn workspace_v4_recovery_preserves_mixed_pack_authority_and_fails_closed() {
     fs::create_dir_all(occupied.path()).expect("occupied restore destination");
     fs::write(occupied.path().join("user-file.txt"), b"preserve me").expect("occupied marker");
     let occupied_before = workspace_file_snapshot(occupied.path());
-    assert!(Workspace::restore(&backup_path, occupied.path()).is_err());
+    assert!(Workspace::restore(&backup_path, occupied.path(), &mut executor).is_err());
     assert_eq!(
         workspace_file_snapshot(occupied.path()),
         occupied_before,
         "rejected restore must not alter an occupied destination"
     );
 
-    let mut restored =
-        Workspace::restore(&backup_path, &restore_path).expect("restore Workspace v4");
+    let mut restored = Workspace::restore(&backup_path, &restore_path, &mut executor)
+        .expect("restore Workspace v4");
     assert_eq!(restored.config.format, WORKSPACE_V4_FORMAT);
     assert!(restored.check().expect("restored Workspace v4 check").ok);
     assert_eq!(
@@ -2848,7 +2914,7 @@ fn workspace_v4_recovery_preserves_mixed_pack_authority_and_fails_closed() {
         Err(StoreError::BackupInvalid(message))
             if message.contains("retired storage schema")
     ));
-    assert!(Workspace::restore(&backup_path, &rejected_path).is_err());
+    assert!(Workspace::restore(&backup_path, &rejected_path, &mut executor).is_err());
     assert!(!rejected_path.exists());
     assert_eq!(
         workspace_v4_authority_counts(&workspace.paths.database),
@@ -2870,6 +2936,7 @@ fn workspace_v4_restore_rejects_a_verified_legacy_backup_before_writing() {
     let backup_path = backup.path().join("snapshot");
     let restore_path = restore.path().join("workspace");
     let mut workspace = Workspace::init(source.path()).expect("legacy Workspace fixture");
+    let mut executor = EmbeddedTypstCompiler::new();
     workspace
         .backup(&backup_path)
         .expect("verified legacy Workspace backup");
@@ -2877,7 +2944,7 @@ fn workspace_v4_restore_rejects_a_verified_legacy_backup_before_writing() {
     let backup_before = workspace_file_snapshot(&backup_path);
 
     assert!(matches!(
-        Workspace::restore_v4(&backup_path, &restore_path),
+        Workspace::restore_v4(&backup_path, &restore_path, &mut executor),
         Err(StoreError::WorkspaceFormatUnsupported { found, required })
             if found == WORKSPACE_FORMAT && required == WORKSPACE_V4_FORMAT
     ));
@@ -2894,6 +2961,7 @@ fn recovery_verified_backup_restores_into_new_workspace() {
     let backup_path = backup.path().join("snapshot");
     let restore_path = restore.path().join("workspace");
     let mut workspace = Workspace::init(root.path()).expect("workspace");
+    let mut executor = EmbeddedTypstCompiler::new();
     {
         let mut service = ArtifactService::new(
             &mut workspace.database,
@@ -2921,7 +2989,7 @@ fn recovery_verified_backup_restores_into_new_workspace() {
     let result = workspace.backup(&backup_path).expect("backup");
     assert_eq!(result.manifest.blobs.len(), 1);
     verify_backup(&backup_path).expect("backup verifies");
-    let restored = Workspace::restore(&backup_path, &restore_path).expect("restore");
+    let restored = Workspace::restore(&backup_path, &restore_path, &mut executor).expect("restore");
     assert_eq!(restored.config.workspace_id, workspace.config.workspace_id);
     assert!(restored.check().expect("restored check").ok);
     assert_eq!(

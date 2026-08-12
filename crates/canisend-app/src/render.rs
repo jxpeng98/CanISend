@@ -3,6 +3,7 @@ use std::path::Path;
 use canisend_contracts::{
     DocumentKind, EntityId, RenderManifestRecord, RenderedDocumentRecord, SafeRelativePath,
 };
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_store::RenderService;
 use serde::{Deserialize, Serialize};
 
@@ -54,9 +55,10 @@ impl Application {
         let job_id = parse_entity_id(job_id)?;
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let (artifact, manifest) =
             RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .build(&job_id)?;
+                .build(&job_id, &mut executor)?;
         Ok(render_receipt(
             "render.build",
             "rendered",
@@ -94,9 +96,10 @@ impl Application {
         let job_id = parse_entity_id(job_id)?;
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let (document, pdf_bytes) =
             RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .preview(&job_id, kind)?;
+                .preview(&job_id, kind, &mut executor)?;
         let artifact = document.pdf_artifact.clone();
         Ok(ActionReceipt::new(
             "render.preview",
@@ -125,9 +128,13 @@ impl Application {
         }
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
-        let (artifact, manifest, files) =
-            RenderService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .export(&request.job_id, &request.destination)?;
+        let mut executor = EmbeddedTypstCompiler::new();
+        let (artifact, manifest, files) = RenderService::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace_root,
+        )
+        .export(&request.job_id, &request.destination, &mut executor)?;
         let count = files.len();
         Ok(ActionReceipt::new(
             "render.export",

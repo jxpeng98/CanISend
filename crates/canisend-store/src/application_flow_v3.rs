@@ -15,8 +15,9 @@ use canisend_contracts::{
     SafeRelativePath, Sha256Digest, StageId, WorkflowPackFieldDefinition, WorkflowPackFieldType,
     WorkflowPackItemId, WorkflowPackStageOutput, WorkspaceSourceKindV4,
 };
-use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime};
-use canisend_io::{EmbeddedTypstCompiler, project_deliverable_typst_v3};
+use canisend_core::{
+    RenderError, RenderExecutor, VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime,
+};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -27,7 +28,7 @@ use crate::{
     DEFAULT_MAX_BLOB_BYTES, Database, NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
     association_v4::{prepare_source, validate_new_source_consent},
     generate_id, now_utc,
-    render::{create_empty_export_directory, join_path, write_new_file},
+    render::{join_path, validate_render_output, write_new_export_files},
 };
 
 pub const APPLICATION_FLOW_EXPORT_FORMAT_V3: &str = "canisend.application-flow-export/v3";
@@ -680,6 +681,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         application_id: &ApplicationId,
         expected_revision: Revision,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
         self.export_with_actor(
             pack,
@@ -687,6 +689,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             expected_revision,
             destination,
             ActorKind::User,
+            executor,
         )
     }
 
@@ -697,6 +700,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         expected_revision: Revision,
         destination: &SafeRelativePath,
         actor: ActorKind,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
         let current = self.validate_export(pack, application_id, expected_revision, destination)?;
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
@@ -705,7 +709,6 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let package =
             ApplicationProjectionService::new(self.database, self.blobs, self.workspace_root)
                 .project(application_id)?;
-        let compiler = EmbeddedTypstCompiler::new();
         let mut counts = BTreeMap::<String, u16>::new();
         let mut rendered = Vec::with_capacity(current.snapshot.deliverables.len());
         let mut files = Vec::with_capacity(current.snapshot.deliverables.len());
@@ -732,15 +735,17 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             let content = self
                 .blobs
                 .read_verified(&content_reference.sha256, DEFAULT_MAX_BLOB_BYTES)?;
-            let source = project_deliverable_typst_v3(
-                template,
-                &current.snapshot.pack,
-                current.snapshot.application.revision,
-                deliverable,
-                &content,
-            )
-            .map_err(|error| StoreError::InvalidInput(error.to_string()))?;
-            let pdf = compiler.compile_pdf(&source)?;
+            let source = executor
+                .project_deliverable(
+                    template,
+                    &current.snapshot.pack,
+                    current.snapshot.application.revision,
+                    deliverable,
+                    &content,
+                )
+                .map_err(deliverable_projection_error)?;
+            let pdf = executor.render_pdf(&source)?;
+            validate_render_output(executor, &pdf.pdf_bytes, pdf.page_count)?;
             let local_id = deliverable.kind.local_id_str().to_owned();
             let index = counts.entry(local_id.clone()).or_insert(0);
             *index = index.checked_add(1).ok_or_else(|| {
@@ -752,12 +757,12 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 format!("-{}", *index)
             };
             let relative_path = join_path(destination, &format!("{local_id}{suffix}.pdf"))?;
-            let pdf_sha256 = Sha256Digest::try_new(hex::encode(Sha256::digest(pdf.bytes())))?;
-            let byte_count = u64::try_from(pdf.bytes().len())
+            let pdf_sha256 = Sha256Digest::try_new(hex::encode(Sha256::digest(&pdf.pdf_bytes)))?;
+            let byte_count = u64::try_from(pdf.pdf_bytes.len())
                 .map_err(|_| StoreError::Invariant("render byte count overflow".to_owned()))?;
-            let warning_count = u32::try_from(pdf.warning_count())
+            let warning_count = u32::try_from(pdf.warning_count)
                 .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
-            let elapsed_millis = u64::try_from(pdf.elapsed().as_millis())
+            let elapsed_millis = u64::try_from(pdf.elapsed_millis)
                 .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
             rendered.push(ApplicationFlowRenderedDeliverableV3 {
                 deliverable_id: deliverable.id.clone(),
@@ -766,12 +771,12 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 source_sha256: content_reference.sha256.clone(),
                 pdf_sha256,
                 relative_path: relative_path.clone(),
-                page_count: pdf.page_count(),
+                page_count: pdf.page_count,
                 byte_count,
                 warning_count,
                 elapsed_millis,
             });
-            files.push((relative_path, pdf.into_bytes()));
+            files.push((relative_path, pdf.pdf_bytes));
         }
         let exported_at = now_utc()?;
         let manifest = ApplicationFlowExportManifestV3 {
@@ -787,11 +792,9 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         };
         let manifest_path = join_path(destination, "render-manifest.json")?;
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
-        create_empty_export_directory(self.workspace_root, destination)?;
-        for (path, bytes) in &files {
-            write_new_file(self.workspace_root, path, bytes)?;
-        }
-        write_new_file(self.workspace_root, &manifest_path, &manifest_bytes)?;
+        files.push((manifest_path, manifest_bytes));
+        self.current_for_pack(pack, application_id, expected_revision)?;
+        write_new_export_files(self.workspace_root, destination, &files)?;
         self.database.connection().execute(
             "INSERT INTO audit_events(
                 id, actor, action, subject_id, subject_revision, reason, created_at
@@ -1209,6 +1212,14 @@ fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
     .map_err(StoreError::from)
 }
 
+fn deliverable_projection_error(error: RenderError) -> StoreError {
+    if error.is_projection() {
+        StoreError::InvalidInput(error.to_string())
+    } else {
+        StoreError::EmbeddedRender(error)
+    }
+}
+
 fn pack_catalog_error(error: impl std::fmt::Display) -> StoreError {
     StoreError::InvalidInput(format!(
         "verified Pack Deliverable catalog rejected input: {error}"
@@ -1220,12 +1231,14 @@ mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
         fs,
+        path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
     };
 
+    use canisend_contracts::{ArtifactReference, DocumentRecord};
     use canisend_core::{
-        WorkflowPackByteLoader, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
-        WorkflowPackRuntime,
+        RenderedPdfOutput, WorkflowPackByteLoader, WorkflowPackCapabilityRegistry,
+        WorkflowPackOrigin, WorkflowPackRuntime,
     };
     use canisend_resources::{
         EmbeddedWorkflowPack, academic_job_workflow_pack, generic_application_workflow_pack,
@@ -1269,6 +1282,95 @@ mod tests {
         ))
     }
 
+    struct InvalidApplicationPdfExecutor;
+
+    impl RenderExecutor for InvalidApplicationPdfExecutor {
+        fn project_document(
+            &mut self,
+            _source_artifact: &ArtifactReference,
+            _document: &DocumentRecord,
+        ) -> Result<String, RenderError> {
+            Err(RenderError::DocumentTemplateEncoding)
+        }
+
+        fn render_pdf(&mut self, _source: &str) -> Result<RenderedPdfOutput, RenderError> {
+            Ok(RenderedPdfOutput {
+                pdf_bytes: b"not-a-pdf".to_vec(),
+                page_count: 1,
+                warning_count: 0,
+                elapsed_millis: 0,
+            })
+        }
+
+        fn validate_pdf(&mut self, _bytes: &[u8]) -> Result<u32, RenderError> {
+            Err(RenderError::InvalidPdf)
+        }
+
+        fn project_deliverable(
+            &mut self,
+            _template: &[u8],
+            _pack: &ApplicationPackBindingV3,
+            _application_revision: Revision,
+            _deliverable: &DeliverableRecordV3,
+            _content: &[u8],
+        ) -> Result<String, RenderError> {
+            Ok("= Invalid executor output\n".to_owned())
+        }
+    }
+
+    struct StalingApplicationPdfExecutor {
+        database_path: PathBuf,
+        application_id: ApplicationId,
+        staled: bool,
+    }
+
+    impl RenderExecutor for StalingApplicationPdfExecutor {
+        fn project_document(
+            &mut self,
+            _source_artifact: &ArtifactReference,
+            _document: &DocumentRecord,
+        ) -> Result<String, RenderError> {
+            Err(RenderError::DocumentTemplateEncoding)
+        }
+
+        fn render_pdf(&mut self, _source: &str) -> Result<RenderedPdfOutput, RenderError> {
+            Ok(RenderedPdfOutput {
+                pdf_bytes: b"application-pdf".to_vec(),
+                page_count: 1,
+                warning_count: 0,
+                elapsed_millis: 0,
+            })
+        }
+
+        fn validate_pdf(&mut self, _bytes: &[u8]) -> Result<u32, RenderError> {
+            Ok(1)
+        }
+
+        fn project_deliverable(
+            &mut self,
+            _template: &[u8],
+            _pack: &ApplicationPackBindingV3,
+            application_revision: Revision,
+            _deliverable: &DeliverableRecordV3,
+            _content: &[u8],
+        ) -> Result<String, RenderError> {
+            if !self.staled {
+                self.staled = true;
+                let mut concurrent =
+                    Database::open(&self.database_path).expect("open concurrent database");
+                ApplicationModelRepository::new(&mut concurrent)
+                    .archive(
+                        &self.application_id,
+                        application_revision,
+                        ActorKind::System,
+                        "test-stale-export",
+                    )
+                    .expect("advance Application during rendering");
+            }
+            Ok("= Stale executor output\n".to_owned())
+        }
+    }
+
     #[test]
     fn omitted_deliverable_cannot_select_an_execution_mode() {
         let generic = bundle(generic_application_workflow_pack());
@@ -1294,7 +1396,7 @@ mod tests {
     }
 
     #[test]
-    fn current_evidence_associations_drive_stage_and_deliverable_inputs() {
+    fn current_evidence_associations_drive_inputs_and_failed_exports_are_atomic() {
         let root = root();
         let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
         let generic = bundle(generic_application_workflow_pack());
@@ -1406,6 +1508,92 @@ mod tests {
                 id: evidence_id,
                 revision: Revision::try_new(1).expect("revision"),
             }]
+        );
+
+        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .approve(
+                &generic,
+                &application_id,
+                ApplicationFlowApproveRequestV3 {
+                    expected_revision: Revision::try_new(3).expect("revision"),
+                },
+            )
+            .expect("approve Deliverable");
+        let destination =
+            SafeRelativePath::try_new(format!("applications/{application_id}/exports/invalid-pdf"))
+                .expect("export destination");
+        let audit_before: i64 = workspace
+            .database
+            .connection()
+            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+            .expect("audit count before invalid export");
+        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(
+                &generic,
+                &application_id,
+                Revision::try_new(4).expect("revision"),
+                &destination,
+                &mut InvalidApplicationPdfExecutor,
+            )
+            .expect_err("invalid executor PDF must fail before export writes");
+        assert!(matches!(
+            error,
+            StoreError::EmbeddedRender(RenderError::InvalidPdf)
+        ));
+        assert!(!root.join(destination.as_str()).exists());
+        let audit_after: i64 = workspace
+            .database
+            .connection()
+            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+            .expect("audit count after invalid export");
+        assert_eq!(audit_after, audit_before);
+
+        let stale_destination = SafeRelativePath::try_new(format!(
+            "applications/{application_id}/exports/stale-snapshot"
+        ))
+        .expect("stale export destination");
+        let export_audit_before: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("export audit count before stale export");
+        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(
+                &generic,
+                &application_id,
+                Revision::try_new(4).expect("revision"),
+                &stale_destination,
+                &mut StalingApplicationPdfExecutor {
+                    database_path: root.join(".canisend/state.sqlite3"),
+                    application_id: application_id.clone(),
+                    staled: false,
+                },
+            )
+            .expect_err("Application changed during rendering must fail before export writes");
+        assert!(matches!(error, StoreError::ApplicationModelConflict(_)));
+        assert!(!root.join(stale_destination.as_str()).exists());
+        let export_audit_after: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("export audit count after stale export");
+        assert_eq!(export_audit_after, export_audit_before);
+        assert_eq!(
+            ApplicationModelRepository::new(&mut workspace.database)
+                .get(&application_id)
+                .expect("stale Application")
+                .snapshot
+                .application
+                .revision,
+            Revision::try_new(5).expect("advanced revision")
         );
 
         drop(workspace);

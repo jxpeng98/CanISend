@@ -99,7 +99,7 @@ pub use package::PackageService;
 pub use plan::PlanService;
 pub use profile::{NewProfileSource, ProfileService};
 pub use projection::ProjectionService;
-pub use render::{EmbeddedRenderExecutor, RenderExecutionOutput, RenderExecutor, RenderService};
+pub use render::RenderService;
 pub use review::ReviewService;
 pub use task::TaskService;
 pub use workflow::WorkflowService;
@@ -225,7 +225,7 @@ pub enum StoreError {
     #[error("embedded Typst projection invariant failed")]
     TypstProjectionInvariant,
     #[error("embedded render failed: {0}")]
-    EmbeddedRender(#[from] canisend_io::EmbeddedRenderError),
+    EmbeddedRender(#[from] canisend_core::RenderError),
     #[error("backup is invalid: {0}")]
     BackupInvalid(String),
     #[error("workspace invariant failed: {0}")]

@@ -10,7 +10,7 @@ use canisend_contracts::{
     EntityId, ReadinessState, RenderManifestRecord, RenderedDocumentRecord, Revision,
     SafeRelativePath, Sha256Digest, validate_external_candidate,
 };
-use canisend_io::{EmbeddedTypstCompiler, project_document_typst, validate_rendered_pdf};
+use canisend_core::{RenderError, RenderExecutor};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::Value;
 
@@ -25,66 +25,6 @@ pub struct RenderService<'a> {
     workspace_root: &'a Path,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenderExecutionOutput {
-    pub typst_source: String,
-    pub pdf_bytes: Vec<u8>,
-    pub page_count: u32,
-    pub warning_count: u32,
-    pub elapsed_millis: u64,
-}
-
-pub trait RenderExecutor {
-    fn render_document(
-        &mut self,
-        document_artifact: &ArtifactReference,
-        document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError>;
-}
-
-pub struct EmbeddedRenderExecutor {
-    compiler: EmbeddedTypstCompiler,
-}
-
-impl EmbeddedRenderExecutor {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            compiler: EmbeddedTypstCompiler::new(),
-        }
-    }
-}
-
-impl Default for EmbeddedRenderExecutor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl RenderExecutor for EmbeddedRenderExecutor {
-    fn render_document(
-        &mut self,
-        document_artifact: &ArtifactReference,
-        document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError> {
-        let typst_source =
-            project_document_typst(document_artifact, document).map_err(typst_projection_error)?;
-        let rendered = self.compiler.compile_pdf(&typst_source)?;
-        let page_count = rendered.page_count();
-        let warning_count = u32::try_from(rendered.warning_count())
-            .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
-        let elapsed_millis = u64::try_from(rendered.elapsed().as_millis())
-            .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
-        Ok(RenderExecutionOutput {
-            typst_source,
-            pdf_bytes: rendered.into_bytes(),
-            page_count,
-            warning_count,
-            elapsed_millis,
-        })
-    }
-}
-
 impl<'a> RenderService<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore, workspace_root: &'a Path) -> Self {
@@ -96,13 +36,6 @@ impl<'a> RenderService<'a> {
     }
 
     pub fn build(
-        &mut self,
-        job_id: &EntityId,
-    ) -> Result<(ArtifactReference, RenderManifestRecord), StoreError> {
-        self.build_with_executor(job_id, &mut EmbeddedRenderExecutor::new())
-    }
-
-    pub fn build_with_executor(
         &mut self,
         job_id: &EntityId,
         executor: &mut impl RenderExecutor,
@@ -143,17 +76,16 @@ impl<'a> RenderService<'a> {
                     "package document belongs to another job".to_owned(),
                 ));
             }
-            let rendered = executor.render_document(&document_artifact, &document)?;
+            let rendered = executor
+                .render_document(&document_artifact, &document)
+                .map_err(document_render_error)?;
             let page_count = rendered.page_count;
-            let warning_count = rendered.warning_count;
-            let elapsed_millis = rendered.elapsed_millis;
+            let warning_count = u32::try_from(rendered.warning_count)
+                .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
+            let elapsed_millis = u64::try_from(rendered.elapsed_millis)
+                .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
             let pdf_bytes = rendered.pdf_bytes;
-            let validated_page_count = validate_rendered_pdf(&pdf_bytes)?;
-            if validated_page_count != page_count {
-                return Err(StoreError::DependencyConflict(
-                    "render executor page count does not match its validated PDF".to_owned(),
-                ));
-            }
+            validate_render_output(executor, &pdf_bytes, page_count)?;
             let byte_count = u64::try_from(pdf_bytes.len())
                 .map_err(|_| StoreError::Invariant("render byte count overflow".to_owned()))?;
 
@@ -302,6 +234,7 @@ impl<'a> RenderService<'a> {
         &mut self,
         job_id: &EntityId,
         kind: DocumentKind,
+        executor: &mut impl RenderExecutor,
     ) -> Result<(RenderedDocumentRecord, Vec<u8>), StoreError> {
         let (_, manifest) = self.current(job_id)?;
         let document = manifest
@@ -314,7 +247,7 @@ impl<'a> RenderService<'a> {
                     document_kind_slug(kind)
                 ))
             })?;
-        let bytes = self.read_validated_pdf(&document)?;
+        let bytes = self.read_validated_pdf(&document, executor)?;
         Ok((document, bytes))
     }
 
@@ -322,6 +255,7 @@ impl<'a> RenderService<'a> {
         &mut self,
         job_id: &EntityId,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<
         (
             ArtifactReference,
@@ -334,7 +268,7 @@ impl<'a> RenderService<'a> {
         let (manifest_artifact, manifest) = self.current(job_id)?;
         let mut files = Vec::with_capacity(manifest.documents.len() + 1);
         for document in &manifest.documents {
-            let bytes = self.read_validated_pdf(document)?;
+            let bytes = self.read_validated_pdf(document, executor)?;
             files.push((
                 join_path(
                     destination,
@@ -349,10 +283,7 @@ impl<'a> RenderService<'a> {
                 .read_verified(&manifest_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?,
         ));
 
-        create_empty_export_directory(self.workspace_root, destination)?;
-        for (path, bytes) in &files {
-            write_new_file(self.workspace_root, path, bytes)?;
-        }
+        write_new_export_files(self.workspace_root, destination, &files)?;
         let exported_at = now_utc()?;
         let event_id = generate_id()?;
         self.database.connection().execute(
@@ -374,11 +305,15 @@ impl<'a> RenderService<'a> {
         ))
     }
 
-    fn read_validated_pdf(&self, document: &RenderedDocumentRecord) -> Result<Vec<u8>, StoreError> {
+    fn read_validated_pdf(
+        &self,
+        document: &RenderedDocumentRecord,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<Vec<u8>, StoreError> {
         let bytes = self
             .blobs
             .read_verified(&document.pdf_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
-        let page_count = validate_rendered_pdf(&bytes)?;
+        let page_count = executor.validate_pdf(&bytes)?;
         if page_count != document.page_count
             || u64::try_from(bytes.len()).ok() != Some(document.byte_count)
         {
@@ -610,10 +545,10 @@ fn ensure_job_destination(
     Ok(())
 }
 
-pub(crate) fn create_empty_export_directory(
+fn create_empty_export_directory(
     root: &Path,
     destination: &SafeRelativePath,
-) -> Result<(), StoreError> {
+) -> Result<Vec<std::path::PathBuf>, StoreError> {
     let root_metadata = fs::symlink_metadata(root).map_err(|source| io_error(root, source))?;
     if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
         return Err(StoreError::UnsafePath(root.to_path_buf()));
@@ -639,27 +574,36 @@ pub(crate) fn create_empty_export_directory(
     }
 
     let mut current = root.to_path_buf();
-    for component in Path::new(destination.as_str()).components() {
-        let Component::Normal(name) = component else {
-            return Err(StoreError::ProjectionPathRejected);
-        };
-        current.push(name);
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) => {
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                    return Err(StoreError::UnsafePath(current));
+    let mut created = Vec::new();
+    let result = (|| {
+        for component in Path::new(destination.as_str()).components() {
+            let Component::Normal(name) = component else {
+                return Err(StoreError::ProjectionPathRejected);
+            };
+            current.push(name);
+            match fs::symlink_metadata(&current) {
+                Ok(metadata) => {
+                    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                        return Err(StoreError::UnsafePath(current.clone()));
+                    }
                 }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    fs::create_dir(&current).map_err(|source| io_error(&current, source))?;
+                    created.push(current.clone());
+                }
+                Err(source) => return Err(io_error(current.clone(), source)),
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                fs::create_dir(&current).map_err(|source| io_error(&current, source))?;
-            }
-            Err(source) => return Err(io_error(current, source)),
         }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        remove_empty_directories(&created)?;
+        return Err(error);
     }
-    Ok(())
+    Ok(created)
 }
 
-pub(crate) fn write_new_file(
+fn write_new_file(
     root: &Path,
     relative_path: &SafeRelativePath,
     bytes: &[u8],
@@ -670,9 +614,90 @@ pub(crate) fn write_new_file(
         .create_new(true)
         .open(&path)
         .map_err(|source| io_error(&path, source))?;
-    file.write_all(bytes)
-        .map_err(|source| io_error(&path, source))?;
-    file.sync_all().map_err(|source| io_error(&path, source))
+    let result = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    if let Err(source) = result {
+        remove_file_if_exists(&path)?;
+        return Err(io_error(path, source));
+    }
+    Ok(())
+}
+
+pub(crate) fn write_new_export_files(
+    root: &Path,
+    destination: &SafeRelativePath,
+    files: &[(SafeRelativePath, Vec<u8>)],
+) -> Result<(), StoreError> {
+    let prefix = format!("{}/", destination.as_str());
+    if files
+        .iter()
+        .any(|(path, _)| !path.as_str().starts_with(&prefix))
+    {
+        return Err(StoreError::ProjectionPathRejected);
+    }
+    let created_directories = create_empty_export_directory(root, destination)?;
+    for (index, (path, bytes)) in files.iter().enumerate() {
+        if let Err(error) = write_new_file(root, path, bytes) {
+            let file_cleanup = remove_export_files(root, &files[..index]);
+            let directory_cleanup = remove_empty_directories(&created_directories);
+            file_cleanup?;
+            directory_cleanup?;
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+fn remove_export_files(
+    root: &Path,
+    files: &[(SafeRelativePath, Vec<u8>)],
+) -> Result<(), StoreError> {
+    let mut cleanup_error = None;
+    for (path, _) in files.iter().rev() {
+        let path = root.join(path.as_str());
+        if let Err(error) = remove_file_if_exists(&path)
+            && cleanup_error.is_none()
+        {
+            cleanup_error = Some(error);
+        }
+    }
+    cleanup_error.map_or(Ok(()), Err)
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<(), StoreError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(io_error(path, source)),
+    }
+}
+
+fn remove_empty_directories(directories: &[std::path::PathBuf]) -> Result<(), StoreError> {
+    let mut cleanup_error = None;
+    for path in directories.iter().rev() {
+        match fs::remove_dir(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) if cleanup_error.is_none() => {
+                cleanup_error = Some(io_error(path, source));
+            }
+            Err(_) => {}
+        }
+    }
+    cleanup_error.map_or(Ok(()), Err)
+}
+
+pub(crate) fn validate_render_output(
+    executor: &mut impl RenderExecutor,
+    pdf_bytes: &[u8],
+    reported_page_count: u32,
+) -> Result<(), StoreError> {
+    if executor.validate_pdf(pdf_bytes)? != reported_page_count {
+        return Err(StoreError::DependencyConflict(
+            "render executor page count does not match its validated PDF".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn join_path(
@@ -732,18 +757,13 @@ fn candidate_error(error: CandidateValidationError) -> StoreError {
     }
 }
 
-fn typst_projection_error(error: canisend_io::TypstProjectionError) -> StoreError {
+fn document_render_error(error: RenderError) -> StoreError {
     match error {
-        canisend_io::TypstProjectionError::UnresolvedTemplateFields { count } => {
+        RenderError::UnresolvedTemplateFields { count } => {
             StoreError::TemplateFieldsUnresolved { count }
         }
-        canisend_io::TypstProjectionError::TemplateEncoding
-        | canisend_io::TypstProjectionError::PackTemplateEncoding
-        | canisend_io::TypstProjectionError::DeliverableContentEncoding
-        | canisend_io::TypstProjectionError::DeliverableNotApproved
-        | canisend_io::TypstProjectionError::SourceTooLarge { .. } => {
-            StoreError::TypstProjectionInvariant
-        }
+        error if error.is_projection() => StoreError::TypstProjectionInvariant,
+        error => StoreError::EmbeddedRender(error),
     }
 }
 
@@ -761,4 +781,48 @@ fn to_i64(value: u64) -> Result<i64, StoreError> {
 
 fn to_u64(value: i64) -> Result<u64, StoreError> {
     u64::try_from(value).map_err(|_| StoreError::Invariant("negative SQLite INTEGER".to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_export_write_removes_partial_files_and_created_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-export-cleanup-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir(&root).expect("test root");
+        let destination =
+            SafeRelativePath::try_new("jobs/example/export").expect("export destination");
+        let first = join_path(&destination, "first.pdf").expect("first export path");
+        let missing_parent =
+            SafeRelativePath::try_new(format!("{}/missing/second.pdf", destination.as_str()))
+                .expect("failing export path");
+
+        let error = write_new_export_files(
+            &root,
+            &destination,
+            &[
+                (first, b"first".to_vec()),
+                (missing_parent, b"second".to_vec()),
+            ],
+        )
+        .expect_err("second write must fail without its parent directory");
+
+        assert!(matches!(error, StoreError::Io { .. }));
+        assert!(!root.join(destination.as_str()).exists());
+        assert!(
+            fs::read_dir(&root)
+                .expect("clean export root")
+                .next()
+                .is_none()
+        );
+        fs::remove_dir(&root).expect("clean test root");
+    }
 }

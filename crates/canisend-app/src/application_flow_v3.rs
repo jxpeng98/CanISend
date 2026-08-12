@@ -5,6 +5,7 @@ use canisend_contracts::{
     WORKSPACE_V3_FORMAT, WorkflowPackId,
 };
 use canisend_core::VerifiedWorkflowPackBundle;
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_store::ApplicationFlowServiceV3;
 use serde::{Deserialize, Serialize};
 
@@ -223,6 +224,7 @@ impl Application {
         let pack = exact_application_pack(workspace_root, request.application_id.as_str())?;
         let mut workspace = open_workspace(workspace_root)?;
         let root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let result =
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
                 .export(
@@ -230,6 +232,7 @@ impl Application {
                     &request.application_id,
                     request.expected_revision,
                     &request.destination,
+                    &mut executor,
                 )?;
         Ok(ActionReceipt::new(
             "application-flow-v3.export",

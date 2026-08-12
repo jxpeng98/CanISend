@@ -7,6 +7,7 @@ use canisend_contracts::ActorKind;
 use canisend_contracts::{
     BackupManifestData, WORKSPACE_V4_FORMAT, WorkspaceCheckData, WorkspaceStatusData,
 };
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_resources::{ResourceId, export_if_missing};
 use canisend_store::{
     ApplicationModelRepository, BACKUP_FORMAT, BackupResult, ProjectionService, Workspace,
@@ -244,7 +245,8 @@ impl Application {
         backup: &Path,
         destination: &Path,
     ) -> Result<ActionReceipt<WorkspaceRestoreReadModel>, ApplicationError> {
-        let workspace = Workspace::restore_v4(backup, destination)?;
+        let mut executor = EmbeddedTypstCompiler::new();
+        let workspace = Workspace::restore_v4(backup, destination, &mut executor)?;
         workspace_restore_receipt(workspace, backup, "workspace.restore.commit")
     }
 
@@ -267,7 +269,8 @@ impl Application {
         backup: &Path,
         destination: &Path,
     ) -> Result<ActionReceipt<WorkspaceRestoreReadModel>, ApplicationError> {
-        let workspace = Workspace::restore(backup, destination)?;
+        let mut executor = EmbeddedTypstCompiler::new();
+        let workspace = Workspace::restore(backup, destination, &mut executor)?;
         workspace_restore_receipt(workspace, backup, "workspace.restore")
     }
 
@@ -359,12 +362,13 @@ fn workspace_repair_receipt(
     mut workspace: Workspace,
     operation: &'static str,
 ) -> Result<ActionReceipt<WorkspaceRepairReadModel>, ApplicationError> {
+    let mut executor = EmbeddedTypstCompiler::new();
     let repaired_projections = ProjectionService::new(
         &mut workspace.database,
         &workspace.blobs,
         &workspace.paths.root,
     )
-    .repair_all()?;
+    .repair_all(&mut executor)?;
     let check = workspace.check()?;
     let path = workspace.paths.root;
     Ok(ActionReceipt::new(

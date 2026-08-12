@@ -1,0 +1,44 @@
+{
+  "id": "store-io-decoupling",
+  "name": "store-io-decoupling",
+  "title": "Remove the Store to IO production edge",
+  "description": "Remove the expiring canisend-store to canisend-io production edge by moving and extending the existing render seam in Core and composing the IO implementation in App without changing public behavior",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "architecture",
+  "package": null,
+  "priority": "P1",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-12",
+  "completedAt": null,
+  "branch": "agent/store-io-decoupling",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/184",
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "crates/canisend-core",
+    "crates/canisend-io",
+    "crates/canisend-store",
+    "crates/canisend-app",
+    "docs/architecture/rust-native/decisions/0019-current-product-graph.md",
+    "docs/architecture/rust-native/workspace-dependency-policy-v1.json",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
+  ],
+  "notes": "Implementation and source gates are complete in protected PR #184; the task awaits separately authorized merge and GitHub state reconciliation.",
+  "meta": {
+    "roadmap_id": "M3-ARCH-001",
+    "github_issue": 182,
+    "github_milestone": "Alpha.9 — Architecture checkpoint",
+    "owner_role": "architecture",
+    "dependencies": [
+      "M3-ALPHA8-001"
+    ],
+    "expected_evidence": "no normal Store-to-IO edge, exact graph equality, preserved render/recovery atomicity, and protected source-gate evidence",
+    "verification_tier": 2
+  }
+}

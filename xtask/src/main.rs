@@ -7565,17 +7565,6 @@ fn validate_workspace_dependency_policy(
         }
         exception_edges.push(edge);
     }
-    if exception_edges.len() != 1
-        || exception_edges[0]["from"] != "canisend-store"
-        || exception_edges[0]["to"] != "canisend-io"
-        || exception_edges[0]["kind"] != "normal"
-    {
-        return Err(
-            "the only temporary dependency exception must be canisend-store -> canisend-io normal"
-                .to_owned(),
-        );
-    }
-
     let planned_removals = policy["planned_removals"]
         .as_array()
         .ok_or_else(|| "planned_removals must be an array".to_owned())?;
@@ -16380,7 +16369,8 @@ mod tests {
         let summary = validate_workspace_dependency_policy(&policy, &packages, &edges, today)
             .expect("current policy");
         assert_eq!(summary.actual_edges, 28);
-        assert_eq!(summary.target_edges, 27);
+        assert_eq!(summary.target_edges, 28);
+        assert_eq!(summary.temporary_exceptions, 0);
 
         let mut reclassified = policy.clone();
         reclassified["actual_edges"][0]["optional"] = json!(true);
@@ -16405,8 +16395,20 @@ mod tests {
         );
 
         let mut overdue = policy;
-        overdue["temporary_exceptions"][0]["review_by"] = json!("2026-08-02");
-        assert!(validate_workspace_dependency_policy(&overdue, &packages, &edges, today).is_err());
+        overdue["temporary_exceptions"] = json!([{
+            "edge": overdue["actual_edges"][0].clone(),
+            "owner": "test owner",
+            "rationale": "exercise overdue exception rejection",
+            "review_by": "2026-08-13",
+            "expires_on": "2026-08-17",
+            "removal_condition": "remove the test edge",
+            "tracking": "TEST-ONLY"
+        }]);
+        let after_review = parse_policy_date("2026-08-14", "test date").expect("test date");
+        assert!(
+            validate_workspace_dependency_policy(&overdue, &packages, &edges, after_review)
+                .is_err()
+        );
     }
 
     #[test]
