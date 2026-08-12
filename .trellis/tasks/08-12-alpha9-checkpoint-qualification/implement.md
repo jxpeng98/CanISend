@@ -14,33 +14,44 @@
 - [x] From a clean updated branch, run the read-only command below and save/review the complete
       30-file digest plan:
       `cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.9`
-- [ ] Obtain separate explicit authorization for write mode.
-- [ ] Run `cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.9 --write`.
-- [ ] Compare every written path and after-digest with the reviewed preview; reject extra changes.
-- [ ] Run `git diff --check` and
+- [x] Obtain separate explicit authorization for write mode.
+- [x] Run `cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.9 --write`.
+- [x] Compare every written path and after-digest with the reviewed preview; reject extra changes.
+- [x] Run `git diff --check` and
       `cargo run -p xtask --locked -- release check` once on the final transition head.
 
 ## 3. Merge and freeze the exact source
 
-- [ ] Commit only task-control and controlled transition changes with auditable Conventional
+- [x] Commit only task-control and controlled transition changes with auditable Conventional
       Commits.
-- [ ] Push and open a protected PR; inspect required checks and changed paths.
-- [ ] Obtain separate merge authorization, merge without bypassing protection, and record exact
+- [x] Push and open a protected PR; inspect required checks and changed paths.
+- [x] Obtain separate merge authorization, merge without bypassing protection, and record exact
       merge commit `S`.
-- [ ] Confirm the Alpha.9 tag is absent and `S` is still protected `main` before candidate dispatch.
+- [x] Confirm the Alpha.9 tag is absent and `S` is still protected `main` before candidate dispatch.
 
 ## 4. Build once and qualify the candidate
 
-- [ ] Obtain separate candidate-dispatch authorization.
-- [ ] Dispatch `.github/workflows/release.yml` from exact `S` with
+- [x] Obtain separate candidate-dispatch authorization.
+- [x] Dispatch `.github/workflows/release.yml` from exact `S` with
       `tag=v1.0.0-alpha.9`, a reviewed body-free cache epoch, and
       `promote_existing_tag=false`.
-- [ ] Require all source, five-target CLI, supported macOS App, archive, Agent/MCP, accessibility,
+- [x] Require all source, five-target CLI, supported macOS App, archive, Agent/MCP, accessibility,
       migration, recovery, signing-readiness, assembly, and provenance jobs to pass.
-- [ ] Download the candidate bundle and record run `C`, artifact `A`, source `S`, manifest,
+- [x] Download the candidate bundle and record run `C`, artifact `A`, source `S`, manifest,
       checksums, Pack/resource digests, SBOM, signing, and provenance identities.
-- [ ] Confirm packaged smokes cover both Packs, render/export, backup/restore, repair, stale
+- [x] Confirm packaged smokes cover both Packs, render/export, backup/restore, repair, stale
       revision, and failure-atomic cleanup; do not add duplicate tests.
+
+The first candidate (`31600099628`) passed its automated matrix but was rejected during manual
+artifact inspection because its active manifest and SBOM declared legacy v2 contracts. It cannot
+be promoted. The changed-byte repair must merge through protected CI and obtain a separate
+replacement-candidate authorization before this section is considered qualification evidence.
+
+- [ ] Merge the reviewed metadata repair through protected CI and freeze replacement source `S2`.
+- [ ] Obtain separate authorization and dispatch one replacement candidate from `S2`; record
+      replacement run `C2` and artifact `A2`.
+- [ ] Verify the corrected v4 manifest/SBOM tuple, checksums, signatures, and provenance before
+      requesting tag or promotion authorization.
 
 ## 5. Promote the same bytes and verify them publicly
 
