@@ -72,6 +72,6 @@ instead of renewing the 2026-08-17 exception.
 
 ## Execution State
 
-This task is In progress. Implementation, the final source gate, protected PR, and PR-head CI
-evidence are complete; the task remains open until the separately authorized merge and linked
-GitHub state reconciliation.
+This task is complete. PR #184 merged as protected `main` commit `db966a34`; main Fast CI and
+dependency assurance passed, and Issue #182 is closed with `state:verified`. Alpha.9 qualification
+and publication remain separately authorized.
