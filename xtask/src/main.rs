@@ -10723,6 +10723,7 @@ fn check_support_policy() -> Result<(), String> {
 
 fn build_support_policy(version: &Version) -> Result<Value, String> {
     let target_count = release_targets()?.len();
+    let release_contracts = supported_release_contract_metadata();
     Ok(json!({
         "schema": SUPPORT_POLICY_SCHEMA,
         "publication_status": support_policy_publication_status(version),
@@ -10735,14 +10736,14 @@ fn build_support_policy(version: &Version) -> Result<Value, String> {
             "python_0_6_line": "archived-unsupported"
         },
         "contracts": {
-            "agent_protocol": AGENT_V4_PROTOCOL,
-            "public_schema_version": AGENT_V4_SCHEMA_VERSION,
-            "resource_format": canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
+            "agent_protocol": release_contracts["agent_protocol"].clone(),
+            "public_schema_version": release_contracts["public_schema_version"].clone(),
+            "resource_format": release_contracts["resource_format"].clone(),
             "beta_freeze": "release/beta-contract-freeze.json",
             "breaking_agent_change": "new-protocol-and-schema-major"
         },
         "workspace": {
-            "format": WORKSPACE_V4_FORMAT,
+            "format": release_contracts["workspace_format"].clone(),
             "current_database_schema_version": declared_database_schema_version()?,
             "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
             "migration_policy": "append-only",
@@ -14959,6 +14960,15 @@ fn validate_release_tag(tag: &str) -> Result<ReleaseStage, String> {
     Ok(stage)
 }
 
+fn supported_release_contract_metadata() -> Value {
+    json!({
+        "agent_protocol": AGENT_V4_PROTOCOL,
+        "public_schema_version": AGENT_V4_SCHEMA_VERSION,
+        "resource_format": canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
+        "workspace_format": WORKSPACE_V4_FORMAT,
+    })
+}
+
 fn write_release_sbom(output: &Path) -> Result<(), String> {
     let root = repository_root();
     let metadata_output = Command::new("cargo")
@@ -15081,6 +15091,7 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
         "ref": product_ref,
         "dependsOn": root_refs,
     }));
+    let release_contracts = supported_release_contract_metadata();
     let sbom = json!({
         "$schema": "https://cyclonedx.org/schema/bom-1.6.schema.json",
         "bomFormat": "CycloneDX",
@@ -15106,9 +15117,9 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
                 }]
             },
             "properties": [
-                {"name": "canisend:agent_protocol", "value": AGENT_PROTOCOL},
-                {"name": "canisend:workspace_format", "value": WORKSPACE_FORMAT},
-                {"name": "canisend:schema_version", "value": PUBLIC_SCHEMA_VERSION},
+                {"name": "canisend:agent_protocol", "value": release_contracts["agent_protocol"].clone()},
+                {"name": "canisend:workspace_format", "value": release_contracts["workspace_format"].clone()},
+                {"name": "canisend:schema_version", "value": release_contracts["public_schema_version"].clone()},
                 {"name": "canisend:release_surfaces", "value": "standalone-cli,macos-gui"}
             ]
         },
@@ -15679,12 +15690,7 @@ fn assemble_release(
             "locked_dependencies": true,
             "repository": env!("CARGO_PKG_REPOSITORY")
         },
-        "contracts": {
-            "agent_protocol": AGENT_PROTOCOL,
-            "public_schema_version": PUBLIC_SCHEMA_VERSION,
-            "resource_format": canisend_resources::RESOURCE_VERSION,
-            "workspace_format": WORKSPACE_FORMAT
-        },
+        "contracts": supported_release_contract_metadata(),
         "artifacts": archive_entries,
         "desktop_artifacts": desktop_entries,
         "desktop_compilation": desktop_compilation_entries,
@@ -15825,10 +15831,7 @@ fn verify_release_manifest_contents(
     if manifest["product"] != "canisend"
         || manifest["source"]["locked_dependencies"] != true
         || manifest["source"]["repository"] != env!("CARGO_PKG_REPOSITORY")
-        || manifest["contracts"]["agent_protocol"] != AGENT_PROTOCOL
-        || manifest["contracts"]["public_schema_version"] != PUBLIC_SCHEMA_VERSION
-        || manifest["contracts"]["resource_format"] != canisend_resources::RESOURCE_VERSION
-        || manifest["contracts"]["workspace_format"] != WORKSPACE_FORMAT
+        || manifest["contracts"] != supported_release_contract_metadata()
         || manifest["trust"]["default_telemetry"] != false
         || manifest["trust"]["archive_code_signing_required"]
             != !matches!(stage, ReleaseStage::Alpha)
@@ -17210,6 +17213,49 @@ mod tests {
             .expect_err("mismatched candidate source");
         assert!(error.contains("does not match tagged commit"));
         assert!(verify_release_candidate_source(&manifest, "not-a-commit").is_err());
+    }
+
+    #[test]
+    fn active_release_metadata_is_v4_and_rejects_legacy_contracts() {
+        assert_eq!(
+            supported_release_contract_metadata(),
+            json!({
+                "agent_protocol": "canisend.agent/v4",
+                "public_schema_version": "4.0.0",
+                "resource_format": "canisend.agent-host-resources/v4",
+                "workspace_format": "canisend.workspace/v4"
+            })
+        );
+        let manifest = json!({
+            "product": "canisend",
+            "source": {
+                "commit": "0123456789abcdef0123456789abcdef01234567",
+                "locked_dependencies": true,
+                "repository": env!("CARGO_PKG_REPOSITORY")
+            },
+            "contracts": {
+                "agent_protocol": AGENT_PROTOCOL,
+                "public_schema_version": PUBLIC_SCHEMA_VERSION,
+                "resource_format": canisend_resources::RESOURCE_VERSION,
+                "workspace_format": WORKSPACE_FORMAT
+            },
+            "trust": {
+                "archive_code_signing_required": false,
+                "default_telemetry": false,
+                "desktop_bundle_code_signing_required": true
+            }
+        });
+
+        assert_eq!(
+            verify_release_manifest_contents(
+                ReleaseStage::Alpha,
+                "1.0.0-alpha.9",
+                Path::new("."),
+                &manifest,
+            )
+            .expect_err("legacy release metadata must fail before artifact inspection"),
+            "release manifest policy or contract metadata is invalid"
+        );
     }
 
     #[test]
