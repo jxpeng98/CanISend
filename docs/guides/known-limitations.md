@@ -1,6 +1,6 @@
 # Known limitations
 
-It applies to the published `v1.0.0-alpha.8` checkpoint and later source with the same version.
+It applies to the `1.0.0-alpha.9` development line.
 It is not publication evidence; the exact downloaded release notes and manifest remain the
 installed-binary authority.
 

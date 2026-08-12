@@ -1,6 +1,6 @@
 {
   "schema": "canisend.macos-gui-performance/v2",
-  "version": "1.0.0-alpha.8",
+  "version": "1.0.0-alpha.9",
   "profile": "release-alpha",
   "measured_at": "2026-08-01T11:14:46Z",
   "reference_machine": "MacBook Pro; MacBookPro18,2; Apple M1 Max; 64 GB",

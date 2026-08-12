@@ -14,7 +14,7 @@ body:
     attributes:
       label: CanISend version
       description: Paste only the version value from `canisend version --json`.
-      placeholder: 1.0.0-alpha.8
+      placeholder: 1.0.0-alpha.9
     validations:
       required: true
   - type: dropdown
