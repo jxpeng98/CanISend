@@ -793,6 +793,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let manifest_path = join_path(destination, "render-manifest.json")?;
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
         files.push((manifest_path, manifest_bytes));
+        self.current_for_pack(pack, application_id, expected_revision)?;
         write_new_export_files(self.workspace_root, destination, &files)?;
         self.database.connection().execute(
             "INSERT INTO audit_events(
@@ -1230,6 +1231,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
         fs,
+        path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
     };
 
@@ -1316,6 +1318,59 @@ mod tests {
         }
     }
 
+    struct StalingApplicationPdfExecutor {
+        database_path: PathBuf,
+        application_id: ApplicationId,
+        staled: bool,
+    }
+
+    impl RenderExecutor for StalingApplicationPdfExecutor {
+        fn project_document(
+            &mut self,
+            _source_artifact: &ArtifactReference,
+            _document: &DocumentRecord,
+        ) -> Result<String, RenderError> {
+            Err(RenderError::DocumentTemplateEncoding)
+        }
+
+        fn render_pdf(&mut self, _source: &str) -> Result<RenderedPdfOutput, RenderError> {
+            Ok(RenderedPdfOutput {
+                pdf_bytes: b"application-pdf".to_vec(),
+                page_count: 1,
+                warning_count: 0,
+                elapsed_millis: 0,
+            })
+        }
+
+        fn validate_pdf(&mut self, _bytes: &[u8]) -> Result<u32, RenderError> {
+            Ok(1)
+        }
+
+        fn project_deliverable(
+            &mut self,
+            _template: &[u8],
+            _pack: &ApplicationPackBindingV3,
+            application_revision: Revision,
+            _deliverable: &DeliverableRecordV3,
+            _content: &[u8],
+        ) -> Result<String, RenderError> {
+            if !self.staled {
+                self.staled = true;
+                let mut concurrent =
+                    Database::open(&self.database_path).expect("open concurrent database");
+                ApplicationModelRepository::new(&mut concurrent)
+                    .archive(
+                        &self.application_id,
+                        application_revision,
+                        ActorKind::System,
+                        "test-stale-export",
+                    )
+                    .expect("advance Application during rendering");
+            }
+            Ok("= Stale executor output\n".to_owned())
+        }
+    }
+
     #[test]
     fn omitted_deliverable_cannot_select_an_execution_mode() {
         let generic = bundle(generic_application_workflow_pack());
@@ -1341,7 +1396,7 @@ mod tests {
     }
 
     #[test]
-    fn current_evidence_associations_drive_inputs_and_invalid_export_is_atomic() {
+    fn current_evidence_associations_drive_inputs_and_failed_exports_are_atomic() {
         let root = root();
         let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
         let generic = bundle(generic_application_workflow_pack());
@@ -1492,6 +1547,54 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
             .expect("audit count after invalid export");
         assert_eq!(audit_after, audit_before);
+
+        let stale_destination = SafeRelativePath::try_new(format!(
+            "applications/{application_id}/exports/stale-snapshot"
+        ))
+        .expect("stale export destination");
+        let export_audit_before: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("export audit count before stale export");
+        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+            .export(
+                &generic,
+                &application_id,
+                Revision::try_new(4).expect("revision"),
+                &stale_destination,
+                &mut StalingApplicationPdfExecutor {
+                    database_path: root.join(".canisend/state.sqlite3"),
+                    application_id: application_id.clone(),
+                    staled: false,
+                },
+            )
+            .expect_err("Application changed during rendering must fail before export writes");
+        assert!(matches!(error, StoreError::ApplicationModelConflict(_)));
+        assert!(!root.join(stale_destination.as_str()).exists());
+        let export_audit_after: i64 = workspace
+            .database
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("export audit count after stale export");
+        assert_eq!(export_audit_after, export_audit_before);
+        assert_eq!(
+            ApplicationModelRepository::new(&mut workspace.database)
+                .get(&application_id)
+                .expect("stale Application")
+                .snapshot
+                .application
+                .revision,
+            Revision::try_new(5).expect("advanced revision")
+        );
 
         drop(workspace);
         fs::remove_dir_all(root).expect("remove fixture");
