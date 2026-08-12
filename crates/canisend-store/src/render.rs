@@ -283,10 +283,7 @@ impl<'a> RenderService<'a> {
                 .read_verified(&manifest_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?,
         ));
 
-        create_empty_export_directory(self.workspace_root, destination)?;
-        for (path, bytes) in &files {
-            write_new_file(self.workspace_root, path, bytes)?;
-        }
+        write_new_export_files(self.workspace_root, destination, &files)?;
         let exported_at = now_utc()?;
         let event_id = generate_id()?;
         self.database.connection().execute(
@@ -548,10 +545,10 @@ fn ensure_job_destination(
     Ok(())
 }
 
-pub(crate) fn create_empty_export_directory(
+fn create_empty_export_directory(
     root: &Path,
     destination: &SafeRelativePath,
-) -> Result<(), StoreError> {
+) -> Result<Vec<std::path::PathBuf>, StoreError> {
     let root_metadata = fs::symlink_metadata(root).map_err(|source| io_error(root, source))?;
     if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
         return Err(StoreError::UnsafePath(root.to_path_buf()));
@@ -577,27 +574,36 @@ pub(crate) fn create_empty_export_directory(
     }
 
     let mut current = root.to_path_buf();
-    for component in Path::new(destination.as_str()).components() {
-        let Component::Normal(name) = component else {
-            return Err(StoreError::ProjectionPathRejected);
-        };
-        current.push(name);
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) => {
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                    return Err(StoreError::UnsafePath(current));
+    let mut created = Vec::new();
+    let result = (|| {
+        for component in Path::new(destination.as_str()).components() {
+            let Component::Normal(name) = component else {
+                return Err(StoreError::ProjectionPathRejected);
+            };
+            current.push(name);
+            match fs::symlink_metadata(&current) {
+                Ok(metadata) => {
+                    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                        return Err(StoreError::UnsafePath(current.clone()));
+                    }
                 }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    fs::create_dir(&current).map_err(|source| io_error(&current, source))?;
+                    created.push(current.clone());
+                }
+                Err(source) => return Err(io_error(current.clone(), source)),
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                fs::create_dir(&current).map_err(|source| io_error(&current, source))?;
-            }
-            Err(source) => return Err(io_error(current, source)),
         }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        remove_empty_directories(&created)?;
+        return Err(error);
     }
-    Ok(())
+    Ok(created)
 }
 
-pub(crate) fn write_new_file(
+fn write_new_file(
     root: &Path,
     relative_path: &SafeRelativePath,
     bytes: &[u8],
@@ -608,9 +614,77 @@ pub(crate) fn write_new_file(
         .create_new(true)
         .open(&path)
         .map_err(|source| io_error(&path, source))?;
-    file.write_all(bytes)
-        .map_err(|source| io_error(&path, source))?;
-    file.sync_all().map_err(|source| io_error(&path, source))
+    let result = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    if let Err(source) = result {
+        remove_file_if_exists(&path)?;
+        return Err(io_error(path, source));
+    }
+    Ok(())
+}
+
+pub(crate) fn write_new_export_files(
+    root: &Path,
+    destination: &SafeRelativePath,
+    files: &[(SafeRelativePath, Vec<u8>)],
+) -> Result<(), StoreError> {
+    let prefix = format!("{}/", destination.as_str());
+    if files
+        .iter()
+        .any(|(path, _)| !path.as_str().starts_with(&prefix))
+    {
+        return Err(StoreError::ProjectionPathRejected);
+    }
+    let created_directories = create_empty_export_directory(root, destination)?;
+    for (index, (path, bytes)) in files.iter().enumerate() {
+        if let Err(error) = write_new_file(root, path, bytes) {
+            let file_cleanup = remove_export_files(root, &files[..index]);
+            let directory_cleanup = remove_empty_directories(&created_directories);
+            file_cleanup?;
+            directory_cleanup?;
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+fn remove_export_files(
+    root: &Path,
+    files: &[(SafeRelativePath, Vec<u8>)],
+) -> Result<(), StoreError> {
+    let mut cleanup_error = None;
+    for (path, _) in files.iter().rev() {
+        let path = root.join(path.as_str());
+        if let Err(error) = remove_file_if_exists(&path)
+            && cleanup_error.is_none()
+        {
+            cleanup_error = Some(error);
+        }
+    }
+    cleanup_error.map_or(Ok(()), Err)
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<(), StoreError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(io_error(path, source)),
+    }
+}
+
+fn remove_empty_directories(directories: &[std::path::PathBuf]) -> Result<(), StoreError> {
+    let mut cleanup_error = None;
+    for path in directories.iter().rev() {
+        match fs::remove_dir(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) if cleanup_error.is_none() => {
+                cleanup_error = Some(io_error(path, source));
+            }
+            Err(_) => {}
+        }
+    }
+    cleanup_error.map_or(Ok(()), Err)
 }
 
 pub(crate) fn validate_render_output(
@@ -707,4 +781,48 @@ fn to_i64(value: u64) -> Result<i64, StoreError> {
 
 fn to_u64(value: i64) -> Result<u64, StoreError> {
     u64::try_from(value).map_err(|_| StoreError::Invariant("negative SQLite INTEGER".to_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_export_write_removes_partial_files_and_created_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "canisend-export-cleanup-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir(&root).expect("test root");
+        let destination =
+            SafeRelativePath::try_new("jobs/example/export").expect("export destination");
+        let first = join_path(&destination, "first.pdf").expect("first export path");
+        let missing_parent =
+            SafeRelativePath::try_new(format!("{}/missing/second.pdf", destination.as_str()))
+                .expect("failing export path");
+
+        let error = write_new_export_files(
+            &root,
+            &destination,
+            &[
+                (first, b"first".to_vec()),
+                (missing_parent, b"second".to_vec()),
+            ],
+        )
+        .expect_err("second write must fail without its parent directory");
+
+        assert!(matches!(error, StoreError::Io { .. }));
+        assert!(!root.join(destination.as_str()).exists());
+        assert!(
+            fs::read_dir(&root)
+                .expect("clean export root")
+                .next()
+                .is_none()
+        );
+        fs::remove_dir(&root).expect("clean test root");
+    }
 }

@@ -54,6 +54,11 @@ Deliverables, and content references. The injected executor projects the verifie
 compiles each PDF. Store writes the new export directory and commits the existing receipt/audit
 state only after all outputs are ready and the revision remains current.
 
+Legacy and Application exports share one create-new batch writer. If any file write fails, Store
+removes only files and directories created by that attempt before returning the typed IO error;
+pre-existing empty directories are retained, and the audit write occurs only after the complete
+batch succeeds.
+
 ### Workspace restore and repair
 
 The App supplies the executor to restore/repair entrypoints. Restore keeps the staging directory

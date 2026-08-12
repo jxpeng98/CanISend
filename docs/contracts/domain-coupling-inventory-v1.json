@@ -84,7 +84,7 @@
       "rust": 81,
       "schemas": 31,
       "sql": 7,
-      "tests": 84,
+      "tests": 85,
       "ui": 24
     },
     "classification_counts": {
@@ -99,7 +99,7 @@
       "fixed-workflow-stage": 18,
     "legacy-job-surface": 124
     },
-  "inventory_sha256": "00f80541b7ea8ffc281351b741b2a578f64c8a61c56d6b0579dc834ae5c671a9",
+  "inventory_sha256": "340121ef443c027601892f2bdbb2b1d1f28685abf485fae5ebef1d7eaea5906d",
   "matching_files": 184
   }
 }

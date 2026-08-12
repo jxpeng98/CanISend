@@ -57,6 +57,8 @@ Typst projection, compilation, or PDF validation.
 - Core carries verified records, content bytes, `RenderError`, and bounded output metadata.
 - IO owns templates, projection rules, compilation, PDF parsing, and concrete limits.
 - Store owns SQLite, immutable Blobs, paths, revision rechecks, audit, and recovery.
+- Store owns create-new export publication: a failed batch removes only files and directories
+  created by that attempt before any export audit is written.
 - Public operations, receipts, schemas, and Workspace formats do not expose the executor.
 
 ### 4. Validation & Error Matrix
@@ -66,6 +68,7 @@ Typst projection, compilation, or PDF validation.
 | Unresolved document fields | `StoreError::TemplateFieldsUnresolved` |
 | Invalid projection input/invariant | Existing Store invalid-input or projection-invariant class |
 | Compile, malformed/encrypted PDF, size, or time failure | `StoreError::EmbeddedRender(RenderError)` |
+| Export file write fails | Typed Store IO error; no partial files or newly created directory chain remains |
 | Revision changes after rendering | Existing stale error; authoritative transaction rolls back |
 | Restore projection fails | Staging directory is discarded; destination is not replaced |
 
@@ -79,7 +82,8 @@ Typst projection, compilation, or PDF validation.
 
 - IO: project, compile, and validate through `RenderExecutor`.
 - Store: success plus renderer/projector failure, invalid PDF, stale commit, Blob leftovers, and
-  repair convergence without partial authority.
+  repair convergence without partial authority; inject a later export-file failure and assert
+  earlier files plus the new directory chain are removed before audit.
 - App: both built-in Packs export, and Workspace repair/restore uses the concrete adapter.
 - Architecture: locked actual and target graphs match with no temporary Store/IO exception.
 

@@ -28,7 +28,7 @@ use crate::{
     DEFAULT_MAX_BLOB_BYTES, Database, NewWorkspaceSourceV4, StoreError, StoredApplicationModelV3,
     association_v4::{prepare_source, validate_new_source_consent},
     generate_id, now_utc,
-    render::{create_empty_export_directory, join_path, validate_render_output, write_new_file},
+    render::{join_path, validate_render_output, write_new_export_files},
 };
 
 pub const APPLICATION_FLOW_EXPORT_FORMAT_V3: &str = "canisend.application-flow-export/v3";
@@ -792,11 +792,8 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         };
         let manifest_path = join_path(destination, "render-manifest.json")?;
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
-        create_empty_export_directory(self.workspace_root, destination)?;
-        for (path, bytes) in &files {
-            write_new_file(self.workspace_root, path, bytes)?;
-        }
-        write_new_file(self.workspace_root, &manifest_path, &manifest_bytes)?;
+        files.push((manifest_path, manifest_bytes));
+        write_new_export_files(self.workspace_root, destination, &files)?;
         self.database.connection().execute(
             "INSERT INTO audit_events(
                 id, actor, action, subject_id, subject_revision, reason, created_at

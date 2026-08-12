@@ -51,7 +51,8 @@ instead of renewing the 2026-08-17 exception.
 - [x] Both built-in Packs still complete their existing render/export paths through
       `canisend-app`; App-closed CLI/MCP surfaces retain the same application-facade behavior.
 - [x] Focused Store tests prove success, renderer failure, invalid PDF, stale-at-commit,
-      projection failure, filesystem conflict, and idempotent repair without partial authority.
+      projection failure, filesystem conflict, partial-export cleanup, and idempotent repair
+      without partial authority.
 - [x] Focused App/IO tests prove the concrete adapter projects, compiles, validates, exports, repairs,
       and restores using the existing verified resources and render limits.
 - [x] Existing stable error classifications remain unchanged for encrypted/malformed PDF,
