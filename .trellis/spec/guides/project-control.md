@@ -23,16 +23,17 @@ regression only when drift can be detected mechanically.
   for Roadmap work that is Ready or In progress; do not mirror the full GitHub backlog.
 - Keep one critical-path child current. At most one architecture/safety child and one
   qualification/evidence child may run beside it.
-- `M3-ARCH-001` / Issue #182 is Verified and archived. `M3-ALPHA9-001` / Issue #183 is the next
-  critical-path child but remains Planned until its entry and release actions are explicitly
-  authorized. `M3-EVID-005` / Issue #70 remains the evidence child but waits for real invited users
-  and the next exact qualified Alpha. Create `M4-READY-001` / Issue #71 only after the M3 exit gate
-  passes; later Beta, RC, and Stable work remains in GitHub until its entry gate is satisfied.
+- `M3-ARCH-001` / Issue #182 is Verified and archived. `M3-ALPHA9-001` / Issue #183 is the active
+  critical-path child after explicit entry authorization on 2026-08-12; its release transitions
+  remain separately authorized. `M3-EVID-005` / Issue #70 remains the evidence child but waits for
+  real invited users and the next exact qualified Alpha. Create `M4-READY-001` / Issue #71 only
+  after the M3 exit gate passes; later Beta, RC, and Stable work remains in GitHub until its entry
+  gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** review and explicitly authorize entry for `M3-ALPHA9-001` from the exact protected
-  source without treating merged source as qualified release evidence.
+- **Current:** qualify `M3-ALPHA9-001` from exact protected source without treating merged source
+  as qualified release evidence or inferring authorization for a later release transition.
 - **Near term:** qualify that exact Alpha.9, then complete the mixed-Application cohort and provider
   evidence, close supported blockers, refresh Beta readiness, qualify Beta.1, and activate feature
   freeze.

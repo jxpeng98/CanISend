@@ -1,0 +1,50 @@
+{
+  "id": "alpha9-checkpoint-qualification",
+  "name": "alpha9-checkpoint-qualification",
+  "title": "Qualify the Alpha.9 architecture checkpoint",
+  "description": "Qualify and publicly reverify exact Alpha.9 bytes containing M3-ARCH-001",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-12",
+  "completedAt": null,
+  "branch": "agent/alpha9-checkpoint-qualification",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".github/workflows/release.yml",
+    "docs/release/stage-transitions.md",
+    "release/stage-transition-policy.json",
+    "release/alpha-package-contract.json",
+    "release/provider-dogfood.json",
+    "scripts/smoke_release_archive.sh",
+    "scripts/smoke_documented_quickstart.sh",
+    "scripts/smoke_agent_v4_mcp.sh"
+  ],
+  "notes": "Entry authorized 2026-08-12 from protected baseline 471dc655; prepare-stage --write, merge, candidate, tag, promotion, publication, and external-host dogfood remain separately authorized.",
+  "meta": {
+    "roadmap_id": "M3-ALPHA9-001",
+    "github_issue": 183,
+    "github_milestone": "Alpha.9 — Architecture checkpoint",
+    "owner_role": "release",
+    "entry_authorized_on": "2026-08-12",
+    "planning_baseline": "471dc655ea66a60fb41153fa2528a95ff8f8cdf3",
+    "transition_preview_file_count": 30,
+    "transition_preview_files_sha256": "09476c1a6a3a2b8a495bc51f95568cfce82150d93566c8a9c703d93052980bbf",
+    "dependencies": [
+      "M3-ARCH-001"
+    ],
+    "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
+    "verification_tier": 3
+  }
+}

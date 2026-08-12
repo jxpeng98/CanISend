@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-alpha.8`, with evidence-only post-tag changes that are not part of the
+- Checked-in source: `1.0.0-alpha.9`, with evidence-only post-tag changes that are not part of the
   immutable release.
 - Latest public checkpoint: [`v1.0.0-alpha.8`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8),
   built from `35e7c822ea2f469ab726a31b5d08e622f6810c55` and independently reverified after download.

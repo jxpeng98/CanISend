@@ -21,7 +21,8 @@
   "children": [
     "08-10-alpha7-followup-cohort-entry",
     "08-10-roadmap-trellis-control-contract",
-    "08-12-store-io-decoupling"
+    "08-12-store-io-decoupling",
+    "08-12-alpha9-checkpoint-qualification"
   ],
   "parent": null,
   "relatedFiles": [
