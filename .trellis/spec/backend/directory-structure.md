@@ -38,6 +38,61 @@ release/                  machine-readable release and qualification authority
 - Keep MCP, CLI, Tauri, and Svelte as adapters; do not create a host-specific workflow engine.
 - Add repository/release automation to `xtask`, not the product crates.
 
+## Scenario: compose rendering without a Store-to-IO production edge
+
+### 1. Scope / Trigger
+
+Use this boundary whenever Store-owned render, projection, export, repair, or restore code needs
+Typst projection, compilation, or PDF validation.
+
+### 2. Signatures
+
+- `canisend_core::RenderExecutor` owns `project_document`, `render_pdf`, `validate_pdf`,
+  `project_deliverable`, and the default `render_document` composition.
+- Store entrypoints accept `&mut impl RenderExecutor` explicitly.
+- `canisend_io::EmbeddedTypstCompiler` implements the Core trait; `canisend-app` constructs it.
+
+### 3. Contracts
+
+- Core carries verified records, content bytes, `RenderError`, and bounded output metadata.
+- IO owns templates, projection rules, compilation, PDF parsing, and concrete limits.
+- Store owns SQLite, immutable Blobs, paths, revision rechecks, audit, and recovery.
+- Public operations, receipts, schemas, and Workspace formats do not expose the executor.
+
+### 4. Validation & Error Matrix
+
+| Condition | Owning result |
+|---|---|
+| Unresolved document fields | `StoreError::TemplateFieldsUnresolved` |
+| Invalid projection input/invariant | Existing Store invalid-input or projection-invariant class |
+| Compile, malformed/encrypted PDF, size, or time failure | `StoreError::EmbeddedRender(RenderError)` |
+| Revision changes after rendering | Existing stale error; authoritative transaction rolls back |
+| Restore projection fails | Staging directory is discarded; destination is not replaced |
+
+### 5. Good / Base / Bad Cases
+
+- Good: App injects one compiler and Store commits only after projection/render validation.
+- Base: Store tests inject a fake executor to prove failure and stale boundaries.
+- Bad: Store imports IO in production or constructs a fallback compiler internally.
+
+### 6. Tests Required
+
+- IO: project, compile, and validate through `RenderExecutor`.
+- Store: success plus renderer/projector failure, invalid PDF, stale commit, Blob leftovers, and
+  repair convergence without partial authority.
+- App: both built-in Packs export, and Workspace repair/restore uses the concrete adapter.
+- Architecture: locked actual and target graphs match with no temporary Store/IO exception.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: persistence selects a concrete adapter.
+let compiler = canisend_io::EmbeddedTypstCompiler::new();
+
+// Correct: the App composition root supplies the Core port.
+store_operation(..., &mut executor)?;
+```
+
 ## Naming Conventions
 
 Rust modules and files use `snake_case`; public types use Rust's `UpperCamelCase`. Versioned

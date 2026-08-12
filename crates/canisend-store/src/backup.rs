@@ -8,6 +8,7 @@ use std::{
 use canisend_contracts::{
     BackupBlobEntry, BackupManifestData, EntityId, Sha256Digest, WORKSPACE_V4_FORMAT,
 };
+use canisend_core::RenderExecutor;
 use rusqlite::{Connection, MAIN_DB, OpenFlags};
 use sha2::{Digest, Sha256};
 
@@ -98,12 +99,20 @@ impl Workspace {
         })
     }
 
-    pub fn restore(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
+    pub fn restore(
+        backup: &Path,
+        destination: &Path,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<Self, StoreError> {
         verify_backup(backup)?;
-        Self::restore_verified(backup, destination)
+        Self::restore_verified(backup, destination, executor)
     }
 
-    pub fn restore_v4(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
+    pub fn restore_v4(
+        backup: &Path,
+        destination: &Path,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<Self, StoreError> {
         verify_backup(backup)?;
         let config_path = backup.join("canisend.toml");
         let config: WorkspaceConfig = toml::from_str(
@@ -118,10 +127,14 @@ impl Workspace {
                 required: WORKSPACE_V4_FORMAT.to_owned(),
             });
         }
-        Self::restore_verified(backup, destination)
+        Self::restore_verified(backup, destination, executor)
     }
 
-    fn restore_verified(backup: &Path, destination: &Path) -> Result<Self, StoreError> {
+    fn restore_verified(
+        backup: &Path,
+        destination: &Path,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<Self, StoreError> {
         ensure_destination_available(destination)?;
         let staging = destination.with_extension(format!("partial-{}", generate_id()?));
         let mut staging_guard = TemporaryDirectory::create(staging)?;
@@ -146,7 +159,7 @@ impl Workspace {
             &staged_workspace.blobs,
             &staged_root,
         )
-        .repair_all()?;
+        .repair_all(executor)?;
         drop(staged_workspace);
         fs::rename(staging, destination).map_err(|source| io_error(destination, source))?;
         staging_guard.persist();

@@ -1323,6 +1323,7 @@ mod tests {
         WorkflowPackCapabilityRegistry, WorkflowPackOrigin, WorkflowPackRuntime,
         calculate_workflow_pack_content_digest,
     };
+    use canisend_io::EmbeddedTypstCompiler;
     use sha2::{Digest, Sha256};
 
     use super::*;
@@ -1871,6 +1872,7 @@ mod tests {
 
     #[test]
     fn label_only_upgrade_rebinds_without_invalidating_outputs_and_supersedes_old_projections() {
+        let mut executor = EmbeddedTypstCompiler::new();
         let (_root, mut workspace, source, manifest, resources, application_id) = fixture("labels");
         let target = target_bundle(manifest, resources, |manifest, _| {
             manifest.workflow.stages[0].labels = labels("Updated intake label");
@@ -1937,7 +1939,7 @@ mod tests {
         fs::remove_file(workspace_root.join(removed.as_str())).expect("remove old projection");
         assert_eq!(
             ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .repair_all()
+                .repair_all(&mut executor)
                 .expect("repair skips superseded rows"),
             0
         );

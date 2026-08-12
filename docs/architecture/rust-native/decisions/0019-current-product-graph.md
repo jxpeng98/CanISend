@@ -16,9 +16,9 @@ ADR consolidated their resulting graph.
 
 Cargo compilation alone is insufficient architecture enforcement. It accepts a new normal, dev,
 build, target-specific, optional, or feature-enabled workspace edge even when that edge bypasses
-the application facade or reverses an intended dependency direction. The current
-`canisend-store -> canisend-io` rendering/projection edge also contradicts the original inward
-graph and must be explicit and time-bounded rather than silently normalized.
+the application facade or reverses an intended dependency direction. The former normal
+`canisend-store -> canisend-io` rendering/projection edge contradicted the original inward graph
+and therefore remained explicit and time-bounded until its closure under M3-ARCH-001.
 
 ## Decision
 
@@ -69,7 +69,7 @@ flowchart LR
     io --> resources
     store --> contracts
     store --> core
-    store --> io
+    store -. dev .-> io
     store -. dev .-> resources
     app --> contracts
     app --> core
@@ -120,6 +120,7 @@ flowchart LR
     io --> resources
     store --> contracts
     store --> core
+    store -. dev .-> io
     store -. dev .-> resources
     app --> contracts
     app --> core
@@ -140,48 +141,35 @@ flowchart LR
 M1-ARCH-003 moved structured candidate parsing and private candidate-file projection behind
 `canisend-app`, re-exported Agent skill presentation states through that facade, and rebuilt the CLI
 performance fixture through application operations. The CLI now depends only on `canisend-app`,
-`canisend-contracts`, and the ADR-approved `canisend-mcp` host boundary. The remaining actual/target
-delta is the single Store→IO exception below.
+`canisend-contracts`, and the ADR-approved `canisend-mcp` host boundary. M3-ARCH-001 subsequently
+removed the final actual/target production-graph delta, so the graphs above now agree exactly.
 
-## Temporary Store→IO exception
+## Store→IO exception closure
 
-The current `canisend-store -> canisend-io` normal edge exists because Store-owned package,
-projection, backup-rebuild, and migration paths invoke the deterministic renderer while holding
-revision and transaction context. Removing it without first establishing an application-owned
-prepare → render/project → revision-bound commit port could increase partial-write and stale-commit
-risk.
+M3-ARCH-001 / Issue #182 removed the normal Store→IO edge on 2026-08-12 without changing public
+Workspace, Pack, operation, approval, or filesystem contracts:
 
-- Owner: CanISend maintainer.
-- Review decision: accepted on 2026-08-03 for the Alpha.6 source checkpoint only. The review found
-  that an immediate split would change legacy render, legacy projection/repair, generic v3
-  deliverable export, and backup/migration rebuild paths at once.
-- Re-review decision: accepted on 2026-08-11 for the published Alpha.8 checkpoint. The actual and
-  target graphs, Store/IO ownership boundary, compensating failure tests, and removal condition are
-  unchanged from the independently qualified source.
-- Tracking: M1-ARCH-001, M1-ARCH-002, and M1-ARCH-004.
-- Initial review by: 2026-08-10; completed by the dated re-review above.
-- Next review and hard expiry: 2026-08-17.
-- Removal condition: move rendering/projection orchestration behind an app-owned neutral port with
-  stale, failure-atomicity, Blob-ledger, cleanup, and repair-convergence tests; otherwise accept a
-  new explicitly reviewed exception before this one expires.
+- the existing `RenderExecutor` seam, neutral error categories, and output values moved to
+  `canisend-core`;
+- the existing IO `EmbeddedTypstCompiler` implements that seam directly;
+- `canisend-app` constructs and injects the implementation for legacy render, managed projection,
+  Deliverable export, Workspace repair, and atomic restore;
+- Store retains SQLite, immutable Blob, path, revision, audit, recovery, and commit ownership; and
+- Store retains only a dev dependency on IO for exact real-render integration fixtures. That edge
+  appears identically in the actual and target graphs and is not a production exception.
 
-The accepted exception is compensated by an injectable Store-owned render-execution boundary and
-named failure tests. They prove that renderer failure creates no Blob or authoritative write, a
-stage change after compilation rolls back artifact/head/reference/audit writes, every prepared CAS
-leftover remains digest-valid and visible to `workspace check`, and projection generator/path
-failure records `repair-required` before converging idempotently. CanISend never automatically
-deletes an unreferenced digest, so a failed attempt cannot delete pre-existing or shared content.
-The exact evidence and limits are recorded in the
+The machine policy therefore records 28 actual edges, 28 target edges, and zero temporary
+exceptions. Named failure tests continue to prove that renderer failure creates no Blob or
+authoritative write, stale-at-commit rolls back artifact/head/reference/audit writes, prepared CAS
+leftovers remain digest-valid and auditable, and projection/path failure converges through
+`repair-required` without deleting pre-existing or shared content.
+
+The closed exception remains historical evidence: it was accepted on 2026-08-03 for Alpha.6,
+initially reviewed by 2026-08-10, re-reviewed on 2026-08-11 for published Alpha.8 source
+`35e7c822ea2f469ab726a31b5d08e622f6810c55`, and had a hard expiry of 2026-08-17. Its original
+tracking was M1-ARCH-001, M1-ARCH-002, and M1-ARCH-004; the closure is M3-ARCH-001. No date-only
+renewal occurred. The original limits remain recorded in the
 [M1 exception review](../../../notes/rust-native/2026-08-03-m1-store-render-exception.md).
-
-The 2026-08-11 re-review compared the current branch with published Alpha.8 source
-`35e7c822ea2f469ab726a31b5d08e622f6810c55`: the locked dependency graph, Store render and
-projection paths, and both named regressions are unchanged. The exception is retained only until
-the existing hard expiry; this review does not authorize another date-only renewal.
-
-The source gate fails after the review date or expiry. Policy forbids renewing only the date; a
-renewal requires an explicit architecture review and accepted ADR/policy update whose owner,
-rationale, tracking item, removal condition, actual edge, and target absence remain consistent.
 
 ## Tauri, Svelte, and platform boundaries
 
@@ -210,6 +198,6 @@ rationale, tracking item, removal condition, actual edge, and target absence rem
 - A Cargo manifest change cannot silently alter the internal architecture.
 - Dev, build, target, optional, feature, default-feature, and renamed dependency distinctions are
   reviewable rather than flattened into a crate-pair diagram.
-- Current graph debt remains visible with exact owners and closure work rather than being rewritten
-  as the target architecture.
+- Closed graph debt remains visible in historical review evidence instead of being rewritten as if
+  the exception never existed.
 - Updating a legitimate edge requires an intentional policy and ADR review in the same change.

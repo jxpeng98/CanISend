@@ -23,17 +23,18 @@ regression only when drift can be detected mechanically.
   for Roadmap work that is Ready or In progress; do not mirror the full GitHub backlog.
 - Keep one critical-path child current. At most one architecture/safety child and one
   qualification/evidence child may run beside it.
-- The current delivery child is `M3-ALPHA8-001`. Resume `M3-EVID-005` / Issue #70 after exact
-  Alpha.8 qualification. Create `M4-READY-001` / Issue #71 only after the M3 exit gate passes;
+- The current architecture child is `M3-ARCH-001` / Issue #182. `M3-EVID-005` / Issue #70 remains
+  the evidence child but waits for real invited users and the next exact qualified Alpha after
+  architecture bytes merge. Create `M4-READY-001` / Issue #71 only after the M3 exit gate passes;
   later Beta, RC, and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** qualify exact Alpha.8 as the approved replacement cohort checkpoint. Public Alpha.7
-  remains the current release until Alpha.8 is independently qualified and promoted; later source
-  is not published Alpha.7 bytes.
-- **Near term:** complete exact mixed-Application cohort and provider evidence, close supported
-  blockers, refresh Beta readiness, qualify Beta.1, and activate feature freeze.
+- **Current:** integrate `M3-ARCH-001` through protected CI without rewriting published Alpha.8 or
+  claiming that local source is qualified release evidence.
+- **Near term:** qualify `M3-ALPHA9-001` from the exact protected source, then complete the
+  mixed-Application cohort and provider evidence, close supported blockers, refresh Beta
+  readiness, qualify Beta.1, and activate feature freeze.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
   package-manager, accessibility, feedback, and final-notes evidence classes.
 - **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then

@@ -10,7 +10,7 @@ use canisend_contracts::{
     EntityId, ReadinessState, RenderManifestRecord, RenderedDocumentRecord, Revision,
     SafeRelativePath, Sha256Digest, validate_external_candidate,
 };
-use canisend_io::{EmbeddedTypstCompiler, project_document_typst, validate_rendered_pdf};
+use canisend_core::{RenderError, RenderExecutor};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::Value;
 
@@ -25,66 +25,6 @@ pub struct RenderService<'a> {
     workspace_root: &'a Path,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenderExecutionOutput {
-    pub typst_source: String,
-    pub pdf_bytes: Vec<u8>,
-    pub page_count: u32,
-    pub warning_count: u32,
-    pub elapsed_millis: u64,
-}
-
-pub trait RenderExecutor {
-    fn render_document(
-        &mut self,
-        document_artifact: &ArtifactReference,
-        document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError>;
-}
-
-pub struct EmbeddedRenderExecutor {
-    compiler: EmbeddedTypstCompiler,
-}
-
-impl EmbeddedRenderExecutor {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            compiler: EmbeddedTypstCompiler::new(),
-        }
-    }
-}
-
-impl Default for EmbeddedRenderExecutor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl RenderExecutor for EmbeddedRenderExecutor {
-    fn render_document(
-        &mut self,
-        document_artifact: &ArtifactReference,
-        document: &DocumentRecord,
-    ) -> Result<RenderExecutionOutput, StoreError> {
-        let typst_source =
-            project_document_typst(document_artifact, document).map_err(typst_projection_error)?;
-        let rendered = self.compiler.compile_pdf(&typst_source)?;
-        let page_count = rendered.page_count();
-        let warning_count = u32::try_from(rendered.warning_count())
-            .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
-        let elapsed_millis = u64::try_from(rendered.elapsed().as_millis())
-            .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
-        Ok(RenderExecutionOutput {
-            typst_source,
-            pdf_bytes: rendered.into_bytes(),
-            page_count,
-            warning_count,
-            elapsed_millis,
-        })
-    }
-}
-
 impl<'a> RenderService<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore, workspace_root: &'a Path) -> Self {
@@ -96,13 +36,6 @@ impl<'a> RenderService<'a> {
     }
 
     pub fn build(
-        &mut self,
-        job_id: &EntityId,
-    ) -> Result<(ArtifactReference, RenderManifestRecord), StoreError> {
-        self.build_with_executor(job_id, &mut EmbeddedRenderExecutor::new())
-    }
-
-    pub fn build_with_executor(
         &mut self,
         job_id: &EntityId,
         executor: &mut impl RenderExecutor,
@@ -143,12 +76,16 @@ impl<'a> RenderService<'a> {
                     "package document belongs to another job".to_owned(),
                 ));
             }
-            let rendered = executor.render_document(&document_artifact, &document)?;
+            let rendered = executor
+                .render_document(&document_artifact, &document)
+                .map_err(document_render_error)?;
             let page_count = rendered.page_count;
-            let warning_count = rendered.warning_count;
-            let elapsed_millis = rendered.elapsed_millis;
+            let warning_count = u32::try_from(rendered.warning_count)
+                .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
+            let elapsed_millis = u64::try_from(rendered.elapsed_millis)
+                .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
             let pdf_bytes = rendered.pdf_bytes;
-            let validated_page_count = validate_rendered_pdf(&pdf_bytes)?;
+            let validated_page_count = executor.validate_pdf(&pdf_bytes)?;
             if validated_page_count != page_count {
                 return Err(StoreError::DependencyConflict(
                     "render executor page count does not match its validated PDF".to_owned(),
@@ -302,6 +239,7 @@ impl<'a> RenderService<'a> {
         &mut self,
         job_id: &EntityId,
         kind: DocumentKind,
+        executor: &mut impl RenderExecutor,
     ) -> Result<(RenderedDocumentRecord, Vec<u8>), StoreError> {
         let (_, manifest) = self.current(job_id)?;
         let document = manifest
@@ -314,7 +252,7 @@ impl<'a> RenderService<'a> {
                     document_kind_slug(kind)
                 ))
             })?;
-        let bytes = self.read_validated_pdf(&document)?;
+        let bytes = self.read_validated_pdf(&document, executor)?;
         Ok((document, bytes))
     }
 
@@ -322,6 +260,7 @@ impl<'a> RenderService<'a> {
         &mut self,
         job_id: &EntityId,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<
         (
             ArtifactReference,
@@ -334,7 +273,7 @@ impl<'a> RenderService<'a> {
         let (manifest_artifact, manifest) = self.current(job_id)?;
         let mut files = Vec::with_capacity(manifest.documents.len() + 1);
         for document in &manifest.documents {
-            let bytes = self.read_validated_pdf(document)?;
+            let bytes = self.read_validated_pdf(document, executor)?;
             files.push((
                 join_path(
                     destination,
@@ -374,11 +313,15 @@ impl<'a> RenderService<'a> {
         ))
     }
 
-    fn read_validated_pdf(&self, document: &RenderedDocumentRecord) -> Result<Vec<u8>, StoreError> {
+    fn read_validated_pdf(
+        &self,
+        document: &RenderedDocumentRecord,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<Vec<u8>, StoreError> {
         let bytes = self
             .blobs
             .read_verified(&document.pdf_artifact.sha256, DEFAULT_MAX_BLOB_BYTES)?;
-        let page_count = validate_rendered_pdf(&bytes)?;
+        let page_count = executor.validate_pdf(&bytes)?;
         if page_count != document.page_count
             || u64::try_from(bytes.len()).ok() != Some(document.byte_count)
         {
@@ -732,18 +675,13 @@ fn candidate_error(error: CandidateValidationError) -> StoreError {
     }
 }
 
-fn typst_projection_error(error: canisend_io::TypstProjectionError) -> StoreError {
+fn document_render_error(error: RenderError) -> StoreError {
     match error {
-        canisend_io::TypstProjectionError::UnresolvedTemplateFields { count } => {
+        RenderError::UnresolvedTemplateFields { count } => {
             StoreError::TemplateFieldsUnresolved { count }
         }
-        canisend_io::TypstProjectionError::TemplateEncoding
-        | canisend_io::TypstProjectionError::PackTemplateEncoding
-        | canisend_io::TypstProjectionError::DeliverableContentEncoding
-        | canisend_io::TypstProjectionError::DeliverableNotApproved
-        | canisend_io::TypstProjectionError::SourceTooLarge { .. } => {
-            StoreError::TypstProjectionInvariant
-        }
+        error if error.is_projection() => StoreError::TypstProjectionInvariant,
+        error => StoreError::EmbeddedRender(error),
     }
 }
 

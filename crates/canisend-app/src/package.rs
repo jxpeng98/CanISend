@@ -4,6 +4,7 @@ use canisend_contracts::{
     EntityId, NextAction, PackageExportManifestRecord, PackageManifestRecord, ProjectionEditStatus,
     ProjectionReconcileRecord, ReadinessState, SafeRelativePath,
 };
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_store::{PackageService, ProjectionService, StoreError};
 use serde::{Deserialize, Serialize};
 
@@ -115,9 +116,10 @@ impl Application {
         }
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let (artifact, receipt) =
             ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .export(&request.job_id, &request.destination)?;
+                .export(&request.job_id, &request.destination, &mut executor)?;
         let count = receipt.projections.len();
         Ok(ActionReceipt::new(
             "package.export",
@@ -192,9 +194,10 @@ impl Application {
     ) -> Result<ActionReceipt<ProjectionReconcileRecord>, ApplicationError> {
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let record =
             ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .replace(&request.job_id, &request.path)?;
+                .replace(&request.job_id, &request.path, &mut executor)?;
         Ok(ActionReceipt::new(
             "package.replace",
             "replaced",
@@ -213,9 +216,15 @@ impl Application {
     ) -> Result<ActionReceipt<ProjectionReconcileRecord>, ApplicationError> {
         let mut workspace = open_workspace(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let record =
             ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root)
-                .copy_as_new(&request.job_id, &request.path, &request.destination)?;
+                .copy_as_new(
+                    &request.job_id,
+                    &request.path,
+                    &request.destination,
+                    &mut executor,
+                )?;
         Ok(ActionReceipt::new(
             "package.copy-as-new",
             "preserved-and-restored",

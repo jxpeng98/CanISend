@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use canisend_contracts::{
     ActorKind, ApplicationId, PrivacyClassification, Sha256Digest, WorkspaceSourceKindV4,
 };
+use canisend_io::EmbeddedTypstCompiler;
 use canisend_store::{
     ApplicationAssociationServiceV4, ApplicationDeliverableReviseRequestV4,
     ApplicationFlowApproveRequestV3, ApplicationFlowComposeRequestV3,
@@ -990,6 +991,7 @@ impl Application {
         let pack = exact_pack(root, application_id)?;
         let mut workspace = open_workspace_v4(root)?;
         let workspace_root = workspace.paths.root.clone();
+        let mut executor = EmbeddedTypstCompiler::new();
         let exported = ApplicationFlowServiceV3::new(
             &mut workspace.database,
             &workspace.blobs,
@@ -1001,6 +1003,7 @@ impl Application {
             request.expected_revision,
             &request.destination,
             ActorKind::HostAgent,
+            &mut executor,
         )?;
         Ok(ActionReceipt::new(
             "export.prepare.commit",

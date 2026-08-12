@@ -7,7 +7,7 @@ use canisend_contracts::{
     ProjectionRecord, ReadinessState, Revision, SafeRelativePath, Sha256Digest,
     validate_external_candidate,
 };
-use canisend_io::{TypstProjectionError, project_document_typst};
+use canisend_core::{RenderError, RenderExecutor};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use serde_json::Value;
@@ -39,6 +39,7 @@ impl<'a> ProjectionService<'a> {
         &mut self,
         job_id: &EntityId,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<(ArtifactReference, PackageExportManifestRecord), StoreError> {
         ensure_job_destination(job_id, destination)?;
         let (package_artifact, package) =
@@ -72,8 +73,9 @@ impl<'a> ProjectionService<'a> {
                 reference.clone(),
                 join_projection_path(destination, &format!("{slug}.typ"))?,
                 ProjectionKind::TypstSource,
-                project_document_typst(reference, document)
-                    .map_err(typst_projection_error)?
+                executor
+                    .project_document(reference, document)
+                    .map_err(projection_error)?
                     .into_bytes(),
             )?);
         }
@@ -255,7 +257,7 @@ impl<'a> ProjectionService<'a> {
         Ok((reference, receipt))
     }
 
-    pub fn repair_all(&mut self) -> Result<usize, StoreError> {
+    pub fn repair_all(&mut self, executor: &mut impl RenderExecutor) -> Result<usize, StoreError> {
         let raw = load_raw_projection_rows(self.database.connection())?;
         let managed = load_managed_projection_rows(self.database.connection())?;
         let mut repaired = 0;
@@ -275,7 +277,7 @@ impl<'a> ProjectionService<'a> {
                 self.workspace_root,
                 &row.relative_path,
                 &row.generated_sha256,
-                || generate_from_row(self.blobs, &row),
+                || generate_from_row(self.blobs, &row, executor),
             )?);
         }
         repaired += crate::application_projection_v3::ApplicationProjectionService::new(
@@ -335,8 +337,9 @@ impl<'a> ProjectionService<'a> {
         &mut self,
         job_id: &EntityId,
         relative_path: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ProjectionReconcileRecord, StoreError> {
-        self.restore_projection(job_id, relative_path, None)
+        self.restore_projection(job_id, relative_path, None, executor)
     }
 
     pub fn copy_as_new(
@@ -344,6 +347,7 @@ impl<'a> ProjectionService<'a> {
         job_id: &EntityId,
         relative_path: &SafeRelativePath,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ProjectionReconcileRecord, StoreError> {
         ensure_job_destination(job_id, destination)?;
         if relative_path == destination {
@@ -351,7 +355,7 @@ impl<'a> ProjectionService<'a> {
                 "copy destination must differ from the managed projection".to_owned(),
             ));
         }
-        self.restore_projection(job_id, relative_path, Some(destination))
+        self.restore_projection(job_id, relative_path, Some(destination), executor)
     }
 
     fn restore_projection(
@@ -359,6 +363,7 @@ impl<'a> ProjectionService<'a> {
         job_id: &EntityId,
         relative_path: &SafeRelativePath,
         copy_destination: Option<&SafeRelativePath>,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ProjectionReconcileRecord, StoreError> {
         let (package_artifact, package) =
             PackageService::new(self.database, self.blobs).current_with_reference(job_id)?;
@@ -386,7 +391,7 @@ impl<'a> ProjectionService<'a> {
             write_new_user_copy(self.workspace_root, destination, &bytes)?;
             preserved_copy_sha256 = Some(digest);
         }
-        let bytes = generate_from_row(self.blobs, &row)?;
+        let bytes = generate_from_row(self.blobs, &row, executor)?;
         write_projection(self.workspace_root, relative_path, &bytes)?;
         let generated = digest_bytes(&bytes)?;
         if generated != row.generated_sha256 {
@@ -559,7 +564,11 @@ fn markdown_projection(
     Ok(output)
 }
 
-fn generate_from_row(blobs: &BlobStore, row: &ProjectionRow) -> Result<Vec<u8>, StoreError> {
+fn generate_from_row(
+    blobs: &BlobStore,
+    row: &ProjectionRow,
+    executor: &mut impl RenderExecutor,
+) -> Result<Vec<u8>, StoreError> {
     match row.kind {
         ProjectionKind::Markdown => {
             let document = load_record::<DocumentRecord>(blobs, &row.source_artifact)?;
@@ -571,8 +580,9 @@ fn generate_from_row(blobs: &BlobStore, row: &ProjectionRow) -> Result<Vec<u8>, 
         }
         ProjectionKind::TypstSource => {
             let document = load_record::<DocumentRecord>(blobs, &row.source_artifact)?;
-            Ok(project_document_typst(&row.source_artifact, &document)
-                .map_err(typst_projection_error)?
+            Ok(executor
+                .project_document(&row.source_artifact, &document)
+                .map_err(projection_error)?
                 .into_bytes())
         }
         ProjectionKind::PackageManifestJson => {
@@ -1080,18 +1090,16 @@ fn candidate_error(error: CandidateValidationError) -> StoreError {
     }
 }
 
-fn typst_projection_error(error: TypstProjectionError) -> StoreError {
+fn projection_error(error: RenderError) -> StoreError {
     match error {
-        TypstProjectionError::UnresolvedTemplateFields { count } => {
+        RenderError::UnresolvedTemplateFields { count } => {
             StoreError::TemplateFieldsUnresolved { count }
         }
-        TypstProjectionError::SourceTooLarge { max_bytes } => StoreError::InvalidInput(format!(
+        RenderError::ProjectionSourceTooLarge { max_bytes } => StoreError::InvalidInput(format!(
             "generated Typst source exceeds the {max_bytes}-byte render limit"
         )),
-        TypstProjectionError::TemplateEncoding
-        | TypstProjectionError::PackTemplateEncoding
-        | TypstProjectionError::DeliverableContentEncoding
-        | TypstProjectionError::DeliverableNotApproved => StoreError::TypstProjectionInvariant,
+        error if error.is_projection() => StoreError::TypstProjectionInvariant,
+        error => StoreError::EmbeddedRender(error),
     }
 }
 
@@ -1136,6 +1144,7 @@ mod tests {
         ActorKind, ArtifactKind, ArtifactReference, DocumentRecord, ProjectionEditStatus,
         ProjectionKind, SafeRelativePath,
     };
+    use canisend_io::EmbeddedTypstCompiler;
     use rusqlite::Connection;
     use serde_json::json;
 
@@ -1343,6 +1352,7 @@ mod tests {
 
     #[test]
     fn recovery_restore_rebuilds_managed_projections_from_authoritative_blobs() {
+        let mut executor = EmbeddedTypstCompiler::new();
         let source = TestDirectory::new("restore-source");
         let backup_parent = TestDirectory::new("restore-backup");
         let restored_parent = TestDirectory::new("restore-destination");
@@ -1466,7 +1476,8 @@ mod tests {
         }
 
         workspace.backup(&backup).expect("backup");
-        let mut restored = Workspace::restore(&backup, &destination).expect("restore");
+        let mut restored =
+            Workspace::restore(&backup, &destination, &mut executor).expect("restore");
         for projection in &projections {
             assert_eq!(
                 fs::read(destination.join(projection.relative_path.as_str()))
@@ -1477,7 +1488,7 @@ mod tests {
         let restored_root = restored.paths.root.clone();
         assert_eq!(
             ProjectionService::new(&mut restored.database, &restored.blobs, &restored_root,)
-                .repair_all()
+                .repair_all(&mut executor)
                 .expect("idempotent repair"),
             0
         );

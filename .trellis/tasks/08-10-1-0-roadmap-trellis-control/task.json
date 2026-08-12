@@ -20,7 +20,8 @@
   "subtasks": [],
   "children": [
     "08-10-alpha7-followup-cohort-entry",
-    "08-10-roadmap-trellis-control-contract"
+    "08-10-roadmap-trellis-control-contract",
+    "08-12-store-io-decoupling"
   ],
   "parent": null,
   "relatedFiles": [
@@ -31,9 +32,9 @@
   "meta": {
     "roadmap_id": "PROGRAM-1.0",
     "current_milestone": "M3",
-    "current_roadmap_id": "M3-EVID-005",
-    "github_issue": 70,
-    "open_roadmap_issues": 26,
+    "current_roadmap_id": "M3-ARCH-001",
+    "github_issue": 182,
+    "open_roadmap_issues": 28,
     "management_mode": "just-in-time"
   }
 }

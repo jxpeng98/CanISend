@@ -15,8 +15,9 @@ use canisend_contracts::{
     SafeRelativePath, Sha256Digest, StageId, WorkflowPackFieldDefinition, WorkflowPackFieldType,
     WorkflowPackItemId, WorkflowPackStageOutput, WorkspaceSourceKindV4,
 };
-use canisend_core::{VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime};
-use canisend_io::{EmbeddedTypstCompiler, project_deliverable_typst_v3};
+use canisend_core::{
+    RenderError, RenderExecutor, VerifiedWorkflowPackBundle, WorkflowPackDeliverableCatalogRuntime,
+};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -680,6 +681,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         application_id: &ApplicationId,
         expected_revision: Revision,
         destination: &SafeRelativePath,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
         self.export_with_actor(
             pack,
@@ -687,6 +689,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             expected_revision,
             destination,
             ActorKind::User,
+            executor,
         )
     }
 
@@ -697,6 +700,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         expected_revision: Revision,
         destination: &SafeRelativePath,
         actor: ActorKind,
+        executor: &mut impl RenderExecutor,
     ) -> Result<ApplicationFlowExportReadModelV3, StoreError> {
         let current = self.validate_export(pack, application_id, expected_revision, destination)?;
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
@@ -705,7 +709,6 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let package =
             ApplicationProjectionService::new(self.database, self.blobs, self.workspace_root)
                 .project(application_id)?;
-        let compiler = EmbeddedTypstCompiler::new();
         let mut counts = BTreeMap::<String, u16>::new();
         let mut rendered = Vec::with_capacity(current.snapshot.deliverables.len());
         let mut files = Vec::with_capacity(current.snapshot.deliverables.len());
@@ -732,15 +735,16 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             let content = self
                 .blobs
                 .read_verified(&content_reference.sha256, DEFAULT_MAX_BLOB_BYTES)?;
-            let source = project_deliverable_typst_v3(
-                template,
-                &current.snapshot.pack,
-                current.snapshot.application.revision,
-                deliverable,
-                &content,
-            )
-            .map_err(|error| StoreError::InvalidInput(error.to_string()))?;
-            let pdf = compiler.compile_pdf(&source)?;
+            let source = executor
+                .project_deliverable(
+                    template,
+                    &current.snapshot.pack,
+                    current.snapshot.application.revision,
+                    deliverable,
+                    &content,
+                )
+                .map_err(deliverable_projection_error)?;
+            let pdf = executor.render_pdf(&source)?;
             let local_id = deliverable.kind.local_id_str().to_owned();
             let index = counts.entry(local_id.clone()).or_insert(0);
             *index = index.checked_add(1).ok_or_else(|| {
@@ -752,12 +756,12 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 format!("-{}", *index)
             };
             let relative_path = join_path(destination, &format!("{local_id}{suffix}.pdf"))?;
-            let pdf_sha256 = Sha256Digest::try_new(hex::encode(Sha256::digest(pdf.bytes())))?;
-            let byte_count = u64::try_from(pdf.bytes().len())
+            let pdf_sha256 = Sha256Digest::try_new(hex::encode(Sha256::digest(&pdf.pdf_bytes)))?;
+            let byte_count = u64::try_from(pdf.pdf_bytes.len())
                 .map_err(|_| StoreError::Invariant("render byte count overflow".to_owned()))?;
-            let warning_count = u32::try_from(pdf.warning_count())
+            let warning_count = u32::try_from(pdf.warning_count)
                 .map_err(|_| StoreError::Invariant("render warning count overflow".to_owned()))?;
-            let elapsed_millis = u64::try_from(pdf.elapsed().as_millis())
+            let elapsed_millis = u64::try_from(pdf.elapsed_millis)
                 .map_err(|_| StoreError::Invariant("render duration overflow".to_owned()))?;
             rendered.push(ApplicationFlowRenderedDeliverableV3 {
                 deliverable_id: deliverable.id.clone(),
@@ -766,12 +770,12 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 source_sha256: content_reference.sha256.clone(),
                 pdf_sha256,
                 relative_path: relative_path.clone(),
-                page_count: pdf.page_count(),
+                page_count: pdf.page_count,
                 byte_count,
                 warning_count,
                 elapsed_millis,
             });
-            files.push((relative_path, pdf.into_bytes()));
+            files.push((relative_path, pdf.pdf_bytes));
         }
         let exported_at = now_utc()?;
         let manifest = ApplicationFlowExportManifestV3 {
@@ -1207,6 +1211,14 @@ fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
             .ok_or_else(|| StoreError::Invariant("revision overflow".to_owned()))?,
     )
     .map_err(StoreError::from)
+}
+
+fn deliverable_projection_error(error: RenderError) -> StoreError {
+    if error.is_projection() {
+        StoreError::InvalidInput(error.to_string())
+    } else {
+        StoreError::EmbeddedRender(error)
+    }
 }
 
 fn pack_catalog_error(error: impl std::fmt::Display) -> StoreError {

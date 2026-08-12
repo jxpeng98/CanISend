@@ -1132,6 +1132,7 @@ mod tests {
         PlannedDeliverableV3, PrivacyClassification, SemanticVersion, SourceKind, UtcTimestamp,
         WorkflowPackId, WorkflowPackItemId,
     };
+    use canisend_io::EmbeddedTypstCompiler;
 
     use super::*;
     use crate::{
@@ -1369,6 +1370,7 @@ mod tests {
             pack("org.canisend.generic-starter", 'a'),
             Some(content),
         );
+        let mut executor = EmbeddedTypstCompiler::new();
         let workspace_root = workspace.paths.root.clone();
         let application_id = stored_snapshot.application.id.clone();
         let catalog = ApplicationProjectionService::new(
@@ -1415,7 +1417,7 @@ mod tests {
 
         assert_eq!(
             ProjectionService::new(&mut workspace.database, &workspace.blobs, &workspace_root,)
-                .repair_all()
+                .repair_all(&mut executor)
                 .expect("repair projections"),
             1
         );
@@ -1494,6 +1496,7 @@ mod tests {
             pack("org.canisend.generic-starter", 'd'),
             Some(content),
         );
+        let mut executor = EmbeddedTypstCompiler::new();
         let application_id = stored_snapshot.application.id.clone();
         let content_sha256 = stored_snapshot.deliverables[0]
             .content
@@ -1545,7 +1548,8 @@ mod tests {
                 .any(|blob| blob.sha256 == content_sha256)
         );
 
-        let mut restored = Workspace::restore(&backup, &destination).expect("restore");
+        let mut restored =
+            Workspace::restore(&backup, &destination, &mut executor).expect("restore");
         for (relative_path, bytes) in expected {
             assert_eq!(
                 fs::read(destination.join(relative_path.as_str())).expect("restored projection"),
@@ -1568,7 +1572,7 @@ mod tests {
         );
         assert_eq!(
             ProjectionService::new(&mut restored.database, &restored.blobs, &restored_root,)
-                .repair_all()
+                .repair_all(&mut executor)
                 .expect("idempotent repair"),
             0
         );

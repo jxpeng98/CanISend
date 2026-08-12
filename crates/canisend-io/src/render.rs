@@ -7,6 +7,7 @@ use canisend_contracts::{
     ApplicationPackBindingV3, ArtifactReference, DeliverableRecordV3, DeliverableStateV3,
     DocumentKind, DocumentRecord, Revision,
 };
+use canisend_core::{RenderError, RenderExecutor, RenderedPdfOutput};
 use canisend_resources::{ResourceDescriptor, ResourceId, get};
 use thiserror::Error;
 use typst_as_lib::{TypstAsLibError, TypstEngine};
@@ -350,28 +351,7 @@ impl RenderedPdf {
     }
 }
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum EmbeddedRenderError {
-    #[error("Typst source exceeds the {max_bytes}-byte render limit")]
-    SourceTooLarge { max_bytes: usize },
-    #[error("embedded Typst compilation failed ({kind}, {diagnostic_count} diagnostic(s))")]
-    CompileFailed {
-        kind: &'static str,
-        diagnostic_count: usize,
-    },
-    #[error("embedded PDF export failed ({diagnostic_count} diagnostic(s))")]
-    PdfExportFailed { diagnostic_count: usize },
-    #[error("rendered PDF exceeds the {max_bytes}-byte output limit")]
-    PdfTooLarge { max_bytes: usize },
-    #[error("embedded render exceeded the {max_millis}-millisecond time budget")]
-    TimeBudgetExceeded { max_millis: u128 },
-    #[error("embedded renderer returned an invalid PDF")]
-    InvalidPdf,
-    #[error("embedded renderer returned an encrypted PDF")]
-    EncryptedPdf,
-    #[error("rendered PDF page count is outside the supported range")]
-    PageCountInvalid,
-}
+pub use canisend_core::RenderError as EmbeddedRenderError;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EmbeddedTypstCompiler;
@@ -420,6 +400,42 @@ impl EmbeddedTypstCompiler {
     }
 }
 
+impl RenderExecutor for EmbeddedTypstCompiler {
+    fn project_document(
+        &mut self,
+        source_artifact: &ArtifactReference,
+        document: &DocumentRecord,
+    ) -> Result<String, RenderError> {
+        project_document_typst(source_artifact, document).map_err(render_projection_error)
+    }
+
+    fn render_pdf(&mut self, source: &str) -> Result<RenderedPdfOutput, RenderError> {
+        let rendered = self.compile_pdf(source)?;
+        Ok(RenderedPdfOutput {
+            page_count: rendered.page_count(),
+            warning_count: rendered.warning_count(),
+            elapsed_millis: rendered.elapsed().as_millis(),
+            pdf_bytes: rendered.into_bytes(),
+        })
+    }
+
+    fn validate_pdf(&mut self, bytes: &[u8]) -> Result<u32, RenderError> {
+        validate_rendered_pdf(bytes)
+    }
+
+    fn project_deliverable(
+        &mut self,
+        template: &[u8],
+        pack: &ApplicationPackBindingV3,
+        application_revision: Revision,
+        deliverable: &DeliverableRecordV3,
+        content: &[u8],
+    ) -> Result<String, RenderError> {
+        project_deliverable_typst_v3(template, pack, application_revision, deliverable, content)
+            .map_err(render_projection_error)
+    }
+}
+
 pub fn render_acceptance_probe() -> Result<RenderedPdf, EmbeddedRenderError> {
     EmbeddedTypstCompiler::new().compile_pdf(CROSS_PLATFORM_RENDER_PROBE)
 }
@@ -463,6 +479,21 @@ fn enforce_time_budget(elapsed: Duration) -> Result<(), EmbeddedRenderError> {
     }
 }
 
+fn render_projection_error(error: TypstProjectionError) -> RenderError {
+    match error {
+        TypstProjectionError::TemplateEncoding => RenderError::DocumentTemplateEncoding,
+        TypstProjectionError::UnresolvedTemplateFields { count } => {
+            RenderError::UnresolvedTemplateFields { count }
+        }
+        TypstProjectionError::SourceTooLarge { max_bytes } => {
+            RenderError::ProjectionSourceTooLarge { max_bytes }
+        }
+        TypstProjectionError::PackTemplateEncoding => RenderError::PackTemplateEncoding,
+        TypstProjectionError::DeliverableContentEncoding => RenderError::DeliverableContentEncoding,
+        TypstProjectionError::DeliverableNotApproved => RenderError::DeliverableNotApproved,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use canisend_contracts::{
@@ -470,6 +501,7 @@ mod tests {
         DocumentPlaceholderRecord, DocumentRecord, DocumentSectionKind, DocumentSectionRecord,
         EntityId, ExecutionMode, Revision, Sha256Digest, UtcTimestamp,
     };
+    use canisend_core::{RenderError, RenderExecutor};
     use canisend_resources::{ResourceId, get};
 
     use super::{
@@ -507,6 +539,29 @@ mod tests {
         let text = pdf_extract::extract_text_from_mem(rendered.bytes()).expect("extract PDF text");
         assert!(text.contains("Ada Lovelace"));
         assert!(text.contains("Evidence-backed application"));
+    }
+
+    #[test]
+    fn core_render_executor_projects_compiles_and_validates() {
+        let source_artifact = artifact_reference(ArtifactKind::CoverLetter, 10);
+        let mut executor = EmbeddedTypstCompiler::new();
+        let output = executor
+            .render_document(&source_artifact, &document(DocumentKind::CoverLetter, true))
+            .expect("Core render executor");
+        assert_eq!(
+            executor
+                .validate_pdf(&output.pdf_bytes)
+                .expect("validate port output"),
+            output.page_count
+        );
+        assert!(output.typst_source.contains("canisend_render_document"));
+        assert_eq!(
+            executor.project_document(
+                &source_artifact,
+                &document(DocumentKind::CoverLetter, false)
+            ),
+            Err(RenderError::UnresolvedTemplateFields { count: 1 })
+        );
     }
 
     #[test]

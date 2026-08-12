@@ -4,6 +4,7 @@ use canisend_contracts::{
     ActorKind, ArtifactKind, ArtifactReference, ArtifactRevisionData, EntityId, Revision,
     SafeRelativePath, Sha256Digest,
 };
+use canisend_core::RenderExecutor;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -271,8 +272,12 @@ impl<'a> ArtifactService<'a> {
         result
     }
 
-    pub fn repair_projections(&mut self) -> Result<usize, StoreError> {
-        crate::ProjectionService::new(self.database, self.blobs, self.workspace_root).repair_all()
+    pub fn repair_projections(
+        &mut self,
+        executor: &mut impl RenderExecutor,
+    ) -> Result<usize, StoreError> {
+        crate::ProjectionService::new(self.database, self.blobs, self.workspace_root)
+            .repair_all(executor)
     }
 }
 

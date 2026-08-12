@@ -1857,6 +1857,7 @@ mod tests {
         WorkflowPackByteLoader, WorkflowPackCapabilityRegistry, WorkflowPackOrigin,
         WorkflowPackRuntime,
     };
+    use canisend_io::EmbeddedTypstCompiler;
     use canisend_resources::academic_job_workflow_pack;
 
     use super::*;
@@ -2314,6 +2315,7 @@ mod tests {
 
     #[test]
     fn older_schema_gate_refuses_v3_without_mutation_and_backup_restores_v2() {
+        let mut executor = EmbeddedTypstCompiler::new();
         let (_root, mut workspace, pack, preview) = simple_migration_fixture("old-binary");
         let backup = TestDirectory::new("old-binary-backup");
         let restored = TestDirectory::new("old-binary-restored");
@@ -2362,8 +2364,9 @@ mod tests {
         );
 
         drop(workspace);
-        let mut restored_workspace = Workspace::restore(backup.path(), restored.path())
-            .expect("restore migration backup with a compatible binary");
+        let mut restored_workspace =
+            Workspace::restore(backup.path(), restored.path(), &mut executor)
+                .expect("restore migration backup with a compatible binary");
         assert_eq!(
             restored_workspace
                 .status()
@@ -2376,6 +2379,7 @@ mod tests {
 
     #[test]
     fn verified_backup_migration_preserves_inventory_blobs_and_v2_restore() {
+        let mut executor = EmbeddedTypstCompiler::new();
         let root = TestDirectory::new("golden-root");
         let backup = TestDirectory::new("golden-backup");
         let restored = TestDirectory::new("golden-restored");
@@ -2509,8 +2513,9 @@ mod tests {
         );
 
         drop(workspace);
-        let mut restored_workspace = Workspace::restore(backup.path(), restored.path())
-            .expect("restore pre-migration Workspace");
+        let mut restored_workspace =
+            Workspace::restore(backup.path(), restored.path(), &mut executor)
+                .expect("restore pre-migration Workspace");
         assert_eq!(restored_workspace.status().expect("status").job_count, 1);
         assert!(matches!(
             ApplicationModelRepository::new(&mut restored_workspace.database).authority(),
