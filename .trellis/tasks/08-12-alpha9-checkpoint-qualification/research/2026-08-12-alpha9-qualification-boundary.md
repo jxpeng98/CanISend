@@ -1,0 +1,75 @@
+# Alpha.9 qualification boundary research
+
+Date: 2026-08-12
+
+## Authority snapshot
+
+- Master Roadmap: `M3-ARCH-001` is Verified; entry for P0 `M3-ALPHA9-001` was explicitly
+  authorized on 2026-08-12; `M3-EVID-005` / Issue #70 waits for an exact qualified Alpha.9.
+- GitHub projection: Issue #183 is Open under `Alpha.9 — Architecture checkpoint` with release
+  ownership and a separate-authorization boundary for every release transition.
+- Planning baseline: protected `main` merge `471dc655ea66a60fb41153fa2528a95ff8f8cdf3`.
+- Latest public release: immutable `v1.0.0-alpha.8` at
+  `35e7c822ea2f469ab726a31b5d08e622f6810c55`.
+- Accepted changed-byte dependency: Store-to-IO removal merged at `db966a34` under
+  `M3-ARCH-001`; no Alpha.9 tag exists.
+
+## Entry verification
+
+- Remote `main`, local `main`, `origin/main`, and the task branch base all resolve to
+  `471dc655ea66a60fb41153fa2528a95ff8f8cdf3`.
+- The Alpha.9 milestone contains only Verified Issue #182 and active Issue #183; no additional
+  accepted changed-byte P0/P1 blocker was found.
+- The dependency authority contains 28 actual and 28 target edges, with zero temporary exception,
+  planned removal, or planned addition. Store depends on IO only for tests.
+- `xtask dependencies check` passes with 23 reviewed advisory exceptions and two known
+  vulnerabilities; all review and expiry dates remain 2026-08-17.
+- Alpha signing readiness passes under the community-build policy; unsigned Alpha is permitted.
+- `xtask release status --json` reports no blocking drift and the expected source-ahead state over
+  immutable Alpha.8.
+
+## Source delta that needs qualification
+
+The relevant post-Alpha.8 product commits move the render seam to Core, compose its IO
+implementation in App, remove Store's production IO edge, validate render output, clean partial
+export batches, and reject post-render stale export. Existing regressions cover invalid output,
+atomic cleanup, stale revision, projection, restore, repair convergence, and dependency shape.
+
+No new Pack schema, Workspace schema, Agent protocol, operation schema, database migration, or
+dependency is required for Alpha.9.
+
+## Existing release coverage
+
+- `release.yml` already builds future tags once, then promotes the exact unexpired candidate
+  without rebuilding.
+- `smoke_release_archive.sh` already invokes documented quickstart, host v4, and Agent v4 MCP
+  smokes.
+- The documented quickstart initializes one Workspace with both Packs, profile source, backup,
+  restore to a new path, repair, and integrity check.
+- The Agent v4 MCP smoke reaches guarded dual-Pack export preview/commit and verifies documents,
+  revisions, and no submission.
+- Native jobs already own Windows render/recovery checks, while assembly owns manifests,
+  checksums, SBOM, provenance, and stage-appropriate signing evidence.
+- `provider-dogfood.json` already requires exactly the canonical Codex CLI, Claude Code, and
+  Claude Desktop scenarios plus the rejected stale-host attempt.
+
+Therefore the minimum sufficient implementation reuses these owners. Alpha.9 needs a new exact
+release identity and body-free evidence record, not a second workflow or additional test suite.
+
+## Transition preview
+
+The read-only command below succeeded with `writes_performed: false`:
+
+```text
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.9
+```
+
+It reported 30 controlled files spanning workspace/internal versions and locks, desktop/native
+preview versions, release workflow default, CLI/GUI parity, Alpha package contract, active docs,
+performance baseline, pending Beta/freeze/feedback identities, and release notes. Before write,
+the preview must be rerun from clean current protected source and compared in full.
+
+The final clean-branch preview again reported `alpha.8 → alpha.9`, 30 files, and
+`writes_performed: false`. The SHA-256 of its canonical, ordered `.files` array is
+`09476c1a6a3a2b8a495bc51f95568cfce82150d93566c8a9c703d93052980bbf`. This binds every reviewed
+path plus before/after digest without copying the release tool's authority into a second format.
