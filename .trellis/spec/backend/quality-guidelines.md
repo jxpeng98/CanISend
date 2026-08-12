@@ -35,6 +35,52 @@ workspace, native matrix, or extended assurance suite.
 4. Desktop: affected pnpm check/test; build only when bundling changed.
 5. Native/extended assurance: only the owning scheduled or release workflow.
 
+## Scenario: release artifact contract metadata
+
+### 1. Scope / Trigger
+
+- Trigger: changing the supported Agent, Workspace, schema, or host-resource contract, or changing
+  `xtask release assemble` / `verify`.
+
+### 2. Signatures
+
+- `xtask release assemble <tag> <commit> <archive-dir> <output-dir>` writes the manifest and SBOM.
+- `xtask release verify <tag> <asset-dir>` rejects metadata that is not the active supported tuple.
+
+### 3. Contracts
+
+Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
+`canisend.agent-host-resources/v4`, and `canisend.workspace/v4`. The same shared tuple feeds
+`release/support-policy.json`, the release manifest, the SBOM, and the verifier.
+
+### 4. Validation & Error Matrix
+
+- Active manifest differs from the supported tuple -> `release verify` fails before artifact checks.
+- Active support policy differs from the shared tuple -> `release check` fails.
+- A candidate contains legacy metadata -> reject the candidate; do not tag or promote it.
+
+### 5. Good / Base / Bad Cases
+
+- Good: current v4 metadata agrees across support policy, manifest, and SBOM.
+- Base: historical v2 metadata remains unchanged under `release/history/`.
+- Bad: active manifest and verifier both use legacy constants and self-validate stale metadata.
+
+### 6. Tests Required
+
+- Unit regression: legacy v2 manifest metadata fails before artifact inspection.
+- Source gate: one final `cargo run -p xtask --locked -- release check`.
+- Native gate: rebuild the exact candidate only after the repair reaches protected `main`.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: compatibility constants can make stale output self-validate.
+"agent_protocol": AGENT_PROTOCOL
+
+// Correct: active release projections use the shared supported tuple.
+"contracts": supported_release_contract_metadata()
+```
+
 ## Date-Bound Release Authority
 
 - Recheck UTC `review_by` and `expires_on` values immediately before push or qualification; a

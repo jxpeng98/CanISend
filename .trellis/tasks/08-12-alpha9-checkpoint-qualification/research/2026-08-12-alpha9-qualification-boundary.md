@@ -73,3 +73,21 @@ The final clean-branch preview again reported `alpha.8 → alpha.9`, 30 files, a
 `writes_performed: false`. The SHA-256 of its canonical, ordered `.files` array is
 `09476c1a6a3a2b8a495bc51f95568cfce82150d93566c8a9c703d93052980bbf`. This binds every reviewed
 path plus before/after digest without copying the release tool's authority into a second format.
+
+## Rejected first candidate
+
+The first nonpublishing candidate completed successfully as run `31600099628` from protected
+source `8ca0c0a47dcb600d8933168f168543c1388345e8`. Artifact `9143803260`, named
+`canisend-v1.0.0-alpha.9-release-assets`, had GitHub artifact digest
+`sha256:eee245841bd105df62de41ff3d1ce92c94426fc502d3eb117a430e819bfc4b1a` and expiry
+`2026-09-11T13:42:00Z`. All source, native, desktop, packaged-smoke, assembly, and attestation jobs
+passed; an independent download verified 15 checksum-listed files and provenance bound 16
+subjects to the exact source and release workflow.
+
+Manual artifact inspection rejected the candidate before tagging. Its active release manifest and
+SBOM declared legacy Agent, Workspace, resource, and schema v2 metadata while
+`release/support-policy.json` and `release/alpha-package-contract.json` require v4. The assembler,
+SBOM writer, and verifier all used the same compatibility constants, so the stale metadata could
+self-validate. The repair must make every active release projection consume one supported v4
+tuple and leave historical v2 evidence unchanged. Candidate run `31600099628` is diagnostic only;
+a protected changed-byte repair requires a new source and replacement candidate.

@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
   "completedAt": null,
-  "branch": "agent/alpha9-checkpoint-qualification",
+  "branch": "agent/alpha9-release-metadata-v4",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -29,9 +29,10 @@
     "release/provider-dogfood.json",
     "scripts/smoke_release_archive.sh",
     "scripts/smoke_documented_quickstart.sh",
-    "scripts/smoke_agent_v4_mcp.sh"
+    "scripts/smoke_agent_v4_mcp.sh",
+    "xtask/src/main.rs"
   ],
-  "notes": "Entry authorized 2026-08-12 from protected baseline 471dc655; prepare-stage --write, merge, candidate, tag, promotion, publication, and external-host dogfood remain separately authorized.",
+  "notes": "Candidate run 31600099628 was rejected before tagging because active manifest and SBOM metadata used legacy v2 constants. The authorized changed-byte repair requires a new protected source and replacement candidate; merge, candidate dispatch, tag, promotion, publication, and external-host dogfood remain separately authorized.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -44,6 +45,13 @@
     "dependencies": [
       "M3-ARCH-001"
     ],
+    "rejected_candidate": {
+      "artifact_digest": "sha256:eee245841bd105df62de41ff3d1ce92c94426fc502d3eb117a430e819bfc4b1a",
+      "artifact_id": 9143803260,
+      "reason": "active-release-contract-metadata-v2",
+      "run_id": 31600099628,
+      "source_commit": "8ca0c0a47dcb600d8933168f168543c1388345e8"
+    },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3
   }
