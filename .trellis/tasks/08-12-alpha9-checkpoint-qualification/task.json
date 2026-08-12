@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
   "completedAt": null,
-  "branch": "agent/alpha9-v4-candidate-evidence",
+  "branch": "agent/alpha9-public-release-evidence",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -32,7 +32,7 @@
     "scripts/smoke_agent_v4_mcp.sh",
     "xtask/src/main.rs"
   ],
-  "notes": "Replacement Alpha.9 candidate 31609344160 from protected source 4876c566 passed the native matrix and independent v4 artifact/provenance verification. Tag, promotion, publication, and external-host dogfood remain separately authorized.",
+  "notes": "Alpha.9 is a verified public prerelease from exact replacement candidate 31609344160 and source 4876c566. External-host dogfood remains separately authorized before provider evidence or Roadmap reconciliation.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -67,6 +67,33 @@
         "resource_format": "canisend.agent-host-resources/v4",
         "workspace_format": "canisend.workspace/v4"
       }
+    },
+    "public_release": {
+      "asset_count": 16,
+      "candidate_public_byte_identity": true,
+      "checksum_file_count": 15,
+      "manifest_sha256": "6d3e5e64dcb6663b5122c70420dc3e16d8c8e3aed8c3bcec35b4ba101537ba5b",
+      "promotion_evidence_artifact": {
+        "artifact_digest": "sha256:d2dcdcae78b4b5122adc8d24752a5cbff0b5b76a2f7008587a47c5895442bd45",
+        "artifact_expires_at": "2026-11-10T16:41:23Z",
+        "artifact_id": 9150636527,
+        "artifact_name": "release-candidate-promotion-v1.0.0-alpha.9-31618836210"
+      },
+      "promotion_run_id": 31618836210,
+      "public_verification_artifact": {
+        "artifact_digest": "sha256:c00f781a011dfb331e12fc84b1f3e2524fe34f795550da24ae810032c8c20586",
+        "artifact_expires_at": "2026-11-10T16:41:23Z",
+        "artifact_id": 9150717059,
+        "artifact_name": "public-release-verification-v1.0.0-alpha.9-31618836210"
+      },
+      "public_verification_checked_at": "2026-08-12T16:51:58Z",
+      "published_at": "2026-08-12T16:51:01Z",
+      "recompiled_during_promotion": false,
+      "release_id": 369392048,
+      "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9",
+      "source_commit": "4876c5669b7ae48ca053b5e06e0005419d2051f6",
+      "tag": "v1.0.0-alpha.9",
+      "tag_object": "faba63fe5ccd89ae0aaf587d4db12a19e74271c2"
     },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3
