@@ -119,3 +119,28 @@ digest `S2`, and `refs/heads/main`. Its signed statement contains all 16 subject
 local SHA-256 produced zero mismatches and zero missing files. Community Alpha signing remains
 stage-accurate: Apple artifacts are ad-hoc signed, the Windows CLI carries self-signed Authenticode,
 Linux relies on checksums and provenance, and no trusted-publisher or notarization claim is made.
+
+## Public Alpha.9 promotion
+
+After separate publication authorization, annotated tag object
+`faba63fe5ccd89ae0aaf587d4db12a19e74271c2` was pushed as `v1.0.0-alpha.9` and peeled to exact
+replacement source `S2`. Promotion run `P` `31618836210` selected candidate run `C2` and artifact
+`A2`, skipped every product build job, passed the six exact-draft native verification jobs, and
+published the prerelease at
+`https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9` on
+`2026-08-12T16:51:01Z`.
+
+The public release contains 16 assets. Independent download verification passed all 15
+checksum-listed files, the release manifest digest
+`6d3e5e64dcb6663b5122c70420dc3e16d8c8e3aed8c3bcec35b4ba101537ba5b`, and GitHub OIDC
+attestation verification for every public asset. A recursive candidate-to-public comparison found
+no byte difference. Promotion evidence artifact `9150636527` has GitHub digest
+`sha256:d2dcdcae78b4b5122adc8d24752a5cbff0b5b76a2f7008587a47c5895442bd45`; public verification
+artifact `9150717059` has GitHub digest
+`sha256:c00f781a011dfb331e12fc84b1f3e2524fe34f795550da24ae810032c8c20586`.
+
+The prior public Alpha.8 tag still peels to
+`35e7c822ea2f469ab726a31b5d08e622f6810c55`, and its release remains the unchanged public
+prerelease published at `2026-08-10T23:19:31Z`. Public promotion closes only release-plan section
+5; external-host dogfood still requires separate synthetic-data and temporary-configuration
+consent before provider evidence or Roadmap state changes.

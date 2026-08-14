@@ -54,3 +54,24 @@ Merged PR #184 as protected main commit db966a34; main Fast CI and dependency as
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: Publish and verify Alpha.9
+
+**Date**: 2026-08-12
+**Task**: Publish and verify Alpha.9
+**Branch**: `agent/alpha9-public-release-evidence`
+
+### Summary
+
+Published exact Alpha.9 candidate bytes without recompilation, independently verified all public assets and attestations, and recorded the body-free release identity. External-host dogfood remains separately authorized.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8395ccc9` | (see git log) |
+
+### Status
+
+[OK] **Completed**
