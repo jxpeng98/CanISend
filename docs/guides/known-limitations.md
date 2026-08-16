@@ -6,10 +6,10 @@ installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.8` is the latest publicly qualified checkpoint. It was built once from
-  `35e7c822ea2f469ab726a31b5d08e622f6810c55`, promoted without rebuilding, downloaded, and
+- `v1.0.0-alpha.9` is the latest publicly qualified checkpoint. It was built once from
+  `4876c5669b7ae48ca053b5e06e0005419d2051f6`, promoted without rebuilding, downloaded, and
   independently reverified.
-- `v1.0.0-alpha.7` and earlier tags remain immutable historical checkpoints.
+- `v1.0.0-alpha.8`, `v1.0.0-alpha.7`, and earlier tags remain immutable historical checkpoints.
 - Windows and Linux public GUI artifacts are not qualified. Their standalone CLI targets have
   separate native release-matrix owners.
 - Community signatures do not establish an operating-system-trusted publisher. Notarization,
@@ -47,7 +47,7 @@ installed-binary authority.
   automation, and portal automation are outside the current scope.
 - CanISend does not provide model credentials or a hosted provider. Codex, Claude Code, and other
   MCP clients own their authentication, conversations, plugins, search, and retention.
-- Exact Codex CLI, Claude Code, Claude Desktop, and bounded MCP-host dogfood passed Alpha.8
+- Exact Codex CLI, Claude Code, Claude Desktop, and bounded MCP-host dogfood passed Alpha.9
   qualification. Real invited-user evidence remains a Beta-readiness gate.
 
 ## Product boundary

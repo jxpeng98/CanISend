@@ -25,12 +25,12 @@ export, and external submission decision.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.9`. The latest publicly qualified checkpoint is `v1.0.0-alpha.8`
-([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8)), built from
-`35e7c822ea2f469ab726a31b5d08e622f6810c55`. Later `main` changes are not part of those published
+The checked-in source version is `1.0.0-alpha.9`. The latest publicly qualified checkpoint is `v1.0.0-alpha.9`
+([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9)), built from
+`4876c5669b7ae48ca053b5e06e0005419d2051f6`. Later `main` changes are not part of those published
 bytes. Earlier release facts remain immutable at their tags.
 
-Published Alpha.8 provides:
+Published Alpha.9 provides:
 
 - `canisend.workspace/v4` with clean initialization, check, backup, restore, repair, and explicit
   unsupported-legacy refusal;

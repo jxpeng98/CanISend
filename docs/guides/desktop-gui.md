@@ -8,14 +8,14 @@ generic Applications coexist in one Workspace without a Workspace mode. The firs
 at that boundary. The frontend never parses CLI output or reads `.canisend` internals.
 
 The latest publicly qualified checkpoint is
-[`v1.0.0-alpha.8`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8), built from
-`35e7c822ea2f469ab726a31b5d08e622f6810c55`. Later `main` changes and local design previews are
+[`v1.0.0-alpha.9`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9), built from
+`4876c5669b7ae48ca053b5e06e0005419d2051f6`. Later `main` changes and local design previews are
 not part of those published bytes. Workspace v3 remains an Alpha.6 historical contract; the App
 does not silently upgrade it through clean Workspace v4 setup.
 
 The clean-v4 public CLI has 31 exact leaves. Its MCP adapter exposes 36 operations:
 26 read/preview operations and ten single-use guarded commits, including canonical review and
-local-only export. Alpha.8 passed packaged native, accessibility, lifecycle, and public-byte
+local-only export. Alpha.9 passed packaged native, accessibility, lifecycle, and public-byte
 qualification; later changed bytes require a new exact candidate.
 
 ## Build and launch on Apple Silicon

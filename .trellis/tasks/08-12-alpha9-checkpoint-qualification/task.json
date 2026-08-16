@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
   "completedAt": null,
-  "branch": "agent/alpha9-public-release-evidence",
+  "branch": "agent/alpha9-public-host-evidence",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -32,7 +32,7 @@
     "scripts/smoke_agent_v4_mcp.sh",
     "xtask/src/main.rs"
   ],
-  "notes": "Alpha.9 is a verified public prerelease from exact replacement candidate 31609344160 and source 4876c566. External-host dogfood remains separately authorized before provider evidence or Roadmap reconciliation.",
+  "notes": "Alpha.9 exact public host dogfood passed with synthetic metadata on Codex CLI, Claude Code, and Claude Desktop. The Desktop configuration was restored byte-for-byte. Evidence PR merge and Roadmap reconciliation remain pending.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -94,6 +94,17 @@
       "source_commit": "4876c5669b7ae48ca053b5e06e0005419d2051f6",
       "tag": "v1.0.0-alpha.9",
       "tag_object": "faba63fe5ccd89ae0aaf587d4db12a19e74271c2"
+    },
+    "host_dogfood": {
+      "archive_sha256": "5ef236bcf4feef7232efaa4b2501d3f1b3cc26e4d96759b10860e6cd1a806e2d",
+      "binary_sha256": "ffcdabbddaa9407db742adc5a39da9849879d5922ae248cf8bbbea222021f0b5",
+      "completed_on": "2026-08-16",
+      "config_restored_byte_for_byte": true,
+      "config_sha256": "8281e2dfda423041cc5fd1eb93a6a2dd1fdf9b5dd82a8c0aa305ede83fb32cd4",
+      "full_dual_pack_lifecycle": true,
+      "mutation_count": 0,
+      "scenario_count": 3,
+      "submission_count": 0
     },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3

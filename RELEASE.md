@@ -4,9 +4,9 @@
 
 - Checked-in source: `1.0.0-alpha.9`, with evidence-only post-tag changes that are not part of the
   immutable release.
-- Latest public checkpoint: [`v1.0.0-alpha.8`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8),
-  built from `35e7c822ea2f469ab726a31b5d08e622f6810c55` and independently reverified after download.
-- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until the public Alpha.8
+- Latest public checkpoint: [`v1.0.0-alpha.9`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9),
+  built from `4876c5669b7ae48ca053b5e06e0005419d2051f6` and independently reverified after download.
+- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until the public Alpha.9
   readiness record, real target-user cohort, frozen v4 contracts, and required integrity matrix
   satisfy the [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md).
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
@@ -78,7 +78,10 @@ independent artifact verification. See the
 - **Alpha.8:** Published the approved bootstrap usability fixes and repaired sequential-Alpha/Beta
   authority on the same clean v4 boundary. Exact public bytes and provider hosts passed
   independent verification; invited-user evidence remains pending.
-- **Beta:** readiness must be refreshed from qualified public Alpha.8 within 24 hours; Workspace
+- **Alpha.9:** Published the architecture checkpoint with the Store-to-IO production edge removed.
+  Exact public bytes, both Packs, render/recovery coverage, and provider hosts passed independent
+  verification; invited-user evidence remains pending.
+- **Beta:** readiness must be refreshed from qualified public Alpha.9 within 24 hours; Workspace
   v4, Agent v4, Skills/resource, operation, approval, and both Pack digests must freeze; and the
   signed/integrity matrix must pass.
 - **Release candidate:** the feature freeze is active, the current RC is recorded before preparing

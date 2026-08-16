@@ -144,3 +144,19 @@ The prior public Alpha.8 tag still peels to
 prerelease published at `2026-08-10T23:19:31Z`. Public promotion closes only release-plan section
 5; external-host dogfood still requires separate synthetic-data and temporary-configuration
 consent before provider evidence or Roadmap state changes.
+
+## Exact public Alpha.9 external-host dogfood
+
+On 2026-08-16 the maintainer separately authorized synthetic-metadata provider dogfood and
+temporary one-session host configuration. The downloaded public Apple Silicon Alpha.9 CLI matched
+the public checksum manifest, reported exact source `S2`, and passed the full guarded dual-Pack MCP
+lifecycle. Canonical Requirement preview/cancel scenarios passed on Codex CLI `0.147.0`, Claude
+Code `2.1.231`, and Claude Desktop `1.26832.0` with zero mutation and zero submission. Final
+Workspace integrity was clean.
+
+Claude Desktop used a new incognito chat and one-session approvals. After the App was closed, its
+pre-existing configuration was restored byte-for-byte; the original, backup, and restored SHA-256
+was `8281e2dfda423041cc5fd1eb93a6a2dd1fdf9b5dd82a8c0aa305ede83fb32cd4`. The
+standard-chat stale-memory attempt remains rejected under Issue #67. The dated body-free evidence
+note is `docs/notes/rust-native/2026-08-16-alpha9-exact-public-host-dogfood.md`; Roadmap and Issue
+reconciliation still require the protected evidence PR to pass and merge.

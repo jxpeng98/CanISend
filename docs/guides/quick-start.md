@@ -1,6 +1,6 @@
 # Quick start: one Workspace, independently Pack-bound Applications
 
-This guide describes the published `v1.0.0-alpha.8` clean Workspace v4 and Agent v4 contract.
+This guide describes the published `v1.0.0-alpha.9` clean Workspace v4 and Agent v4 contract.
 Earlier tags remain immutable historical checkpoints; compare the installed binary with the
 release manifest before following a source-only command.
 
