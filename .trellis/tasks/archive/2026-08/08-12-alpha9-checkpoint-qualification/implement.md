@@ -109,16 +109,22 @@ The standard-chat stale-memory attempt remains rejected under Issue #67.
 
 - [x] Commit the evidence-only record and note, push a protected PR, and merge only after explicit
       authorization and passing checks.
-- [ ] Reconcile the Master Roadmap, Issue #183, GitHub milestone, public release, and Trellis task
+- [x] Reconcile the Master Roadmap, Issue #183, GitHub milestone, public release, and Trellis task
       to Verified only when all identities agree.
-- [ ] Archive this task after the verified state is committed and public.
-- [ ] Hand off Issue #70 as separate invited-user work against exact public Alpha.9; do not infer
+- [x] Archive this task after the verified state is committed and public.
+- [x] Hand off Issue #70 as separate invited-user work against exact public Alpha.9; do not infer
       Beta readiness or Beta publication authorization.
 
 PR #190 passed all six Fast CI jobs and merged exact reviewed head
 `cabae97797919fbf31024bfc634e3ac56de764ea` through protected `main` as
 `91520f02cfce970afdd9f54636a713871ef9d002` on 2026-08-17. Roadmap, Issue, milestone, and Trellis
 reconciliation remain the final task boundary.
+
+PR #191 passed all six Fast CI jobs and merged Roadmap reconciliation as
+`72e62edd6a64738899d5e4d7bbd1832323c2de55`. Issue #183 is closed with `state:verified`, the
+Alpha.9 milestone is closed, and Issue #70 is Ready in the version-neutral invited-cohort
+milestone. Its existing planning task now binds exact public Alpha.9 and retains the explicit
+real-user consent boundary.
 
 ## Review and stop conditions
 

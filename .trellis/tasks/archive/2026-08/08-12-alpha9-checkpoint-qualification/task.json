@@ -3,7 +3,7 @@
   "name": "alpha9-checkpoint-qualification",
   "title": "Qualify the Alpha.9 architecture checkpoint",
   "description": "Qualify and publicly reverify exact Alpha.9 bytes containing M3-ARCH-001",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release",
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
-  "completedAt": null,
+  "completedAt": "2026-08-17",
   "branch": "agent/alpha9-verification-reconcile",
   "base_branch": "main",
   "worktree_path": null,
@@ -32,7 +32,7 @@
     "scripts/smoke_agent_v4_mcp.sh",
     "xtask/src/main.rs"
   ],
-  "notes": "Alpha.9 exact public host dogfood passed and PR #190 merged through protected Fast CI. Roadmap, Issue #183, milestone, and Trellis archival reconciliation remain active.",
+  "notes": "Alpha.9 is fully reconciled: exact public/provider evidence, protected PRs #190/#191, Roadmap, verified Issue #183, closed milestone, and Issue #70 handoff agree. Archive after this record.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -113,6 +113,15 @@
       "number": 190,
       "required_check_count": 6,
       "url": "https://github.com/jxpeng98/CanISend/pull/190"
+    },
+    "reconciliation": {
+      "github_issue_state": "verified",
+      "github_milestone_state": "closed",
+      "issue_70_state": "ready",
+      "merge_commit": "72e62edd6a64738899d5e4d7bbd1832323c2de55",
+      "merged_at": "2026-08-17T01:28:33Z",
+      "pr_number": 191,
+      "url": "https://github.com/jxpeng98/CanISend/pull/191"
     },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3
