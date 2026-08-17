@@ -19,8 +19,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "08-10-alpha8-checkpoint-qualification",
-    "08-10-alpha8-cohort-beta-evidence"
+    "08-10-alpha8-checkpoint-qualification"
   ],
   "parent": "08-10-1-0-roadmap-trellis-control",
   "relatedFiles": [
@@ -28,7 +27,7 @@
     "release/beta-readiness.json",
     "release/provider-dogfood.json"
   ],
-  "notes": "",
+  "notes": "Historical Alpha.8 ordering parent retained. The unstarted Issue #70 cohort child moved to direct programme control after exact public Alpha.9 qualification.",
   "meta": {
     "roadmap_ids": [
       "M3-ALPHA8-001",

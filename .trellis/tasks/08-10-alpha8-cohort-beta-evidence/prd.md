@@ -1,14 +1,14 @@
-# Complete Alpha.8 cohort and Beta evidence
+# Complete Alpha.9 cohort and Beta evidence
 
 ## Goal
 
 Collect and validate the real, consented, body-free user evidence required by Issue #70 using only
-the exact publicly reverified Alpha.8 checkpoint.
+the exact publicly reverified Alpha.9 checkpoint.
 
 ## Entry Gate
 
-- `M3-ALPHA8-001` is Verified.
-- Public Alpha.8 tag, source, release run, artifact, manifest, Agent/Skills/resources, and both Pack
+- `M3-ALPHA9-001` is Verified.
+- Public Alpha.9 tag, source, release run, artifact, manifest, Agent/Skills/resources, and both Pack
   digests agree with the provider-dogfood record.
 - No unresolved supported P0/P1 blocker remains.
 
@@ -28,7 +28,7 @@ the exact publicly reverified Alpha.8 checkpoint.
 ## Acceptance Criteria
 
 - [ ] Every count and token is backed by the reviewed body-free note; no synthetic user is counted.
-- [ ] All thresholds and coverage classes pass on exact Alpha.8.
+- [ ] All thresholds and coverage classes pass on exact Alpha.9.
 - [ ] Every failure has a P0/P1 disposition and changed-byte reruns use Issue #68.
 - [ ] Issue #70 and `release/beta-readiness.json` agree on exact build, metrics, exclusions,
       contracts, resources, Packs, evidence-note digest, and zero unresolved blockers.
@@ -43,10 +43,11 @@ the exact publicly reverified Alpha.8 checkpoint.
 ## References
 
 - Issue #70 / `M3-EVID-005`
-- Parent `08-10-alpha7-followup-cohort-entry`
+- Parent `08-10-1-0-roadmap-trellis-control`
 - `release/provider-dogfood.json`
 - `release/beta-readiness.json`
 - `scripts/refresh_beta_readiness.sh`
 
-This task remains Planned until the Alpha.8 entry gate is satisfied. Add its final design and
-execution checklist only after exact Alpha.8 identities exist.
+The exact Alpha.9 build entry gate is satisfied. This task remains Planned until explicit cohort
+consent and the owner schedule exist; no invitation, provider send, or private-data action is
+implied by the handoff.
