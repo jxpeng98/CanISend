@@ -86,17 +86,24 @@ to `35e7c822ea2f469ab726a31b5d08e622f6810c55` and remains an unchanged public pr
 
 ## 6. Bind exact public host evidence
 
-- [ ] Reconfirm explicit synthetic-data consent and one-session host configuration authority.
-- [ ] Use the downloaded public Alpha.9 CLI to initialize a fresh synthetic dual-Pack Workspace
+- [x] Reconfirm explicit synthetic-data consent and one-session host configuration authority.
+- [x] Use the downloaded public Alpha.9 CLI to initialize a fresh synthetic dual-Pack Workspace
       and run the bounded guarded MCP lifecycle.
-- [ ] Run the canonical Codex CLI Generic, Claude Code Academic, and Claude Desktop Generic
+- [x] Run the canonical Codex CLI Generic, Claude Code Academic, and Claude Desktop Generic
       Requirement preview/cancel scenarios; require zero mutation and zero submission.
-- [ ] Record stale-host rejection where required, verify final Workspace integrity, and restore
+- [x] Record stale-host rejection where required, verify final Workspace integrity, and restore
       temporary host configuration byte-for-byte.
-- [ ] Add a dated body-free note cross-linking the candidate render/recovery jobs, then update
+- [x] Add a dated body-free note cross-linking the candidate render/recovery jobs, then update
       `release/provider-dogfood.json` with exact Alpha.9 identities and note digest.
-- [ ] Run the provider validator through the final release source gate; retain no bodies, paths,
+- [x] Run the provider validator through the final release source gate; retain no bodies, paths,
       transcripts, tokens, credentials, or private content.
+
+The exact public Apple Silicon CLI passed the full guarded dual-Pack MCP lifecycle and the three
+canonical host scenarios. All Applications remained at revision `1`, all Requirements remained
+`proposed`, and no commit, mutation, upload, or submission occurred. Claude Desktop used only a new
+incognito chat and one-session approvals; its original configuration was restored byte-for-byte
+with SHA-256 `8281e2dfda423041cc5fd1eb93a6a2dd1fdf9b5dd82a8c0aa305ede83fb32cd4`.
+The standard-chat stale-memory attempt remains rejected under Issue #67.
 
 ## 7. Reconcile and hand off
 

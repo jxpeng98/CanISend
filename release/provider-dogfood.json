@@ -1,12 +1,12 @@
 {
   "candidate": {
-    "archive_sha256": "115e39e634a6e597918f55822c8ce7070bdc2b2dcc25a529637b8b15e64b27fe",
-    "artifact_id": 9077805013,
-    "artifact_name": "canisend-v1.0.0-alpha.8-release-assets",
-    "binary_sha256": "0e431779a59d1ac93eec695a1ad80bb7e86a1494141739bf19fdeb7c857c9f71",
-    "release_run": 31424861083,
-    "source_commit": "35e7c822ea2f469ab726a31b5d08e622f6810c55",
-    "tag": "v1.0.0-alpha.8"
+    "archive_sha256": "5ef236bcf4feef7232efaa4b2501d3f1b3cc26e4d96759b10860e6cd1a806e2d",
+    "artifact_id": 9147597003,
+    "artifact_name": "canisend-v1.0.0-alpha.9-release-assets",
+    "binary_sha256": "ffcdabbddaa9407db742adc5a39da9849879d5922ae248cf8bbbea222021f0b5",
+    "release_run": 31609344160,
+    "source_commit": "4876c5669b7ae48ca053b5e06e0005419d2051f6",
+    "tag": "v1.0.0-alpha.9"
   },
   "consent": {
     "content_scope": "synthetic-metadata-only",
@@ -21,8 +21,8 @@
     "workspace_format": "canisend.workspace/v4"
   },
   "evidence_note": {
-    "path": "docs/notes/rust-native/2026-08-11-alpha8-exact-public-host-dogfood.md",
-    "sha256": "fb859e1cbdfa326b1fd5291dad785adffe1a9daded35d3cbb171cb6c5b4c728e"
+    "path": "docs/notes/rust-native/2026-08-16-alpha9-exact-public-host-dogfood.md",
+    "sha256": "8e82e4bc785f6d969351affa1bf592ae08f694fa723305356b7ed8107ace1202"
   },
   "excluded_attempts": [
     {
@@ -50,7 +50,7 @@
       "application_revision_after": 1,
       "application_revision_before": 1,
       "host": "claude-code",
-      "host_version": "2.1.222",
+      "host_version": "2.1.231",
       "mutation_performed": false,
       "operation": "requirement.confirm.preview-cancel",
       "pack_id": "org.canisend.academic-job",
@@ -80,7 +80,7 @@
       "application_revision_after": 1,
       "application_revision_before": 1,
       "host": "codex-cli",
-      "host_version": "0.146.0",
+      "host_version": "0.147.0",
       "mutation_performed": false,
       "operation": "requirement.confirm.preview-cancel",
       "pack_id": "org.canisend.generic-application",

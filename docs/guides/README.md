@@ -6,7 +6,7 @@ CanISend is a local-first framework with two exact-bound built-in workflow Packs
 - `org.canisend.academic-job` is the academic-job reference Pack.
 
 The latest publicly qualified checkpoint is
-[`v1.0.0-alpha.8`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.8). Later `main`
+[`v1.0.0-alpha.9`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9). Later `main`
 changes are not part of those published bytes. Always compare `canisend version --json` with the
 release manifest before following a source-only command.
 
