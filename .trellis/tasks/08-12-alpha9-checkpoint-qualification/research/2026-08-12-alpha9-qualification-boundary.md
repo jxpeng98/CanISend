@@ -160,3 +160,12 @@ was `8281e2dfda423041cc5fd1eb93a6a2dd1fdf9b5dd82a8c0aa305ede83fb32cd4`. The
 standard-chat stale-memory attempt remains rejected under Issue #67. The dated body-free evidence
 note is `docs/notes/rust-native/2026-08-16-alpha9-exact-public-host-dogfood.md`; Roadmap and Issue
 reconciliation still require the protected evidence PR to pass and merge.
+
+## Protected host-evidence merge
+
+PR #190 passed all six Fast CI jobs at exact head
+`cabae97797919fbf31024bfc634e3ac56de764ea` with no review thread or changed head, then merged
+through protected `main` as `91520f02cfce970afdd9f54636a713871ef9d002` at
+`2026-08-17T01:19:02Z`. The exact public, candidate, provider, Pack, host, and protected-source
+identities now agree. Final Roadmap/GitHub/Trellis reconciliation must not claim invited-user or
+Beta evidence.
