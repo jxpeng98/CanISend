@@ -12,11 +12,11 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-12",
   "completedAt": null,
-  "branch": "agent/alpha9-public-host-evidence",
+  "branch": "agent/alpha9-verification-reconcile",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "cabae97797919fbf31024bfc634e3ac56de764ea",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/190",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -32,7 +32,7 @@
     "scripts/smoke_agent_v4_mcp.sh",
     "xtask/src/main.rs"
   ],
-  "notes": "Alpha.9 exact public host dogfood passed with synthetic metadata on Codex CLI, Claude Code, and Claude Desktop. The Desktop configuration was restored byte-for-byte. Evidence PR merge and Roadmap reconciliation remain pending.",
+  "notes": "Alpha.9 exact public host dogfood passed and PR #190 merged through protected Fast CI. Roadmap, Issue #183, milestone, and Trellis archival reconciliation remain active.",
   "meta": {
     "roadmap_id": "M3-ALPHA9-001",
     "github_issue": 183,
@@ -105,6 +105,14 @@
       "mutation_count": 0,
       "scenario_count": 3,
       "submission_count": 0
+    },
+    "host_evidence_pr": {
+      "head_commit": "cabae97797919fbf31024bfc634e3ac56de764ea",
+      "merge_commit": "91520f02cfce970afdd9f54636a713871ef9d002",
+      "merged_at": "2026-08-17T01:19:02Z",
+      "number": 190,
+      "required_check_count": 6,
+      "url": "https://github.com/jxpeng98/CanISend/pull/190"
     },
     "expected_evidence": "exact public Alpha.9 qualification plus body-free provider/host evidence",
     "verification_tier": 3
