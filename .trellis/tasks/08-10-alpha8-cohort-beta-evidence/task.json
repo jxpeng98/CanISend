@@ -1,8 +1,8 @@
 {
   "id": "alpha8-cohort-beta-evidence",
   "name": "alpha8-cohort-beta-evidence",
-  "title": "Complete Alpha.8 cohort and Beta evidence",
-  "description": "Run the invited mixed-Application cohort on exact Alpha.8 and refresh body-free Beta readiness evidence",
+  "title": "Complete Alpha.9 cohort and Beta evidence",
+  "description": "Run the invited mixed-Application cohort on exact public Alpha.9 and refresh body-free Beta readiness evidence",
   "status": "planning",
   "dev_type": null,
   "scope": "validation",
@@ -19,23 +19,23 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "08-10-alpha7-followup-cohort-entry",
+  "parent": "08-10-1-0-roadmap-trellis-control",
   "relatedFiles": [
     "release/provider-dogfood.json",
     "release/beta-readiness.json",
     "scripts/refresh_beta_readiness.sh"
   ],
-  "notes": "",
+  "notes": "The stable task ID is retained to avoid link churn; exact public Alpha.9 supersedes the unstarted Alpha.8 cohort baseline. External invitations and private-data handling still require explicit consent.",
   "meta": {
     "roadmap_id": "M3-EVID-005",
     "github_issue": 70,
-    "github_milestone": "Alpha.8 — Cohort checkpoint",
+    "github_milestone": "M3 — Invited cohort evidence",
     "owner_role": "validation",
     "dependencies": [
-      "M3-ALPHA8-001",
+      "M3-ALPHA9-001",
       "M3-EVID-004"
     ],
-    "expected_evidence": "measured body-free cohort record and qualified Beta readiness bound to Alpha.8",
+    "expected_evidence": "measured body-free real-user cohort record and qualified Beta readiness bound to exact public Alpha.9",
     "verification_tier": 2
   }
 }
