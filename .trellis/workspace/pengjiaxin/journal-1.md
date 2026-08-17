@@ -75,3 +75,41 @@ Published exact Alpha.9 candidate bytes without recompilation, independently ver
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Qualify and reconcile Alpha.9
+
+**Date**: 2026-08-17
+**Task**: Qualify and reconcile Alpha.9
+**Branch**: `agent/alpha9-task-archive`
+
+### Summary
+
+Qualified exact public Alpha.9 across provider hosts, reconciled protected evidence, and handed Issue #70 to the consent-gated real-user cohort.
+
+### Main Changes
+
+- Recorded body-free exact public Alpha.9 provider-host evidence.
+- Merged protected PRs #190 and #191, verified Issue #183, and closed the Alpha.9 milestone.
+- Rebound the existing cohort task and Issue #70 to exact public Alpha.9.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cabae977` | (see git log) |
+| `c6fb8638` | (see git log) |
+| `087f8fc` | (see git log) |
+
+### Testing
+
+- [OK] Exact public CLI dual-Pack MCP smoke and three canonical provider-host scenarios passed with zero mutation or submission.
+- [OK] Release source gate and both protected six-job Fast CI runs passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Obtain explicit cohort consent and owner scheduling before invitations, provider sends, or private-data handling for Issue #70.
