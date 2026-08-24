@@ -1,0 +1,50 @@
+{
+  "id": "alpha10-release-integration",
+  "name": "alpha10-release-integration",
+  "title": "Integrate and release Alpha.10",
+  "description": "Close the App-absent Workspace v4, CLI, Agent Skills, and MCP journey, then qualify exact Alpha.10",
+  "status": "planning",
+  "dev_type": null,
+  "scope": "cross-package-integration-and-release",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-23-alpha10-exact-qualification",
+    "08-23-alpha10-headless-capability",
+    "08-24-alpha10-dependency-assurance"
+  ],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/guides/project-control.md",
+    ".trellis/tasks/08-18-alpha10-release-integration/research/2026-08-23-headless-capability-audit.md"
+  ],
+  "notes": "M3-HEADLESS-001 is in progress. M3-DEPS-001 local assurance gates pass and await protected integration with the headless change. M3-ALPHA10-001 remains planning until that merge.",
+  "meta": {
+    "roadmap_ids": [
+      "M3-DEPS-001",
+      "M3-HEADLESS-001",
+      "M3-ALPHA10-001"
+    ],
+    "milestone": "Alpha.10 — headless capability checkpoint",
+    "github_issues": [
+      195,
+      193,
+      194
+    ],
+    "github_milestone": 10,
+    "dependency": "public-v1.0.0-alpha.9",
+    "verification_tier": "focused + source gate + exact native release",
+    "consent_boundary": "synthetic host evidence only; no real users, private bodies, or provider sends"
+  }
+}

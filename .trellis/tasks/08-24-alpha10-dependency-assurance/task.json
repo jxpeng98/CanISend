@@ -1,0 +1,40 @@
+{
+  "id": "alpha10-dependency-assurance",
+  "name": "alpha10-dependency-assurance",
+  "title": "Resolve the expired dependency-assurance gate",
+  "description": "Review and resolve the 23 expired lock-bound advisory exceptions before the headless capability PR can pass the source gate",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release-dependency-exception-review",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-24",
+  "completedAt": null,
+  "branch": "feat/alpha10-headless-capability",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "7588d5185ae6ea0292f244695a6de2e0c8b2b1c7",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/196",
+  "subtasks": [],
+  "children": [],
+  "parent": "08-18-alpha10-release-integration",
+  "relatedFiles": [
+    "release/dependency-advisory-exceptions.json",
+    "deny.toml",
+    "docs/release/dependency-assurance.md",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/guides/project-control.md"
+  ],
+  "notes": "The maintainer authorized the unchanged 23-entry set for one 14-day window. Exact cargo-deny 0.19.5, dependency policy, and the combined release source gate pass locally; protected CI still owns integration. Any advisory, lock, reachability, or guarded-boundary drift blocks renewal.",
+  "meta": {
+    "roadmap_id": "M3-DEPS-001",
+    "github_issue": 195,
+    "github_milestone": 10,
+    "owner": "release",
+    "dependency": "unchanged-751-package-lock-and-maintainer-review",
+    "expected_evidence": "cargo-deny-0.19.5-plus-dependencies-check-plus-release-check",
+    "verification_tier": "extended-assurance-plus-source-gate"
+  }
+}

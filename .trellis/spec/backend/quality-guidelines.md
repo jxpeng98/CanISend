@@ -83,6 +83,9 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
 
 ## Date-Bound Release Authority
 
+- `reviewed_on` must not be later than the current UTC date. If the local calendar has advanced
+  before UTC, wait for UTC rollover or record the actual UTC review date; never fake the clock or
+  weaken the validator.
 - Recheck UTC `review_by` and `expires_on` values immediately before push or qualification; a
   passing local gate can become stale after a date rollover.
 - An overdue gate requires an explicit owner review of the current lock/graph and reachability

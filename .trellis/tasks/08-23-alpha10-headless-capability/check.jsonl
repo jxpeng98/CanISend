@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify focused checks and the final source gate are proportionate and complete."}
+{"file":".trellis/spec/guides/project-control.md","reason":"Verify Roadmap, Issue, Trellis, and release authorities stay synchronized."}
+{"file":".trellis/tasks/08-18-alpha10-release-integration/prd.md","reason":"Check the child against the approved parent capability and privacy boundary."}

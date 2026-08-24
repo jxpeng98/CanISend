@@ -40,6 +40,10 @@ jq -e '
   and .data.workspace_format == "canisend.workspace/v4"
   and .data.application_count == 0
 ' "$smoke_root/workspace-init.json" >/dev/null
+test -f "$workspace/README.md"
+test -f "$workspace/profile/profile-example.typ"
+test -f "$workspace/examples/generic-v4/grant.json"
+test -f "$workspace/templates/application-document.typ"
 
 for host in codex claude; do
   "$binary" --workspace "$workspace" host setup \
@@ -53,6 +57,7 @@ for host in codex claude; do
       and .operation == "host.setup"
       and .status == "ready"
       and .data.host == $host
+      and .data.scope == "project"
       and .data.skills.state == "installed"
       and (.data.skills.files | length) >= 4
       and .data.mcp.protocol_version == "2025-11-25"
@@ -78,6 +83,7 @@ for host in codex claude; do
       and .operation == "host.status"
       and .status == "ready"
       and .data.host == $host
+      and .data.scope == "project"
       and .data.skills.state == "up-to-date"
       and (.data.mcp.tools | length) == 36
       and .data.mcp_configuration_mutated == false
@@ -101,6 +107,7 @@ for host in codex claude; do
       and .operation == "host.remove"
       and .status == "removed"
       and .data.host == $host
+      and .data.scope == "project"
       and .data.skills.state == "removed"
       and .data.mcp_configuration_removed == false
     ' "$smoke_root/$host-remove.json" >/dev/null
@@ -108,6 +115,56 @@ done
 
 test ! -e "$workspace/.agents/canisend-agent-v4.json"
 test ! -e "$workspace/.claude/canisend-agent-v4.json"
+
+global_home="$smoke_root/global-home"
+mkdir -p "$global_home"
+HOME="$global_home" USERPROFILE="$global_home" \
+  "$binary" --workspace "$workspace" host setup \
+    --host codex \
+    --scope global \
+    --executable "$registered_binary" \
+    --json > "$smoke_root/codex-global-setup.json"
+jq -e '
+  .ok == true
+  and .operation == "host.setup"
+  and .status == "ready"
+  and .data.host == "codex"
+  and .data.scope == "global"
+  and .data.skills.state == "installed"
+  and .data.mcp_configuration_mutated == false
+' "$smoke_root/codex-global-setup.json" >/dev/null
+test -f "$global_home/.agents/canisend-agent-v4.json"
+test ! -e "$workspace/.agents/canisend-agent-v4.json"
+
+HOME="$global_home" USERPROFILE="$global_home" \
+  "$binary" --workspace "$workspace" host status \
+    --host codex \
+    --scope global \
+    --executable "$registered_binary" \
+    --json > "$smoke_root/codex-global-status.json"
+jq -e '
+  .ok == true
+  and .operation == "host.status"
+  and .status == "ready"
+  and .data.scope == "global"
+  and .data.skills.state == "up-to-date"
+' "$smoke_root/codex-global-status.json" >/dev/null
+
+HOME="$global_home" USERPROFILE="$global_home" \
+  "$binary" --workspace "$workspace" host remove \
+    --host codex \
+    --scope global \
+    --json > "$smoke_root/codex-global-remove.json"
+jq -e '
+  .ok == true
+  and .operation == "host.remove"
+  and .status == "removed"
+  and .data.scope == "global"
+  and .data.skills.state == "removed"
+  and .data.mcp_configuration_removed == false
+' "$smoke_root/codex-global-remove.json" >/dev/null
+test ! -e "$global_home/.agents/canisend-agent-v4.json"
+
 "$binary" --workspace "$workspace" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
 
@@ -135,4 +192,4 @@ test ! -e "$legacy_workspace/.agents/canisend-agent-v4.json"
 "$binary" --workspace "$legacy_workspace" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
 
-echo "Agent v4 host smoke: ok (setup, status, remove, and legacy refusal passed)"
+echo "Agent v4 host smoke: ok (starter, project/global host lifecycle, and legacy refusal passed)"

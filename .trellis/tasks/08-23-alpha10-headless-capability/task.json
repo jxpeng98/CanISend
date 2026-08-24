@@ -1,0 +1,37 @@
+{
+  "id": "alpha10-headless-capability",
+  "name": "alpha10-headless-capability",
+  "title": "Close the App-absent CLI, Skills, and MCP journey",
+  "description": "Close the clean Workspace v4 headless journey by reusing the existing CLI, app facade, Agent v4 Skills, and persistent MCP",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "cli-app-resources-headless-tests",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-23",
+  "completedAt": null,
+  "branch": "feat/alpha10-headless-capability",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "7588d5185ae6ea0292f244695a6de2e0c8b2b1c7",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/196",
+  "subtasks": [],
+  "children": [],
+  "parent": "08-18-alpha10-release-integration",
+  "relatedFiles": [
+    ".trellis/tasks/08-18-alpha10-release-integration/research/2026-08-23-headless-capability-audit.md",
+    ".trellis/spec/backend/quality-guidelines.md",
+    ".trellis/spec/guides/cross-layer-thinking-guide.md"
+  ],
+  "notes": "Product implementation and focused checks pass. M3-DEPS-001 / Issue #195 records the explicit review of the 23 dependency advisory exceptions; its exact dependency scan, policy check, and the combined Tier 2 source gate now pass locally. Protected CI remains required. Canonical Skill bytes stay unchanged because host installation is CLI/user guidance, not an in-Skill workflow step.",
+  "meta": {
+    "roadmap_id": "M3-HEADLESS-001",
+    "github_issue": 193,
+    "github_milestone": 10,
+    "blocker": "M3-DEPS-001/Issue-195-ready-for-protected-CI",
+    "dependency": "public-v1.0.0-alpha.9",
+    "verification_tier": "focused-plus-source-gate"
+  }
+}

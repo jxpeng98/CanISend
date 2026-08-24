@@ -106,6 +106,65 @@ Rust modules and files use `snake_case`; public types use Rust's `UpperCamelCase
 contracts use explicit suffixes such as `V4` when the version is part of the public boundary.
 Migrations are append-only numbered SQL files under `crates/canisend-store/migrations/`.
 
+## Scenario: CLI project/global Agent Skills scope
+
+### 1. Scope / Trigger
+
+Use this contract whenever a CLI host command selects where managed Agent v4 Skills are installed,
+inspected, or removed.
+
+### 2. Signatures
+
+- `canisend --workspace PATH host setup|status --host HOST [--scope project|global]`
+- `canisend --workspace PATH host remove --host HOST [--scope project|global]`
+- The CLI maps its Clap value to `AgentSkillsInstallRequest { host, workspace, scope }` and calls
+  the existing `canisend-app` install, status, or uninstall operation.
+
+### 3. Contracts
+
+- `project` is the CLI default and resolves to the Workspace root.
+- `global` resolves to the current user home through `canisend-app`; Unix reads `HOME` and Windows
+  reads `USERPROFILE`.
+- JSON results report `data.scope` as `project` or `global`; operation IDs and CLI leaf inventory
+  do not change.
+- MCP registration guidance remains bound to the selected Workspace. Neither scope overwrites host
+  MCP configuration, and the CLI never writes `.canisend` directly.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Scope omitted | Project installation is used |
+| Unknown scope | Clap usage error before Workspace access |
+| Global scope without a user home | App-owned invalid-input failure before Skill mutation |
+| Unsupported legacy or unmanaged resources | Resource failure before managed-file mutation |
+| Modified manifest-owned file during removal | Removal fails before deleting any managed file |
+
+### 5. Good / Base / Bad Cases
+
+- Good: setup, status, and removal use the same explicit global scope and isolated user home.
+- Base: omitted scope preserves the existing project-local behavior.
+- Bad: the CLI computes host directories itself or setup and removal silently use different roots.
+
+### 6. Tests Required
+
+- CLI parse regression for the project default and explicit global status/removal.
+- Binary contract with an isolated `HOME`/`USERPROFILE`, asserting global files never land in the
+  Workspace and the response reports the selected scope.
+- Packaged host smoke for starter resources, project/global lifecycle, host-config non-mutation,
+  and unsupported-legacy refusal.
+- App/Resources owner tests retain missing-home, drift, user-modified, and safe-uninstall coverage.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: the adapter selects a host directory and bypasses the shared facade.
+install_embedded_agent_skills(host, &home.join(".agents"))?;
+
+// Correct: the adapter passes typed intent to the existing application operation.
+Application::install_agent_skills(&AgentSkillsInstallRequest { host, workspace, scope })?;
+```
+
 ## Examples
 
 - `crates/canisend-app/src/error.rs` centralizes adapter-neutral failure classification.

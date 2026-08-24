@@ -124,6 +124,8 @@ canisend --workspace ./my-applications host status --host claude --json
 ```
 
 Setup installs only manifest-owned v4 Skills and returns deterministic MCP registration guidance.
+Project scope is the default. Add the same `--scope global` to setup, status, and removal when the
+current user should share the managed Skills across Workspaces.
 It does not silently edit the host's global configuration. Claude Desktop chat can use the same
 Claude stdio entry through its separate user-level config, without treating Desktop as a Skills
 installation target. See [Agent integration](agent-integration.md) for the exact registration

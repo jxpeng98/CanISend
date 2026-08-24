@@ -54,6 +54,15 @@ canisend --workspace /absolute/path/to/workspace host setup --host claude --json
 canisend --workspace /absolute/path/to/workspace host status --host codex --json
 ```
 
+These commands default to `--scope project`, which installs under the Workspace. Use the same
+explicit `--scope global` on setup, status, and removal to manage the current user's installation:
+
+```console
+canisend --workspace /absolute/path/to/workspace host setup --host codex --scope global --json
+canisend --workspace /absolute/path/to/workspace host status --host codex --scope global --json
+canisend --workspace /absolute/path/to/workspace host remove --host codex --scope global --json
+```
+
 By default the MCP guidance uses the currently running CanISend executable. A packaged or renamed
 binary can be selected explicitly with `--executable /absolute/path/to/canisend`. To remove only
 unchanged, manifest-owned Skills while preserving the host's MCP entry:

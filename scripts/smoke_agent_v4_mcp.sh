@@ -110,6 +110,8 @@ capture_preview_binding() {
 
 mkdir -p "$smoke_root/candidates"
 workspace="$smoke_root/workspace"
+backup="$smoke_root/workspace-backup"
+restored="$smoke_root/workspace-restored"
 generic_candidate="$smoke_root/candidates/generic.json"
 academic_candidate="$smoke_root/candidates/academic.json"
 profile_source="$smoke_root/candidates/profile.md"
@@ -1084,5 +1086,23 @@ mcp_pid=""
 
 "$binary" --workspace "$workspace" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
+"$binary" --workspace "$workspace" workspace backup "$backup" --json \
+  | jq -e '.ok == true and .operation == "workspace.backup.commit"' >/dev/null
+"$binary" workspace restore "$backup" "$restored" --json \
+  | jq -e '
+      .ok == true
+      and .operation == "workspace.restore.commit"
+      and .data.application_count == 2
+    ' >/dev/null
+"$binary" --workspace "$restored" workspace status --json \
+  | jq -e '
+      .ok == true
+      and .data.workspace_format == "canisend.workspace/v4"
+      and .data.application_count == 2
+    ' >/dev/null
+"$binary" --workspace "$restored" application list --json \
+  | jq -e '.ok == true and (.data | length) == 2' >/dev/null
+"$binary" --workspace "$restored" workspace check --json \
+  | jq -e '.ok == true and .data.ok == true' >/dev/null
 
-echo "Agent v4 MCP smoke: ok (full guarded dual-Pack lifecycle passed)"
+echo "Agent v4 MCP smoke: ok (guarded dual-Pack lifecycle, backup, restore, and reopen passed)"
