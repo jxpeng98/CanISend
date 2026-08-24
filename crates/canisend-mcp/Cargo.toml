@@ -10,8 +10,8 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.9" }
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.9" }
+canisend-app = { path = "../canisend-app", version = "=1.0.0-alpha.10" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.10" }
 clap.workspace = true
 rmcp.workspace = true
 schemars.workspace = true
@@ -21,7 +21,7 @@ tokio.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.9" }
+canisend-store = { path = "../canisend-store", version = "=1.0.0-alpha.10" }
 
 [lints]
 workspace = true
