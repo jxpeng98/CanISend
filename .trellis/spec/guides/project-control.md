@@ -24,18 +24,20 @@ regression only when drift can be detected mechanically.
 - Keep one critical-path child current. At most one architecture/safety child and one
   qualification/evidence child may run beside it.
 - `M3-ARCH-001` / Issue #182 is Verified and archived. `M3-ALPHA9-001` / Issue #183 is Verified
-  against exact public Alpha.9 and its body-free host evidence. `M3-EVID-005` / Issue #70 is the
-  next critical-path evidence child but still requires real invited users against that exact
-  Alpha. Create `M4-READY-001` / Issue #71 only
+  against exact public Alpha.9 and its body-free host evidence. `M3-HEADLESS-001` / Issue #193 is
+  the current product child. `M3-DEPS-001` / Issue #195 is its bounded dependency-assurance
+  blocker and must pass before the headless source gate closes. `M3-ALPHA10-001` / Issue #194
+  starts only after the protected headless merge; then `M3-EVID-005` / Issue #70 may be rebound to
+  exact public Alpha.10 and still requires real invited users. Create `M4-READY-001` / Issue #71 only
   after the M3 exit gate passes; later Beta, RC, and Stable work remains in GitHub until its entry
   gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** complete `M3-EVID-005` against exact public Alpha.9 without treating provider dogfood
-  or zero public issues as invited-user evidence.
-- **Near term:** complete the mixed-Application cohort, close supported blockers, refresh Beta
-  readiness, qualify Beta.1, and activate feature freeze.
+- **Current:** verify bounded `M3-DEPS-001`, then close `M3-HEADLESS-001` through protected source
+  without adding legacy compatibility or a duplicate plugin surface.
+- **Near term:** qualify exact Alpha.10, rebind and complete the mixed-Application cohort without
+  treating synthetic dogfood as invited-user evidence, then refresh Beta readiness.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
   package-manager, accessibility, feedback, and final-notes evidence classes.
 - **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then

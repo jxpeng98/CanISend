@@ -44,7 +44,20 @@ fn run(arguments: &[&str]) -> std::process::Output {
 }
 
 fn run_json(arguments: &[&str]) -> Value {
-    let output = run(arguments);
+    assert_json_output(run(arguments))
+}
+
+fn run_json_with_home(arguments: &[&str], home: &Path) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_canisend"))
+        .args(arguments)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .output()
+        .expect("canisend binary runs with isolated home");
+    assert_json_output(output)
+}
+
+fn assert_json_output(output: std::process::Output) -> Value {
     assert!(
         output.status.success(),
         "stderr: {}\nstdout: {}",
@@ -329,6 +342,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["operation"], "host.setup");
         assert_eq!(setup["status"], "ready");
         assert_eq!(setup["data"]["host"], host);
+        assert_eq!(setup["data"]["scope"], "project");
         assert_eq!(setup["data"]["skills"]["state"], "installed");
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
@@ -367,6 +381,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         ]);
         assert_eq!(status["operation"], "host.status");
         assert_eq!(status["status"], "ready");
+        assert_eq!(status["data"]["scope"], "project");
         assert_eq!(status["data"]["skills"]["state"], "up-to-date");
         assert_eq!(status["data"]["mcp_configuration_mutated"], false);
     }
@@ -384,6 +399,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
     ]);
     assert_eq!(removed["operation"], "host.remove");
     assert_eq!(removed["status"], "removed");
+    assert_eq!(removed["data"]["scope"], "project");
     assert_eq!(removed["data"]["mcp_configuration_removed"], false);
     assert!(
         !workspace
@@ -396,6 +412,76 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
             .path()
             .join(".claude/canisend-agent-v4.json")
             .is_file()
+    );
+
+    let global_home = TestDirectory::new("host-global-home");
+    fs::create_dir_all(global_home.path()).expect("isolated global home");
+    let global_setup = run_json_with_home(
+        &[
+            "--workspace",
+            workspace.text(),
+            "host",
+            "setup",
+            "--host",
+            "codex",
+            "--scope",
+            "global",
+            "--json",
+        ],
+        global_home.path(),
+    );
+    assert_eq!(global_setup["data"]["scope"], "global");
+    assert!(
+        global_home
+            .path()
+            .join(".agents/canisend-agent-v4.json")
+            .is_file()
+    );
+    assert!(
+        !workspace
+            .path()
+            .join(".agents/canisend-agent-v4.json")
+            .exists()
+    );
+
+    let global_status = run_json_with_home(
+        &[
+            "--workspace",
+            workspace.text(),
+            "host",
+            "status",
+            "--host",
+            "codex",
+            "--scope",
+            "global",
+            "--json",
+        ],
+        global_home.path(),
+    );
+    assert_eq!(global_status["status"], "ready");
+    assert_eq!(global_status["data"]["scope"], "global");
+
+    let global_removed = run_json_with_home(
+        &[
+            "--workspace",
+            workspace.text(),
+            "host",
+            "remove",
+            "--host",
+            "codex",
+            "--scope",
+            "global",
+            "--json",
+        ],
+        global_home.path(),
+    );
+    assert_eq!(global_removed["status"], "removed");
+    assert_eq!(global_removed["data"]["scope"], "global");
+    assert!(
+        !global_home
+            .path()
+            .join(".agents/canisend-agent-v4.json")
+            .exists()
     );
 }
 

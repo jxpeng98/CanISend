@@ -142,7 +142,7 @@ enum Command {
         #[command(subcommand)]
         command: ExportCommand,
     },
-    /// Install and inspect clean Agent v4 host resources for this Workspace.
+    /// Install and inspect clean Agent v4 host resources for this project or user.
     Host {
         #[command(subcommand)]
         command: HostCommand,
@@ -307,6 +307,30 @@ impl From<HostArgument> for AgentHost {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum AgentSkillsScopeArgument {
+    Project,
+    Global,
+}
+
+impl AgentSkillsScopeArgument {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Project => "project",
+            Self::Global => "global",
+        }
+    }
+}
+
+impl From<AgentSkillsScopeArgument> for AgentSkillsInstallScope {
+    fn from(value: AgentSkillsScopeArgument) -> Self {
+        match value {
+            AgentSkillsScopeArgument::Project => Self::Project,
+            AgentSkillsScopeArgument::Global => Self::Global,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 struct OutputArgs {
     /// Emit exactly one canisend.agent/v4 JSON object on stdout.
@@ -434,9 +458,12 @@ struct ProfileSourceImportArgs {
 
 #[derive(Debug, Args)]
 struct HostConfigurationArgs {
-    /// Agent host that will load the Workspace-local resources.
+    /// Agent host that will load the managed resources.
     #[arg(long, value_enum)]
     host: HostArgument,
+    /// Install resources in this Workspace or the current user's home directory.
+    #[arg(long, value_enum, default_value = "project")]
+    scope: AgentSkillsScopeArgument,
     /// Absolute CanISend executable path used by the MCP server registration.
     #[arg(long, value_name = "PATH")]
     executable: Option<PathBuf>,
@@ -449,6 +476,9 @@ struct HostRemoveArgs {
     /// Agent host whose manifest-owned Skills should be removed.
     #[arg(long, value_enum)]
     host: HostArgument,
+    /// Remove resources from this Workspace or the current user's home directory.
+    #[arg(long, value_enum, default_value = "project")]
+    scope: AgentSkillsScopeArgument,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -1080,6 +1110,7 @@ fn host_setup(
     let operation = "host.setup";
     let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let host = AgentHost::from(arguments.host);
+    let scope = AgentSkillsInstallScope::from(arguments.scope);
     let executable = host_executable(arguments.executable, operation)?;
     // Validate every non-mutating input before installing managed Workspace files.
     let mcp = Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
@@ -1092,7 +1123,7 @@ fn host_setup(
     let skills = Application::install_agent_skills(&AgentSkillsInstallRequest {
         host,
         workspace: root,
-        scope: AgentSkillsInstallScope::Project,
+        scope,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
@@ -1102,6 +1133,7 @@ fn host_setup(
         .unwrap_or("merge the returned configuration snippet into the selected host");
     let data = json!({
         "host": host,
+        "scope": arguments.scope.as_str(),
         "skills": skills,
         "mcp": mcp,
         "mcp_configuration_mutated": false,
@@ -1111,7 +1143,11 @@ fn host_setup(
         "ready",
         &data,
         vec![
-            format!("Agent v4 resources are ready for {}", host.as_str()),
+            format!(
+                "Agent v4 {} resources are ready for {}",
+                arguments.scope.as_str(),
+                host.as_str()
+            ),
             format!("MCP registration: {registration}"),
             "Host MCP configuration was not modified automatically".to_owned(),
         ],
@@ -1125,11 +1161,12 @@ fn host_status(
     let operation = "host.status";
     let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let host = AgentHost::from(arguments.host);
+    let scope = AgentSkillsInstallScope::from(arguments.scope);
     let executable = host_executable(arguments.executable, operation)?;
     let skills = Application::agent_skills_status(&AgentSkillsInstallRequest {
         host,
         workspace: root.clone(),
-        scope: AgentSkillsInstallScope::Project,
+        scope,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
@@ -1150,6 +1187,7 @@ fn host_status(
     };
     let data = json!({
         "host": host,
+        "scope": arguments.scope.as_str(),
         "skills": skills,
         "mcp": mcp,
         "mcp_configuration_mutated": false,
@@ -1159,7 +1197,11 @@ fn host_status(
         status,
         &data,
         vec![
-            format!("Agent v4 resource status for {}: {status}", host.as_str()),
+            format!(
+                "Agent v4 {} resource status for {}: {status}",
+                arguments.scope.as_str(),
+                host.as_str()
+            ),
             "The response includes the deterministic MCP registration and verification commands"
                 .to_owned(),
         ],
@@ -1173,10 +1215,11 @@ fn host_remove(
     let operation = "host.remove";
     let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let host = AgentHost::from(arguments.host);
+    let scope = AgentSkillsInstallScope::from(arguments.scope);
     let skills = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
         host,
         workspace: root,
-        scope: AgentSkillsInstallScope::Project,
+        scope,
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
@@ -1187,6 +1230,7 @@ fn host_remove(
     let removed_files = skills.removed_files;
     let data = json!({
         "host": host,
+        "scope": arguments.scope.as_str(),
         "skills": skills,
         "mcp_configuration_removed": false,
     });
@@ -1196,7 +1240,8 @@ fn host_remove(
         &data,
         vec![
             format!(
-                "Removed {removed_files} unchanged CanISend-managed files for {}",
+                "Removed {removed_files} unchanged CanISend-managed {} files for {}",
+                arguments.scope.as_str(),
                 host.as_str()
             ),
             "Host MCP configuration was preserved; remove its `canisend` server entry explicitly if desired"
@@ -1820,9 +1865,10 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        ApplicationCommand, AssociationCommand, Cli, Command, CommandFailure, EvidenceCommand,
-        ExitClass, HostCommand, ProfileCommand, ProfileSourceCommand, WorkspaceCommand,
-        clap_leaf_paths, human_failure_lines, public_clap_leaf_paths, unsupported_legacy_surface,
+        AgentSkillsScopeArgument, ApplicationCommand, AssociationCommand, Cli, Command,
+        CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
+        ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
+        public_clap_leaf_paths, unsupported_legacy_surface,
     };
 
     #[test]
@@ -1937,12 +1983,37 @@ mod tests {
         let host_setup =
             Cli::try_parse_from(["canisend", "host", "setup", "--host", "codex", "--json"])
                 .expect("Agent v4 host setup command");
-        assert!(matches!(
-            host_setup.command,
-            Command::Host {
-                command: HostCommand::Setup(_)
-            }
-        ));
+        let Command::Host {
+            command: HostCommand::Setup(arguments),
+        } = host_setup.command
+        else {
+            panic!("expected host setup");
+        };
+        assert_eq!(arguments.scope, AgentSkillsScopeArgument::Project);
+
+        let host_status = Cli::try_parse_from([
+            "canisend", "host", "status", "--host", "claude", "--scope", "global",
+        ])
+        .expect("global Agent v4 host status command");
+        let Command::Host {
+            command: HostCommand::Status(arguments),
+        } = host_status.command
+        else {
+            panic!("expected host status");
+        };
+        assert_eq!(arguments.scope, AgentSkillsScopeArgument::Global);
+
+        let host_remove = Cli::try_parse_from([
+            "canisend", "host", "remove", "--host", "codex", "--scope", "global",
+        ])
+        .expect("global Agent v4 host remove command");
+        let Command::Host {
+            command: HostCommand::Remove(arguments),
+        } = host_remove.command
+        else {
+            panic!("expected host remove");
+        };
+        assert_eq!(arguments.scope, AgentSkillsScopeArgument::Global);
 
         assert!(Cli::try_parse_from(["canisend", "job", "list"]).is_err());
         assert!(Cli::try_parse_from(["canisend", "application", "generic-compose"]).is_err());

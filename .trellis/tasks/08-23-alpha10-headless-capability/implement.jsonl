@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Use the smallest owning verification tier during Rust changes."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse the existing app facade, Skills resources, and headless harness."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace CLI scope through facade requests, receipts, resources, and tests."}
+{"file":".trellis/tasks/08-18-alpha10-release-integration/research/2026-08-23-headless-capability-audit.md","reason":"Use the audited current capability matrix and prior compatibility decision."}

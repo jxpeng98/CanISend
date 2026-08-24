@@ -88,6 +88,9 @@ for guarded mutations:
 ./target/release/canisend --workspace ./my-applications mcp serve
 ```
 
+Host commands default to project-local Skills; add `--scope global` consistently to setup, status,
+and removal for a current-user installation.
+
 The canonical Agent sequence is:
 
 ```text

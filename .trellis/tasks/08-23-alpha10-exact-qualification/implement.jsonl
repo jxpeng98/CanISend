@@ -1,0 +1,3 @@
+{"file":".trellis/spec/guides/project-control.md","reason":"Follow authority, protected-branch, and exact-release transition rules."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Keep source, native, and extended verification at their owning tiers."}
+{"file":".trellis/tasks/08-18-alpha10-release-integration/implement.md","reason":"Use the approved release order and rollback points."}
