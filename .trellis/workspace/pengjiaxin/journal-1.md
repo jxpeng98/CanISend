@@ -113,3 +113,26 @@ Qualified exact public Alpha.9 across provider hosts, reconciled protected evide
 ### Next Steps
 
 - Obtain explicit cohort consent and owner scheduling before invitations, provider sends, or private-data handling for Issue #70.
+
+
+## Session 5: Complete Alpha.10 headless source integration
+
+**Date**: 2026-08-24
+**Task**: Complete Alpha.10 headless source integration
+**Branch**: `chore/alpha10-headless-reconcile`
+
+### Summary
+
+Added project/global CLI host scope, extended the App-closed Agent v4 lifecycle through backup/restore/reopen, re-reviewed 23 lock-bound dependency exceptions through 2026-09-07, passed local and protected source gates, merged PR #196, verified Issues #193/#195, and archived both completed Trellis tasks. Exact Alpha.10 qualification remains planning.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7588d5185ae6ea0292f244695a6de2e0c8b2b1c7` | (see git log) |
+| `fb71819b413e709b10700e3f7b0aefb33af352f5` | (see git log) |
+| `433ce1a1` | (see git log) |
+
+### Status
+
+[OK] **Completed**
