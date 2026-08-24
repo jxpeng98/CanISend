@@ -33,7 +33,7 @@
       a JSON/documentation/governance-only change.
 - [x] Mark the locally passing blocker ready for protected CI and restore the headless task as
       current.
-- [ ] Reconcile Issues #193 and #195 after the protected integration result.
+- [x] Reconcile Issues #193 and #195 after the protected integration result.
 
 ## Validation commands
 

@@ -25,7 +25,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-18-alpha10-release-integration/implement.md"
   ],
-  "notes": "Second Alpha.10 child. Start only after M3-HEADLESS-001 is protected and verified.",
+  "notes": "Entry dependency satisfied: M3-DEPS-001 and M3-HEADLESS-001 are protected and verified through PR #196 at merge 549072185b5a4886a1b67c1217b79a67d237f826. The qualification task remains planning until its final plan receives explicit approval.",
   "meta": {
     "roadmap_id": "M3-ALPHA10-001",
     "github_issue": 194,
