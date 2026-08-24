@@ -8,6 +8,6 @@
 - [x] Update canonical Skills and quick start only where executable behavior changed.
 - [x] Run focused formatting, Clippy, CLI/App/resource tests, operation and semantic checks.
 - [x] Run `cargo run -p xtask --locked -- release check` once on the combined local PR head.
-- [ ] Merge through protected Fast CI and reconcile Issues #193 and #195.
+- [x] Merge through protected Fast CI and reconcile Issues #193 and #195.
 
 Do not change version metadata, add a plugin layer, or restore legacy formats in this child.

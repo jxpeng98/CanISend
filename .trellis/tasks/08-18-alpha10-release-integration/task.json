@@ -29,7 +29,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-18-alpha10-release-integration/research/2026-08-23-headless-capability-audit.md"
   ],
-  "notes": "M3-HEADLESS-001 is in progress. M3-DEPS-001 local assurance gates pass and await protected integration with the headless change. M3-ALPHA10-001 remains planning until that merge.",
+  "notes": "M3-DEPS-001 and M3-HEADLESS-001 are verified through protected PR #196 and ready to archive. M3-ALPHA10-001 remains planning pending explicit final-plan approval.",
   "meta": {
     "roadmap_ids": [
       "M3-DEPS-001",
