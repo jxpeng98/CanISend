@@ -143,8 +143,9 @@ The following sources intentionally retain earlier version identifiers:
 - `release/beta-readiness.json` identifies the public native Alpha used for blocker review;
 - `release/beta-contract-freeze.json` binds the Beta contract to the qualified Alpha surface;
 - `release/feedback-snapshot.json` records the release actually observed at capture time;
-- `packaging/candidates/alpha` preserves nonpublishing candidates generated from exact Alpha
-  assets; and
+- `packaging/candidates` preserves checked-in package-channel candidate history; exact 1.0 Alpha
+  candidate and public identities remain in their qualified release authorities and artifacts;
+  and
 - `release/history/0.7` plus `packaging/candidates/v0.7.0-alpha.1` remain immutable previous-line
   evidence.
 

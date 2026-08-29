@@ -1995,11 +1995,31 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
     let roadmap_relative = "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md";
     let roadmap = fs::read_to_string(root.join(roadmap_relative))
         .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
+    let stage = ReleaseStage::from_version(version)?;
+    let stage_name = match stage {
+        ReleaseStage::Alpha => "Alpha",
+        ReleaseStage::Beta => "Beta",
+        ReleaseStage::ReleaseCandidate => "RC",
+        ReleaseStage::Stable => "Stable",
+    };
+    let machine_stage = format!(
+        "**Current machine stage:** {stage_name} / `{}`",
+        qualification_status_for_stage(stage)
+    );
+    let next_checkpoint = if stage == ReleaseStage::Alpha {
+        format!(
+            "v{}.{}.{}-beta.1",
+            version.major, version.minor, version.patch
+        )
+    } else {
+        format!("v{version}")
+    };
+    let next_checkpoint = format!("**Next intended checkpoint:** `{next_checkpoint}`");
     for required in [
         "# CanISend generic framework 1.0 delivery roadmap",
         "**Status:** Active — authoritative",
-        "**Current machine stage:** Alpha / `pre-beta`",
-        "**Next intended checkpoint:** `v1.0.0-beta.1`",
+        &machine_stage,
+        &next_checkpoint,
     ] {
         if !roadmap.contains(required) {
             return Err(format!("active 1.0 roadmap header is missing `{required}`"));
@@ -2805,7 +2825,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json measured public metadata",
-            "packaging/candidates/alpha"
+            "packaging/candidates"
         ]
     });
     if policy != expected {
@@ -3361,20 +3381,29 @@ fn pending_release_feedback_is_canonical(
     snapshot: &Value,
     active: &Version,
 ) -> Result<bool, String> {
-    if snapshot == &pending_release_feedback(active)? {
-        return Ok(true);
+    if ReleaseStage::from_version(active) == Ok(ReleaseStage::Alpha) {
+        if snapshot == &pending_release_feedback(active)? {
+            return Ok(true);
+        }
+        if prerelease_iteration(active, "alpha")? >= 6 {
+            return Ok(false);
+        }
+        let initial = Version::parse(&format!(
+            "{}.{}.{}-alpha.1",
+            active.major, active.minor, active.patch
+        ))
+        .map_err(|error| format!("initial Alpha feedback identity is invalid: {error}"))?;
+        return Ok(snapshot == &pending_release_feedback(&initial)?);
     }
-    if ReleaseStage::from_version(active) != Ok(ReleaseStage::Alpha)
-        || prerelease_iteration(active, "alpha")? >= 6
-    {
-        return Ok(false);
-    }
-    let initial = Version::parse(&format!(
-        "{}.{}.{}-alpha.1",
-        active.major, active.minor, active.patch
-    ))
-    .map_err(|error| format!("initial Alpha feedback identity is invalid: {error}"))?;
-    Ok(snapshot == &pending_release_feedback(&initial)?)
+    let baseline = validate_alpha_baseline_tag(
+        active,
+        required_string(
+            &snapshot["expected_release"],
+            "tag",
+            "pending release feedback",
+        )?,
+    )?;
+    Ok(snapshot == &pending_release_feedback(&baseline)?)
 }
 
 fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
@@ -4904,11 +4933,12 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     }
 
     insert_desktop_version_updates(root, &mut files, &from_version, &to_version)?;
+    insert_active_source_version_updates(root, &mut files, &from_version, &to_version)?;
     if matches!(
         (from_stage, to_stage),
         (ReleaseStage::Alpha, ReleaseStage::Alpha)
     ) {
-        insert_sequential_alpha_updates(root, &mut files, &from_version, &to_version)?;
+        insert_sequential_alpha_evidence_resets(&mut files, &to_version)?;
     }
 
     let ledger_path = root.join("release/qualification-ledger.json");
@@ -5034,7 +5064,7 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     })
 }
 
-fn insert_sequential_alpha_updates(
+fn insert_active_source_version_updates(
     root: &Path,
     files: &mut BTreeMap<String, Vec<u8>>,
     from_version: &Version,
@@ -5123,7 +5153,7 @@ fn insert_sequential_alpha_updates(
     let limitations_relative = "docs/guides/known-limitations.md";
     let limitations = fs::read_to_string(root.join(limitations_relative))
         .map_err(|error| format!("could not read {limitations_relative}: {error}"))?;
-    let limitations = sequential_alpha_limitations_body(&limitations, from_version, to_version)?;
+    let limitations = active_limitations_body(&limitations, from_version, to_version)?;
     files.insert(limitations_relative.to_owned(), limitations.into_bytes());
 
     let contract_relative = "release/alpha-package-contract.json";
@@ -5136,9 +5166,7 @@ fn insert_sequential_alpha_updates(
         || contract["version"] != from
         || contract["tag"] != from_tag
     {
-        return Err(
-            "Alpha package contract does not match the sequential-Alpha source version".to_owned(),
-        );
+        return Err("package contract does not match the active source version".to_owned());
     }
     let occurrence_count = contract_body.matches(&from).count();
     if occurrence_count < 3 {
@@ -5148,7 +5176,7 @@ fn insert_sequential_alpha_updates(
     }
     let contract_after = contract_body.replace(&from, &to);
     if contract_after.contains(&from) {
-        return Err("Alpha package contract retained the previous source version".to_owned());
+        return Err("package contract retained the previous source version".to_owned());
     }
     let updated_contract: Value = serde_json::from_str(&contract_after)
         .map_err(|error| format!("updated Alpha package contract is invalid JSON: {error}"))?;
@@ -5157,6 +5185,13 @@ fn insert_sequential_alpha_updates(
     }
     files.insert(contract_relative.to_owned(), contract_after.into_bytes());
 
+    Ok(())
+}
+
+fn insert_sequential_alpha_evidence_resets(
+    files: &mut BTreeMap<String, Vec<u8>>,
+    to_version: &Version,
+) -> Result<(), String> {
     files.insert(
         "release/beta-readiness.json".to_owned(),
         pretty_json_bytes(&pending_beta_readiness(to_version)?)?,
@@ -5172,7 +5207,7 @@ fn insert_sequential_alpha_updates(
     Ok(())
 }
 
-fn sequential_alpha_limitations_body(
+fn active_limitations_body(
     body: &str,
     from_version: &Version,
     to_version: &Version,
@@ -5198,7 +5233,7 @@ fn sequential_alpha_limitations_body(
         },
         &target,
         1,
-        "known-limitations Alpha state",
+        "known-limitations active source state",
     )
 }
 
@@ -5586,7 +5621,7 @@ fn stage_transition_report(
         "release/beta-readiness.json",
         "release/beta-contract-freeze.json",
         "release/feedback-snapshot.json",
-        "packaging/candidates/alpha",
+        "packaging/candidates",
     ]
     .into_iter()
     .filter(|relative| !transition.files.contains_key(*relative))
@@ -10802,11 +10837,9 @@ fn check_release_feedback_files(
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
     if snapshot["status"] == "pending-alpha-publication" {
-        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha)
-            || !pending_release_feedback_is_canonical(&snapshot, &version)?
-        {
+        if !pending_release_feedback_is_canonical(&snapshot, &version)? {
             return Err(
-                "pending release feedback is not canonical for the active Alpha".to_owned(),
+                "pending release feedback is not canonical for the active release line".to_owned(),
             );
         }
         let roadmap_path = feedback_roadmap_relative(&snapshot)?;
@@ -12386,8 +12419,19 @@ fn build_beta_contract_freeze_at(root: &Path, version: &Version) -> Result<Value
         .collect::<Vec<_>>();
 
     let package_relative = "release/alpha-package-contract.json";
-    let package_bytes = fs::read(root.join(package_relative))
-        .map_err(|error| format!("Alpha package contract is missing: {error}"))?;
+    let package_object = format!("{alpha_source}:{package_relative}");
+    let package_output = Command::new("git")
+        .current_dir(root)
+        .args(["cat-file", "blob", &package_object])
+        .output()
+        .map_err(|error| format!("could not read frozen Alpha package contract: {error}"))?;
+    if !package_output.status.success() {
+        return Err(format!(
+            "could not read frozen Alpha package contract `{package_object}`: {}",
+            String::from_utf8_lossy(&package_output.stderr).trim()
+        ));
+    }
+    let package_bytes = package_output.stdout;
     let package_contract: Value = serde_json::from_slice(&package_bytes)
         .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
     check_alpha_package_contract_identity_and_bindings(root, &alpha_version, &package_contract)?;
@@ -16279,6 +16323,69 @@ mod tests {
         })
     }
 
+    fn write_active_source_projection_fixture(root: &Path, version: &str) {
+        let tag = format!("v{version}");
+        for (relative, body) in [
+            (
+                "tools/native-preview/package.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                "apps/canisend-desktop/src/App.svelte",
+                format!("<span>{{product?.version ?? \"{version}\"}}</span>\n"),
+            ),
+            (
+                "docs/contracts/cli-gui-parity-v1.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                "docs/performance/macos-gui-alpha-baseline.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                ".github/workflows/release.yml",
+                format!("default: \"{tag}\"\n"),
+            ),
+            (
+                ".github/ISSUE_TEMPLATE/bug.yml",
+                format!("placeholder: {version}\n"),
+            ),
+            (
+                "README.md",
+                format!("The checked-in source version is `{version}`; fixture.\n"),
+            ),
+            (
+                "RELEASE.md",
+                format!("Checked-in source: `{version}`; fixture.\n"),
+            ),
+            (
+                "docs/guides/known-limitations.md",
+                format!("It applies to the `{version}` development line.\n"),
+            ),
+        ] {
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().expect("projection parent"))
+                .expect("create source projection fixture path");
+            fs::write(path, body).expect("write source projection fixture");
+        }
+        let parsed = Version::parse(version).expect("source projection version");
+        write_pretty_json(
+            &root.join("release/alpha-package-contract.json"),
+            &json!({
+                "schema": alpha_package_contract_schema(&parsed).expect("package schema"),
+                "version": version,
+                "tag": tag,
+                "standalone_cli": {
+                    "assets": [{"file": format!("canisend-{version}-target.tar.gz")}]
+                },
+                "desktop_macos": {
+                    "archive": format!("CanISend-{version}-target.zip")
+                }
+            }),
+        )
+        .expect("write package contract fixture");
+    }
+
     #[test]
     fn domain_coupling_inventory_is_current_and_fails_closed_on_drift() {
         let root = repository_root();
@@ -17465,9 +17572,18 @@ mod tests {
             &fs::read(root.join("release/beta-readiness.json")).expect("Beta readiness record"),
         )
         .expect("Beta readiness JSON");
+        let alpha_version = Version::parse(
+            readiness["alpha_release"]["tag"]
+                .as_str()
+                .and_then(|tag| tag.strip_prefix('v'))
+                .expect("Alpha baseline tag"),
+        )
+        .expect("Alpha baseline version");
         let freeze = build_beta_contract_freeze_at(&root, &version).expect("v2 freeze candidate");
 
-        validate_beta_transition_authorities(&root, &version, &readiness, &freeze)
+        validate_qualified_beta_contract_freeze(&freeze, &root, &version)
+            .expect("freeze survives the active post-Alpha package projection");
+        validate_beta_transition_authorities(&root, &alpha_version, &readiness, &freeze)
             .expect("exact current Alpha authority");
         assert_eq!(freeze["schema"], "canisend.beta-contract-freeze/v2");
         assert_eq!(freeze["contracts"]["agent_protocol"], AGENT_V4_PROTOCOL);
@@ -17544,7 +17660,7 @@ mod tests {
 
         for (name, candidate) in rejected {
             assert!(
-                validate_beta_transition_authorities(&root, &version, &readiness, &candidate)
+                validate_beta_transition_authorities(&root, &alpha_version, &readiness, &candidate)
                     .is_err(),
                 "{name} Beta freeze must fail"
             );
@@ -17656,6 +17772,42 @@ mod tests {
         )
         .expect("seed stale README fixture");
         assert!(check_active_release_truth_for_version(&root, &version).is_err());
+
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            "# CanISend generic framework 1.0 delivery roadmap\n\n\
+             **Status:** Active — authoritative\n\n\
+             **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
+             **Current machine stage:** Beta / `beta-qualifying`\n\n\
+             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n",
+        )
+        .expect("write Beta roadmap fixture");
+        fs::write(
+            root.join("README.md"),
+            readme.replace(
+                "checked-in source version is `1.0.0-alpha.5`",
+                "checked-in source version is `1.0.0-beta.1`",
+            ),
+        )
+        .expect("write Beta README fixture");
+        fs::write(
+            root.join("RELEASE.md"),
+            "Checked-in source: `1.0.0-beta.1`\n\
+             Latest public checkpoint: [`v1.0.0-alpha.5`]\n\
+             GPL-3.0-only Community signing is not a publicly trusted publisher identity.\n\
+             Verify GitHub build provenance.\n",
+        )
+        .expect("write Beta release fixture");
+        fs::write(
+            root.join(".github/ISSUE_TEMPLATE/bug.yml"),
+            "placeholder: 1.0.0-beta.1\n",
+        )
+        .expect("write Beta Issue fixture");
+        check_active_release_truth_for_version(
+            &root,
+            &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
+        )
+        .expect("Beta source truth");
         fs::remove_dir_all(root).expect("remove active-truth fixture");
     }
 
@@ -18105,7 +18257,7 @@ mod tests {
     }
 
     #[test]
-    fn sequential_alpha_iteration_updates_candidate_authorities_and_invalidates_baselines() {
+    fn stage_source_projections_are_shared_and_only_alpha_resets_evidence() {
         let root =
             std::env::temp_dir().join(format!("canisend-sequential-alpha-{}", std::process::id()));
         if root.exists() {
@@ -18145,7 +18297,7 @@ mod tests {
         .expect("write performance baseline fixture");
         fs::write(
             root.join(".github/workflows/release.yml"),
-            "default: \"v1.0.0-alpha.6\"\n",
+            "default: \"v1.0.0-alpha.5\"\n",
         )
         .expect("write workflow fixture");
         fs::write(
@@ -18186,15 +18338,53 @@ mod tests {
 
         let from = Version::parse("1.0.0-alpha.5").expect("source Alpha");
         let to = Version::parse("1.0.0-alpha.6").expect("target Alpha");
-        let mut files = BTreeMap::new();
-        insert_sequential_alpha_updates(&root, &mut files, &from, &to)
-            .expect("render sequential Alpha updates");
-        assert_eq!(files.len(), 12);
+        let beta = Version::parse("1.0.0-beta.1").expect("target Beta");
+        let mut cross_stage = BTreeMap::new();
+        insert_active_source_version_updates(&root, &mut cross_stage, &from, &beta)
+            .expect("render cross-stage source updates");
+        assert_eq!(cross_stage.len(), 10);
         for relative in [
             "tools/native-preview/package.json",
             "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
             "docs/performance/macos-gui-alpha-baseline.json",
+            ".github/workflows/release.yml",
+            ".github/ISSUE_TEMPLATE/bug.yml",
+            "README.md",
+            "RELEASE.md",
+            "docs/guides/known-limitations.md",
+            "release/alpha-package-contract.json",
+        ] {
+            let body = std::str::from_utf8(&cross_stage[relative]).expect("UTF-8 Beta update");
+            assert!(
+                body.contains("1.0.0-beta.1"),
+                "missing target in {relative}"
+            );
+            assert!(
+                !body.contains("1.0.0-alpha.5"),
+                "retained source in {relative}"
+            );
+        }
+        for relative in [
+            "release/beta-readiness.json",
+            "release/beta-contract-freeze.json",
+            "release/feedback-snapshot.json",
+        ] {
+            assert!(!cross_stage.contains_key(relative));
+        }
+
+        let mut files = BTreeMap::new();
+        insert_active_source_version_updates(&root, &mut files, &from, &to)
+            .expect("render Alpha source updates");
+        insert_sequential_alpha_evidence_resets(&mut files, &to)
+            .expect("render sequential Alpha evidence resets");
+        assert_eq!(files.len(), 13);
+        for relative in [
+            "tools/native-preview/package.json",
+            "apps/canisend-desktop/src/App.svelte",
+            "docs/contracts/cli-gui-parity-v1.json",
+            "docs/performance/macos-gui-alpha-baseline.json",
+            ".github/workflows/release.yml",
             ".github/ISSUE_TEMPLATE/bug.yml",
             "README.md",
             "RELEASE.md",
@@ -18236,11 +18426,15 @@ mod tests {
             pending_release_feedback_is_canonical(&feedback, &to)
                 .expect("target feedback boundary")
         );
+        assert!(
+            pending_release_feedback_is_canonical(&feedback, &beta)
+                .expect("post-Alpha feedback boundary")
+        );
         fs::remove_dir_all(root).expect("remove sequential-Alpha fixture");
     }
 
     #[test]
-    fn sequential_alpha_accepts_published_or_development_limitations_state() {
+    fn active_limitations_accepts_published_or_development_state() {
         let from = Version::parse("1.0.0-alpha.7").expect("Alpha.7");
         let to = Version::parse("1.0.0-alpha.8").expect("Alpha.8");
         let target = "It applies to the `1.0.0-alpha.8` development line.";
@@ -18248,13 +18442,13 @@ mod tests {
             "It applies to the `1.0.0-alpha.7` development line.",
             "It applies to the published `v1.0.0-alpha.7` checkpoint and later source with the same version.",
         ] {
-            let rendered = sequential_alpha_limitations_body(source, &from, &to)
+            let rendered = active_limitations_body(source, &from, &to)
                 .expect("canonical Alpha limitations state");
             assert_eq!(rendered, target);
         }
-        assert!(sequential_alpha_limitations_body("unrecognized", &from, &to).is_err());
+        assert!(active_limitations_body("unrecognized", &from, &to).is_err());
         assert!(
-            sequential_alpha_limitations_body(
+            active_limitations_body(
                 &format!("{target}\n{target}"),
                 &to,
                 &Version::parse("1.0.0-alpha.9").expect("Alpha.9")
@@ -18518,7 +18712,7 @@ mod tests {
         fs::create_dir_all(root.join("crates/app")).expect("create app fixture");
         fs::create_dir_all(root.join("crates/contracts")).expect("create contracts fixture");
         fs::create_dir_all(root.join("release")).expect("create release fixture");
-        fs::create_dir_all(root.join("packaging/candidates/alpha"))
+        fs::create_dir_all(root.join("packaging/candidates"))
             .expect("create historical candidate fixture");
         fs::write(
             root.join("Cargo.toml"),
@@ -18561,11 +18755,12 @@ mod tests {
             "# CanISend 0.7.0-beta.1\n\nFixture notes.\n",
         )
         .expect("write notes fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-beta.1");
         for relative in [
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json",
-            "packaging/candidates/alpha/candidate-source.json",
+            "packaging/candidates/candidate-source.json",
         ] {
             fs::write(root.join(relative), b"historical 0.7.0-alpha.1\n")
                 .expect("write historical fixture");
@@ -18574,15 +18769,22 @@ mod tests {
         let workspace_before = fs::read(root.join("Cargo.toml")).expect("read workspace before");
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.1").expect("render Beta to RC transition");
+        let report = stage_transition_report(&root, &transition, false).expect("dry-run report");
+        assert_eq!(report["writes_performed"], false);
         assert_eq!(
-            stage_transition_report(&root, &transition, false).expect("dry-run report")["writes_performed"],
-            false
+            report["preserved_history"],
+            json!([
+                "release/beta-readiness.json",
+                "release/beta-contract-freeze.json",
+                "release/feedback-snapshot.json",
+                "packaging/candidates"
+            ])
         );
         assert_eq!(
             fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
             workspace_before
         );
-        assert_eq!(transition.files.len(), 5);
+        assert_eq!(transition.files.len(), 15);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply rendered transition fixture");
         }
@@ -18596,6 +18798,16 @@ mod tests {
                 .expect("read transitioned app")
                 .contains("version = \"=0.7.0-rc.1\"")
         );
+        assert!(
+            fs::read_to_string(root.join("README.md"))
+                .expect("read transitioned README")
+                .contains("source version is `0.7.0-rc.1`")
+        );
+        assert!(
+            fs::read_to_string(root.join("release/alpha-package-contract.json"))
+                .expect("read transitioned package contract")
+                .contains("\"version\": \"0.7.0-rc.1\"")
+        );
         let ledger: Value = serde_json::from_slice(
             &fs::read(root.join("release/qualification-ledger.json"))
                 .expect("read transitioned ledger"),
@@ -18608,7 +18820,7 @@ mod tests {
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json",
-            "packaging/candidates/alpha/candidate-source.json",
+            "packaging/candidates/candidate-source.json",
         ] {
             assert_eq!(
                 fs::read_to_string(root.join(relative)).expect("read historical fixture"),
@@ -18694,12 +18906,13 @@ mod tests {
             "# CanISend 0.7.0-rc.1\n\nFixture notes.\n",
         )
         .expect("write RC notes fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-rc.1");
 
         let mut expected_ledger = ledger.clone();
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 7);
+        assert_eq!(transition.files.len(), 17);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
@@ -18855,6 +19068,7 @@ mod tests {
             "# CanISend 0.7.0-rc.2\n\nFixture notes.\n",
         )
         .expect("write Stable notes fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-rc.2");
         let feedback = json!({
             "schema": FEEDBACK_SNAPSHOT_SCHEMA,
             "snapshot_stage": "rc",
@@ -19746,6 +19960,10 @@ mod tests {
         fs::create_dir_all(&root).expect("create macOS GUI qualification fixture");
         let version = env!("CARGO_PKG_VERSION");
         let tag = format!("v{version}");
+        let profile = parse_release_tag(&tag)
+            .expect("macOS GUI fixture tag")
+            .1
+            .cargo_profile();
         let archive = root.join(macos_gui_archive_name(version));
         fs::write(&archive, b"bounded desktop archive fixture")
             .expect("write macOS GUI archive fixture");
@@ -19755,7 +19973,7 @@ mod tests {
             "record": "desktop-macos-aarch64",
             "target": "aarch64-apple-darwin",
             "environment": "macos-15",
-            "profile": ReleaseStage::Alpha.cargo_profile(),
+            "profile": profile,
             "tag": tag,
             "version": version,
             "archive": {
@@ -19786,12 +20004,19 @@ mod tests {
         read_macos_gui_qualification(&evidence_path, &tag, version, &archive)
             .expect("accept exact macOS GUI qualification evidence");
 
-        evidence["profile"] = Value::String("release".to_owned());
+        evidence["profile"] = Value::String(
+            if profile == "release" {
+                "release-alpha"
+            } else {
+                "release"
+            }
+            .to_owned(),
+        );
         write_pretty_json(&evidence_path, &evidence)
             .expect("write profile-drifted macOS GUI qualification evidence");
         assert!(read_macos_gui_qualification(&evidence_path, &tag, version, &archive).is_err());
 
-        evidence["profile"] = Value::String(ReleaseStage::Alpha.cargo_profile().to_owned());
+        evidence["profile"] = Value::String(profile.to_owned());
         evidence["checks"]["packaged_gui_launch"] = Value::Bool(false);
         write_pretty_json(&evidence_path, &evidence)
             .expect("write malformed macOS GUI qualification evidence");
@@ -19811,6 +20036,10 @@ mod tests {
         fs::create_dir_all(&root).expect("create macOS GUI DMG fixture");
         let version = env!("CARGO_PKG_VERSION");
         let tag = format!("v{version}");
+        let profile = parse_release_tag(&tag)
+            .expect("macOS GUI DMG fixture tag")
+            .1
+            .cargo_profile();
         let dmg = root.join(macos_gui_dmg_name(version));
         fs::write(&dmg, b"bounded desktop DMG fixture").expect("write macOS GUI DMG fixture");
         let evidence_path = root.join(macos_gui_dmg_qualification_name(version));
@@ -19819,7 +20048,7 @@ mod tests {
             "record": "desktop-macos-aarch64-dmg",
             "target": "aarch64-apple-darwin",
             "environment": "macos-15",
-            "profile": ReleaseStage::Alpha.cargo_profile(),
+            "profile": profile,
             "tag": tag,
             "version": version,
             "image": {

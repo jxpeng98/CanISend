@@ -13,9 +13,9 @@ publish.workspace = true
 test-loopback = []
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-alpha.10" }
-canisend-core = { path = "../canisend-core", version = "=1.0.0-alpha.10" }
-canisend-resources = { path = "../canisend-resources", version = "=1.0.0-alpha.10" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.1" }
+canisend-core = { path = "../canisend-core", version = "=1.0.0-beta.1" }
+canisend-resources = { path = "../canisend-resources", version = "=1.0.0-beta.1" }
 csv.workspace = true
 feed-rs.workspace = true
 html2text.workspace = true

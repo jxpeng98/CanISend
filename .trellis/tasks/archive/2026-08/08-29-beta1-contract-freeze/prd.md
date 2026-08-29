@@ -86,9 +86,9 @@ migrations, and package layouts have not drifted.
 - [x] One focused regression accepts the canonical shape and rejects legacy, unknown, mismatched,
       and unbound variants, including a correct-baseline/incomplete-contract record.
 - [x] `release/beta-contract-freeze.json` exactly equals the inspected candidate.
-- [ ] Roadmap, release runbook, Trellis, and GitHub describe v4 contract freeze as Verified and
+- [x] Roadmap, release runbook, Trellis, and GitHub describe v4 contract freeze as Verified and
       leave `M4-STAGE-001` pending.
-- [ ] The branch passes `git diff --check`, Rust format, the focused test, affected Clippy, the
+- [x] The branch passes `git diff --check`, Rust format, the focused test, affected Clippy, the
       direct freeze check, one final `release check`, and protected Fast CI.
 
 ## Out of scope

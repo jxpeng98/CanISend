@@ -72,6 +72,6 @@
     "release/beta-readiness.json",
     "release/beta-contract-freeze.json",
     "release/feedback-snapshot.json measured public metadata",
-    "packaging/candidates/alpha"
+    "packaging/candidates"
   ]
 }
