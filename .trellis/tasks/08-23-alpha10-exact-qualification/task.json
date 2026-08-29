@@ -28,9 +28,10 @@
     "docs/release/signing-operations.md",
     ".github/workflows/release.yml",
     "release/dependency-advisory-exceptions.json",
-    "release/provider-dogfood.json"
+    "release/provider-dogfood.json",
+    "docs/notes/rust-native/2026-08-29-alpha10-public-qualification-gap.md"
   ],
-  "notes": "Explicit plan approval received and the task is active on release/alpha10-exact-qualification. Entry preflight at 2026-08-24T00:35:21Z confirmed active main/tag rulesets, protected PR #196/#197 identities, hard-consistent release status, immutable public Alpha.9, absent Alpha.10 tag/release, and 23 dependency exceptions current through 2026-09-07. Read-only Alpha.10 transition preview succeeds over 30 controlled files; write mode remains separately gated.",
+  "notes": "Exact Alpha.10 source, candidate, same-byte promotion, draft smokes, and independent public verification passed. Claude Code was explicitly skipped by the maintainer after an expired OAuth refresh token stopped the attempt before provider access. The task remains in progress, Issues #194/#68 and milestone 10 remain open, and the fully qualified provider/cohort baseline remains Alpha.9.",
   "meta": {
     "roadmap_id": "M3-ALPHA10-001",
     "github_issue": 194,
@@ -40,6 +41,52 @@
     "verification_tier": "exact-native-release",
     "planning_baseline": "79937871852904bb6667e93a21c3c95fb2ca8fa0",
     "controlled_transition_file_count": 30,
+    "candidate": {
+      "artifact_digest": "sha256:3594845c857afa1777368813505597323daef1f0433943cd4383693478d24be6",
+      "artifact_expires_at": "2026-09-23T01:38:41Z",
+      "artifact_id": 9503978913,
+      "artifact_name": "canisend-v1.0.0-alpha.10-release-assets",
+      "checksum_file_count": 15,
+      "provenance_subject_count": 16,
+      "run_id": 32678848156,
+      "source_commit": "cd40180f2ff8ac957276f1948ba88da428511a82"
+    },
+    "public_release": {
+      "asset_count": 16,
+      "candidate_public_byte_identity": true,
+      "checksum_file_count": 15,
+      "manifest_sha256": "6669fb73e728d64bea10cb99d4f403ed7ffcb06e15401bfe04f93230a35e7bb5",
+      "promotion_evidence_artifact": {
+        "artifact_digest": "sha256:8375bb234bd48a0d8cb515d47c1f5c5eee8ca7193b4d74ee552acf4b91fa0adf",
+        "artifact_id": 9719079855,
+        "artifact_name": "release-candidate-promotion-v1.0.0-alpha.10-33267148891"
+      },
+      "promotion_run_id": 33267148891,
+      "public_verification_artifact": {
+        "artifact_digest": "sha256:4a657f7cc85c443a8a9b7c8b2a96b1d161a326bd1e2357eb7bff1b570ea8eab7",
+        "artifact_id": 9719114194,
+        "artifact_name": "public-release-verification-v1.0.0-alpha.10-33267148891"
+      },
+      "published_at": "2026-08-29T18:10:49Z",
+      "recompiled_during_promotion": false,
+      "release_id": 379063211,
+      "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10",
+      "source_commit": "cd40180f2ff8ac957276f1948ba88da428511a82",
+      "tag": "v1.0.0-alpha.10",
+      "tag_object": "6a43aa0889445ae5531736ac8e6d71cc363f6869"
+    },
+    "host_qualification": {
+      "claude_code": "skipped-by-maintainer",
+      "claude_desktop": "passed",
+      "codex_cli": "passed",
+      "evidence_note": {
+        "path": "docs/notes/rust-native/2026-08-29-alpha10-public-qualification-gap.md",
+        "sha256": "ab5ba9d05176cae693c5fbaf12c03b8ef3e4e9e522f134813776351f62236a9c"
+      },
+      "mcp_client": "passed",
+      "provider_record_tag": "v1.0.0-alpha.9",
+      "status": "incomplete"
+    },
     "authoritative_files": [
       "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
       "Cargo.toml",
