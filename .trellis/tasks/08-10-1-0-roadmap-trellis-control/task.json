@@ -25,7 +25,8 @@
     "08-12-alpha9-checkpoint-qualification",
     "08-10-alpha8-cohort-beta-evidence",
     "08-18-alpha10-release-integration",
-    "08-29-beta1-readiness"
+    "08-29-beta1-readiness",
+    "08-29-beta1-contract-freeze"
   ],
   "parent": null,
   "relatedFiles": [

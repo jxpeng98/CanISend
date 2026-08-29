@@ -212,6 +212,57 @@ both `priority:P0` and `state:blocked` is an applicable Issue blocker.
 {"schema":"canisend.beta-readiness/v2","status":"qualified","unresolved_blockers":[]}
 ```
 
+## Scenario: Beta v4 contract freeze
+
+### 1. Scope / Trigger
+
+- Trigger: changing `release/beta-contract-freeze.json`, its builder, or an Alpha-to-Beta
+  transition validator.
+
+### 2. Signatures
+
+- `build_beta_contract_freeze_at(root, version) -> Result<Value, String>` derives the full record.
+- `validate_qualified_beta_contract_freeze(freeze, root, version)` requires exact derived equality.
+- `validate_beta_transition_authorities(root, version, readiness, freeze)` validates both records
+  and their shared Alpha source.
+
+### 3. Contracts
+
+`canisend.beta-contract-freeze/v2` binds the exact Alpha tag/source, Agent/Workspace/resource/Pack/
+Skill contracts, complete migration inventory through 20, four schema families, every stable
+error-to-exit mapping, and the validated Alpha package contract plus its three layout sections.
+
+### 4. Validation & Error Matrix
+
+- Incomplete or unqualified readiness -> do not build or accept the freeze.
+- Legacy protocol, stale digest, changed exit mapping, unknown field, or baseline-only record ->
+  reject the freeze.
+- Readiness and freeze Alpha identities differ -> reject the Beta transition.
+
+### 5. Good / Base / Bad Cases
+
+- Good: checked-in v2 record exactly equals the value derived from current qualified authorities.
+- Base: historical v1 records remain unchanged and cannot authorize the active transition.
+- Bad: validate only `baseline.release` and `baseline.source_commit`.
+
+### 6. Tests Required
+
+- Focused regression:
+  `cargo test -p xtask --locked beta_contract_freeze_v2_rejects_legacy_or_unbound_records`.
+- Static checks: Rust format and `xtask` Clippy.
+- Source gate: one final `cargo run -p xtask --locked -- release check`.
+- Protected Fast CI owns the complete workspace suite; do not repeat native or host matrices.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: a matching baseline can hide stale or missing contracts.
+freeze["baseline"] == readiness["alpha_release"]
+
+// Correct: both release check and stage preparation require the exact derived record.
+validate_qualified_beta_contract_freeze(freeze, root, version)?;
+```
+
 ## Code Review Checklist
 
 - Correct authority/layer and smallest root-cause change.

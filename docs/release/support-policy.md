@@ -52,7 +52,7 @@ runtime package download. Building from source is a development path and is not 
 | Surface | Supported `1.0` contract | Compatibility boundary |
 |---|---|---|
 | Agent protocol | `canisend.agent/v4` | Earlier Agent requests and Skills are unsupported and fail before mutation. |
-| Public JSON Schema | `4.0.0` | The Beta freeze binds the complete Agent v4 schema inventory and normalized snapshots. |
+| Public JSON Schema | `4.0.0` | The Beta freeze binds all public v2, Application v3, Agent v4, and Pack v1 schemas. |
 | Host resources | `canisend.agent-host-resources/v4` | The installed binary verifies every manifest-owned Skill before use. |
 | Workspace | `canisend.workspace/v4` | Alpha.7 initializes clean v4 authority; v2/v3 import and compatibility are outside 1.0. |
 
@@ -70,8 +70,8 @@ rewritten.
 
 ## Workspace support and rollback
 
-Historical migrations 1 through 13 remain immutable. Clean Workspace v4 uses schema 20; any later
-`1.0` migration must be contiguous and append-only. CanISend rejects earlier Workspace formats,
+Migrations 1 through 20 form the immutable Beta baseline. Any later `1.0` migration must be
+contiguous and append-only. CanISend rejects earlier Workspace formats,
 a future database schema, or incomplete migration history before mutation; it does not silently
 import, repair, delete, or rewrite unsupported authority.
 

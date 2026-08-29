@@ -47,15 +47,15 @@
 - [x] One focused readiness-v2 validator test
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] One final `cargo run -p xtask --locked -- release check`
-- [ ] Protected Fast CI on the exact PR head
+- [x] Protected Fast CI on the exact PR head
 - [x] No local full workspace suite, native rebuild, desktop suite, Claude matrix, package-manager
       lifecycle, or extended assurance
 
 ## 6. Protected reconciliation
 
-- [ ] Merge the bounded PR after Fast CI.
-- [ ] Mark Issue #71 and `M4-READY-001` Verified; keep milestone 5 open.
-- [ ] Archive this task and make `M4-FREEZE-001` / Issue #72 the next delivery task.
+- [x] Merge the bounded PR after Fast CI.
+- [x] Mark Issue #71 and `M4-READY-001` Verified; keep milestone 5 open.
+- [x] Archive this task and make `M4-FREEZE-001` / Issue #72 the next delivery task.
 - [ ] Do not start Beta stage, candidate, publication, cohort, or feature freeze in this task.
 
 ## Stop conditions

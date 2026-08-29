@@ -1,0 +1,51 @@
+{
+  "id": "beta1-contract-freeze",
+  "name": "beta1-contract-freeze",
+  "title": "Freeze qualified Alpha.10 v4 contracts for Beta.1",
+  "description": "Replace the obsolete v2 freeze candidate with an exact Alpha.10 v4 contract authority before a separate Beta.1 stage task",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release-engineering",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-29",
+  "completedAt": null,
+  "branch": "plan/beta1-contract-freeze",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "xtask/src/main.rs",
+    "release/beta-contract-freeze.json",
+    "release/beta-readiness.json",
+    "release/alpha-package-contract.json",
+    "docs/release/stage-transitions.md",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    "RELEASE.md",
+    ".trellis/spec/backend/quality-guidelines.md"
+  ],
+  "notes": "The v2 freeze candidate derives exact Alpha.10 Agent/Workspace/resource/Pack/Skill, migration-20, schema, exit, operation, and package-layout authority. Focused regression, format, xtask Clippy, candidate equality, and the one final source gate pass; protected Fast CI remains.",
+  "meta": {
+    "roadmap_id": "M4-FREEZE-001",
+    "github_issue": 72,
+    "github_milestone": 5,
+    "dependencies": [
+      "M3-ALPHA10-001",
+      "M3-EVID-004",
+      "M4-READY-001",
+      "e939f1918c3e3febc59beb434690e7d13c3f7498"
+    ],
+    "owner_role": "release",
+    "verification_tier": "focused-plus-tier2-and-fast-ci",
+    "exact_alpha_tag": "v1.0.0-alpha.10",
+    "exact_alpha_source": "cd40180f2ff8ac957276f1948ba88da428511a82",
+    "next_roadmap_id": "M4-STAGE-001",
+    "next_checkpoint": "v1.0.0-beta.1"
+  }
+}
