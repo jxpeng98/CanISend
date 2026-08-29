@@ -1,108 +1,101 @@
-# Exact Alpha.10 execution
+# Codex-first Alpha.10 execution
 
-## 1. Activate and recheck entry
+## 1. Preserve completed immutable evidence
 
-- [x] After explicit plan approval, run `task.py start`, create the bounded release branch, and
-      mark Issue #194 In progress without changing release facts.
-- [x] Confirm clean protected `main`, PR #196/#197 merge identities, no Alpha.10 tag/release, and
-      public Alpha.9 immutability.
-- [x] Run `cargo run -p xtask --locked -- release status --json`; require hard consistency and no
-      blocking drift.
-- [x] Confirm at entry that all 23 dependency exceptions share `reviewed_on=2026-08-24` and
-      `review_by=expires_on=2026-09-07` while the current UTC date is 2026-08-24.
-- [x] Recheck current UTC against all 23 dependency exceptions immediately before push and
-      candidate dispatch; stop at or after the 2026-09-07 expiry unless reviewed again.
-- [x] Keep #70 open for real users. Use #68 only for actual affected-scenario evidence.
+- [x] Protected Alpha.10 source `S` is
+      `cd40180f2ff8ac957276f1948ba88da428511a82`.
+- [x] Candidate run `C` `32678848156` and artifact `A` `9503978913` passed the five CLI
+      targets, supported App packages, lifecycle/accessibility/integrity, SBOM, provenance, and
+      community-signing gates.
+- [x] Annotated tag object `6a43aa0889445ae5531736ac8e6d71cc363f6869` peels to `S`.
+- [x] Promotion run `33267148891` reused `A` without recompilation and passed all six draft
+      native smokes.
+- [x] Independent public verification passed all 16 assets, 15 manifest-managed files,
+      attestations, executable identities, and candidate/public byte equality.
+- [x] Codex CLI Generic, Claude Desktop Generic, and the bounded MCP client passed non-mutating
+      Alpha.10 preview/cancel scenarios. Claude Code is truthfully retained as
+      `skipped-by-maintainer`.
+- [x] Do not rerun any completed item above unless its recorded identity is shown to be false.
 
-## 2. Apply the controlled Alpha.10 transition
+## 2. Implement the Codex-first evidence policy
 
-- [x] Re-run `cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.10` from the clean
-      branch and compare the full 30-path/digest plan with the reviewed preview.
-- [x] Obtain separate write authorization, then run the same command with final `--write`.
-- [x] Require exactly the 30 planned controlled paths and matching after-digests; reject unrelated
-      product, workflow, history, provider, or Roadmap changes.
-- [x] Run `git diff --check` and one final
-      `cargo run -p xtask --locked -- release check` on the branch head.
-- [x] Commit task control separately from the mechanical transition, push one protected metadata
-      PR, and inspect all required checks.
-- [x] Obtain merge authorization, merge without bypassing protection, update local `main`, and
-      record its exact merge as source `S`.
+- [x] After explicit approval of this revised plan, change the active provider schema constant to
+      `canisend.provider-dogfood/v2`.
+- [x] Reuse the existing validator and record shape. Replace the hard-coded three-host scenario
+      set with exactly Academic and Generic Codex CLI scenarios; require an empty active
+      `excluded_attempts` list.
+- [x] Extend the existing provider validator regression in place so a missing Pack scenario and an
+      unsafe mutation outcome are rejected. Do not add a helper, workflow, schema file, fixture
+      directory, or test framework.
+- [x] Update the Roadmap, support guidance, Trellis project-control guide, parent task, and current
+      task metadata to distinguish required Codex evidence from non-blocking Claude observations.
+- [x] Keep ADR-RN-0020 unchanged because Agent v4 architecture, resource generation, and available
+      host adapters do not change.
 
-## 3. Build and independently inspect one candidate
+## 3. Fill only the missing Codex scenario
 
-- [x] Reconfirm `S` is protected `main`, dependency authority is current, and the tag is absent.
-- [x] Obtain candidate-dispatch authorization and run the existing workflow from `main` with
-      `tag=v1.0.0-alpha.10`, body-free `cache_epoch=alpha10-v1`, and
-      `promote_existing_tag=false`.
-- [x] Require `release-identity`, `signing-readiness`, `source-gates`, Windows release tests, all
-      five CLI archive jobs, Apple Silicon App archive/DMG, and `assemble-and-attest-release` to
-      pass. Do not reproduce the native matrix locally.
-- [x] Record candidate run `C` and complete artifact `A`; download `A` before its 30-day expiry.
-- [x] Run
-      `cargo run -p xtask --locked -- release verify-candidate v1.0.0-alpha.10 S ASSET_DIR`
-      and verify every file's GitHub attestation against `S` and the release workflow.
-- [x] Inspect the v4 contract tuple, two Pack digests, starter/resource manifest, four Skills, MCP
-      inventory, executable identities, checksums, SBOM, signing limitations, and artifact digest.
+- [x] Download only the public Alpha.10 Apple Silicon CLI archive and checksum material needed for
+      the run into a fresh temporary directory; verify its public checksum and executable identity.
+- [x] Reuse the existing synthetic-data authorization. With the App closed, create a clean
+      Workspace and run one Academic Requirement confirm preview/cancel through Codex
+      against the public Alpha.10 CLI.
+- [x] Verify the Academic Requirement remains `proposed`, the Application revision is unchanged,
+      no commit or submission occurs, and final Workspace integrity passes.
+- [x] Retain only body-free host/version, exact binary/source identities, Pack/Skill digests,
+      revisions, states, consent boundary, and outcome. Do not retain prompts, transcripts,
+      private paths, bodies, credentials, or tokens.
+- [x] Add a new dated Codex-first Alpha.10 note. Preserve the earlier Alpha.10 gap note and all
+      Alpha.9 evidence byte-for-byte.
+- [x] Rewrite `release/provider-dogfood.json` as v2 bound to Alpha.10, using the existing Generic
+      result and the new Academic result.
 
-## 4. Qualify affected and external-host scenarios
+## 4. Reconcile protected project state
 
-- [x] Run the existing exact archive/Agent v4 smoke evidence for the App-closed mixed-Pack
-      lifecycle, project/global host scope, export, backup, restore, reopen, and fail-closed cases.
-- [x] Obtain explicit synthetic-provider and temporary-host-configuration authorization.
-- [ ] Back up host state and run the canonical Codex CLI Generic, Claude Code Academic, Claude
-      Desktop Generic, and bounded MCP-client scenarios against the extracted candidate CLI with
-      the App closed.
-- [ ] Require preview/cancel or the specifically reviewed affected outcome, zero unauthorized
-      mutation, zero submission, final Workspace integrity, and byte-for-byte host restoration.
-- [x] Retain only body-free versions, digests, counts, states, and outcomes. Draft the dated note
-      but do not claim a public checkpoint before promotion.
-- [ ] Mark #68 Verified only if its own acceptance is met; otherwise leave it open with a bounded
-      evidence link.
+- [x] Make Alpha.10 the current Codex-qualified Roadmap checkpoint and Beta.1 entry without
+      claiming user evidence.
+- [ ] Update Issue #194 and milestone 10 only after the policy/evidence PR reaches protected
+      `main`.
+- [ ] Close Issue #68 as not applicable, not Verified, because no post-fix replacement build owns
+      an affected-scenario rerun.
+- [ ] Rebind Issue #70 to Alpha.10 and move cohort evidence after Beta.1 and before RC.
+- [ ] Refresh Issue #71 to own lean Alpha.10-bound Beta readiness and the separate Beta.1 release
+      task.
+- [ ] Archive this task and complete the Alpha.10 parent only after GitHub, Roadmap, provider
+      record, task metadata, and protected `main` agree.
 
-Codex CLI Generic, Claude Desktop Generic, and the bounded MCP client passed their exact candidate
-preview/cancel scenarios with no mutation or submission. Claude Desktop configuration was restored
-byte-for-byte. Claude Code `2.1.237` stopped before provider access because its OAuth refresh token
-had expired; the maintainer explicitly chose `skipped-by-maintainer` rather than retrying. The two
-canonical host requirements above therefore remain incomplete, and no passed Claude Code result is
-inferred.
+## 5. Minimum verification and delivery
 
-## 5. Tag, promote, and verify public bytes
+- [x] Run `git diff --check`.
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run only the focused provider regression:
+      `cargo test -p xtask --locked provider_dogfood_rejects_missing_stale_failed_or_private_records`.
+- [x] Run affected Clippy:
+      `cargo clippy -p xtask --all-targets --locked -- -D warnings`.
+- [x] Run `cargo run -p xtask --locked -- release check` once on the final complete branch head.
+- [ ] Commit one auditable policy/evidence change, push one PR, and accept protected Fast CI as the
+      complete source owner.
+- [x] Do not run a local full workspace suite, native matrix, desktop suite, Claude host matrix,
+      package-manager qualification, or extended assurance.
+- [ ] Obtain explicit authorization before protected merge.
 
-- [x] Present `S/C/A` plus candidate/host results and obtain separate annotated-tag/publication
-      authorization.
-- [x] Create annotated `v1.0.0-alpha.10` at `S` and push it. Require the tag-triggered workflow to
-      locate `C/A`, run `verify-candidate`, and report `recompiled_during_promotion: false`.
-- [x] Require all five draft CLI smokes and the Apple Silicon App ZIP/DMG smoke before the workflow
-      publishes the prerelease; record promotion run `P`.
-- [x] Independently download every public asset into a fresh directory, run
-      `xtask release verify`, verify all attestations against `S`, and compare each public digest
-      with `A`.
-- [x] Confirm the annotated tag peels to `S`, the update response identifies Alpha.10 as a
-      prerelease, and public Alpha.9 still resolves to its original bytes and source.
+## 6. Beta.1 handoff
 
-Annotated tag object `6a43aa0889445ae5531736ac8e6d71cc363f6869` peels to `S`
-`cd40180f2ff8ac957276f1948ba88da428511a82`. Promotion run `P` `33267148891` reused candidate run
-`C` `32678848156` and artifact `A` `9503978913` without recompilation, passed all six draft native
-smokes, and published the prerelease on 2026-08-29. Independent download verified all 16 assets,
-all 15 manifest-managed files, every GitHub attestation, and byte identity with `A`. Public
-manifest SHA-256 is `6669fb73e728d64bea10cb99d4f403ed7ffcb06e15401bfe04f93230a35e7bb5`.
-
-## 6. Record evidence and reconcile authorities
-
-- [ ] Finalize the body-free dated host note and `release/provider-dogfood.json` with exact
-      Alpha.10 `S/C/A`, public manifest, Pack/resource/Skill digests, host outcomes, consent, and
-      note digest.
-- [ ] Update the Roadmap, #194, milestone 10, and Trellis records to Verified only after public and
-      provider identities agree. Rebind #70 to Alpha.10 without closing it or changing its real-user
-      denominators.
-- [ ] Run `git diff --check` and one final `release check`, then merge the evidence-only PR through
-      protected CI after explicit authorization.
-- [ ] Archive this child and mark the parent release-integration task complete only after the
-      protected reconciliation merge and public GitHub state agree.
+- [ ] After the Alpha.10 task is protected and archived, create or refresh one bounded
+      `M4-READY-001` Trellis child for Issue #71.
+- [ ] Its planning must replace pre-Beta real-user thresholds with exact Alpha.10 Codex evidence,
+      zero applicable P0 blockers, and body-free maintainer validation. User cohort collection
+      moves after public Beta.1 and remains required before RC planning.
+- [ ] The Beta child owns one readiness transition, one build-once Beta.1 native candidate,
+      same-byte promotion, independent public verification, and feature-freeze activation.
+- [ ] Beta stage write, tag, publication, and merge remain separate explicit authorization gates.
 
 ## Stop conditions
 
-- Stop before the next gate if any authority, source, tag, target, digest, artifact, attestation,
-  signature limitation, host restore, or UTC-bound policy differs.
-- A failed candidate is never tagged. Promotion never recompiles. A published tag is never moved.
-- Synthetic host evidence never satisfies #70, Beta readiness, or an invited-user claim.
+- Stop if the Academic Codex scenario mutates state, submits, exposes private content, or uses
+  bytes that do not identify public Alpha.10.
+- Stop if any source, tag, artifact, checksum, attestation, Pack, Skill, contract, or note digest
+  differs from the recorded Alpha.10 identity.
+- A product defect requires a later sequential prerelease. Never move the Alpha.10 tag, replace its
+  assets, or weaken consent, recovery, privacy, path, or release-integrity controls.
+- If the dependency review expires before a future Beta candidate, refresh it through its owning
+  review; never extend dates only to unblock CI.

@@ -26,18 +26,18 @@ regression only when drift can be detected mechanically.
 - `M3-ARCH-001` / Issue #182 is Verified and archived. `M3-ALPHA9-001` / Issue #183 is Verified
   against exact public Alpha.9 and its body-free host evidence. `M3-DEPS-001` / Issue #195 and
   `M3-HEADLESS-001` / Issue #193 are Verified through protected PR #196 and archived.
-  `M3-ALPHA10-001` / Issue #194 is the next planned qualification child; then `M3-EVID-005` /
-  Issue #70 may be rebound to exact public Alpha.10 and still requires real invited users. Create
-  `M4-READY-001` / Issue #71 only
-  after the M3 exit gate passes; later Beta, RC, and Stable work remains in GitHub until its entry
-  gate is satisfied.
+  `M3-ALPHA10-001` / Issue #194 is Verified by exact public Alpha.10 and the Codex-first
+  qualification evidence. `M4-READY-001` / Issue #71 is the next delivery child. `M3-EVID-005` /
+  Issue #70 is rebound to Alpha.10 but runs on public Beta.1 and remains required before RC.1;
+  later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** review and, after explicit approval, execute `M3-ALPHA10-001` from protected merge
-  `549072185b5a4886a1b67c1217b79a67d237f826` without changing public Alpha.9.
-- **Near term:** rebind and complete the mixed-Application cohort against exact public Alpha.10
-  without treating synthetic dogfood as invited-user evidence, then refresh Beta readiness.
+- **Current:** reconcile `M3-ALPHA10-001` against exact public Alpha.10 with Codex as the required
+  external host and Claude real-host sessions as non-blocking observations.
+- **Near term:** execute one lean Alpha.10-bound Beta.1 readiness and build-once publication task,
+  then run the mixed-Application invited cohort on public Beta.1 without treating synthetic
+  dogfood as user evidence.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
   package-manager, accessibility, feedback, and final-notes evidence classes.
 - **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then

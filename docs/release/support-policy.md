@@ -92,10 +92,15 @@ resources, and the Apple Silicon macOS desktop workflow described above. Scanned
 without extractable text, browser/portal automation, automatic application submission,
 Windows/Linux desktop packages, and Linux arm64 archives are outside this support line.
 
-External Codex, Claude Code, and Claude Desktop handoff is the primary reasoning surface. Their
-credentials, conversations, provider entitlements, search, plugins, connectors, and retention
-remain owned by those hosts. CanISend supplies body-free context and guarded tools but does not
-promise that every host exposes identical capabilities.
+External Codex, Claude Code, and Claude Desktop handoff is the primary reasoning surface. Codex
+CLI is the required real-host qualification surface for Beta entry and must pass the canonical
+Academic and Generic Pack scenarios on the exact checkpoint. Claude resources remain generated
+and checked from the same Agent v4 source; Claude Code/Desktop real-host sessions are non-blocking
+compatibility observations and are never reported as passed when skipped or unauthenticated.
+
+Host credentials, conversations, provider entitlements, search, plugins, connectors, and
+retention remain owned by those hosts. CanISend supplies body-free context and guarded tools but
+does not promise that every host exposes identical capabilities.
 
 CanISend has no default telemetry. Public issues must not contain private advert, profile, application, workspace,
 provider, or credential content. Provider send and private export remain explicit consent boundaries; installation

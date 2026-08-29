@@ -1,8 +1,8 @@
 {
   "id": "alpha10-exact-qualification",
   "name": "alpha10-exact-qualification",
-  "title": "Qualify and publish exact Alpha.10",
-  "description": "Qualify and publish exact Alpha.10 only after the protected headless capability merge",
+  "title": "Qualify Alpha.10 for Codex-first Beta entry",
+  "description": "Reconcile exact public Alpha.10 under the Codex-first evidence boundary before a separate Beta.1 task",
   "status": "in_progress",
   "dev_type": null,
   "scope": "release-engineering",
@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-23",
   "completedAt": null,
-  "branch": "release/alpha10-exact-qualification",
+  "branch": "plan/codex-first-stability",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -29,16 +29,21 @@
     ".github/workflows/release.yml",
     "release/dependency-advisory-exceptions.json",
     "release/provider-dogfood.json",
-    "docs/notes/rust-native/2026-08-29-alpha10-public-qualification-gap.md"
+    "docs/release/support-policy.md",
+    "xtask/src/main.rs",
+    "docs/notes/rust-native/2026-08-29-alpha10-public-qualification-gap.md",
+    "docs/notes/rust-native/2026-08-29-alpha10-codex-first-qualification.md"
   ],
-  "notes": "Exact Alpha.10 source, candidate, same-byte promotion, draft smokes, and independent public verification passed. Claude Code was explicitly skipped by the maintainer after an expired OAuth refresh token stopped the attempt before provider access. The task remains in progress, Issues #194/#68 and milestone 10 remain open, and the fully qualified provider/cohort baseline remains Alpha.9.",
+  "notes": "Exact Alpha.10 source, candidate, same-byte promotion, public verification, and both required Codex Pack scenarios pass. Provider-dogfood v2 and local authorities are reconciled; focused/source checks, protected merge, and GitHub closure remain. Claude Code/Desktop real-host runs are non-blocking observations.",
   "meta": {
     "roadmap_id": "M3-ALPHA10-001",
     "github_issue": 194,
     "github_milestone": 10,
     "dependency": "M3-HEADLESS-001",
     "owner_role": "release",
-    "verification_tier": "exact-native-release",
+    "verification_tier": "reuse-exact-native-plus-tier2",
+    "immediate_checkpoint": "v1.0.0-beta.1",
+    "required_external_host": "codex-cli",
     "planning_baseline": "79937871852904bb6667e93a21c3c95fb2ca8fa0",
     "controlled_transition_file_count": 30,
     "candidate": {
@@ -76,16 +81,18 @@
       "tag_object": "6a43aa0889445ae5531736ac8e6d71cc363f6869"
     },
     "host_qualification": {
-      "claude_code": "skipped-by-maintainer",
-      "claude_desktop": "passed",
-      "codex_cli": "passed",
+      "policy": "codex-primary",
+      "claude_code_observation": "skipped-by-maintainer",
+      "claude_desktop_observation": "passed",
+      "codex_cli_academic": "passed",
+      "codex_cli_generic": "passed",
       "evidence_note": {
-        "path": "docs/notes/rust-native/2026-08-29-alpha10-public-qualification-gap.md",
-        "sha256": "ab5ba9d05176cae693c5fbaf12c03b8ef3e4e9e522f134813776351f62236a9c"
+        "path": "docs/notes/rust-native/2026-08-29-alpha10-codex-first-qualification.md",
+        "sha256": "59a2a2a1dda289102f44b909dc4edd4170664d99575420a6626f97bd30d88f74"
       },
       "mcp_client": "passed",
-      "provider_record_tag": "v1.0.0-alpha.9",
-      "status": "incomplete"
+      "provider_record_tag": "v1.0.0-alpha.10",
+      "status": "evidence-complete-protected-reconciliation-pending"
     },
     "authoritative_files": [
       "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
@@ -97,7 +104,7 @@
     "expected_evidence": [
       "protected metadata merge",
       "successful build-once candidate run and unexpired artifact",
-      "body-free exact-host record",
+      "body-free Academic and Generic Codex record",
       "annotated tag and same-byte promotion run",
       "independent public asset verification",
       "reconciled Roadmap, Issues, milestone, and Trellis task"

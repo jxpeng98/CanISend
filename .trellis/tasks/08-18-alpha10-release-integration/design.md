@@ -43,10 +43,10 @@ This child begins only after the headless child is merged to protected `main`. I
 - sequential Alpha.10 controlled metadata transition;
 - exact source gate and protected PR;
 - build-once native candidate qualification;
-- affected-scenario rerun under existing `M3-EVID-003` / Issue #68;
-- exact Codex CLI, Claude Code, Claude Desktop, and bounded MCP-client host evidence;
+- exact Academic and Generic Codex CLI evidence as the required external-host boundary;
+- truthful non-blocking Claude Code/Desktop and bounded MCP-client observations;
 - same-byte tag promotion, independent public download verification, and truth reconciliation;
-- moving Issue #70's cohort baseline from Alpha.9 to Alpha.10 without rewriting Alpha.9 evidence.
+- moving Issue #70 to public Beta.1 validation without rewriting historical Alpha evidence.
 
 ## CLI contract
 
@@ -114,9 +114,9 @@ continue to fail closed before mutation.
 ## Rollout and rollback
 
 - Merge the headless capability PR before any version transition.
-- A failing smoke rolls back only the bounded implementation branch; Alpha.9 remains public.
-- A failed Alpha.10 candidate is not tagged or published. Fixes create a new exact candidate from
-  a new protected source; candidate evidence is never rewritten.
-- Promotion locates the qualified candidate and never rebuilds.
-- If public verification fails, stop publication claims and retain Alpha.9 as the last qualified
-  public checkpoint until corrected bytes complete the full path.
+- A failing policy/evidence check rolls back only the bounded reconciliation branch; public
+  Alpha.10 remains immutable.
+- A product defect found during reconciliation requires a later sequential prerelease from new
+  protected source; the Alpha.10 tag, assets, and evidence are never rewritten.
+- Completed promotion and public verification are reused and never rerun solely for this policy
+  change.
