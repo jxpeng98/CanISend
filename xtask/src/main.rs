@@ -9,11 +9,11 @@ use std::{
 };
 
 use canisend_contracts::{
-    AGENT_PROTOCOL, AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, OperationClass, OperationPackScope,
-    OperationRegistry, OperationSurface, PUBLIC_SCHEMA_VERSION, WORKSPACE_FORMAT,
-    WORKSPACE_V4_FORMAT, generate_agent_v4_schemas, generate_application_model_schemas,
-    generate_public_schemas, generate_workflow_pack_schema, verify_agent_v4_schemas,
-    verify_application_model_schemas, verify_public_schemas, verify_workflow_pack_schema,
+    AGENT_V4_PROTOCOL, AGENT_V4_SCHEMA_VERSION, ErrorCode, ExitClass, OperationClass,
+    OperationPackScope, OperationRegistry, OperationSurface, WORKSPACE_V4_FORMAT,
+    generate_agent_v4_schemas, generate_application_model_schemas, generate_public_schemas,
+    generate_workflow_pack_schema, verify_agent_v4_schemas, verify_application_model_schemas,
+    verify_public_schemas, verify_workflow_pack_schema,
 };
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -48,7 +48,7 @@ const BETA_READINESS_EVIDENCE_TOKENS: [&str; 3] = [
     "maintainer-validation-note",
 ];
 const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v2";
-const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
+const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v2";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const STABLE_CHANNEL_PUBLICATION_SCHEMA: &str = "canisend.stable-channel-publication/v1";
 const SIGNING_POLICY_SCHEMA: &str = "canisend.signing-policy/v2";
@@ -97,7 +97,7 @@ const FIRST_ALPHA_PACKAGE_V3_VERSION: &str = "1.0.0-alpha.6";
 const BETA_READINESS_MAX_AGE_HOURS: i64 = 24;
 const NATIVE_ALPHA_TAG: &str = "v0.7.0-alpha.1";
 const NATIVE_ALPHA_SOURCE: &str = "4cec4ec48cc2e96f3798dde0b438d3aaa617a2f8";
-const FROZEN_MIGRATIONS_THROUGH: u32 = 13;
+const FROZEN_MIGRATIONS_THROUGH: u32 = 20;
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -5336,24 +5336,34 @@ fn validate_transition_ledger_preconditions(
 }
 
 fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Result<(), String> {
-    check_beta_eligible_alpha(from_version)?;
     let readiness: Value = serde_json::from_slice(
         &fs::read(root.join("release/beta-readiness.json"))
             .map_err(|error| format!("Beta transition readiness is missing: {error}"))?,
     )
     .map_err(|error| format!("Beta transition readiness is invalid JSON: {error}"))?;
-    validate_qualified_beta_readiness(&readiness, root, from_version)?;
+    let freeze: Value = serde_json::from_slice(
+        &fs::read(root.join("release/beta-contract-freeze.json"))
+            .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
+    )
+    .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
+    validate_beta_transition_authorities(root, from_version, &readiness, &freeze)
+}
+
+fn validate_beta_transition_authorities(
+    root: &Path,
+    from_version: &Version,
+    readiness: &Value,
+    freeze: &Value,
+) -> Result<(), String> {
+    check_beta_eligible_alpha(from_version)?;
+    validate_qualified_beta_readiness(readiness, root, from_version)?;
+    validate_qualified_beta_contract_freeze(freeze, root, from_version)?;
     let tag = format!("v{from_version}");
     let source = required_string(
         &readiness["alpha_release"],
         "source_commit",
         "Alpha release",
     )?;
-    let freeze: Value = serde_json::from_slice(
-        &fs::read(root.join("release/beta-contract-freeze.json"))
-            .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
-    )
-    .map_err(|error| format!("Beta contract freeze is invalid JSON: {error}"))?;
     if freeze["baseline"]["release"] != tag || freeze["baseline"]["source_commit"] != source {
         return Err("Beta contract freeze does not bind the qualified Alpha source".to_owned());
     }
@@ -10200,17 +10210,16 @@ fn check_beta_contract_freeze() -> Result<(), String> {
         println!("beta contract freeze: ok (pending public Alpha baseline)");
         return Ok(());
     }
-    let expected = build_beta_contract_freeze()?;
-    if actual != expected {
-        return Err(
-            "Beta agent/workspace contract freeze drifted; review the compatibility impact and regenerate with \
-             `cargo run -p xtask -- release freeze-candidate`"
-                .to_owned(),
-        );
-    }
+    let root = repository_root();
+    validate_qualified_beta_contract_freeze(&actual, &root, &version)?;
+    let schema_files = actual["schemas"]["total_files"]
+        .as_u64()
+        .ok_or_else(|| "Beta contract freeze has no schema file count".to_owned())?;
+    let migrations = actual["contracts"]["migration_inventory"]["through"]
+        .as_u64()
+        .ok_or_else(|| "Beta contract freeze has no migration ceiling".to_owned())?;
     println!(
-        "beta contract freeze: ok ({} schemas, migrations frozen through {})",
-        expected["agent"]["public_schema_files"], FROZEN_MIGRATIONS_THROUGH
+        "beta contract freeze: ok ({schema_files} schemas, migrations frozen through {migrations})"
     );
     Ok(())
 }
@@ -12260,6 +12269,10 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
     let root = repository_root();
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    build_beta_contract_freeze_at(&root, &version)
+}
+
+fn build_beta_contract_freeze_at(root: &Path, version: &Version) -> Result<Value, String> {
     let readiness_path = root.join("release/beta-readiness.json");
     let readiness: Value = serde_json::from_slice(
         &fs::read(&readiness_path)
@@ -12271,95 +12284,167 @@ fn build_beta_contract_freeze() -> Result<Value, String> {
             "public Alpha qualification is required before freezing Beta contracts".to_owned(),
         );
     }
+    validate_qualified_beta_readiness(&readiness, root, version)?;
     let alpha_tag = required_string(&readiness["alpha_release"], "tag", "Alpha release")?;
-    validate_alpha_baseline_tag(&version, alpha_tag)?;
+    let alpha_version = validate_alpha_baseline_tag(version, alpha_tag)?;
     let alpha_source = required_string(
         &readiness["alpha_release"],
         "source_commit",
         "Alpha release",
     )?;
     validate_lower_hex("Beta contract Alpha source commit", alpha_source, 40)?;
-    let schema_root = schema_directory();
-    let schema_names = json_files(&schema_root)?.into_iter().collect::<Vec<_>>();
-    if schema_names.len() != generate_public_schemas().len() {
-        return Err("public schema inventory is incomplete before Beta freeze".to_owned());
+
+    let readiness_contracts = beta_readiness_v2_contracts(root)?;
+    let mut contracts = alpha_package_contract_bindings(root)?;
+    for field in [
+        "agent_protocol",
+        "workspace_format",
+        "workflow_pack_format",
+        "workflow_packs",
+    ] {
+        if contracts[field] != readiness_contracts[field] {
+            return Err(format!(
+                "Beta readiness and Alpha package contract disagree on `{field}`"
+            ));
+        }
     }
-    let schema_entries = schema_names
-        .iter()
-        .map(|name| {
-            read_frozen_contract_text(&schema_root.join(name), "schema")
-                .map(|bytes| (name.clone(), bytes))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let snapshot_names = ["agent-capabilities.json", "agent-context.json"];
-    let snapshot_root = root.join("crates/canisend-cli/tests/snapshots");
-    let snapshot_entries = snapshot_names
-        .iter()
-        .map(|name| {
-            let path = snapshot_root.join(name);
-            let mut value: Value = serde_json::from_slice(&fs::read(&path).map_err(|error| {
-                format!(
-                    "could not read frozen agent snapshot {}: {error}",
-                    path.display()
-                )
-            })?)
-            .map_err(|error| format!("agent snapshot `{name}` is invalid JSON: {error}"))?;
-            normalize_product_version(&mut value);
-            serde_json::to_vec(&value)
-                .map(|bytes| ((*name).to_owned(), bytes))
-                .map_err(|error| format!("could not normalize agent snapshot `{name}`: {error}"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let migrations = migration_inventory()?;
-    let current_schema_version = migrations
-        .last()
-        .map(|(version, _, _)| *version)
-        .ok_or_else(|| "workspace migration inventory is empty".to_owned())?;
-    let declared_schema_version = declared_database_schema_version()?;
-    if current_schema_version != declared_schema_version {
+    let contract_fields = contracts
+        .as_object_mut()
+        .ok_or_else(|| "Beta contract bindings must be an object".to_owned())?;
+    for field in ["resource_format", "task_resource_model_sha256", "skills"] {
+        contract_fields.insert(
+            field.to_owned(),
+            readiness_contracts
+                .get(field)
+                .cloned()
+                .ok_or_else(|| format!("Beta readiness contracts are missing `{field}`"))?,
+        );
+    }
+    if contracts["migration_inventory"]["through"] != FROZEN_MIGRATIONS_THROUGH {
         return Err(format!(
-            "database schema constant {declared_schema_version} does not match migration inventory {current_schema_version}"
+            "Beta freeze requires the complete migration inventory through {FROZEN_MIGRATIONS_THROUGH}"
         ));
     }
-    let frozen_migrations = migrations
-        .iter()
-        .filter(|(version, _, _)| *version <= FROZEN_MIGRATIONS_THROUGH)
-        .map(|(_, name, path)| {
-            read_frozen_contract_text(path, "migration").map(|bytes| (name.clone(), bytes))
+
+    let workflow_pack_schema = generate_workflow_pack_schema();
+    let schema_families = [
+        (
+            "public_v2",
+            "crates/canisend-resources/resources/schemas/v2",
+            generate_public_schemas()
+                .into_iter()
+                .map(|schema| schema.id.file_name())
+                .collect::<BTreeSet<_>>(),
+        ),
+        (
+            "application_v3",
+            "crates/canisend-resources/resources/schemas/v3",
+            generate_application_model_schemas()
+                .into_iter()
+                .map(|schema| schema.id.file_name())
+                .collect::<BTreeSet<_>>(),
+        ),
+        (
+            "agent_v4",
+            "crates/canisend-resources/resources/schemas/agent/v4",
+            generate_agent_v4_schemas()
+                .into_iter()
+                .map(|schema| schema.id.file_name())
+                .collect::<BTreeSet<_>>(),
+        ),
+        (
+            "workflow_pack_v1",
+            "crates/canisend-resources/resources/schemas/workflow-pack/v1",
+            BTreeSet::from([workflow_pack_schema.file_name().to_owned()]),
+        ),
+    ];
+    let mut family_file_counts = Map::new();
+    let mut schema_entries = Vec::new();
+    for (family, relative, expected_names) in schema_families {
+        let directory = root.join(relative);
+        let actual_names = json_files(&directory)?;
+        if actual_names != expected_names {
+            return Err(format!(
+                "Beta freeze schema family `{family}` differs: expected {expected_names:?}, found {actual_names:?}"
+            ));
+        }
+        family_file_counts.insert(family.to_owned(), json!(actual_names.len()));
+        for name in actual_names {
+            let bytes = read_frozen_contract_text(&directory.join(&name), "schema")?;
+            schema_entries.push((format!("{family}/{name}"), bytes));
+        }
+    }
+
+    let error_mappings = ErrorCode::ALL
+        .into_iter()
+        .map(|error| {
+            json!({
+                "error_code": error.as_str(),
+                "exit_code": error.exit_class().code()
+            })
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    if frozen_migrations.len() != FROZEN_MIGRATIONS_THROUGH as usize {
-        return Err(format!(
-            "expected migrations 1 through {FROZEN_MIGRATIONS_THROUGH} to exist"
-        ));
+        .collect::<Vec<_>>();
+
+    let package_relative = "release/alpha-package-contract.json";
+    let package_bytes = fs::read(root.join(package_relative))
+        .map_err(|error| format!("Alpha package contract is missing: {error}"))?;
+    let package_contract: Value = serde_json::from_slice(&package_bytes)
+        .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
+    check_alpha_package_contract_identity_and_bindings(root, &alpha_version, &package_contract)?;
+    for section in ["standalone_cli", "desktop_macos", "desktop_macos_intel"] {
+        if !package_contract[section].is_object() {
+            return Err(format!(
+                "Alpha package contract layout section `{section}` is missing"
+            ));
+        }
     }
 
     Ok(json!({
         "schema": BETA_CONTRACT_FREEZE_SCHEMA,
+        "release_line": format!("{}.{}", version.major, version.minor),
         "baseline": {
             "release": alpha_tag,
             "source_commit": alpha_source
         },
-        "agent": {
-            "protocol": AGENT_PROTOCOL,
-            "public_schema_version": PUBLIC_SCHEMA_VERSION,
-            "public_schema_files": schema_entries.len(),
-            "public_schema_tree_sha256": digest_named_bytes(&schema_entries),
-            "normalized_snapshot_files": snapshot_names,
-            "normalized_snapshot_tree_sha256": digest_named_bytes(&snapshot_entries),
-            "product_version_is_excluded_from_snapshot_digest": true
+        "contracts": contracts,
+        "schemas": {
+            "family_file_counts": family_file_counts,
+            "total_files": schema_entries.len(),
+            "tree_sha256": digest_named_bytes(&schema_entries)
         },
-        "workspace": {
-            "format": WORKSPACE_FORMAT,
-            "current_database_schema_version": current_schema_version,
-            "frozen_migrations_through": FROZEN_MIGRATIONS_THROUGH,
-            "frozen_migration_tree_sha256": digest_named_bytes(&frozen_migrations),
-            "migration_policy": "append-only",
-            "reject_future_schema_versions": true
+        "exit_codes": {
+            "classes": {
+                "success": ExitClass::Success.code(),
+                "cli_usage": ExitClass::CliUsage.code(),
+                "validation": ExitClass::Validation.code(),
+                "conflict": ExitClass::Conflict.code(),
+                "external_io": ExitClass::ExternalIo.code(),
+                "internal": ExitClass::Internal.code()
+            },
+            "error_mappings": error_mappings
+        },
+        "alpha_package_contract": {
+            "path": package_relative,
+            "schema": package_contract["schema"].clone(),
+            "sha256": hex::encode(Sha256::digest(&package_bytes)),
+            "bound_layout_sections": ["standalone_cli", "desktop_macos", "desktop_macos_intel"]
         }
     }))
+}
+
+fn validate_qualified_beta_contract_freeze(
+    freeze: &Value,
+    root: &Path,
+    version: &Version,
+) -> Result<(), String> {
+    if freeze != &build_beta_contract_freeze_at(root, version)? {
+        return Err(
+            "Beta contract freeze drifted; review the compatibility impact and regenerate with \
+             `cargo run -p xtask --locked -- release freeze-candidate`"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn read_frozen_contract_text(path: &Path, kind: &str) -> Result<Vec<u8>, String> {
@@ -12380,10 +12465,6 @@ fn canonicalize_frozen_contract_text(bytes: &[u8]) -> Result<Vec<u8>, String> {
         return Err("bare carriage returns are not supported".to_owned());
     }
     Ok(normalized.into_bytes())
-}
-
-fn migration_inventory() -> Result<Vec<(u32, String, PathBuf)>, String> {
-    migration_inventory_at(&repository_root())
 }
 
 fn migration_inventory_at(root: &Path) -> Result<Vec<(u32, String, PathBuf)>, String> {
@@ -12441,22 +12522,6 @@ fn declared_database_schema_version_at(root: &Path) -> Result<u32, String> {
         .ok_or_else(|| "DATABASE_SCHEMA_VERSION declaration is missing".to_owned())?
         .parse()
         .map_err(|error| format!("DATABASE_SCHEMA_VERSION is invalid: {error}"))
-}
-
-fn normalize_product_version(value: &mut Value) {
-    match value {
-        Value::Array(values) => values.iter_mut().for_each(normalize_product_version),
-        Value::Object(fields) => {
-            for (name, field) in fields {
-                if name == "product_version" {
-                    *field = Value::String("<release-version>".to_owned());
-                } else {
-                    normalize_product_version(field);
-                }
-            }
-        }
-        _ => {}
-    }
 }
 
 fn digest_named_bytes(entries: &[(String, Vec<u8>)]) -> String {
@@ -17152,10 +17217,10 @@ mod tests {
                 "repository": env!("CARGO_PKG_REPOSITORY")
             },
             "contracts": {
-                "agent_protocol": AGENT_PROTOCOL,
-                "public_schema_version": PUBLIC_SCHEMA_VERSION,
+                "agent_protocol": canisend_contracts::AGENT_PROTOCOL,
+                "public_schema_version": canisend_contracts::PUBLIC_SCHEMA_VERSION,
                 "resource_format": canisend_resources::RESOURCE_VERSION,
-                "workspace_format": WORKSPACE_FORMAT
+                "workspace_format": canisend_contracts::WORKSPACE_FORMAT
             },
             "trust": {
                 "archive_code_signing_required": false,
@@ -17393,86 +17458,108 @@ mod tests {
     }
 
     #[test]
-    fn beta_transition_accepts_only_exact_current_dual_pack_alpha() {
-        let root =
-            std::env::temp_dir().join(format!("canisend-beta-authority-{}", std::process::id()));
-        if root.exists() {
-            fs::remove_dir_all(&root).expect("remove stale Beta authority fixture");
-        }
-        let repository = repository_root();
-        let canonical_provider: Value = serde_json::from_slice(
-            &fs::read(repository.join("release/provider-dogfood.json"))
-                .expect("canonical provider dogfood record"),
+    fn beta_contract_freeze_v2_rejects_legacy_or_unbound_records() {
+        let root = repository_root();
+        let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("active version");
+        let readiness: Value = serde_json::from_slice(
+            &fs::read(root.join("release/beta-readiness.json")).expect("Beta readiness record"),
         )
-        .expect("canonical provider dogfood JSON");
-        let evidence_note = required_string(
-            &canonical_provider["evidence_note"],
-            "path",
-            "canonical provider evidence note",
-        )
-        .expect("canonical provider evidence path");
-        for relative in [
-            "release/provider-dogfood.json",
-            "crates/canisend-resources/resources/agent/v4/task-resource-model.json",
-            "crates/canisend-resources/resources/skills/canisend-intake/SKILL.md",
-            "crates/canisend-resources/resources/skills/canisend-materials/SKILL.md",
-            "crates/canisend-resources/resources/skills/canisend-review-export/SKILL.md",
-            "crates/canisend-resources/resources/skills/canisend-workspace/SKILL.md",
-            "crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json",
-            "crates/canisend-resources/resources/workflow-packs/org.canisend.generic-application/manifest.json",
-        ]
-        .into_iter()
-        .chain(std::iter::once(evidence_note))
-        {
-            let destination = root.join(relative);
-            fs::create_dir_all(destination.parent().expect("fixture parent"))
-                .expect("create Beta evidence fixture parent");
-            fs::copy(repository.join(relative), destination)
-                .expect("copy Beta evidence fixture");
-        }
-        let provider =
-            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
-                .expect("fixture provider dogfood record");
-        let tag = required_string(&provider["candidate"], "tag", "fixture provider candidate")
-            .expect("fixture provider tag")
-            .to_owned();
-        let (eligible_alpha, _) = parse_release_tag(&tag).expect("eligible Alpha tag");
-        let source = required_string(
-            &provider["candidate"],
-            "source_commit",
-            "fixture provider candidate",
-        )
-        .expect("fixture provider source")
-        .to_owned();
-        write_pretty_json(
-            &root.join("release/beta-readiness.json"),
-            &beta_readiness_fixture(&provider, &root),
-        )
-        .expect("write readiness fixture");
-        write_pretty_json(
-            &root.join("release/beta-contract-freeze.json"),
-            &json!({
-                "baseline": {
-                    "release": tag,
-                    "source_commit": source
-                }
-            }),
-        )
-        .expect("write freeze fixture");
-        check_beta_transition_authorities(&root, &eligible_alpha)
-            .expect("exact current Alpha authority");
-        let alpha_six = Version::parse("1.0.0-alpha.6").expect("Alpha.6 version");
-        assert!(check_beta_transition_authorities(&root, &alpha_six).is_err());
+        .expect("Beta readiness JSON");
+        let freeze = build_beta_contract_freeze_at(&root, &version).expect("v2 freeze candidate");
 
-        let mut stale: Value = serde_json::from_slice(
-            &fs::read(root.join("release/beta-readiness.json")).expect("read readiness fixture"),
-        )
-        .expect("parse readiness fixture");
-        stale["contracts"]["workflow_packs"][1]["content_digest"] = json!(&"c".repeat(64));
-        write_pretty_json(&root.join("release/beta-readiness.json"), &stale)
-            .expect("write stale Pack digest");
-        assert!(check_beta_transition_authorities(&root, &eligible_alpha).is_err());
-        fs::remove_dir_all(root).expect("remove Beta authority fixture");
+        validate_beta_transition_authorities(&root, &version, &readiness, &freeze)
+            .expect("exact current Alpha authority");
+        assert_eq!(freeze["schema"], "canisend.beta-contract-freeze/v2");
+        assert_eq!(freeze["contracts"]["agent_protocol"], AGENT_V4_PROTOCOL);
+        assert_eq!(freeze["contracts"]["workspace_format"], WORKSPACE_V4_FORMAT);
+        assert_eq!(
+            freeze["contracts"]["workflow_packs"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
+        assert_eq!(
+            freeze["contracts"]["skills"].as_array().map(Vec::len),
+            Some(4)
+        );
+        assert_eq!(
+            freeze["contracts"]["migration_inventory"]["through"],
+            FROZEN_MIGRATIONS_THROUGH
+        );
+        assert_eq!(
+            freeze["schemas"]["family_file_counts"],
+            json!({
+                "public_v2": 40,
+                "application_v3": 7,
+                "agent_v4": 7,
+                "workflow_pack_v1": 1
+            })
+        );
+        assert_eq!(freeze["schemas"]["total_files"], 55);
+        assert_eq!(
+            freeze["exit_codes"]["error_mappings"]
+                .as_array()
+                .map(Vec::len),
+            Some(ErrorCode::ALL.len())
+        );
+        assert_eq!(
+            freeze["alpha_package_contract"]["schema"],
+            ALPHA_PACKAGE_CONTRACT_V3_SCHEMA
+        );
+
+        let mut rejected = Vec::new();
+        let mut legacy = freeze.clone();
+        legacy["schema"] = json!("canisend.beta-contract-freeze/v1");
+        rejected.push(("legacy", legacy));
+        let mut agent_v3 = freeze.clone();
+        agent_v3["contracts"]["agent_protocol"] = json!("canisend.agent/v3");
+        rejected.push(("agent-v3", agent_v3));
+        let mut workspace_v3 = freeze.clone();
+        workspace_v3["contracts"]["workspace_format"] = json!("canisend.workspace/v3");
+        rejected.push(("workspace-v3", workspace_v3));
+        let mut skill = freeze.clone();
+        skill["contracts"]["skills"][0]["sha256"] = json!("0".repeat(64));
+        rejected.push(("skill", skill));
+        let mut schemas = freeze.clone();
+        schemas["schemas"]["tree_sha256"] = json!("0".repeat(64));
+        rejected.push(("schemas", schemas));
+        let mut exit = freeze.clone();
+        exit["exit_codes"]["error_mappings"][0]["exit_code"] = json!(6);
+        rejected.push(("exit", exit));
+        let mut package = freeze.clone();
+        package["alpha_package_contract"]["sha256"] = json!("0".repeat(64));
+        rejected.push(("package", package));
+        let mut source = freeze.clone();
+        source["baseline"]["source_commit"] = json!("0".repeat(40));
+        rejected.push(("source", source));
+        let mut private = freeze.clone();
+        private["body"] = json!("must not be retained");
+        rejected.push(("private", private));
+        rejected.push((
+            "baseline-only",
+            json!({
+                "baseline": freeze["baseline"].clone()
+            }),
+        ));
+
+        for (name, candidate) in rejected {
+            assert!(
+                validate_beta_transition_authorities(&root, &version, &readiness, &candidate)
+                    .is_err(),
+                "{name} Beta freeze must fail"
+            );
+        }
+
+        let alpha_six = Version::parse("1.0.0-alpha.6").expect("Alpha.6 version");
+        assert!(
+            validate_beta_transition_authorities(&root, &alpha_six, &readiness, &freeze).is_err()
+        );
+        let mut stale_readiness = readiness.clone();
+        stale_readiness["contracts"]["workflow_packs"][1]["content_digest"] = json!("c".repeat(64));
+        assert!(
+            validate_beta_transition_authorities(&root, &version, &stale_readiness, &freeze)
+                .is_err()
+        );
     }
 
     #[test]
@@ -17483,11 +17570,6 @@ mod tests {
         assert!(check_beta_eligible_alpha(&alpha_six).is_err());
         check_beta_eligible_alpha(&alpha_seven).expect("Alpha.7 eligibility");
         check_beta_eligible_alpha(&alpha_eight).expect("Alpha.8 eligibility");
-    }
-
-    #[test]
-    fn beta_agent_and_workspace_contracts_match_freeze() {
-        check_beta_contract_freeze().expect("Beta contract freeze");
     }
 
     #[test]

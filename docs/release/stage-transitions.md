@@ -72,6 +72,14 @@ before RC.1. The public Issue projection, nine reviewed blocker classes, exact A
 provider evidence, contract digests, and maintainer note must all validate before an explicitly
 requested clean-worktree write; an empty blocker array alone cannot qualify Beta entry.
 
+`cargo run -p xtask --locked -- release freeze-candidate` generates the exact
+`canisend.beta-contract-freeze/v2` authority from that qualified readiness record and the Alpha.10
+package contract. It binds Agent/Workspace/resource/Pack/Skill contracts, the complete migration
+inventory through schema 20, all four schema families, operation registry, error-to-exit mappings,
+and standalone CLI/macOS layouts. Commit the reviewed output exactly as
+`release/beta-contract-freeze.json`; the Alpha-to-Beta preview and write both reject an incomplete,
+legacy, or drifted record through the same validator.
+
 ## Apply intentionally
 
 After the preview is reviewed, rerun it from a clean worktree:

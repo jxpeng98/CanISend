@@ -77,15 +77,15 @@ migrations, and package layouts have not drifted.
 
 ## Acceptance criteria
 
-- [ ] `release freeze-candidate` emits exact `canisend.beta-contract-freeze/v2` for public
+- [x] `release freeze-candidate` emits exact `canisend.beta-contract-freeze/v2` for public
       Alpha.10 and no legacy Agent/Workspace identity.
-- [ ] The record binds both Packs, four Skills, resource/task model, operation registry, complete
+- [x] The record binds both Packs, four Skills, resource/task model, operation registry, complete
       migrations, all active schema families, exit mappings, and the Alpha.10 package layout
       authority.
-- [ ] A full shared validator is used by both `release check` and the Alpha-to-Beta transition.
-- [ ] One focused regression accepts the canonical shape and rejects legacy, unknown, mismatched,
+- [x] A full shared validator is used by both `release check` and the Alpha-to-Beta transition.
+- [x] One focused regression accepts the canonical shape and rejects legacy, unknown, mismatched,
       and unbound variants, including a correct-baseline/incomplete-contract record.
-- [ ] `release/beta-contract-freeze.json` exactly equals the inspected candidate.
+- [x] `release/beta-contract-freeze.json` exactly equals the inspected candidate.
 - [ ] Roadmap, release runbook, Trellis, and GitHub describe v4 contract freeze as Verified and
       leave `M4-STAGE-001` pending.
 - [ ] The branch passes `git diff --check`, Rust format, the focused test, affected Clippy, the

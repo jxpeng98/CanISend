@@ -1,9 +1,211 @@
 {
+  "alpha_package_contract": {
+    "bound_layout_sections": [
+      "standalone_cli",
+      "desktop_macos",
+      "desktop_macos_intel"
+    ],
+    "path": "release/alpha-package-contract.json",
+    "schema": "canisend.alpha-package-contract/v3",
+    "sha256": "013a8289030f4565fc314f7a19cab4d2ac6b5a5ceeebf9eb7d89c06d849836e8"
+  },
   "baseline": {
     "release": "v1.0.0-alpha.10",
-    "source_commit": null
+    "source_commit": "cd40180f2ff8ac957276f1948ba88da428511a82"
+  },
+  "contracts": {
+    "agent_protocol": "canisend.agent/v4",
+    "migration_inventory": {
+      "count": 20,
+      "directory": "crates/canisend-store/migrations",
+      "through": 20,
+      "tree_sha256": "70da68da07e757705c1a47c614a1088d756bffd9874683aee00f468f6ef9f7b8"
+    },
+    "operation_registry": {
+      "compatibility_alias_count": 0,
+      "compatibility_pack_scope": "none",
+      "format": "canisend.operation-registry/v4",
+      "path": "crates/canisend-resources/resources/operations/v4/registry.json",
+      "sha256": "8780fd4e28e9361b0beddd19b269d3f4627af88256e07b4b98952e2281269834"
+    },
+    "resource_format": "canisend.agent-host-resources/v4",
+    "resource_manifest": {
+      "entry_count": 89,
+      "path": "crates/canisend-resources/resources/manifest.json",
+      "sha256": "5fb3a947dbaaedf2e399bc7d9eeb23dcc464b2687c5a8c488caaed87be543a62"
+    },
+    "skills": [
+      {
+        "id": "canisend-intake",
+        "sha256": "4c26eed5f18cc183b78733203d025cd0003a66a2d96b59356f46614cc952b0ec"
+      },
+      {
+        "id": "canisend-materials",
+        "sha256": "8106c5ec0052e4430240b38a88109cba1255a03da7f4e3b9a2b322f4eed94580"
+      },
+      {
+        "id": "canisend-review-export",
+        "sha256": "868f39b71bbd496e6731fffb2d13cb39cf3beca0da1b98d5326e02c2816b1efd"
+      },
+      {
+        "id": "canisend-workspace",
+        "sha256": "012d2cf2f4e53c5cdf489554c2588bec03b4f1cdad4c20b4059ec6b2f132adf1"
+      }
+    ],
+    "task_resource_model_sha256": "3d0ed27c1f244810dffc14eeb5bd678565934d244d5c433c2ca32d432b06f648",
+    "workflow_pack_format": "canisend.workflow-pack/v1",
+    "workflow_packs": [
+      {
+        "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+        "id": "org.canisend.academic-job",
+        "version": "1.0.0"
+      },
+      {
+        "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
+        "id": "org.canisend.generic-application",
+        "version": "1.0.0"
+      }
+    ],
+    "workspace_format": "canisend.workspace/v4"
+  },
+  "exit_codes": {
+    "classes": {
+      "cli_usage": 2,
+      "conflict": 4,
+      "external_io": 5,
+      "internal": 6,
+      "success": 0,
+      "validation": 3
+    },
+    "error_mappings": [
+      {
+        "error_code": "input.invalid",
+        "exit_code": 3
+      },
+      {
+        "error_code": "input.path_rejected",
+        "exit_code": 3
+      },
+      {
+        "error_code": "workspace.not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "workspace.conflict",
+        "exit_code": 4
+      },
+      {
+        "error_code": "compatibility.unavailable",
+        "exit_code": 4
+      },
+      {
+        "error_code": "job.not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "job.archived",
+        "exit_code": 4
+      },
+      {
+        "error_code": "profile.source_not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "discovery.source_not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "discovery.lead_not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "discovery.conflict",
+        "exit_code": 4
+      },
+      {
+        "error_code": "pdf.encrypted",
+        "exit_code": 3
+      },
+      {
+        "error_code": "pdf.malformed",
+        "exit_code": 3
+      },
+      {
+        "error_code": "pdf_text_unavailable",
+        "exit_code": 3
+      },
+      {
+        "error_code": "resource.not_found",
+        "exit_code": 3
+      },
+      {
+        "error_code": "resources.integrity_failed",
+        "exit_code": 6
+      },
+      {
+        "error_code": "schema.not_found",
+        "exit_code": 3
+      },
+      {
+        "error_code": "candidate.schema_invalid",
+        "exit_code": 3
+      },
+      {
+        "error_code": "candidate.semantic_invalid",
+        "exit_code": 3
+      },
+      {
+        "error_code": "candidate.unknown_evidence",
+        "exit_code": 3
+      },
+      {
+        "error_code": "task.not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "task.stale",
+        "exit_code": 4
+      },
+      {
+        "error_code": "task.conflict",
+        "exit_code": 4
+      },
+      {
+        "error_code": "workflow.not_found",
+        "exit_code": 4
+      },
+      {
+        "error_code": "workflow.conflict",
+        "exit_code": 4
+      },
+      {
+        "error_code": "consent.required",
+        "exit_code": 3
+      },
+      {
+        "error_code": "external.io_failed",
+        "exit_code": 5
+      },
+      {
+        "error_code": "provider.failed",
+        "exit_code": 5
+      },
+      {
+        "error_code": "internal.invariant_failed",
+        "exit_code": 6
+      }
+    ]
   },
   "release_line": "1.0",
-  "schema": "canisend.beta-contract-freeze/v1",
-  "status": "pending-alpha-publication"
+  "schema": "canisend.beta-contract-freeze/v2",
+  "schemas": {
+    "family_file_counts": {
+      "agent_v4": 7,
+      "application_v3": 7,
+      "public_v2": 40,
+      "workflow_pack_v1": 1
+    },
+    "total_files": 55,
+    "tree_sha256": "e313dfdd1ae40b97a79e61bb41ecd0e157a63599d93a0e3cc64d216ad2030bf0"
+  }
 }

@@ -43,7 +43,7 @@
     "current_database_schema_version": 20,
     "downgrade": "restore-verified-pre-upgrade-backup-to-new-path",
     "format": "canisend.workspace/v4",
-    "frozen_migrations_through": 13,
+    "frozen_migrations_through": 20,
     "future_schema": "reject-without-mutation",
     "migration_policy": "append-only"
   }
