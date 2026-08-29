@@ -25,7 +25,7 @@ export, and external submission decision.
 
 ## Current status
 
-The checked-in source version is `1.0.0-alpha.10`. The latest publicly qualified checkpoint is `v1.0.0-alpha.10`
+The checked-in source version is `1.0.0-beta.1`. The latest publicly qualified checkpoint is `v1.0.0-alpha.10`
 ([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10)), built from
 `cd40180f2ff8ac957276f1948ba88da428511a82`. Later `main` changes are not part of those published
 bytes. Earlier release facts remain immutable at their tags.

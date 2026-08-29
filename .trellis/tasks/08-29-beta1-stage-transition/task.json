@@ -34,7 +34,7 @@
     ".trellis/spec/backend/quality-guidelines.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "The initial dry-run is non-mutating but exposes a cross-stage projection gap: ten current-source updates are still restricted to sequential Alpha. Repair that shared path before any Beta write; preserve qualified Alpha.10 evidence byte-for-byte.",
+  "notes": "The repaired 28-file preview and transactional write matched exactly. Source is staged at 1.0.0-beta.1 / beta-qualifying; qualified Alpha.10 readiness, freeze, feedback, and candidate history remain byte-identical. Protected CI and merge are pending.",
   "meta": {
     "roadmap_id": "M4-STAGE-001",
     "github_issue": 73,
@@ -52,6 +52,14 @@
     "exact_alpha_source": "cd40180f2ff8ac957276f1948ba88da428511a82",
     "target_tag": "v1.0.0-beta.1",
     "preview_schema": "canisend.stage-transition-plan/v1",
+    "preview_file_count": 28,
+    "stage_write": "applied-pending-protected-merge",
+    "preserved_sha256": {
+      "beta_readiness": "a73e21d486634092bb7e82cb5010840c5f377781efe5abe285d45fd71d407c11",
+      "beta_contract_freeze": "ff1ca6876173564ea058c76b30f41ee5daca3fe8f9d6f7c16a380da92ca36914",
+      "feedback_snapshot": "7633f5b6d01e2916ffc0261d79c5c40fcfca0d7a61068ccb129f5dffe6ba8b0a",
+      "candidate_history": "012999bd2626e75a11fffb0c8f41dc7c9a14a040833b66fb8341e83c552fc0d6"
+    },
     "next_roadmap_id": "M4-CANDIDATE-001"
   }
 }

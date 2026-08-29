@@ -43,7 +43,8 @@ qualification claim.
 - Apply the identical target once with `--write`; compare its file list and before/after digests to
   the reviewed preview.
 - Preserve `release/beta-readiness.json`, `release/beta-contract-freeze.json`,
-  `release/feedback-snapshot.json`, and `packaging/candidates/alpha` byte-for-byte.
+  `release/feedback-snapshot.json`, and the checked-in `packaging/candidates` history
+  byte-for-byte.
 
 ### R4 — Reconcile only current-state projections
 

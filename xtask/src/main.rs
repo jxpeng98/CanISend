@@ -2825,7 +2825,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json measured public metadata",
-            "packaging/candidates/alpha"
+            "packaging/candidates"
         ]
     });
     if policy != expected {
@@ -3381,20 +3381,29 @@ fn pending_release_feedback_is_canonical(
     snapshot: &Value,
     active: &Version,
 ) -> Result<bool, String> {
-    if snapshot == &pending_release_feedback(active)? {
-        return Ok(true);
+    if ReleaseStage::from_version(active) == Ok(ReleaseStage::Alpha) {
+        if snapshot == &pending_release_feedback(active)? {
+            return Ok(true);
+        }
+        if prerelease_iteration(active, "alpha")? >= 6 {
+            return Ok(false);
+        }
+        let initial = Version::parse(&format!(
+            "{}.{}.{}-alpha.1",
+            active.major, active.minor, active.patch
+        ))
+        .map_err(|error| format!("initial Alpha feedback identity is invalid: {error}"))?;
+        return Ok(snapshot == &pending_release_feedback(&initial)?);
     }
-    if ReleaseStage::from_version(active) != Ok(ReleaseStage::Alpha)
-        || prerelease_iteration(active, "alpha")? >= 6
-    {
-        return Ok(false);
-    }
-    let initial = Version::parse(&format!(
-        "{}.{}.{}-alpha.1",
-        active.major, active.minor, active.patch
-    ))
-    .map_err(|error| format!("initial Alpha feedback identity is invalid: {error}"))?;
-    Ok(snapshot == &pending_release_feedback(&initial)?)
+    let baseline = validate_alpha_baseline_tag(
+        active,
+        required_string(
+            &snapshot["expected_release"],
+            "tag",
+            "pending release feedback",
+        )?,
+    )?;
+    Ok(snapshot == &pending_release_feedback(&baseline)?)
 }
 
 fn alpha_tag_for_version(version: &Version) -> Result<String, String> {
@@ -5612,7 +5621,7 @@ fn stage_transition_report(
         "release/beta-readiness.json",
         "release/beta-contract-freeze.json",
         "release/feedback-snapshot.json",
-        "packaging/candidates/alpha",
+        "packaging/candidates",
     ]
     .into_iter()
     .filter(|relative| !transition.files.contains_key(*relative))
@@ -10828,11 +10837,9 @@ fn check_release_feedback_files(
     let version = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|error| format!("workspace version is invalid: {error}"))?;
     if snapshot["status"] == "pending-alpha-publication" {
-        if ReleaseStage::from_version(&version) != Ok(ReleaseStage::Alpha)
-            || !pending_release_feedback_is_canonical(&snapshot, &version)?
-        {
+        if !pending_release_feedback_is_canonical(&snapshot, &version)? {
             return Err(
-                "pending release feedback is not canonical for the active Alpha".to_owned(),
+                "pending release feedback is not canonical for the active release line".to_owned(),
             );
         }
         let roadmap_path = feedback_roadmap_relative(&snapshot)?;
@@ -12412,8 +12419,19 @@ fn build_beta_contract_freeze_at(root: &Path, version: &Version) -> Result<Value
         .collect::<Vec<_>>();
 
     let package_relative = "release/alpha-package-contract.json";
-    let package_bytes = fs::read(root.join(package_relative))
-        .map_err(|error| format!("Alpha package contract is missing: {error}"))?;
+    let package_object = format!("{alpha_source}:{package_relative}");
+    let package_output = Command::new("git")
+        .current_dir(root)
+        .args(["cat-file", "blob", &package_object])
+        .output()
+        .map_err(|error| format!("could not read frozen Alpha package contract: {error}"))?;
+    if !package_output.status.success() {
+        return Err(format!(
+            "could not read frozen Alpha package contract `{package_object}`: {}",
+            String::from_utf8_lossy(&package_output.stderr).trim()
+        ));
+    }
+    let package_bytes = package_output.stdout;
     let package_contract: Value = serde_json::from_slice(&package_bytes)
         .map_err(|error| format!("Alpha package contract is invalid JSON: {error}"))?;
     check_alpha_package_contract_identity_and_bindings(root, &alpha_version, &package_contract)?;
@@ -17491,9 +17509,18 @@ mod tests {
             &fs::read(root.join("release/beta-readiness.json")).expect("Beta readiness record"),
         )
         .expect("Beta readiness JSON");
+        let alpha_version = Version::parse(
+            readiness["alpha_release"]["tag"]
+                .as_str()
+                .and_then(|tag| tag.strip_prefix('v'))
+                .expect("Alpha baseline tag"),
+        )
+        .expect("Alpha baseline version");
         let freeze = build_beta_contract_freeze_at(&root, &version).expect("v2 freeze candidate");
 
-        validate_beta_transition_authorities(&root, &version, &readiness, &freeze)
+        validate_qualified_beta_contract_freeze(&freeze, &root, &version)
+            .expect("freeze survives the active post-Alpha package projection");
+        validate_beta_transition_authorities(&root, &alpha_version, &readiness, &freeze)
             .expect("exact current Alpha authority");
         assert_eq!(freeze["schema"], "canisend.beta-contract-freeze/v2");
         assert_eq!(freeze["contracts"]["agent_protocol"], AGENT_V4_PROTOCOL);
@@ -17570,7 +17597,7 @@ mod tests {
 
         for (name, candidate) in rejected {
             assert!(
-                validate_beta_transition_authorities(&root, &version, &readiness, &candidate)
+                validate_beta_transition_authorities(&root, &alpha_version, &readiness, &candidate)
                     .is_err(),
                 "{name} Beta freeze must fail"
             );
@@ -18336,6 +18363,10 @@ mod tests {
             pending_release_feedback_is_canonical(&feedback, &to)
                 .expect("target feedback boundary")
         );
+        assert!(
+            pending_release_feedback_is_canonical(&feedback, &beta)
+                .expect("post-Alpha feedback boundary")
+        );
         fs::remove_dir_all(root).expect("remove sequential-Alpha fixture");
     }
 
@@ -18618,7 +18649,7 @@ mod tests {
         fs::create_dir_all(root.join("crates/app")).expect("create app fixture");
         fs::create_dir_all(root.join("crates/contracts")).expect("create contracts fixture");
         fs::create_dir_all(root.join("release")).expect("create release fixture");
-        fs::create_dir_all(root.join("packaging/candidates/alpha"))
+        fs::create_dir_all(root.join("packaging/candidates"))
             .expect("create historical candidate fixture");
         for relative in [
             "tools/native-preview",
@@ -18731,7 +18762,7 @@ mod tests {
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json",
-            "packaging/candidates/alpha/candidate-source.json",
+            "packaging/candidates/candidate-source.json",
         ] {
             fs::write(root.join(relative), b"historical 0.7.0-alpha.1\n")
                 .expect("write historical fixture");
@@ -18740,9 +18771,16 @@ mod tests {
         let workspace_before = fs::read(root.join("Cargo.toml")).expect("read workspace before");
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.1").expect("render Beta to RC transition");
+        let report = stage_transition_report(&root, &transition, false).expect("dry-run report");
+        assert_eq!(report["writes_performed"], false);
         assert_eq!(
-            stage_transition_report(&root, &transition, false).expect("dry-run report")["writes_performed"],
-            false
+            report["preserved_history"],
+            json!([
+                "release/beta-readiness.json",
+                "release/beta-contract-freeze.json",
+                "release/feedback-snapshot.json",
+                "packaging/candidates"
+            ])
         );
         assert_eq!(
             fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
@@ -18784,7 +18822,7 @@ mod tests {
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
             "release/feedback-snapshot.json",
-            "packaging/candidates/alpha/candidate-source.json",
+            "packaging/candidates/candidate-source.json",
         ] {
             assert_eq!(
                 fs::read_to_string(root.join(relative)).expect("read historical fixture"),

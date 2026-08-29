@@ -231,6 +231,8 @@ both `priority:P0` and `state:blocked` is an applicable Issue blocker.
 `canisend.beta-contract-freeze/v2` binds the exact Alpha tag/source, Agent/Workspace/resource/Pack/
 Skill contracts, complete migration inventory through 20, four schema families, every stable
 error-to-exit mapping, and the validated Alpha package contract plus its three layout sections.
+After the source advances, validate that package contract from the frozen Alpha source commit;
+the active package projection belongs to the new source stage and may differ.
 
 ### 4. Validation & Error Matrix
 
@@ -238,12 +240,13 @@ error-to-exit mapping, and the validated Alpha package contract plus its three l
 - Legacy protocol, stale digest, changed exit mapping, unknown field, or baseline-only record ->
   reject the freeze.
 - Readiness and freeze Alpha identities differ -> reject the Beta transition.
+- Frozen source commit lacks the recorded package contract -> reject the freeze.
 
 ### 5. Good / Base / Bad Cases
 
 - Good: checked-in v2 record exactly equals the value derived from current qualified authorities.
 - Base: historical v1 records remain unchanged and cannot authorize the active transition.
-- Bad: validate only `baseline.release` and `baseline.source_commit`.
+- Bad: validate the frozen Alpha package digest against a later Beta package projection.
 
 ### 6. Tests Required
 
@@ -259,7 +262,7 @@ error-to-exit mapping, and the validated Alpha package contract plus its three l
 // Wrong: a matching baseline can hide stale or missing contracts.
 freeze["baseline"] == readiness["alpha_release"]
 
-// Correct: both release check and stage preparation require the exact derived record.
+// Correct: derive the exact record from the package contract at the frozen source commit.
 validate_qualified_beta_contract_freeze(freeze, root, version)?;
 ```
 
@@ -282,7 +285,8 @@ Every supported transition updates the native-preview package, desktop fallback,
 performance baseline, README, RELEASE, bug template, release-workflow default, known limitations,
 and package contract. Alpha-to-Alpha additionally resets readiness, freeze, and feedback; a
 cross-stage transition preserves those authorities byte-for-byte. Dry run is non-mutating and
-write mode requires a clean worktree.
+write mode requires a clean worktree. Post-Alpha feedback validation resolves its pending Alpha
+identity from `expected_release.tag` on the same release line instead of rewriting the snapshot.
 
 ### 4. Validation & Error Matrix
 
@@ -290,6 +294,7 @@ write mode requires a clean worktree.
 - Wrong target stage/iteration, stale readiness, or incomplete freeze -> reject before mutation.
 - Dirty worktree in write mode -> reject before mutation.
 - Preview/write file or preserved-history mismatch -> stop; do not commit the transition.
+- Pending feedback names a non-Alpha or different-line baseline -> reject it.
 
 ### 5. Good / Base / Bad Cases
 

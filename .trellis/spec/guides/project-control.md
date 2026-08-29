@@ -28,14 +28,15 @@ regression only when drift can be detected mechanically.
   `M3-HEADLESS-001` / Issue #193 are Verified through protected PR #196 and archived.
   `M3-ALPHA10-001` / Issue #194 is Verified by exact public Alpha.10 and the Codex-first
   qualification evidence. `M4-READY-001` / Issue #71 and `M4-FREEZE-001` / Issue #72 are
-  Verified through protected PRs #201 and #202. `M4-STAGE-001` / Issue #73 is the active planning
-  child.
+  Verified through protected PRs #201 and #202. `M4-STAGE-001` / Issue #73 is the active
+  implementation child; Beta.1 source is staged at `beta-qualifying`, pending protected CI and
+  merge. `M4-CANDIDATE-001` / Issue #74 is next after verification.
   `M3-EVID-005` / Issue #70 runs on public Beta.1 and remains required before RC.1;
   later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** repair cross-stage projections, then preview and apply the exact Beta.1 stage plan.
+- **Current:** pass protected CI, merge, and verify the exact Beta.1 source-stage transition.
 - **Near term:** build, qualify, and publish one build-once Beta.1,
   then run the mixed-Application invited cohort on public Beta.1 without treating synthetic
   dogfood as user evidence.
