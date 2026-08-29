@@ -153,6 +153,65 @@ outcomes belong in immutable body-free notes.
 {"host":"codex-cli","pack_id":"org.canisend.academic-job","mutation_performed":false}
 ```
 
+## Scenario: lean Beta readiness authority
+
+### 1. Scope / Trigger
+
+- Trigger: changing `release/beta-readiness.json`, its refresh path, or the Alpha-to-Beta
+  readiness validator.
+
+### 2. Signatures
+
+- `./scripts/refresh_beta_readiness.sh OWNER/REPO MAINTAINER_JSON [--write]` builds the preview and
+  writes only from a clean worktree.
+- `validate_qualified_beta_readiness(path, root, now)` validates the complete authority.
+- `xtask release verify-beta-readiness FILE` exposes that validator to operators and CI.
+
+### 3. Contracts
+
+`canisend.beta-readiness/v2` binds exact public Alpha.10 identity, the checked-in
+`canisend.provider-dogfood/v2` digest and its two Codex scenario IDs, Agent/Workspace/resource,
+Pack, and Skill digests, a body-free maintainer note, canonical zero cohort counts, and nine clear
+blocker classes. Public Issue input is limited to number, state, and labels; only an open Issue with
+both `priority:P0` and `state:blocked` is an applicable Issue blocker.
+
+### 4. Validation & Error Matrix
+
+- Unknown/private field, stale note, false user count, or mismatched provider/contract digest ->
+  reject the record.
+- Missing or uncleared blocker class, unresolved blocker, or applicable public P0 blocker -> reject
+  qualification.
+- Planned or ready public Issues without both blocker labels -> retain their counts but do not
+  block readiness.
+- Record older than 24 hours or more than five minutes in the future -> reject it.
+
+### 5. Good / Base / Bad Cases
+
+- Good: exact Alpha.10 plus both non-mutating Codex Pack scenarios, reviewed limitations, zero
+  users, and nine clear blocker classes.
+- Base: historical readiness v1 stays immutable under `release/history/` and cannot authorize the
+  active Beta transition.
+- Bad: infer readiness from an empty Issue result or claim cohort users before public Beta.1.
+
+### 6. Tests Required
+
+- Focused regression:
+  `cargo test -p xtask --locked beta_readiness_v2_rejects_stale_private_false_or_blocked_records`.
+- Operator check: `xtask release verify-beta-readiness release/beta-readiness.json`.
+- Source gate: one final `cargo run -p xtask --locked -- release check`.
+- Protected Fast CI owns the complete workspace suite; do not repeat native or host matrices when
+  product bytes are unchanged.
+
+### 7. Wrong vs Correct
+
+```json
+// Wrong: an empty Issue list is treated as sufficient readiness.
+{"open_p0_blocker_issue_numbers":[],"status":"qualified"}
+
+// Correct: readiness also binds exact provider, contract, maintainer, cohort, and blocker evidence.
+{"schema":"canisend.beta-readiness/v2","status":"qualified","unresolved_blockers":[]}
+```
+
 ## Code Review Checklist
 
 - Correct authority/layer and smallest root-cause change.

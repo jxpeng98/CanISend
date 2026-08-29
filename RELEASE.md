@@ -6,8 +6,8 @@
   immutable release.
 - Latest public checkpoint: [`v1.0.0-alpha.10`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10),
   built from `cd40180f2ff8ac957276f1948ba88da428511a82` and independently reverified after download.
-- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until lean Alpha.10 readiness,
-  frozen v4 contracts, and the required integrity matrix satisfy the
+- Next intended checkpoint: `v1.0.0-beta.1`. Lean Alpha.10 readiness is qualified; Beta.1 is not
+  authorized until frozen v4 contracts and the required integrity matrix satisfy the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The invited cohort runs
   on public Beta.1 and remains required before RC.1.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
@@ -82,9 +82,9 @@ independent artifact verification. See the
 - **Alpha.9:** Published the architecture checkpoint with the Store-to-IO production edge removed.
   Exact public bytes, both Packs, render/recovery coverage, and provider hosts passed independent
   verification; invited-user evidence remains pending.
-- **Beta:** readiness must be refreshed from qualified public Alpha.9 within 24 hours; Workspace
-  v4, Agent v4, Skills/resource, operation, approval, and both Pack digests must freeze; and the
-  signed/integrity matrix must pass.
+- **Beta:** readiness must be fresh from qualified public Alpha.10 within 24 hours; Workspace v4,
+  Agent v4, Skills/resource, operation, approval, and both Pack digests must freeze; and the
+  signed/integrity matrix must pass. User cohort evidence starts on public Beta.1 before RC.1.
 - **Release candidate:** the feature freeze is active, the current RC is recorded before preparing
   another RC, the Beta-to-RC upgrade and package-manager matrices pass, and final notes/feedback
   bind the latest recorded RC.

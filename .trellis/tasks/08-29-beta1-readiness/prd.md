@@ -72,9 +72,10 @@ external-host qualification already owned by the public Alpha.10 record.
   canonical v2 record.
 - Missing, stale, mismatched, failed, private-field-bearing, old cohort-bound, falsely user-counted,
   or unresolved-blocker evidence must fail.
-- `prepare-stage v1.0.0-beta.1` may be previewed after qualification but this task must not apply
-  the stage write, create or move a tag, dispatch a candidate, publish a release, or activate
-  feature freeze.
+- `prepare-stage v1.0.0-beta.1` remains owned by the separate contract-freeze/stage task because
+  it also requires `release/beta-contract-freeze.json`. This task must not preview or apply the
+  stage write, create or move a tag, dispatch a candidate, publish a release, or activate feature
+  freeze.
 
 ### R6 — Keep delivery lean
 
@@ -87,21 +88,21 @@ external-host qualification already owned by the public Alpha.10 record.
 
 ## Acceptance criteria
 
-- [ ] `release/beta-readiness.json` is a fresh, qualified
+- [x] `release/beta-readiness.json` is a fresh, qualified
       `canisend.beta-readiness/v2` record bound to exact public Alpha.10.
-- [ ] Its contract block contains Agent v4, Workspace v4, host-resource v4, task-resource-model,
+- [x] Its contract block contains Agent v4, Workspace v4, host-resource v4, task-resource-model,
       both Pack, and all four Skill identities/digests.
-- [ ] Its provider block binds the checked-in provider record digest and exactly the two required
+- [x] Its provider block binds the checked-in provider record digest and exactly the two required
       Codex Pack scenarios.
-- [ ] Its maintainer block is body-free, note-digest-bound, and records reviewed known
+- [x] Its maintainer block is body-free, note-digest-bound, and records reviewed known
       limitations.
-- [ ] Its cohort block truthfully contains three zero counts and the Beta.1-to-RC.1 boundary.
-- [ ] Open planned Roadmap Issues do not block refresh; any open P0 Issue labeled
+- [x] Its cohort block truthfully contains three zero counts and the Beta.1-to-RC.1 boundary.
+- [x] Open planned Roadmap Issues do not block refresh; any open P0 Issue labeled
       `state:blocked`, any unresolved blocker, or any uncleared required blocker class does.
-- [ ] One focused regression proves rejection of stale/private/false-cohort/unbound evidence and
+- [x] One focused regression proves rejection of stale/private/false-cohort/unbound evidence and
       acceptance of the canonical shape.
-- [ ] The refresh dry run and clean-worktree write validate successfully; Beta.1 stage preview
-      succeeds without changing stage.
+- [x] The refresh dry run, clean-worktree write, readiness verifier, and final release check
+      validate successfully; the Beta.1 stage preview remains pending under M4-FREEZE/M4-STAGE.
 - [ ] The final branch passes `git diff --check`, `bash -n scripts/refresh_beta_readiness.sh`,
       Rust format, the focused test, affected Clippy, one `release check`, and protected Fast CI.
 - [ ] Roadmap/runbook/Trellis/GitHub projections describe lean readiness and retain post-Beta

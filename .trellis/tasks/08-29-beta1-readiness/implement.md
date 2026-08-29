@@ -32,10 +32,11 @@
 
 - [x] Commit the validator/script/note changes so the worktree is clean.
 - [x] Build a temporary body-free maintainer-validation JSON from the reviewed note digest.
-- [ ] Run the refresh dry run, inspect it, then run the clean-worktree `--write` path. The dry run
+- [x] Run the refresh dry run, inspect it, then run the clean-worktree `--write` path. The dry run
       passed with 112 public Issues, 25 open Issues, and zero applicable P0 blockers.
-- [ ] Verify the written record and preview `prepare-stage v1.0.0-beta.1` without `--write`.
-- [ ] Commit the exact readiness record separately so its timestamp and public Issue snapshot are
+- [x] Verify the written record; leave `prepare-stage v1.0.0-beta.1` to the separate
+      M4-FREEZE/M4-STAGE work because it also requires the contract-freeze record.
+- [x] Commit the exact readiness record separately so its timestamp and public Issue snapshot are
       auditable.
 
 ## 5. Minimum verification
@@ -45,7 +46,7 @@
 - [x] `cargo fmt --all -- --check`
 - [x] One focused readiness-v2 validator test
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
-- [ ] One final `cargo run -p xtask --locked -- release check`
+- [x] One final `cargo run -p xtask --locked -- release check`
 - [ ] Protected Fast CI on the exact PR head
 - [x] No local full workspace suite, native rebuild, desktop suite, Claude matrix, package-manager
       lifecycle, or extended assurance

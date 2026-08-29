@@ -1,13 +1,175 @@
 {
   "alpha_release": {
-    "release_run": null,
-    "release_url": null,
-    "source_commit": null,
-    "tag": "v1.0.0-alpha.10"
+    "tag": "v1.0.0-alpha.10",
+    "source_commit": "cd40180f2ff8ac957276f1948ba88da428511a82",
+    "release_run": 32678848156,
+    "release_url": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10"
   },
   "default_telemetry": false,
   "release_line": "1.0",
   "schema": "canisend.beta-readiness/v2",
-  "status": "pending-alpha-publication",
-  "unresolved_release_blockers": []
+  "status": "qualified",
+  "unresolved_release_blockers": [],
+  "audited_at": "2026-08-29T21:32:54Z",
+  "github_issue_snapshot": {
+    "query": "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue",
+    "all_issue_count": 112,
+    "open_issue_count": 25,
+    "open_p0_blocker_issue_numbers": []
+  },
+  "contracts": {
+    "agent_protocol": "canisend.agent/v4",
+    "workspace_format": "canisend.workspace/v4",
+    "resource_format": "canisend.agent-host-resources/v4",
+    "task_resource_model_sha256": "3d0ed27c1f244810dffc14eeb5bd678565934d244d5c433c2ca32d432b06f648",
+    "workflow_pack_format": "canisend.workflow-pack/v1",
+    "workflow_packs": [
+      {
+        "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+        "id": "org.canisend.academic-job",
+        "version": "1.0.0"
+      },
+      {
+        "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
+        "id": "org.canisend.generic-application",
+        "version": "1.0.0"
+      }
+    ],
+    "skills": [
+      {
+        "id": "canisend-intake",
+        "sha256": "4c26eed5f18cc183b78733203d025cd0003a66a2d96b59356f46614cc952b0ec"
+      },
+      {
+        "id": "canisend-materials",
+        "sha256": "8106c5ec0052e4430240b38a88109cba1255a03da7f4e3b9a2b322f4eed94580"
+      },
+      {
+        "id": "canisend-review-export",
+        "sha256": "868f39b71bbd496e6731fffb2d13cb39cf3beca0da1b98d5326e02c2816b1efd"
+      },
+      {
+        "id": "canisend-workspace",
+        "sha256": "012d2cf2f4e53c5cdf489554c2588bec03b4f1cdad4c20b4059ec6b2f132adf1"
+      }
+    ]
+  },
+  "provider_evidence": {
+    "schema": "canisend.provider-dogfood/v2",
+    "record_sha256": "982d0faee7dd17d1435fa16c1e902d69d14c6df1266f47b9b59fc72c8ab5e3e4",
+    "scenario_ids": [
+      "codex-cli-academic-requirement-preview-cancel",
+      "codex-cli-generic-requirement-preview-cancel"
+    ]
+  },
+  "maintainer_validation": {
+    "schema": "canisend.beta-maintainer-validation/v1",
+    "status": "passed",
+    "reviewer": "pengjiaxin",
+    "known_limitations_reviewed": true,
+    "evidence_note": {
+      "path": "docs/notes/rust-native/2026-08-29-alpha10-beta1-readiness.md",
+      "sha256": "297a45b5d8733cb0eba9b6fe83975ad1f9183da977242c29fd5dca25de54ba4a"
+    }
+  },
+  "cohort_evidence": {
+    "status": "not-started",
+    "synthetic_users": 0,
+    "invited_users": 0,
+    "completed_user_flows": 0,
+    "starts_at": "v1.0.0-beta.1",
+    "required_before": "v1.0.0-rc.1"
+  },
+  "blocker_classes": [
+    {
+      "class": "data-loss",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "privacy",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "evidence",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "pack",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "rendering",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "recovery",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "host-setup",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "supported-install",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    },
+    {
+      "class": "release-integrity",
+      "status": "clear",
+      "open_issue_numbers": [],
+      "evidence": [
+        "alpha10-public-release-matrix",
+        "alpha10-codex-provider-evidence",
+        "maintainer-validation-note"
+      ]
+    }
+  ]
 }
