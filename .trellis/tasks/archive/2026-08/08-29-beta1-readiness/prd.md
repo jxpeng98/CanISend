@@ -103,9 +103,9 @@ external-host qualification already owned by the public Alpha.10 record.
       acceptance of the canonical shape.
 - [x] The refresh dry run, clean-worktree write, readiness verifier, and final release check
       validate successfully; the Beta.1 stage preview remains pending under M4-FREEZE/M4-STAGE.
-- [ ] The final branch passes `git diff --check`, `bash -n scripts/refresh_beta_readiness.sh`,
+- [x] The final branch passes `git diff --check`, `bash -n scripts/refresh_beta_readiness.sh`,
       Rust format, the focused test, affected Clippy, one `release check`, and protected Fast CI.
-- [ ] Roadmap/runbook/Trellis/GitHub projections describe lean readiness and retain post-Beta
+- [x] Roadmap/runbook/Trellis/GitHub projections describe lean readiness and retain post-Beta
       cohort evidence as mandatory before RC.1.
 
 ## Out of scope
