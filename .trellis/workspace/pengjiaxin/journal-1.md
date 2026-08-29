@@ -179,3 +179,24 @@ Qualified exact public Alpha.10 with readiness v2, body-free maintainer review, 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: Freeze Alpha.10 v4 contracts for Beta.1
+
+**Date**: 2026-08-29
+**Task**: Freeze Alpha.10 v4 contracts for Beta.1
+**Branch**: `plan/beta1-stage-transition`
+
+### Summary
+
+Merged protected PR #202 after all seven required checks, qualified the exact Alpha.10 v4 Beta freeze, reconciled Issue #72 as Verified, and made M4-STAGE-001 / Issue #73 Ready.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7326cd09e0f57c9e6299b07ee4288f39f9a4b1aa` | (see git log) |
+
+### Status
+
+[OK] **Completed**
