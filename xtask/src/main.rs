@@ -31,7 +31,7 @@ const DESKTOP_PROFILE_SUMMARY_SCHEMA: &str = "canisend.desktop-profile-summary/v
 const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
 const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
 const BETA_USER_EVIDENCE_SCHEMA: &str = "canisend.beta-user-evidence/v1";
-const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v1";
+const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v2";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
 const STABLE_CHANNEL_PUBLICATION_SCHEMA: &str = "canisend.stable-channel-publication/v1";
@@ -9615,7 +9615,7 @@ fn check_provider_dogfood() -> Result<(), String> {
             .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
     validate_provider_dogfood_public_binding(&record, current_public_checkpoint_tag(&roadmap)?)?;
     println!(
-        "provider dogfood: ok ({} scenarios, {} excluded attempt)",
+        "provider dogfood: ok ({} scenarios, {} excluded attempts)",
         record["scenarios"].as_array().map_or(0, Vec::len),
         record["excluded_attempts"].as_array().map_or(0, Vec::len)
     );
@@ -9682,7 +9682,7 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         ],
     )?;
     if record["schema"] != PROVIDER_DOGFOOD_SCHEMA || record["status"] != "passed" {
-        return Err("provider dogfood record must use v1 schema and passed status".to_owned());
+        return Err("provider dogfood record must use v2 schema and passed status".to_owned());
     }
 
     let candidate = &record["candidate"];
@@ -9807,14 +9807,9 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         .ok_or_else(|| "provider dogfood scenarios must be an array".to_owned())?;
     let expected_scenarios = [
         (
-            "claude-code-academic-requirement-preview-cancel",
-            "claude-code",
+            "codex-cli-academic-requirement-preview-cancel",
+            "codex-cli",
             "org.canisend.academic-job",
-        ),
-        (
-            "claude-desktop-generic-requirement-preview-cancel",
-            "claude-desktop",
-            "org.canisend.generic-application",
         ),
         (
             "codex-cli-generic-requirement-preview-cancel",
@@ -9823,7 +9818,7 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
         ),
     ];
     if scenarios.len() != expected_scenarios.len() {
-        return Err("provider dogfood must contain the three canonical scenarios".to_owned());
+        return Err("provider dogfood must contain the two canonical Codex scenarios".to_owned());
     }
     for (scenario, (scenario_id, host, pack_id)) in scenarios.iter().zip(expected_scenarios) {
         exact_json_fields(
@@ -9873,30 +9868,11 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     let excluded = record["excluded_attempts"]
         .as_array()
         .ok_or_else(|| "provider dogfood excluded_attempts must be an array".to_owned())?;
-    if excluded.len() != 1 {
-        return Err("provider dogfood must record the rejected stale-host attempt".to_owned());
-    }
-    exact_json_fields(
-        &excluded[0],
-        "provider dogfood excluded attempt",
-        &[
-            "disposition",
-            "host",
-            "reason",
-            "scenario_id",
-            "tracking_issue",
-        ],
-    )?;
-    if excluded[0]
-        != json!({
-            "disposition": "rejected-as-evidence",
-            "host": "claude-desktop",
-            "reason": "stale-host-memory",
-            "scenario_id": "claude-desktop-standard-chat-stale-memory",
-            "tracking_issue": 67,
-        })
-    {
-        return Err("provider dogfood stale-host exclusion is not canonical".to_owned());
+    if !excluded.is_empty() {
+        return Err(
+            "provider dogfood v2 excluded_attempts must be empty; retain history in evidence notes"
+                .to_owned(),
+        );
     }
     Ok(record)
 }
@@ -17400,6 +17376,9 @@ mod tests {
             ("stale", canonical.clone()),
             ("private", canonical.clone()),
             ("pack-mismatch", canonical.clone()),
+            ("missing-pack", canonical.clone()),
+            ("unsafe", canonical.clone()),
+            ("historical-exclusion", canonical.clone()),
         ] {
             match name {
                 "failed" => record["status"] = json!("failed"),
@@ -17408,6 +17387,14 @@ mod tests {
                 }
                 "private" => record["scenarios"][0]["body"] = json!("must not be retained"),
                 "pack-mismatch" => record["packs"][0]["content_digest"] = json!("0".repeat(64)),
+                "missing-pack" => {
+                    record["scenarios"]
+                        .as_array_mut()
+                        .expect("provider scenarios")
+                        .pop();
+                }
+                "unsafe" => record["scenarios"][0]["mutation_performed"] = json!(true),
+                "historical-exclusion" => record["excluded_attempts"] = json!([{}]),
                 _ => unreachable!(),
             }
             let path = fixture.join(format!("{name}.json"));

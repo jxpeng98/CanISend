@@ -97,6 +97,62 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
 - Use the owning policy check, the relevant fresh audit, any named compensating regression, and one
   final `release check`. Do not repeat unrelated suites when product source is unchanged.
 
+## Scenario: Codex-first provider qualification
+
+### 1. Scope / Trigger
+
+- Trigger: changing `release/provider-dogfood.json`, its validator, or the external-host policy
+  used to select the next release checkpoint.
+
+### 2. Signatures
+
+- `validate_provider_dogfood_file(path, root)` validates the complete evidence record.
+- `check_provider_dogfood()` also binds its candidate tag to the Roadmap's current public
+  checkpoint.
+
+### 3. Contracts
+
+`canisend.provider-dogfood/v2` retains the exact candidate, consent, Agent/Workspace/resource,
+evidence-note, Pack, and Skill bindings. It requires exactly these passed scenarios, in order:
+
+1. `codex-cli-academic-requirement-preview-cancel`;
+2. `codex-cli-generic-requirement-preview-cancel`.
+
+Both preserve a positive Application revision and `proposed` state, return `previewed`, and set
+mutation/submission to false. `excluded_attempts` is empty; historical Claude and stale-host
+outcomes belong in immutable body-free notes.
+
+### 4. Validation & Error Matrix
+
+- Missing or reordered Pack scenario -> reject the record.
+- Failed, mutating, submitting, or state-changing scenario -> reject the record.
+- Unknown/private field, stale note/contract/Pack/Skill digest, or non-empty exclusion -> reject
+  the record.
+- Candidate tag differs from the Roadmap checkpoint -> `release check` fails.
+
+### 5. Good / Base / Bad Cases
+
+- Good: exact public Alpha candidate plus both safe Codex Pack scenarios.
+- Base: historical v1 records and Claude observations remain unchanged in dated notes.
+- Bad: count a skipped Claude session as passed or retain a transcript/token in active evidence.
+
+### 6. Tests Required
+
+- Focused regression:
+  `cargo test -p xtask --locked provider_dogfood_rejects_missing_stale_failed_or_private_records`.
+- Static checks: Rust format and `xtask` Clippy.
+- Source gate: one final `cargo run -p xtask --locked -- release check`.
+
+### 7. Wrong vs Correct
+
+```json
+// Wrong: optional host outcome is promoted into required passed evidence.
+{"host":"claude-code","status":"passed"}
+
+// Correct: each required Pack is proven by Codex without mutation.
+{"host":"codex-cli","pack_id":"org.canisend.academic-job","mutation_performed":false}
+```
+
 ## Code Review Checklist
 
 - Correct authority/layer and smallest root-cause change.

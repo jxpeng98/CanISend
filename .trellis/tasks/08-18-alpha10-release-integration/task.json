@@ -3,7 +3,7 @@
   "name": "alpha10-release-integration",
   "title": "Integrate and release Alpha.10",
   "description": "Close the App-absent Workspace v4, CLI, Agent Skills, and MCP journey, then qualify exact Alpha.10",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": "cross-package-integration-and-release",
   "package": null,
@@ -29,7 +29,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-18-alpha10-release-integration/research/2026-08-23-headless-capability-audit.md"
   ],
-  "notes": "M3-DEPS-001 and M3-HEADLESS-001 are verified through protected PR #196 and ready to archive. M3-ALPHA10-001 remains planning pending explicit final-plan approval.",
+  "notes": "M3-DEPS-001 and M3-HEADLESS-001 are verified through protected PR #196. Exact public Alpha.10 and both required Codex Pack scenarios pass; protected policy/evidence reconciliation and GitHub closure remain.",
   "meta": {
     "roadmap_ids": [
       "M3-DEPS-001",
@@ -43,8 +43,8 @@
       194
     ],
     "github_milestone": 10,
-    "dependency": "public-v1.0.0-alpha.9",
-    "verification_tier": "focused + source gate + exact native release",
-    "consent_boundary": "synthetic host evidence only; no real users, private bodies, or provider sends"
+    "dependency": "public-v1.0.0-alpha.10",
+    "verification_tier": "focused + source gate; reuse exact native release",
+    "consent_boundary": "authorized synthetic Codex evidence only; no real users, private bodies, or retained provider content"
   }
 }

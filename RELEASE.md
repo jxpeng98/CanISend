@@ -4,11 +4,12 @@
 
 - Checked-in source: `1.0.0-alpha.10`, with evidence-only post-tag changes that are not part of the
   immutable release.
-- Latest public checkpoint: [`v1.0.0-alpha.9`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9),
-  built from `4876c5669b7ae48ca053b5e06e0005419d2051f6` and independently reverified after download.
-- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until the public Alpha.9
-  readiness record, real target-user cohort, frozen v4 contracts, and required integrity matrix
-  satisfy the [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md).
+- Latest public checkpoint: [`v1.0.0-alpha.10`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10),
+  built from `cd40180f2ff8ac957276f1948ba88da428511a82` and independently reverified after download.
+- Next intended checkpoint: `v1.0.0-beta.1`. It is not authorized until lean Alpha.10 readiness,
+  frozen v4 contracts, and the required integrity matrix satisfy the
+  [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The invited cohort runs
+  on public Beta.1 and remains required before RC.1.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
 - Machine stage: Alpha / `pre-beta`; Beta, RC, and Stable are not authorized.

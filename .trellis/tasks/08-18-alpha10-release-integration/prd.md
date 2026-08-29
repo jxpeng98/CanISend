@@ -27,8 +27,10 @@ and complete both built-in Pack journeys through the standalone product surface 
 - Alpha.7 through Alpha.9 recorded App-closed Codex CLI, Claude Code, Claude Desktop, and bounded
   MCP-client evidence, but the Roadmap still leaves final App/CLI initialization and
   Agent/Skills/MCP integration evidence incomplete.
-- Public Alpha.9 remains immutable. Alpha.10 will be justified only by reviewed product or public
-  contract changes produced by this capability-closure work.
+- Public Alpha.10 is immutable from protected source
+  `cd40180f2ff8ac957276f1948ba88da428511a82`; its native candidate, same-byte promotion, public
+  assets, and Codex Generic scenario already passed. The remaining qualification work is the
+  Academic Codex scenario and body-free policy reconciliation.
 
 ## Requirements
 
@@ -64,8 +66,9 @@ and complete both built-in Pack journeys through the standalone product surface 
 - Project and global installation must be explicit, inspectable, idempotent, drift-detecting,
   safely removable, and limited to manifest-owned resources.
 - Codex CLI, Claude Code, and Claude Desktop must receive host-correct setup guidance from one
-  canonical embedded resource set. Any Codex plugin packaging must reuse those resources rather
-  than create a second Skill source.
+  canonical embedded resource set. Codex is the required real-host release surface; Claude
+  real-host sessions are non-blocking compatibility observations. Any Codex plugin packaging must
+  reuse those resources rather than create a second Skill source.
 - Host configuration must remain user-reviewed: CanISend may generate exact commands/snippets and
   project-local files where already authorized, but must not overwrite unrelated global host
   configuration.
@@ -76,8 +79,8 @@ and complete both built-in Pack journeys through the standalone product surface 
 
 - Reconcile Roadmap, GitHub Issue/milestone, Trellis metadata, and machine release facts before
   starting an Alpha.10 candidate.
-- Use the existing sequential-Alpha transition and build-once promotion path. Promotion must reuse
-  qualified bytes, followed by independent public download verification and exact host evidence.
+- Reuse the completed sequential-Alpha build-once promotion and independent public verification.
+  Exact host evidence must bind the unchanged public bytes and must not trigger a rebuild.
 
 ## Acceptance Criteria
 
@@ -94,8 +97,8 @@ and complete both built-in Pack journeys through the standalone product surface 
 - [ ] App reopen observes the exact headless receipts and revisions without reconciliation drift.
 - [ ] Current generated Skills/plugin resources, CLI help, MCP inventory, operation registry,
       guides, and release notes describe one Agent v4 workflow with no legacy compatibility claim.
-- [ ] Exact Alpha.10 source, native candidate, promoted public bytes, and App-closed host evidence
-      agree before Alpha.10 is called published.
+- [ ] Exact Alpha.10 source, native candidate, promoted public bytes, and App-closed Academic and
+      Generic Codex evidence agree before Alpha.10 is called qualified for Beta entry.
 
 ## Out of Scope
 
@@ -105,7 +108,7 @@ and complete both built-in Pack journeys through the standalone product surface 
 - Agent-owned authority writes, automatic login/upload/submission, provider credentials, or
   private conversation/body retention.
 - Real invited-user cohort evidence, Beta.1, feature freeze, RC, Stable, or package-manager
-  publication.
+  publication. The cohort runs on public Beta.1 and remains required before RC planning.
 - New workflow Packs, OCR, remote MCP, or speculative provider integrations.
 
 ## Technical Notes

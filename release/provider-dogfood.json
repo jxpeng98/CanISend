@@ -1,12 +1,12 @@
 {
   "candidate": {
-    "archive_sha256": "5ef236bcf4feef7232efaa4b2501d3f1b3cc26e4d96759b10860e6cd1a806e2d",
-    "artifact_id": 9147597003,
-    "artifact_name": "canisend-v1.0.0-alpha.9-release-assets",
-    "binary_sha256": "ffcdabbddaa9407db742adc5a39da9849879d5922ae248cf8bbbea222021f0b5",
-    "release_run": 31609344160,
-    "source_commit": "4876c5669b7ae48ca053b5e06e0005419d2051f6",
-    "tag": "v1.0.0-alpha.9"
+    "archive_sha256": "c5339ca17bd7bcf48a374d34bfdbfe140cd1bd0fc5e3f8b6bcb5744e6c93833a",
+    "artifact_id": 9503978913,
+    "artifact_name": "canisend-v1.0.0-alpha.10-release-assets",
+    "binary_sha256": "69d97bbe5c9c16f6737764bb308c9e55e7269c01f805cd7821588128b499170b",
+    "release_run": 32678848156,
+    "source_commit": "cd40180f2ff8ac957276f1948ba88da428511a82",
+    "tag": "v1.0.0-alpha.10"
   },
   "consent": {
     "content_scope": "synthetic-metadata-only",
@@ -21,18 +21,10 @@
     "workspace_format": "canisend.workspace/v4"
   },
   "evidence_note": {
-    "path": "docs/notes/rust-native/2026-08-16-alpha9-exact-public-host-dogfood.md",
-    "sha256": "8e82e4bc785f6d969351affa1bf592ae08f694fa723305356b7ed8107ace1202"
+    "path": "docs/notes/rust-native/2026-08-29-alpha10-codex-first-qualification.md",
+    "sha256": "59a2a2a1dda289102f44b909dc4edd4170664d99575420a6626f97bd30d88f74"
   },
-  "excluded_attempts": [
-    {
-      "disposition": "rejected-as-evidence",
-      "host": "claude-desktop",
-      "reason": "stale-host-memory",
-      "scenario_id": "claude-desktop-standard-chat-stale-memory",
-      "tracking_issue": 67
-    }
-  ],
+  "excluded_attempts": [],
   "packs": [
     {
       "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
@@ -49,30 +41,15 @@
     {
       "application_revision_after": 1,
       "application_revision_before": 1,
-      "host": "claude-code",
-      "host_version": "2.1.231",
+      "host": "codex-cli",
+      "host_version": "0.147.0",
       "mutation_performed": false,
       "operation": "requirement.confirm.preview-cancel",
       "pack_id": "org.canisend.academic-job",
       "preview_status": "previewed",
       "requirement_state_after": "proposed",
       "requirement_state_before": "proposed",
-      "scenario_id": "claude-code-academic-requirement-preview-cancel",
-      "status": "passed",
-      "submission_performed": false
-    },
-    {
-      "application_revision_after": 1,
-      "application_revision_before": 1,
-      "host": "claude-desktop",
-      "host_version": "1.26832.0",
-      "mutation_performed": false,
-      "operation": "requirement.confirm.preview-cancel",
-      "pack_id": "org.canisend.generic-application",
-      "preview_status": "previewed",
-      "requirement_state_after": "proposed",
-      "requirement_state_before": "proposed",
-      "scenario_id": "claude-desktop-generic-requirement-preview-cancel",
+      "scenario_id": "codex-cli-academic-requirement-preview-cancel",
       "status": "passed",
       "submission_performed": false
     },
@@ -92,7 +69,7 @@
       "submission_performed": false
     }
   ],
-  "schema": "canisend.provider-dogfood/v1",
+  "schema": "canisend.provider-dogfood/v2",
   "skills": [
     {
       "id": "canisend-intake",
