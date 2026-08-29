@@ -157,3 +157,25 @@ Qualified exact public Alpha.10 with Academic and Generic Codex CLI evidence, me
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: Qualify Alpha.10 for Beta.1 readiness
+
+**Date**: 2026-08-29
+**Task**: Qualify Alpha.10 for Beta.1 readiness
+**Branch**: `plan/beta1-contract-freeze`
+
+### Summary
+
+Qualified exact public Alpha.10 with readiness v2, body-free maintainer review, zero cohort counts, nine clear blocker classes, and protected Fast CI; merged PR #201 and verified Issue #71.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `656d47b4` | (see git log) |
+| `3c0d5719` | (see git log) |
+
+### Status
+
+[OK] **Completed**
