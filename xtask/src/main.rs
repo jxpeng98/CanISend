@@ -16323,6 +16323,69 @@ mod tests {
         })
     }
 
+    fn write_active_source_projection_fixture(root: &Path, version: &str) {
+        let tag = format!("v{version}");
+        for (relative, body) in [
+            (
+                "tools/native-preview/package.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                "apps/canisend-desktop/src/App.svelte",
+                format!("<span>{{product?.version ?? \"{version}\"}}</span>\n"),
+            ),
+            (
+                "docs/contracts/cli-gui-parity-v1.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                "docs/performance/macos-gui-alpha-baseline.json",
+                format!("{{\n  \"version\": \"{version}\"\n}}\n"),
+            ),
+            (
+                ".github/workflows/release.yml",
+                format!("default: \"{tag}\"\n"),
+            ),
+            (
+                ".github/ISSUE_TEMPLATE/bug.yml",
+                format!("placeholder: {version}\n"),
+            ),
+            (
+                "README.md",
+                format!("The checked-in source version is `{version}`; fixture.\n"),
+            ),
+            (
+                "RELEASE.md",
+                format!("Checked-in source: `{version}`; fixture.\n"),
+            ),
+            (
+                "docs/guides/known-limitations.md",
+                format!("It applies to the `{version}` development line.\n"),
+            ),
+        ] {
+            let path = root.join(relative);
+            fs::create_dir_all(path.parent().expect("projection parent"))
+                .expect("create source projection fixture path");
+            fs::write(path, body).expect("write source projection fixture");
+        }
+        let parsed = Version::parse(version).expect("source projection version");
+        write_pretty_json(
+            &root.join("release/alpha-package-contract.json"),
+            &json!({
+                "schema": alpha_package_contract_schema(&parsed).expect("package schema"),
+                "version": version,
+                "tag": tag,
+                "standalone_cli": {
+                    "assets": [{"file": format!("canisend-{version}-target.tar.gz")}]
+                },
+                "desktop_macos": {
+                    "archive": format!("CanISend-{version}-target.zip")
+                }
+            }),
+        )
+        .expect("write package contract fixture");
+    }
+
     #[test]
     fn domain_coupling_inventory_is_current_and_fails_closed_on_drift() {
         let root = repository_root();
@@ -18651,17 +18714,6 @@ mod tests {
         fs::create_dir_all(root.join("release")).expect("create release fixture");
         fs::create_dir_all(root.join("packaging/candidates"))
             .expect("create historical candidate fixture");
-        for relative in [
-            "tools/native-preview",
-            "apps/canisend-desktop/src",
-            "docs/contracts",
-            "docs/performance",
-            "docs/guides",
-            ".github/workflows",
-            ".github/ISSUE_TEMPLATE",
-        ] {
-            fs::create_dir_all(root.join(relative)).expect("create source projection fixture path");
-        }
         fs::write(
             root.join("Cargo.toml"),
             "[workspace]\nmembers = [\"crates/app\", \"crates/contracts\"]\n\
@@ -18703,61 +18755,7 @@ mod tests {
             "# CanISend 0.7.0-beta.1\n\nFixture notes.\n",
         )
         .expect("write notes fixture");
-        for (relative, body) in [
-            (
-                "tools/native-preview/package.json",
-                "{\n  \"version\": \"0.7.0-beta.1\"\n}\n",
-            ),
-            (
-                "apps/canisend-desktop/src/App.svelte",
-                "<span>{product?.version ?? \"0.7.0-beta.1\"}</span>\n",
-            ),
-            (
-                "docs/contracts/cli-gui-parity-v1.json",
-                "{\n  \"version\": \"0.7.0-beta.1\"\n}\n",
-            ),
-            (
-                "docs/performance/macos-gui-alpha-baseline.json",
-                "{\n  \"version\": \"0.7.0-beta.1\"\n}\n",
-            ),
-            (
-                ".github/workflows/release.yml",
-                "default: \"v0.7.0-beta.1\"\n",
-            ),
-            (
-                ".github/ISSUE_TEMPLATE/bug.yml",
-                "placeholder: 0.7.0-beta.1\n",
-            ),
-            (
-                "README.md",
-                "The checked-in source version is `0.7.0-beta.1`; fixture.\n",
-            ),
-            (
-                "RELEASE.md",
-                "Checked-in source: `0.7.0-beta.1`; fixture.\n",
-            ),
-            (
-                "docs/guides/known-limitations.md",
-                "It applies to the `0.7.0-beta.1` development line.\n",
-            ),
-        ] {
-            fs::write(root.join(relative), body).expect("write source projection fixture");
-        }
-        write_pretty_json(
-            &root.join("release/alpha-package-contract.json"),
-            &json!({
-                "schema": ALPHA_PACKAGE_CONTRACT_V2_SCHEMA,
-                "version": "0.7.0-beta.1",
-                "tag": "v0.7.0-beta.1",
-                "standalone_cli": {
-                    "assets": [{"file": "canisend-0.7.0-beta.1-target.tar.gz"}]
-                },
-                "desktop_macos": {
-                    "archive": "CanISend-0.7.0-beta.1-target.zip"
-                }
-            }),
-        )
-        .expect("write package contract fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-beta.1");
         for relative in [
             "release/beta-readiness.json",
             "release/beta-contract-freeze.json",
@@ -18908,12 +18906,13 @@ mod tests {
             "# CanISend 0.7.0-rc.1\n\nFixture notes.\n",
         )
         .expect("write RC notes fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-rc.1");
 
         let mut expected_ledger = ledger.clone();
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 7);
+        assert_eq!(transition.files.len(), 17);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
@@ -19069,6 +19068,7 @@ mod tests {
             "# CanISend 0.7.0-rc.2\n\nFixture notes.\n",
         )
         .expect("write Stable notes fixture");
+        write_active_source_projection_fixture(&root, "0.7.0-rc.2");
         let feedback = json!({
             "schema": FEEDBACK_SNAPSHOT_SCHEMA,
             "snapshot_stage": "rc",
@@ -19960,6 +19960,10 @@ mod tests {
         fs::create_dir_all(&root).expect("create macOS GUI qualification fixture");
         let version = env!("CARGO_PKG_VERSION");
         let tag = format!("v{version}");
+        let profile = parse_release_tag(&tag)
+            .expect("macOS GUI fixture tag")
+            .1
+            .cargo_profile();
         let archive = root.join(macos_gui_archive_name(version));
         fs::write(&archive, b"bounded desktop archive fixture")
             .expect("write macOS GUI archive fixture");
@@ -19969,7 +19973,7 @@ mod tests {
             "record": "desktop-macos-aarch64",
             "target": "aarch64-apple-darwin",
             "environment": "macos-15",
-            "profile": ReleaseStage::Alpha.cargo_profile(),
+            "profile": profile,
             "tag": tag,
             "version": version,
             "archive": {
@@ -20000,12 +20004,19 @@ mod tests {
         read_macos_gui_qualification(&evidence_path, &tag, version, &archive)
             .expect("accept exact macOS GUI qualification evidence");
 
-        evidence["profile"] = Value::String("release".to_owned());
+        evidence["profile"] = Value::String(
+            if profile == "release" {
+                "release-alpha"
+            } else {
+                "release"
+            }
+            .to_owned(),
+        );
         write_pretty_json(&evidence_path, &evidence)
             .expect("write profile-drifted macOS GUI qualification evidence");
         assert!(read_macos_gui_qualification(&evidence_path, &tag, version, &archive).is_err());
 
-        evidence["profile"] = Value::String(ReleaseStage::Alpha.cargo_profile().to_owned());
+        evidence["profile"] = Value::String(profile.to_owned());
         evidence["checks"]["packaged_gui_launch"] = Value::Bool(false);
         write_pretty_json(&evidence_path, &evidence)
             .expect("write malformed macOS GUI qualification evidence");
@@ -20025,6 +20036,10 @@ mod tests {
         fs::create_dir_all(&root).expect("create macOS GUI DMG fixture");
         let version = env!("CARGO_PKG_VERSION");
         let tag = format!("v{version}");
+        let profile = parse_release_tag(&tag)
+            .expect("macOS GUI DMG fixture tag")
+            .1
+            .cargo_profile();
         let dmg = root.join(macos_gui_dmg_name(version));
         fs::write(&dmg, b"bounded desktop DMG fixture").expect("write macOS GUI DMG fixture");
         let evidence_path = root.join(macos_gui_dmg_qualification_name(version));
@@ -20033,7 +20048,7 @@ mod tests {
             "record": "desktop-macos-aarch64-dmg",
             "target": "aarch64-apple-darwin",
             "environment": "macos-15",
-            "profile": ReleaseStage::Alpha.cargo_profile(),
+            "profile": profile,
             "tag": tag,
             "version": version,
             "image": {

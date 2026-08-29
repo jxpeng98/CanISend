@@ -105,6 +105,13 @@ When you've made similar changes to multiple files:
 2. **Search**: Run grep to find any missed
 3. **Consider**: Should this be abstracted?
 
+### Shared transition inputs
+
+When a stage-specific renderer becomes shared, search every caller and test fixture of that
+renderer. Seed its required projections through one fixture writer, and derive stage-sensitive
+values such as build profiles from the test tag. Updating only the transition named by the first
+failure leaves RC/Stable fixtures silently incomplete.
+
 ### Reducers Should Use Exhaustive Structure
 
 When state is derived from action-like values (`action`, `kind`, `status`,

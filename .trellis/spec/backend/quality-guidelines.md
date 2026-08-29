@@ -307,6 +307,8 @@ identity from `expected_release.tag` on the same release line instead of rewriti
 - Focused regressions: `stage_source_projections_are_shared_and_only_alpha_resets_evidence` and
   `stage_transition_changes_only_controlled_current_state`.
 - Stage-aware truth: `active_release_truth_rejects_stale_current_surfaces_and_ignores_history`.
+- Every direct `render_stage_transition` fixture seeds the shared active projections through
+  `write_active_source_projection_fixture`; stage-sensitive evidence profiles derive from the tag.
 - Source gate: one final `cargo run -p xtask --locked -- release check` on the final PR head.
 
 ### 7. Wrong vs Correct
