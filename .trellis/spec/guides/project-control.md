@@ -27,15 +27,16 @@ regression only when drift can be detected mechanically.
   against exact public Alpha.9 and its body-free host evidence. `M3-DEPS-001` / Issue #195 and
   `M3-HEADLESS-001` / Issue #193 are Verified through protected PR #196 and archived.
   `M3-ALPHA10-001` / Issue #194 is Verified by exact public Alpha.10 and the Codex-first
-  qualification evidence. `M4-READY-001` / Issue #71 is Verified. `M4-FREEZE-001` / Issue #72 has
-  an exact v2 freeze candidate pending protected merge; `M4-STAGE-001` / Issue #73 is next.
+  qualification evidence. `M4-READY-001` / Issue #71 and `M4-FREEZE-001` / Issue #72 are
+  Verified through protected PRs #201 and #202. `M4-STAGE-001` / Issue #73 is the active planning
+  child.
   `M3-EVID-005` / Issue #70 runs on public Beta.1 and remains required before RC.1;
   later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** protect and merge `canisend.beta-contract-freeze/v2` against exact public Alpha.10.
-- **Near term:** prepare and publish one build-once Beta.1,
+- **Current:** repair cross-stage projections, then preview and apply the exact Beta.1 stage plan.
+- **Near term:** build, qualify, and publish one build-once Beta.1,
   then run the mixed-Application invited cohort on public Beta.1 without treating synthetic
   dogfood as user evidence.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
