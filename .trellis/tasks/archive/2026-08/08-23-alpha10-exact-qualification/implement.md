@@ -53,15 +53,15 @@
 
 - [x] Make Alpha.10 the current Codex-qualified Roadmap checkpoint and Beta.1 entry without
       claiming user evidence.
-- [ ] Update Issue #194 and milestone 10 only after the policy/evidence PR reaches protected
+- [x] Update Issue #194 and milestone 10 only after the policy/evidence PR reaches protected
       `main`.
-- [ ] Close Issue #68 as not applicable, not Verified, because no post-fix replacement build owns
+- [x] Close Issue #68 as not applicable, not Verified, because no post-fix replacement build owns
       an affected-scenario rerun.
-- [ ] Rebind Issue #70 to Alpha.10 and move cohort evidence after Beta.1 and before RC.
-- [ ] Refresh Issue #71 to own lean Alpha.10-bound Beta readiness and the separate Beta.1 release
+- [x] Rebind Issue #70 to Alpha.10 and move cohort evidence after Beta.1 and before RC.
+- [x] Refresh Issue #71 to own lean Alpha.10-bound Beta readiness and the separate Beta.1 release
       task.
-- [ ] Archive this task and complete the Alpha.10 parent only after GitHub, Roadmap, provider
-      record, task metadata, and protected `main` agree.
+- [x] Reconcile GitHub, Roadmap, provider record, task metadata, and protected `main` before
+      handing this task to Trellis archival; the parent remains its separate integration owner.
 
 ## 5. Minimum verification and delivery
 
@@ -72,11 +72,11 @@
 - [x] Run affected Clippy:
       `cargo clippy -p xtask --all-targets --locked -- -D warnings`.
 - [x] Run `cargo run -p xtask --locked -- release check` once on the final complete branch head.
-- [ ] Commit one auditable policy/evidence change, push one PR, and accept protected Fast CI as the
+- [x] Commit one auditable policy/evidence change, push one PR, and accept protected Fast CI as the
       complete source owner.
 - [x] Do not run a local full workspace suite, native matrix, desktop suite, Claude host matrix,
       package-manager qualification, or extended assurance.
-- [ ] Obtain explicit authorization before protected merge.
+- [x] Obtain explicit authorization before protected merge.
 
 ## 6. Beta.1 handoff
 
