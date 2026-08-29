@@ -2,50 +2,52 @@
 
 ## 1. Update the machine contract
 
-- [ ] Advance the readiness schema to v2 and replace the old Beta user-evidence validator with one
+- [x] Advance the readiness schema to v2 and replace the old Beta user-evidence validator with one
       small exact-field maintainer/cohort/provider validator.
-- [ ] Extend `beta_readiness_contracts` in place with host-resource and four-Skill bindings; reuse
-      those values in provider validation.
-- [ ] Keep Alpha10 pending-state generation, freshness limits, and transition ordering unchanged.
-- [ ] Replace the existing focused Beta-user-evidence regression in place with a readiness-v2
+- [x] Derive the v2 readiness contract from `beta_readiness_contracts`, add host-resource and
+      four-Skill bindings there, and reuse those values in provider validation without changing
+      Alpha.10 package-contract bytes.
+- [x] Keep Alpha10 pending-state generation, freshness limits, and transition ordering unchanged.
+- [x] Replace the existing focused Beta-user-evidence regression in place with a readiness-v2
       acceptance/rejection regression. Do not create a fixture framework.
 
 ## 2. Update the existing refresh path
 
-- [ ] Change `refresh_beta_readiness.sh` to accept body-free maintainer validation.
-- [ ] Retain only public Issue number/state/labels and stop only for open
+- [x] Change `refresh_beta_readiness.sh` to accept body-free maintainer validation.
+- [x] Retain only public Issue number/state/labels and stop only for open
       `priority:P0` + `state:blocked` Issues.
-- [ ] Generate canonical provider, cohort-zero, contract, maintainer, and nine-class blocker
+- [x] Generate canonical provider, cohort-zero, contract, maintainer, and nine-class blocker
       sections; validate before output or write.
-- [ ] Preserve dry-run first and clean-worktree-only write behavior.
+- [x] Preserve dry-run first and clean-worktree-only write behavior.
 
 ## 3. Align release guidance
 
-- [ ] Update the stage-transition runbook, qualification-ledger guidance, Roadmap, project-control
+- [x] Update the stage-transition runbook, qualification-ledger guidance, Roadmap, project-control
       guide, and known limitations only where they still claim pre-Beta cohort or zero open Issues.
-- [ ] Add one dated body-free maintainer-readiness note. Do not copy prompts, Issue bodies,
+- [x] Add one dated body-free maintainer-readiness note. Do not copy prompts, Issue bodies,
       application content, private paths, credentials, or tokens.
-- [ ] Keep public Beta.1, cohort, RC, and Stable work pending.
+- [x] Keep public Beta.1, cohort, RC, and Stable work pending.
 
 ## 4. Produce the exact readiness record
 
-- [ ] Commit the validator/script/note changes so the worktree is clean.
-- [ ] Build a temporary body-free maintainer-validation JSON from the reviewed note digest.
-- [ ] Run the refresh dry run, inspect it, then run the clean-worktree `--write` path.
+- [x] Commit the validator/script/note changes so the worktree is clean.
+- [x] Build a temporary body-free maintainer-validation JSON from the reviewed note digest.
+- [ ] Run the refresh dry run, inspect it, then run the clean-worktree `--write` path. The dry run
+      passed with 112 public Issues, 25 open Issues, and zero applicable P0 blockers.
 - [ ] Verify the written record and preview `prepare-stage v1.0.0-beta.1` without `--write`.
 - [ ] Commit the exact readiness record separately so its timestamp and public Issue snapshot are
       auditable.
 
 ## 5. Minimum verification
 
-- [ ] `git diff --check`
-- [ ] `bash -n scripts/refresh_beta_readiness.sh`
-- [ ] `cargo fmt --all -- --check`
-- [ ] One focused readiness-v2 validator test
-- [ ] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
+- [x] `git diff --check`
+- [x] `bash -n scripts/refresh_beta_readiness.sh`
+- [x] `cargo fmt --all -- --check`
+- [x] One focused readiness-v2 validator test
+- [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [ ] One final `cargo run -p xtask --locked -- release check`
 - [ ] Protected Fast CI on the exact PR head
-- [ ] No local full workspace suite, native rebuild, desktop suite, Claude matrix, package-manager
+- [x] No local full workspace suite, native rebuild, desktop suite, Claude matrix, package-manager
       lifecycle, or extended assurance
 
 ## 6. Protected reconciliation

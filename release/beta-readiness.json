@@ -7,7 +7,7 @@
   },
   "default_telemetry": false,
   "release_line": "1.0",
-  "schema": "canisend.beta-readiness/v1",
+  "schema": "canisend.beta-readiness/v2",
   "status": "pending-alpha-publication",
   "unresolved_release_blockers": []
 }

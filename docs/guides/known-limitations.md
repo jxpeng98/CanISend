@@ -47,8 +47,9 @@ installed-binary authority.
   automation, and portal automation are outside the current scope.
 - CanISend does not provide model credentials or a hosted provider. Codex, Claude Code, and other
   MCP clients own their authentication, conversations, plugins, search, and retention.
-- Exact Codex CLI, Claude Code, Claude Desktop, and bounded MCP-host dogfood passed Alpha.9
-  qualification. Real invited-user evidence remains a Beta-readiness gate.
+- Exact Alpha.10 Codex CLI dogfood passed both built-in Packs; Claude real-host sessions remain
+  non-blocking compatibility observations. Invited-user evidence starts on public Beta.1 and is
+  required before RC.1, not before Beta entry.
 
 ## Product boundary
 

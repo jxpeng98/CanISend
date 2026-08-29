@@ -154,21 +154,19 @@ independently inspected. An invented run ID or status string is not qualificatio
 
 ## Pre-Beta boundary
 
-The current source remains `1.0.0-alpha.8` in `pre-beta` while the Workspace v4 and Agent v4
-checkpoint is qualified. Earlier Beta-readiness and contract-freeze records are historical inputs;
-they cannot qualify Alpha.8 or a Beta transition. Sequential Alpha planning resets those authorities
-to a canonical pending identity for the new Alpha.
+The current source remains `1.0.0-alpha.10` in `pre-beta` while the Workspace v4, Agent v4,
+dual-Pack, headless, and Codex checkpoint is qualified. Earlier readiness and contract-freeze
+records are historical inputs; they cannot qualify Alpha.10 or a Beta transition. Sequential Alpha
+planning resets those authorities to a canonical pending identity for the new Alpha.
 
-Alpha.6 must first prove Pack v1, Agent/Workspace v3 migration, Academic Pack parity, bounded v2
-compatibility, and exact candidate lifecycle. Alpha.7 first proved both built-in Packs and canonical
-v4 surfaces; Alpha.8 carries that boundary with the approved bootstrap fixes. Only a publicly
-qualified and independently reverified dual-Pack Alpha iteration of 7
-or greater may be refreshed into the Beta-readiness record. That refresh binds the exact tag,
-source commit, successful release run,
-public URL, Agent/Workspace v4 contracts, Pack v1, both embedded Pack digests, provider dogfood, and
-body-free cumulative user evidence with measured mixed-Application coverage. Alpha.4, Alpha.5, and
-Alpha.6 are rejected as Beta baselines even if their historical evidence remains valid for the bytes
-it originally described.
+Only a publicly qualified and independently reverified dual-Pack Alpha iteration of 7 or greater
+may be refreshed into the active readiness record. `canisend.beta-readiness/v2` binds the exact tag,
+source commit, successful release run, public URL, Agent/Workspace/host-resource v4 contracts,
+Pack v1, both embedded Pack digests, all four Skill digests, provider-dogfood v2, both required
+Codex scenarios, reviewed known limitations, and applicable P0 blocker classes. It records zero
+synthetic users, invited users, and completed user flows. User evidence starts on public Beta.1 and
+remains required before RC.1; it is not a Beta-entry input. Alpha.4, Alpha.5, and Alpha.6 remain
+invalid Beta baselines even though their historical evidence is valid for the bytes it describes.
 
 `prepared-local` proves only that the documentation/uninstall control exists locally; it is
 deliberately weaker than `passed`, which requires the signed RC-stage matrix named by the Stable

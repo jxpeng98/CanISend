@@ -17,8 +17,9 @@ It does not change the CanISend product binary or perform the Beta stage transit
 
 - `release/provider-dogfood.json` remains the exact Codex, artifact, consent, Pack, and Skill
   evidence authority.
-- `beta_readiness_contracts` remains the single computed contract projection; extend it in place
-  with host resources and Skills instead of adding a second contract builder.
+- `beta_readiness_contracts` remains the immutable Alpha package base. Derive the v2 readiness
+  projection from it and add host resources and Skills there, so Alpha.10 package-contract bytes
+  do not change.
 - `exact_json_fields`, `validate_evidence_note`, and the provider validator remain the trust-boundary
   primitives.
 - `release/beta-readiness.json` remains the only active readiness file.
