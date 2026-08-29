@@ -263,6 +263,58 @@ freeze["baseline"] == readiness["alpha_release"]
 validate_qualified_beta_contract_freeze(freeze, root, version)?;
 ```
 
+## Scenario: transactional release-stage source projection
+
+### 1. Scope / Trigger
+
+- Trigger: changing `render_stage_transition`, `release prepare-stage`, or a checked-in source
+  version projection.
+
+### 2. Signatures
+
+- `xtask release prepare-stage <TAG> [--write]` previews or applies one stage transition.
+- `insert_active_source_version_updates(root, files, from, to)` renders the shared projections.
+- `insert_sequential_alpha_evidence_resets(files, to)` runs only for Alpha-to-Alpha iteration.
+
+### 3. Contracts
+
+Every supported transition updates the native-preview package, desktop fallback, parity manifest,
+performance baseline, README, RELEASE, bug template, release-workflow default, known limitations,
+and package contract. Alpha-to-Alpha additionally resets readiness, freeze, and feedback; a
+cross-stage transition preserves those authorities byte-for-byte. Dry run is non-mutating and
+write mode requires a clean worktree.
+
+### 4. Validation & Error Matrix
+
+- Missing, duplicated, or stale source projection -> reject before mutation.
+- Wrong target stage/iteration, stale readiness, or incomplete freeze -> reject before mutation.
+- Dirty worktree in write mode -> reject before mutation.
+- Preview/write file or preserved-history mismatch -> stop; do not commit the transition.
+
+### 5. Good / Base / Bad Cases
+
+- Good: Alpha-to-Beta updates all current projections and preserves qualified Alpha evidence.
+- Base: Alpha-to-Alpha updates the same projections and resets the three candidate authorities.
+- Bad: update Cargo and the ledger while leaving README, workflow, or package metadata on Alpha.
+
+### 6. Tests Required
+
+- Focused regressions: `stage_source_projections_are_shared_and_only_alpha_resets_evidence` and
+  `stage_transition_changes_only_controlled_current_state`.
+- Stage-aware truth: `active_release_truth_rejects_stale_current_surfaces_and_ignores_history`.
+- Source gate: one final `cargo run -p xtask --locked -- release check` on the final PR head.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: common projections update only during sequential Alpha work.
+if from_stage == Alpha && to_stage == Alpha { update_source_projections()?; }
+
+// Correct: every transition updates source projections; only evidence reset is Alpha-specific.
+update_source_projections()?;
+if from_stage == Alpha && to_stage == Alpha { reset_candidate_evidence()?; }
+```
+
 ## Code Review Checklist
 
 - Correct authority/layer and smallest root-cause change.

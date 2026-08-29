@@ -2,12 +2,12 @@
 
 ## 1. Repair cross-stage projections
 
-- [ ] Generalize the existing current-source update helper for every supported stage transition.
-- [ ] Keep readiness/freeze/feedback reset exclusive to sequential Alpha iteration.
-- [ ] Make active release-truth stage/status expectations derive from the source version.
-- [ ] Extend one existing regression to prove cross-stage updates and preserved evidence.
-- [ ] Run format, the focused regression, and xtask Clippy.
-- [ ] Commit the repair so write mode can start from a clean worktree.
+- [x] Generalize the existing current-source update helper for every supported stage transition.
+- [x] Keep readiness/freeze/feedback reset exclusive to sequential Alpha iteration.
+- [x] Make active release-truth stage/status expectations derive from the source version.
+- [x] Extend existing regressions to prove cross-stage updates and preserved evidence.
+- [x] Run format, focused regressions, and xtask Clippy.
+- [x] Commit the repair so write mode can start from a clean worktree.
 
 ## 2. Review write preconditions
 
@@ -30,15 +30,15 @@
 
 - [ ] Update Roadmap, RELEASE, Trellis project control, and task state to Beta staged /
       `beta-qualifying`; keep public Alpha.10 and candidate/publication/qualification pending.
-- [ ] Update the owning stage-transition code-spec with the cross-stage projection invariant.
+- [x] Update the owning stage-transition code-spec with the cross-stage projection invariant.
 - [ ] Mark Issue #73 In progress when implementation starts; do not close it before protected CI.
 
 ## 5. Minimum verification
 
-- [ ] `git diff --check`
-- [ ] `cargo fmt --all -- --check`
-- [ ] One focused stage-transition/source-projection regression
-- [ ] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
+- [x] `git diff --check`
+- [x] `cargo fmt --all -- --check`
+- [x] Focused stage-transition/source-projection regressions
+- [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [ ] One final `cargo run -p xtask --locked -- release check`
 - [ ] Protected Fast CI on the exact PR head
 - [ ] No local full workspace suite, native candidate, desktop/provider matrix, package lifecycle,

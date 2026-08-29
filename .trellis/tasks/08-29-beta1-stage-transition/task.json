@@ -3,7 +3,7 @@
   "name": "beta1-stage-transition",
   "title": "Prepare the Beta.1 stage transition",
   "description": "Repair cross-stage source projections, then review and apply the exact Alpha.10-to-Beta.1 metadata transition without building or publishing a candidate",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": "release-engineering",
   "package": null,
