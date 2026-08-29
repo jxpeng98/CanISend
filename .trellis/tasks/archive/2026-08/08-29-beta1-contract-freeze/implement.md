@@ -40,15 +40,15 @@
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] Direct `release freeze-candidate` equality/check
 - [x] One final `cargo run -p xtask --locked -- release check`
-- [ ] Protected Fast CI on the exact PR head
+- [x] Protected Fast CI on the exact PR head
 - [x] No local full workspace suite, native rebuild, desktop suite, provider-host matrix,
       package-manager lifecycle, or extended assurance
 
 ## 6. Protected reconciliation
 
-- [ ] Merge the bounded PR after Fast CI.
-- [ ] Mark Issue #72 / `M4-FREEZE-001` Verified and keep milestone 5 open.
-- [ ] Archive this task and make `M4-STAGE-001` / Issue #73 the next delivery task.
+- [x] Merge the bounded PR after Fast CI.
+- [x] Mark Issue #72 / `M4-FREEZE-001` Verified and keep milestone 5 open.
+- [x] Archive this task and make `M4-STAGE-001` / Issue #73 the next delivery task.
 - [ ] Do not run `prepare-stage v1.0.0-beta.1` in this task.
 
 ## Stop conditions
