@@ -136,3 +136,24 @@ Added project/global CLI host scope, extended the App-closed Agent v4 lifecycle 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: Qualify Alpha.10 for Codex-first Beta entry
+
+**Date**: 2026-08-29
+**Task**: Qualify Alpha.10 for Codex-first Beta entry
+**Branch**: `plan/beta1-readiness-control`
+
+### Summary
+
+Qualified exact public Alpha.10 with Academic and Generic Codex CLI evidence, merged PR #200, reconciled release authorities and GitHub projections, and handed Beta.1 readiness to a separate task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f1c0f5be48d5b4bfd9048cb2e4e2d7d1776f4d7f` | (see git log) |
+
+### Status
+
+[OK] **Completed**

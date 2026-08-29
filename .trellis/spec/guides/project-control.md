@@ -27,15 +27,15 @@ regression only when drift can be detected mechanically.
   against exact public Alpha.9 and its body-free host evidence. `M3-DEPS-001` / Issue #195 and
   `M3-HEADLESS-001` / Issue #193 are Verified through protected PR #196 and archived.
   `M3-ALPHA10-001` / Issue #194 is Verified by exact public Alpha.10 and the Codex-first
-  qualification evidence. `M4-READY-001` / Issue #71 is the next delivery child. `M3-EVID-005` /
+  qualification evidence. `M4-READY-001` / Issue #71 is the active delivery child. `M3-EVID-005` /
   Issue #70 is rebound to Alpha.10 but runs on public Beta.1 and remains required before RC.1;
   later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** reconcile `M3-ALPHA10-001` against exact public Alpha.10 with Codex as the required
-  external host and Claude real-host sessions as non-blocking observations.
-- **Near term:** execute one lean Alpha.10-bound Beta.1 readiness and build-once publication task,
+- **Current:** qualify `canisend.beta-readiness/v2` against exact public Alpha.10, required Codex
+  evidence, body-free maintainer review, and applicable P0 blocker labels without claiming users.
+- **Near term:** freeze the Alpha.10 contract surface, prepare and publish one build-once Beta.1,
   then run the mixed-Application invited cohort on public Beta.1 without treating synthetic
   dogfood as user evidence.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,

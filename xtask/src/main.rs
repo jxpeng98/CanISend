@@ -29,8 +29,24 @@ const TYPST_TEMPLATE_CONTRACT_SCHEMA: &str = "canisend.typst-template-contract/v
 const DESKTOP_PROFILE_RECORD_SCHEMA: &str = "canisend.desktop-profile-record/v1";
 const DESKTOP_PROFILE_SUMMARY_SCHEMA: &str = "canisend.desktop-profile-summary/v1";
 const SCCACHE_STATS_SCHEMA: &str = "canisend.sccache-stats/v1";
-const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v1";
-const BETA_USER_EVIDENCE_SCHEMA: &str = "canisend.beta-user-evidence/v1";
+const BETA_READINESS_SCHEMA: &str = "canisend.beta-readiness/v2";
+const BETA_MAINTAINER_VALIDATION_SCHEMA: &str = "canisend.beta-maintainer-validation/v1";
+const BETA_READINESS_BLOCKER_CLASSES: [&str; 9] = [
+    "data-loss",
+    "privacy",
+    "evidence",
+    "pack",
+    "rendering",
+    "recovery",
+    "host-setup",
+    "supported-install",
+    "release-integrity",
+];
+const BETA_READINESS_EVIDENCE_TOKENS: [&str; 3] = [
+    "alpha10-public-release-matrix",
+    "alpha10-codex-provider-evidence",
+    "maintainer-validation-note",
+];
 const PROVIDER_DOGFOOD_SCHEMA: &str = "canisend.provider-dogfood/v2";
 const BETA_CONTRACT_FREEZE_SCHEMA: &str = "canisend.beta-contract-freeze/v1";
 const CHANNEL_CANDIDATE_SOURCE_SCHEMA: &str = "canisend.channel-candidate-source/v1";
@@ -2834,9 +2850,13 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "gh api --paginate --slurp",
         "select(has(\"pull_request\") | not)",
         "verify-beta-readiness",
-        "BODY_FREE_USER_EVIDENCE_JSON",
+        "BODY_FREE_MAINTAINER_VALIDATION_JSON",
+        "canisend.beta-readiness/v2",
         "canisend.agent/v4",
-        ".user_evidence = $user_evidence[0]",
+        ".provider_evidence = {",
+        ".maintainer_validation = $maintainer_validation[0]",
+        "open_p0_blocker_issue_numbers",
+        "state:blocked",
         "open_issue_count",
         "--write",
     ] {
@@ -5322,36 +5342,13 @@ fn check_beta_transition_authorities(root: &Path, from_version: &Version) -> Res
             .map_err(|error| format!("Beta transition readiness is missing: {error}"))?,
     )
     .map_err(|error| format!("Beta transition readiness is invalid JSON: {error}"))?;
-    if readiness["status"] != "qualified" || readiness["schema"] != BETA_READINESS_SCHEMA {
-        return Err(
-            "Beta transition requires qualified eligible-Alpha readiness evidence".to_owned(),
-        );
-    }
+    validate_qualified_beta_readiness(&readiness, root, from_version)?;
     let tag = format!("v{from_version}");
-    if readiness["alpha_release"]["tag"] != tag {
-        return Err("Beta readiness does not bind the active eligible Alpha tag".to_owned());
-    }
     let source = required_string(
         &readiness["alpha_release"],
         "source_commit",
         "Alpha release",
     )?;
-    validate_lower_hex("Alpha release source commit", source, 40)?;
-    if readiness["alpha_release"]["release_run"]
-        .as_u64()
-        .filter(|run| *run > 0)
-        .is_none()
-        || required_string(&readiness["alpha_release"], "release_url", "Alpha release")?
-            != format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
-    {
-        return Err("Beta readiness does not bind the exact public Alpha run and URL".to_owned());
-    }
-    if readiness["contracts"] != beta_readiness_contracts(root)? {
-        return Err(
-            "Beta readiness does not bind canonical v4 contracts and both Pack digests".to_owned(),
-        );
-    }
-    validate_alpha_evidence_bindings(&readiness, root)?;
     let freeze: Value = serde_json::from_slice(
         &fs::read(root.join("release/beta-contract-freeze.json"))
             .map_err(|error| format!("Beta contract freeze is missing: {error}"))?,
@@ -5403,6 +5400,39 @@ fn beta_readiness_contracts(root: &Path) -> Result<Value, String> {
         "workflow_pack_format": "canisend.workflow-pack/v1",
         "workflow_packs": packs,
     }))
+}
+
+fn beta_readiness_v2_contracts(root: &Path) -> Result<Value, String> {
+    let mut contracts = beta_readiness_contracts(root)?;
+    let fields = contracts
+        .as_object_mut()
+        .ok_or_else(|| "Beta readiness contracts must be an object".to_owned())?;
+    fields.insert(
+        "resource_format".to_owned(),
+        json!(canisend_resources::AGENT_HOST_RESOURCE_FORMAT),
+    );
+    fields.insert(
+        "task_resource_model_sha256".to_owned(),
+        json!(sha256_file(&root.join(
+            "crates/canisend-resources/resources/agent/v4/task-resource-model.json"
+        ))?),
+    );
+    let mut skills = Vec::new();
+    for id in [
+        "canisend-intake",
+        "canisend-materials",
+        "canisend-review-export",
+        "canisend-workspace",
+    ] {
+        skills.push(json!({
+            "id": id,
+            "sha256": sha256_file(&root.join(format!(
+                "crates/canisend-resources/resources/skills/{id}/SKILL.md"
+            )))?,
+        }));
+    }
+    fields.insert("skills".to_owned(), Value::Array(skills));
+    Ok(contracts)
 }
 
 fn print_alpha_package_contract_bindings() -> Result<(), String> {
@@ -9763,14 +9793,13 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
             "workspace_format",
         ],
     )?;
-    let task_model =
-        root.join("crates/canisend-resources/resources/agent/v4/task-resource-model.json");
+    let readiness_contracts = beta_readiness_v2_contracts(root)?;
     if contracts
         != &json!({
-            "agent_protocol": AGENT_V4_PROTOCOL,
-            "resource_format": canisend_resources::AGENT_HOST_RESOURCE_FORMAT,
-            "task_resource_model_sha256": sha256_file(&task_model)?,
-            "workspace_format": WORKSPACE_V4_FORMAT,
+            "agent_protocol": readiness_contracts["agent_protocol"].clone(),
+            "resource_format": readiness_contracts["resource_format"].clone(),
+            "task_resource_model_sha256": readiness_contracts["task_resource_model_sha256"].clone(),
+            "workspace_format": readiness_contracts["workspace_format"].clone(),
         })
     {
         return Err("provider dogfood Agent v4 contract binding is stale".to_owned());
@@ -9779,26 +9808,12 @@ fn validate_provider_dogfood_file(path: &Path, root: &Path) -> Result<Value, Str
     let evidence = &record["evidence_note"];
     validate_evidence_note(evidence, "provider dogfood evidence note", root)?;
 
-    let expected_packs = beta_readiness_contracts(root)?["workflow_packs"].clone();
+    let expected_packs = readiness_contracts["workflow_packs"].clone();
     if record["packs"] != expected_packs {
         return Err("provider dogfood Pack identity or digest is stale".to_owned());
     }
 
-    let mut expected_skills = Vec::new();
-    for id in [
-        "canisend-intake",
-        "canisend-materials",
-        "canisend-review-export",
-        "canisend-workspace",
-    ] {
-        expected_skills.push(json!({
-            "id": id,
-            "sha256": sha256_file(&root.join(format!(
-                "crates/canisend-resources/resources/skills/{id}/SKILL.md"
-            )))?,
-        }));
-    }
-    if record["skills"] != Value::Array(expected_skills) {
+    if record["skills"] != readiness_contracts["skills"] {
         return Err("provider dogfood Skill identity or digest is stale".to_owned());
     }
 
@@ -9903,237 +9918,228 @@ fn validate_provider_dogfood_readiness_binding(
     Ok(())
 }
 
-fn beta_metric(value: &Value, name: &str) -> Result<(u64, u64), String> {
-    let context = format!("Beta user-evidence metric `{name}`");
-    exact_json_fields(value, &context, &["denominator", "numerator"])?;
-    let numerator = value["numerator"]
-        .as_u64()
-        .ok_or_else(|| format!("{context} numerator must be a non-negative integer"))?;
-    let denominator = value["denominator"]
-        .as_u64()
-        .filter(|value| *value > 0)
-        .ok_or_else(|| format!("{context} denominator must be positive"))?;
-    if numerator > denominator {
-        return Err(format!("{context} numerator exceeds its denominator"));
-    }
-    Ok((numerator, denominator))
-}
-
-fn beta_token_set(value: &Value, context: &str) -> Result<BTreeSet<String>, String> {
-    let values = string_set(value, context)?;
-    for value in &values {
-        validate_beta_token(value, context)?;
-    }
-    Ok(values)
-}
-
-fn validate_beta_token(value: &str, context: &str) -> Result<(), String> {
-    if value.len() > 64
+fn validate_body_free_token(value: &str, context: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 64
         || !value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
     {
         return Err(format!(
-            "{context} entries must be 1..64 character lowercase body-free tokens"
+            "{context} must be a 1..64 character lowercase body-free token"
         ));
     }
     Ok(())
 }
 
-fn validate_beta_user_evidence(
-    evidence: &Value,
-    provider: &Value,
-    root: &Path,
-) -> Result<(), String> {
+fn beta_provider_evidence(provider: &Value, root: &Path) -> Result<Value, String> {
+    let scenario_ids = provider["scenarios"]
+        .as_array()
+        .ok_or_else(|| "provider dogfood scenarios must be an array".to_owned())?
+        .iter()
+        .map(|scenario| {
+            required_string(scenario, "scenario_id", "provider dogfood scenario").map(str::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(json!({
+        "schema": PROVIDER_DOGFOOD_SCHEMA,
+        "record_sha256": sha256_file(&root.join("release/provider-dogfood.json"))?,
+        "scenario_ids": scenario_ids,
+    }))
+}
+
+fn beta_cohort_evidence() -> Value {
+    json!({
+        "status": "not-started",
+        "synthetic_users": 0,
+        "invited_users": 0,
+        "completed_user_flows": 0,
+        "starts_at": "v1.0.0-beta.1",
+        "required_before": "v1.0.0-rc.1",
+    })
+}
+
+fn validate_beta_maintainer_validation(value: &Value, root: &Path) -> Result<(), String> {
     exact_json_fields(
-        evidence,
-        "Beta user evidence",
+        value,
+        "Beta maintainer validation",
         &[
-            "cohort",
-            "coverage",
             "evidence_note",
-            "exact_build",
-            "exclusions",
-            "metrics",
+            "known_limitations_reviewed",
+            "reviewer",
             "schema",
             "status",
         ],
     )?;
-    if evidence["schema"] != BETA_USER_EVIDENCE_SCHEMA || evidence["status"] != "qualified" {
-        return Err("Beta user evidence must use v1 schema and qualified status".to_owned());
+    if value["schema"] != BETA_MAINTAINER_VALIDATION_SCHEMA || value["status"] != "passed" {
+        return Err("Beta maintainer validation must use v1 schema and passed status".to_owned());
     }
-
-    let exact_build = &evidence["exact_build"];
-    exact_json_fields(
-        exact_build,
-        "Beta user-evidence exact build",
-        &[
-            "artifact_id",
-            "artifact_name",
-            "release_run",
-            "source_commit",
-            "tag",
-        ],
+    validate_body_free_token(
+        required_string(value, "reviewer", "Beta maintainer validation")?,
+        "Beta maintainer reviewer",
     )?;
-    for field in [
-        "artifact_id",
-        "artifact_name",
-        "release_run",
-        "source_commit",
-        "tag",
-    ] {
-        if exact_build[field] != provider["candidate"][field] {
-            return Err(format!(
-                "Beta user evidence is not bound to the provider-qualified candidate `{field}`"
-            ));
-        }
+    if value["known_limitations_reviewed"] != true {
+        return Err("Beta maintainer validation must review known limitations".to_owned());
     }
-
-    let cohort = &evidence["cohort"];
-    exact_json_fields(
-        cohort,
-        "Beta user-evidence cohort",
-        &["completed_flows", "cumulative_users", "invited_users"],
-    )?;
-    let invited_users = cohort["invited_users"]
-        .as_u64()
-        .ok_or_else(|| "Beta user evidence invited_users must be an integer".to_owned())?;
-    let cumulative_users = cohort["cumulative_users"]
-        .as_u64()
-        .ok_or_else(|| "Beta user evidence cumulative_users must be an integer".to_owned())?;
-    let completed_flows = cohort["completed_flows"]
-        .as_u64()
-        .ok_or_else(|| "Beta user evidence completed_flows must be an integer".to_owned())?;
-    if invited_users < 5
-        || cumulative_users < 8
-        || cumulative_users < invited_users
-        || completed_flows < 20
-    {
-        return Err(
-            "Beta user evidence does not meet the 5 invited / 8 cumulative user / 20 flow minimums"
-                .to_owned(),
-        );
-    }
-
-    let coverage = &evidence["coverage"];
-    exact_json_fields(
-        coverage,
-        "Beta user-evidence coverage",
-        &[
-            "academic_scenario_families",
-            "mixed_application_workspaces",
-            "non_academic_scenario_families",
-            "workflow_pack_ids",
-        ],
-    )?;
-    if coverage["mixed_application_workspaces"]
-        .as_u64()
-        .filter(|value| *value > 0)
-        .is_none()
-    {
-        return Err("Beta user evidence has no mixed-Application Workspace".to_owned());
-    }
-    let expected_packs = BTreeSet::from([
-        "org.canisend.academic-job".to_owned(),
-        "org.canisend.generic-application".to_owned(),
-    ]);
-    if string_set(
-        &coverage["workflow_pack_ids"],
-        "Beta user-evidence workflow Pack IDs",
-    )? != expected_packs
-    {
-        return Err("Beta user evidence must cover both built-in workflow Packs".to_owned());
-    }
-    if beta_token_set(
-        &coverage["academic_scenario_families"],
-        "Beta user-evidence academic scenario families",
-    )?
-    .len()
-        < 2
-        || beta_token_set(
-            &coverage["non_academic_scenario_families"],
-            "Beta user-evidence non-academic scenario families",
-        )?
-        .len()
-            < 3
-    {
-        return Err(
-            "Beta user evidence must cover two academic and three non-academic scenario families"
-                .to_owned(),
-        );
-    }
-
-    let metrics = &evidence["metrics"];
-    exact_json_fields(
-        metrics,
-        "Beta user-evidence metrics",
-        &[
-            "backup_restore_success",
-            "claim_traceability",
-            "unassisted_completion",
-            "unsupported_claims",
-        ],
-    )?;
-    let (unassisted, unassisted_total) =
-        beta_metric(&metrics["unassisted_completion"], "unassisted_completion")?;
-    let (traceable, audited_claims) =
-        beta_metric(&metrics["claim_traceability"], "claim_traceability")?;
-    let (restored, restore_attempts) =
-        beta_metric(&metrics["backup_restore_success"], "backup_restore_success")?;
-    let (unsupported, unsupported_total) =
-        beta_metric(&metrics["unsupported_claims"], "unsupported_claims")?;
-    if unassisted_total != completed_flows
-        || u128::from(unassisted) * 100 < u128::from(unassisted_total) * 80
-        || traceable != audited_claims
-        || restored != restore_attempts
-        || unsupported != 0
-        || unsupported_total != audited_claims
-    {
-        return Err("Beta user-evidence metrics do not meet the Roadmap scorecard".to_owned());
-    }
-
-    let exclusions = evidence["exclusions"]
-        .as_array()
-        .ok_or_else(|| "Beta user-evidence exclusions must be an array".to_owned())?;
-    for exclusion in exclusions {
-        exact_json_fields(
-            exclusion,
-            "Beta user-evidence exclusion",
-            &["category", "count", "disposition", "issue_numbers"],
-        )?;
-        validate_beta_token(
-            required_string(exclusion, "category", "Beta user-evidence exclusion")?,
-            "Beta user-evidence exclusion category",
-        )?;
-        validate_beta_token(
-            required_string(exclusion, "disposition", "Beta user-evidence exclusion")?,
-            "Beta user-evidence exclusion disposition",
-        )?;
-        if exclusion["count"]
-            .as_u64()
-            .filter(|value| *value > 0)
-            .is_none()
-            || exclusion["issue_numbers"].as_array().is_none_or(|issues| {
-                issues.is_empty()
-                    || issues
-                        .iter()
-                        .any(|issue| issue.as_u64().filter(|value| *value > 0).is_none())
-            })
-        {
-            return Err(
-                "Beta user-evidence exclusions require a positive count and maintainer Issue"
-                    .to_owned(),
-            );
-        }
-    }
-    validate_evidence_note(&evidence["evidence_note"], "Beta user-evidence note", root)
+    validate_evidence_note(
+        &value["evidence_note"],
+        "Beta maintainer-validation note",
+        root,
+    )
 }
 
 fn validate_alpha_evidence_bindings(readiness: &Value, root: &Path) -> Result<(), String> {
     let provider =
         validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), root)?;
     validate_provider_dogfood_readiness_binding(&provider, readiness)?;
-    validate_beta_user_evidence(&readiness["user_evidence"], &provider, root)
+    if readiness["provider_evidence"] != beta_provider_evidence(&provider, root)? {
+        return Err("Beta readiness provider evidence is stale or incomplete".to_owned());
+    }
+    validate_beta_maintainer_validation(&readiness["maintainer_validation"], root)?;
+    if readiness["cohort_evidence"] != beta_cohort_evidence() {
+        return Err(
+            "Beta readiness must report zero pre-Beta user evidence and retain the cohort boundary"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_qualified_beta_readiness(
+    ledger: &Value,
+    root: &Path,
+    version: &Version,
+) -> Result<(), String> {
+    exact_json_fields(
+        ledger,
+        "Beta readiness ledger",
+        &[
+            "alpha_release",
+            "audited_at",
+            "blocker_classes",
+            "cohort_evidence",
+            "contracts",
+            "default_telemetry",
+            "github_issue_snapshot",
+            "maintainer_validation",
+            "provider_evidence",
+            "release_line",
+            "schema",
+            "status",
+            "unresolved_release_blockers",
+        ],
+    )?;
+    if ledger["schema"] != BETA_READINESS_SCHEMA || ledger["status"] != "qualified" {
+        return Err("Beta readiness must use v2 schema and qualified status".to_owned());
+    }
+    if ledger["release_line"] != format!("{}.{}", version.major, version.minor) {
+        return Err("Beta readiness does not match the active release line".to_owned());
+    }
+
+    let alpha_release = &ledger["alpha_release"];
+    exact_json_fields(
+        alpha_release,
+        "Beta readiness Alpha release",
+        &["release_run", "release_url", "source_commit", "tag"],
+    )?;
+    let alpha_tag = required_string(alpha_release, "tag", "Alpha release")?;
+    let alpha_version = validate_alpha_baseline_tag(version, alpha_tag)?;
+    check_beta_eligible_alpha(&alpha_version)?;
+    validate_lower_hex(
+        "Beta readiness Alpha source commit",
+        required_string(alpha_release, "source_commit", "Alpha release")?,
+        40,
+    )?;
+    if alpha_release["release_run"]
+        .as_u64()
+        .filter(|run| *run > 0)
+        .is_none()
+        || required_string(alpha_release, "release_url", "Alpha release")?
+            != format!("https://github.com/jxpeng98/CanISend/releases/tag/{alpha_tag}")
+    {
+        return Err("Beta readiness does not bind the exact public Alpha run and URL".to_owned());
+    }
+    if ledger["contracts"] != beta_readiness_v2_contracts(root)? {
+        return Err(
+            "Beta readiness does not bind v4 host resources, Skills, and both Pack digests"
+                .to_owned(),
+        );
+    }
+    validate_alpha_evidence_bindings(ledger, root)?;
+
+    let audited_at = required_string(ledger, "audited_at", "Beta readiness")?;
+    OffsetDateTime::parse(audited_at, &Rfc3339)
+        .map_err(|error| format!("Beta readiness audit timestamp is invalid: {error}"))?;
+    if ledger["default_telemetry"] != false {
+        return Err("Beta readiness must preserve disabled default telemetry".to_owned());
+    }
+
+    let issue_snapshot = &ledger["github_issue_snapshot"];
+    exact_json_fields(
+        issue_snapshot,
+        "Beta readiness public Issue snapshot",
+        &[
+            "all_issue_count",
+            "open_issue_count",
+            "open_p0_blocker_issue_numbers",
+            "query",
+        ],
+    )?;
+    let all_issue_count = issue_snapshot["all_issue_count"]
+        .as_u64()
+        .filter(|count| *count > 0)
+        .ok_or_else(|| "Beta readiness public Issue snapshot is empty".to_owned())?;
+    let _open_issue_count = issue_snapshot["open_issue_count"]
+        .as_u64()
+        .filter(|count| *count <= all_issue_count)
+        .ok_or_else(|| "Beta readiness public Issue counts are inconsistent".to_owned())?;
+    if issue_snapshot["query"] != "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue"
+        || issue_snapshot["open_p0_blocker_issue_numbers"]
+            .as_array()
+            .is_none_or(|issues| !issues.is_empty())
+    {
+        return Err("Beta readiness contains an applicable open P0 blocker".to_owned());
+    }
+    if ledger["unresolved_release_blockers"]
+        .as_array()
+        .is_none_or(|entries| !entries.is_empty())
+    {
+        return Err("Beta readiness contains unresolved release blockers".to_owned());
+    }
+
+    let entries = ledger["blocker_classes"]
+        .as_array()
+        .ok_or_else(|| "Beta readiness blocker_classes must be an array".to_owned())?;
+    let mut actual_classes = BTreeSet::new();
+    for entry in entries {
+        exact_json_fields(
+            entry,
+            "Beta readiness blocker class",
+            &["class", "evidence", "open_issue_numbers", "status"],
+        )?;
+        let class = required_string(entry, "class", "Beta readiness blocker class")?;
+        if !actual_classes.insert(class) {
+            return Err(format!("duplicate Beta readiness blocker class `{class}`"));
+        }
+        if entry["status"] != "clear"
+            || entry["open_issue_numbers"]
+                .as_array()
+                .is_none_or(|issues| !issues.is_empty())
+            || entry["evidence"] != json!(BETA_READINESS_EVIDENCE_TOKENS)
+        {
+            return Err(format!(
+                "Beta readiness blocker class `{class}` is not canonically clear"
+            ));
+        }
+    }
+    if actual_classes
+        != BETA_READINESS_BLOCKER_CLASSES
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+    {
+        return Err("Beta readiness blocker classes are incomplete".to_owned());
+    }
+    Ok(())
 }
 
 fn check_beta_readiness() -> Result<(), String> {
@@ -10162,95 +10168,12 @@ fn check_beta_readiness_file(path: &Path) -> Result<(), String> {
         println!("beta readiness: ok (pending public Alpha evidence)");
         return Ok(());
     }
-    if ledger["schema"] != BETA_READINESS_SCHEMA {
-        return Err(
-            "Beta readiness ledger does not identify the qualified native Alpha".to_owned(),
-        );
-    }
-    let alpha_tag = required_string(&ledger["alpha_release"], "tag", "Alpha release")?;
-    let alpha_version = validate_alpha_baseline_tag(&version, alpha_tag)?;
-    check_beta_eligible_alpha(&alpha_version)?;
-    validate_lower_hex(
-        "Beta readiness Alpha source commit",
-        required_string(&ledger["alpha_release"], "source_commit", "Alpha release")?,
-        40,
-    )?;
-    if ledger["status"] != "qualified"
-        || ledger["alpha_release"]["release_run"]
-            .as_u64()
-            .filter(|run| *run > 0)
-            .is_none()
-        || required_string(&ledger["alpha_release"], "release_url", "Alpha release")?
-            != format!("https://github.com/jxpeng98/CanISend/releases/tag/{alpha_tag}")
-        || ledger["contracts"] != beta_readiness_contracts(&repository_root())?
-    {
-        return Err(
-            "Beta readiness must bind its eligible Alpha tag, source, public run/URL, v4 contracts, and both Pack digests"
-                .to_owned(),
-        );
-    }
     let root = repository_root();
-    validate_alpha_evidence_bindings(&ledger, &root)?;
-    let audited_at = ledger["audited_at"]
-        .as_str()
-        .filter(|value| value.ends_with('Z') && value.contains('T'))
-        .ok_or_else(|| "Beta readiness ledger has no UTC audit timestamp".to_owned())?;
-    if ledger["default_telemetry"] != false {
-        return Err("Beta readiness ledger must preserve disabled default telemetry".to_owned());
-    }
-    if ledger["github_issue_snapshot"]["open_issue_count"] != 0
-        || ledger["unresolved_release_blockers"]
-            .as_array()
-            .is_none_or(|entries| !entries.is_empty())
-    {
-        return Err("Beta readiness ledger contains unresolved Alpha blockers".to_owned());
-    }
-    let expected_classes = BTreeSet::from([
-        "data-loss",
-        "protocol-compatibility",
-        "rendering-corruption",
-        "security-privacy",
-    ]);
-    let entries = ledger["blocker_classes"]
-        .as_array()
-        .ok_or_else(|| "Beta readiness blocker_classes must be an array".to_owned())?;
-    let mut actual_classes = BTreeSet::new();
-    for entry in entries {
-        let class = entry["class"]
-            .as_str()
-            .ok_or_else(|| "Beta readiness blocker class is missing".to_owned())?;
-        if !actual_classes.insert(class) {
-            return Err(format!("duplicate Beta readiness blocker class `{class}`"));
-        }
-        if !matches!(entry["status"].as_str(), Some("clear" | "resolved")) {
-            return Err(format!(
-                "Beta readiness blocker class `{class}` is not clear"
-            ));
-        }
-        if entry["open_issue_numbers"]
-            .as_array()
-            .is_none_or(|issues| !issues.is_empty())
-        {
-            return Err(format!(
-                "Beta readiness blocker class `{class}` contains open issues"
-            ));
-        }
-        if entry["evidence"].as_array().is_none_or(|evidence| {
-            evidence.is_empty() || evidence.iter().any(|item| !item.is_string())
-        }) {
-            return Err(format!(
-                "Beta readiness blocker class `{class}` has no evidence"
-            ));
-        }
-    }
-    if actual_classes != expected_classes {
-        return Err(format!(
-            "Beta readiness blocker classes differ: expected {expected_classes:?}, found {actual_classes:?}"
-        ));
-    }
+    validate_qualified_beta_readiness(&ledger, &root, &version)?;
+    let audited_at = required_string(&ledger, "audited_at", "Beta readiness")?;
     println!(
         "beta readiness: ok ({} blocker classes, audited {audited_at})",
-        actual_classes.len()
+        BETA_READINESS_BLOCKER_CLASSES.len()
     );
     Ok(())
 }
@@ -16239,39 +16162,55 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn beta_user_evidence_fixture(provider: &Value) -> Value {
+    fn beta_readiness_fixture(provider: &Value, root: &Path) -> Value {
+        let blocker_classes = BETA_READINESS_BLOCKER_CLASSES
+            .into_iter()
+            .map(|class| {
+                json!({
+                    "class": class,
+                    "status": "clear",
+                    "open_issue_numbers": [],
+                    "evidence": BETA_READINESS_EVIDENCE_TOKENS,
+                })
+            })
+            .collect::<Vec<_>>();
+        let tag = required_string(&provider["candidate"], "tag", "provider candidate")
+            .expect("provider tag")
+            .to_owned();
         json!({
-            "schema": BETA_USER_EVIDENCE_SCHEMA,
+            "schema": BETA_READINESS_SCHEMA,
             "status": "qualified",
-            "exact_build": {
-                "tag": provider["candidate"]["tag"],
+            "release_line": "1.0",
+            "audited_at": "2026-08-29T00:00:00Z",
+            "alpha_release": {
+                "tag": tag.clone(),
                 "source_commit": provider["candidate"]["source_commit"],
                 "release_run": provider["candidate"]["release_run"],
-                "artifact_id": provider["candidate"]["artifact_id"],
-                "artifact_name": provider["candidate"]["artifact_name"],
+                "release_url": format!(
+                    "https://github.com/jxpeng98/CanISend/releases/tag/{}",
+                    tag
+                ),
             },
-            "cohort": {
-                "invited_users": 5,
-                "cumulative_users": 8,
-                "completed_flows": 20,
+            "default_telemetry": false,
+            "github_issue_snapshot": {
+                "query": "https://github.com/jxpeng98/CanISend/issues?q=is%3Aissue",
+                "all_issue_count": 100,
+                "open_issue_count": 28,
+                "open_p0_blocker_issue_numbers": [],
             },
-            "coverage": {
-                "mixed_application_workspaces": 1,
-                "workflow_pack_ids": [
-                    "org.canisend.academic-job",
-                    "org.canisend.generic-application",
-                ],
-                "academic_scenario_families": ["faculty-role", "research-role"],
-                "non_academic_scenario_families": ["grant", "professional-role", "tender"],
+            "contracts": beta_readiness_v2_contracts(root).expect("Beta readiness contracts"),
+            "provider_evidence": beta_provider_evidence(provider, root)
+                .expect("Beta provider evidence"),
+            "maintainer_validation": {
+                "schema": BETA_MAINTAINER_VALIDATION_SCHEMA,
+                "status": "passed",
+                "reviewer": "maintainer",
+                "known_limitations_reviewed": true,
+                "evidence_note": provider["evidence_note"],
             },
-            "metrics": {
-                "unassisted_completion": {"numerator": 16, "denominator": 20},
-                "claim_traceability": {"numerator": 12, "denominator": 12},
-                "backup_restore_success": {"numerator": 2, "denominator": 2},
-                "unsupported_claims": {"numerator": 0, "denominator": 12},
-            },
-            "exclusions": [],
-            "evidence_note": provider["evidence_note"],
+            "cohort_evidence": beta_cohort_evidence(),
+            "blocker_classes": blocker_classes,
+            "unresolved_release_blockers": [],
         })
     }
 
@@ -17417,40 +17356,38 @@ mod tests {
     }
 
     #[test]
-    fn beta_user_evidence_rejects_missing_stale_inconsistent_or_unbound_records() {
+    fn beta_readiness_v2_rejects_stale_private_false_or_blocked_records() {
         let root = repository_root();
         let provider =
             validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
                 .expect("provider dogfood record");
-        let evidence = beta_user_evidence_fixture(&provider);
-        validate_beta_user_evidence(&evidence, &provider, &root)
-            .expect("qualified Beta user evidence fixture");
+        let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("workspace version");
+        let readiness = beta_readiness_fixture(&provider, &root);
+        validate_qualified_beta_readiness(&readiness, &root, &version)
+            .expect("qualified Beta readiness fixture");
 
         for (name, mut rejected) in [
             ("missing", Value::Null),
-            ("stale", evidence.clone()),
-            ("inconsistent", evidence.clone()),
-            ("single-pack", evidence.clone()),
-            ("unbound", evidence.clone()),
-            ("private", evidence.clone()),
+            ("stale", readiness.clone()),
+            ("false-cohort", readiness.clone()),
+            ("unbound", readiness.clone()),
+            ("blocked", readiness.clone()),
+            ("private", readiness.clone()),
         ] {
             match name {
                 "missing" => {}
-                "stale" => rejected["evidence_note"]["sha256"] = json!("0".repeat(64)),
-                "inconsistent" => {
-                    rejected["metrics"]["unassisted_completion"]["denominator"] = json!(19)
+                "stale" => rejected["provider_evidence"]["record_sha256"] = json!("0".repeat(64)),
+                "false-cohort" => rejected["cohort_evidence"]["invited_users"] = json!(1),
+                "unbound" => rejected["contracts"]["skills"][0]["sha256"] = json!("0".repeat(64)),
+                "blocked" => {
+                    rejected["github_issue_snapshot"]["open_p0_blocker_issue_numbers"] = json!([71])
                 }
-                "single-pack" => {
-                    rejected["coverage"]["workflow_pack_ids"] =
-                        json!(["org.canisend.generic-application"])
-                }
-                "unbound" => rejected["exact_build"]["source_commit"] = json!("0".repeat(40)),
                 "private" => rejected["body"] = json!("must not be retained"),
                 _ => unreachable!(),
             }
             assert!(
-                validate_beta_user_evidence(&rejected, &provider, &root).is_err(),
-                "{name} Beta user evidence must fail"
+                validate_qualified_beta_readiness(&rejected, &root, &version).is_err(),
+                "{name} Beta readiness must fail"
             );
         }
     }
@@ -17507,23 +17444,9 @@ mod tests {
         )
         .expect("fixture provider source")
         .to_owned();
-        let release_run = provider["candidate"]["release_run"]
-            .as_u64()
-            .expect("fixture provider run");
         write_pretty_json(
             &root.join("release/beta-readiness.json"),
-            &json!({
-                "schema": BETA_READINESS_SCHEMA,
-                "status": "qualified",
-                "alpha_release": {
-                    "tag": tag,
-                    "source_commit": source,
-                    "release_run": release_run,
-                    "release_url": format!("https://github.com/jxpeng98/CanISend/releases/tag/{tag}")
-                },
-                "contracts": beta_readiness_contracts(&root).expect("Beta contracts"),
-                "user_evidence": beta_user_evidence_fixture(&provider),
-            }),
+            &beta_readiness_fixture(&provider, &root),
         )
         .expect("write readiness fixture");
         write_pretty_json(

@@ -1,0 +1,59 @@
+{
+  "id": "beta1-readiness",
+  "name": "beta1-readiness",
+  "title": "Qualify Alpha.10 for lean Beta.1 readiness",
+  "description": "Replace the obsolete cohort-bound gate with exact Alpha.10 maintainer readiness before a separate Beta.1 stage task",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release-engineering",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-29",
+  "completedAt": null,
+  "branch": "plan/beta1-readiness-control",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "xtask/src/main.rs",
+    "scripts/refresh_beta_readiness.sh",
+    "release/beta-readiness.json",
+    "release/provider-dogfood.json",
+    "docs/notes/rust-native/2026-08-29-alpha10-beta1-readiness.md",
+    "docs/release/stage-transitions.md",
+    "docs/release/qualification-ledger.md",
+    "docs/guides/known-limitations.md",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/guides/project-control.md"
+  ],
+  "notes": "Readiness v2 exact record and final source gate pass: exact Alpha.10 Codex/provider evidence, body-free maintainer review, host/Skill/Pack digests, 112 public Issues, 25 open Issues, and zero applicable P0 blockers. Protected Fast CI and reconciliation remain.",
+  "meta": {
+    "roadmap_id": "M4-READY-001",
+    "github_issue": 71,
+    "github_milestone": 5,
+    "dependencies": [
+      "M3-ALPHA10-001",
+      "M3-EVID-004",
+      "121e4b62ad19c90bad88ad53c63735cc112fbfd9"
+    ],
+    "owner_role": "validation",
+    "verification_tier": "focused-plus-tier2-and-fast-ci",
+    "exact_alpha_tag": "v1.0.0-alpha.10",
+    "exact_alpha_source": "cd40180f2ff8ac957276f1948ba88da428511a82",
+    "required_external_host": "codex-cli",
+    "next_checkpoint": "v1.0.0-beta.1",
+    "expected_evidence": [
+      "qualified canisend.beta-readiness/v2 record",
+      "exact provider-dogfood v2 and two Codex Pack scenarios",
+      "body-free maintainer validation note",
+      "public P0 blocked-Issue snapshot",
+      "protected Fast CI"
+    ]
+  }
+}
