@@ -41,16 +41,16 @@
 - [x] Focused recorder positive/negative regression
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] One final `cargo run -p xtask --locked -- release check`
-- [ ] Protected Fast CI on the exact PR head
+- [x] Protected Fast CI on the exact PR head
 - [x] No local full workspace suite, native rebuild, provider matrix, package lifecycle, or extended
       assurance
 
 ## 6. Protected reconciliation
 
-- [ ] Merge the bounded PR after protected checks pass.
-- [ ] Mark Issue #75 / `M4-LEDGER-001` Verified with exact evidence.
-- [ ] Make `M4-CHANNEL-001` Ready and archive this task.
-- [ ] Do not generate channels or activate feature freeze in this task.
+- [x] Merge the bounded PR after protected checks pass.
+- [x] Mark Issue #75 / `M4-LEDGER-001` Verified with exact evidence.
+- [x] Make `M4-CHANNEL-001` Ready and archive this task.
+- [x] Do not generate channels or activate feature freeze in this task.
 
 ## Stop conditions
 
