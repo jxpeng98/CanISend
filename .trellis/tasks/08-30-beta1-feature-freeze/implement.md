@@ -27,31 +27,32 @@
 - [x] Document that root `RELEASE.md` is nonautomatic after freeze.
 - [x] Reconcile the spec and task plan; do not change Rust or machine release state.
 - [x] Run `git diff --check`, Trellis validation, and one final `release check`.
-- [ ] Pass protected Fast CI on the exact amendment head.
-- [ ] Merge the amendment before resolving a new activation baseline.
+- [x] Pass protected Fast CI run `33289215836` on PR #208 head.
+- [x] Merge the amendment as final baseline
+      `acf25dc483643ca9be0210320775708da116b715`.
 
 ## 3. Exact activation transaction
 
-- [ ] Fast-forward `main` to the protected preparation merge and branch from it.
-- [ ] Resolve the full HEAD through Git; never extrapolate an abbreviated hash.
-- [ ] Run `activate-feature-freeze FULL_HEAD_COMMIT` dry-run.
-- [ ] Run the same command with `--write` from the unchanged clean HEAD.
-- [ ] Compare baseline, exact two paths, and before/after digests between reports.
-- [ ] Inspect the two JSON records for matching frozen baseline, unchanged classes, and zero
+- [x] Fast-forward `main` to the protected preparation merge and branch from it.
+- [x] Resolve the full HEAD through Git; never extrapolate an abbreviated hash.
+- [x] Run `activate-feature-freeze FULL_HEAD_COMMIT` dry-run.
+- [x] Run the same command with `--write` from the unchanged clean HEAD.
+- [x] Compare baseline, exact two paths, and before/after digests between reports.
+- [x] Inspect the two JSON records for matching frozen baseline, unchanged classes, and zero
       exceptions.
-- [ ] Commit only the two activation records first.
+- [x] Commit only the two activation records first.
 
 ## 4. Reconcile automatic release state
 
-- [ ] Add one body-free dated activation evidence note.
-- [ ] Update README, Roadmap, Trellis control, and current/parent task truth.
-- [ ] Do not update nonautomatic root `RELEASE.md` after the baseline.
-- [ ] Keep cohort, RC, Stable, package publication, and native lifecycle work pending.
+- [x] Add one body-free dated activation evidence note.
+- [x] Update README, Roadmap, Trellis control, and current/parent task truth.
+- [x] Do not update nonautomatic root `RELEASE.md` after the baseline.
+- [x] Keep cohort, RC, Stable, package publication, and native lifecycle work pending.
 
 ## 5. Minimum activation gate
 
-- [ ] One final `cargo run -p xtask --locked -- release check`
-- [ ] `git diff --check` and Trellis task validation
+- [x] One final `cargo run -p xtask --locked -- release check`
+- [x] `git diff --check` and Trellis task validation
 - [ ] Protected Fast CI on the exact activation PR head
 - [ ] Merge the activation PR after protected checks pass
 - [ ] Mark Issue #77 Verified with exact reports, commit, PR, runs, and merge

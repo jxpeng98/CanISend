@@ -36,6 +36,11 @@
    The unpushed local activation at that baseline is therefore superseded. The minimum safe fix is
    a docs/control amendment that makes `RELEASE.md` state-independent before selecting the final
    protected baseline; activation still uses the existing two-file transaction.
+9. Policy amendment PR #208 merged as final baseline
+   `acf25dc483643ca9be0210320775708da116b715`. Matching dry-run/write reports changed exactly the
+   two machine records, retained the qualified Beta artifact source and allowed classes, and
+   produced zero initial exceptions. The two-file state commit is
+   `f0894235c3d56e88f402ef385f5b2ecd46e9c193`; the earlier local activation remains unpublished.
 
 ## Verification ownership
 

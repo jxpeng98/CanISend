@@ -21,8 +21,8 @@
       "release-blocker",
       "release-evidence"
     ],
-    "baseline_commit": null,
-    "status": "planned"
+    "baseline_commit": "acf25dc483643ca9be0210320775708da116b715",
+    "status": "frozen"
   },
   "package_managers": {
     "channels": [
