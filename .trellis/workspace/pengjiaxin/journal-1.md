@@ -294,3 +294,24 @@ Recorded exact public Beta.1 qualification, repaired canonical ledger and provid
 ### Next Steps
 
 - Execute M4-CHANNEL-001 / Issue #76 using local-only package-channel candidates.
+
+
+## Session 12: Beta.1 package-channel candidates
+
+**Date**: 2026-08-30
+**Task**: Beta.1 package-channel candidates
+**Branch**: `main`
+
+### Summary
+
+Generated deterministic local-only Beta.1 package candidates from independently verified public assets, corrected current generic package metadata without rewriting historical candidates, passed the focused/source/protected gates, merged PR #206, verified Issue #76, and made Issue #77 Ready.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bb3e3d5e4e8d1c4c9e5759b10776b8fab788ffe0` | (see git log) |
+
+### Status
+
+[OK] **Completed**

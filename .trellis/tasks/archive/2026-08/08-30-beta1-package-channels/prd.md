@@ -74,7 +74,7 @@ framework, remain explicitly candidate-only, and create no external package-chan
 - [x] The generated six-file tree revalidates exactly and cannot authorize publication.
 - [x] No external package index, release, tag, qualification ledger, feature-freeze state, or
       public artifact changes.
-- [ ] Focused checks, final source gate, and protected Fast CI pass on the exact PR head before
+- [x] Focused checks, final source gate, and protected Fast CI pass on the exact PR head before
       Issue #76 becomes Verified.
 
 ## Out of scope

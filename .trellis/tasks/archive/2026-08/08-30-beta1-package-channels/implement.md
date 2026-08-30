@@ -40,16 +40,16 @@
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] One final `cargo run -p xtask --locked -- release check`
 - [x] Trellis task validation
-- [ ] Protected Fast CI on the exact PR head
+- [x] Protected Fast CI on the exact PR head
 - [x] No full local workspace suite, native rebuild, host matrix, package lifecycle, or extended
       assurance
 
 ## 6. Protected reconciliation
 
-- [ ] Merge the bounded PR after protected checks pass.
-- [ ] Mark Issue #76 / `M4-CHANNEL-001` Verified with exact evidence.
-- [ ] Make `M4-FREEZE-002` / Issue #77 Ready and archive this task.
-- [ ] Do not activate feature freeze or publish a package channel in this task.
+- [x] Merge the bounded PR after protected checks pass.
+- [x] Mark Issue #76 / `M4-CHANNEL-001` Verified with exact evidence.
+- [x] Make `M4-FREEZE-002` / Issue #77 Ready and archive this task.
+- [x] Do not activate feature freeze or publish a package channel in this task.
 
 ## Stop conditions
 

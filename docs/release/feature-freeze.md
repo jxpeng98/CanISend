@@ -14,7 +14,8 @@ changes.
 
 After a signed Beta is qualified:
 
-1. finish and commit all reviewed Beta qualification evidence so the clean `HEAD` is the intended baseline;
+1. finish and commit all reviewed Beta qualification evidence and pre-freeze control changes so the clean `HEAD` is
+   the intended repository baseline;
 2. preview the two-file, digest-bound activation plan;
 3. apply it explicitly from the same clean `HEAD`; and
 4. commit the activation files and run the source gate from a full Git checkout.
@@ -31,6 +32,10 @@ Beta evidence, and canonical planned ledger/exception state. Dry-run is the defa
 a clean worktree. It updates only `release/qualification-ledger.json` and
 `release/feature-freeze-exceptions.json`. It does not create a tag, publish a release, or authorize Stable.
 
+The qualified Beta artifact source and the feature-freeze repository baseline are separate exact identities. The
+ledger retains the source commit that produced the published Beta bytes; freeze activation records the later clean
+repository `HEAD` that already contains reviewed qualification evidence and pre-freeze control changes.
+
 RC and Stable workspace versions fail unless the freeze is active.
 
 ## Allowed post-baseline changes
@@ -38,6 +43,10 @@ RC and Stable workspace versions fail unless the freeze is active.
 Documentation and narrowly defined release-evidence files are accepted automatically. These include `docs/`, root
 project/support Markdown files, the qualification ledger, feedback/support state, final release notes, checked-in
 package candidates, committed release evidence, and the exception record itself.
+
+Trellis task records under `.trellis/tasks/` and developer journals under `.trellis/workspace/` are also automatic
+bookkeeping. Executable or policy-bearing Trellis paths remain controlled: `.trellis/scripts/`, `.trellis/spec/`,
+`.trellis/workflow.md`, platform adapters, and every other Trellis path require an exact exception after freeze.
 
 Every other changed path must be listed under the exact commit that changed it. An entry contains:
 

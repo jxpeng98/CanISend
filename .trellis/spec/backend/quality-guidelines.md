@@ -101,6 +101,65 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
 - Use the owning policy check, the relevant fresh audit, any named compensating regression, and one
   final `release check`. Do not repeat unrelated suites when product source is unchanged.
 
+## Scenario: protected feature-freeze activation
+
+### 1. Scope / Trigger
+
+- Trigger: changing `release activate-feature-freeze`, feature-freeze history validation, or the
+  automatic post-baseline path policy.
+
+### 2. Signatures
+
+- `xtask release activate-feature-freeze FULL_HEAD_COMMIT [--write]` renders or applies the
+  two-file activation transaction.
+- `is_automatic_feature_freeze_path(path)` classifies exact Git changed paths after the baseline.
+
+### 3. Contracts
+
+The qualified Beta artifact source identifies the published bytes; the later feature-freeze
+baseline identifies the protected repository `HEAD` after qualification evidence and pre-freeze
+control changes have merged. The activation command requires that exact full `HEAD`, canonical
+planned machine state, and a clean write worktree. It writes only the qualification ledger and
+feature-freeze exception record.
+
+Automatic Trellis bookkeeping is limited to `.trellis/tasks/` and `.trellis/workspace/`.
+Executable or policy-bearing paths such as `.trellis/scripts/`, `.trellis/spec/`,
+`.trellis/workflow.md`, and platform adapters remain exact post-baseline exceptions.
+
+### 4. Validation & Error Matrix
+
+- Abbreviated, invented, stale, or non-HEAD baseline -> reject before mutation.
+- Dirty write worktree or noncanonical planned records -> reject before mutation.
+- Nonautomatic preparation and activation combined before a protected merge -> the merge commit
+  introduces unrecorded paths; split preparation and activation at the protected baseline.
+- Broad `.trellis/` exemption or missing exact post-baseline exception -> source gate fails.
+
+### 5. Good / Base / Bad Cases
+
+- Good: merge pre-freeze controls, resolve that protected merge as baseline, then activate the two
+  machine records in a separate protected PR.
+- Base: task/archive/journal records remain automatic while Trellis scripts and specs stay frozen.
+- Bad: use the Beta artifact source as the repository baseline or exempt all `.trellis/` paths.
+
+### 6. Tests Required
+
+- Focused policy regression: `planned_feature_freeze_cannot_preapprove_source_changes`.
+- Existing transaction regression: `feature_freeze_activation_is_head_bound_and_two_file_only`.
+- Operator check: compare dry-run and write baseline, paths, and digest pairs from the same clean
+  protected `HEAD`.
+- Source gate: one final `cargo run -p xtask --locked -- release check` per protected PR head.
+- Protected Fast CI owns the complete workspace suite; do not repeat native or host matrices.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: executable Trellis controls silently bypass freeze review.
+path.starts_with(".trellis/")
+
+// Correct: only non-executable task and journal records are automatic.
+path.starts_with(".trellis/tasks/") || path.starts_with(".trellis/workspace/")
+```
+
 ## Scenario: Codex-first provider qualification
 
 ### 1. Scope / Trigger
