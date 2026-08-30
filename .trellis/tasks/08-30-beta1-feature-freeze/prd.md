@@ -16,8 +16,9 @@ policy-bearing Trellis files from freeze review.
   `43dc80b0fb5e3accc602795c8e3b706e0bce8fea`.
 - `M4-CHANNEL-001` / Issue #76 is Verified through merge
   `1c9f36d94a567975b2a8318af9138b9cda7320ba`.
-- The checked-in ledger is canonical `beta-qualifying` with qualified signed Beta evidence; both
-  feature-freeze records remain `planned`, have a null baseline, and contain no exceptions.
+- At planning start, the ledger was canonical `beta-qualifying` with qualified signed Beta
+  evidence; both feature-freeze records were `planned`, had a null baseline, and contained no
+  exceptions.
 - The existing `xtask release activate-feature-freeze FULL_HEAD_COMMIT [--write]` command requires
   a full lowercase commit equal to the current clean `HEAD` in write mode and renders exactly
   `release/qualification-ledger.json` plus `release/feature-freeze-exceptions.json`.
@@ -82,17 +83,18 @@ policy-bearing Trellis files from freeze review.
       Trellis records and still rejects executable, spec, workflow, adapter, and product paths.
 - [x] The first preparation PR is protected and merged as
       `bd83617efd3f1513d0635721566a4ad895311626`.
-- [ ] The final state-independent release-policy amendment is protected and merged before the
+- [x] The final state-independent release-policy amendment is protected and merged before the
       activation baseline is resolved.
-- [ ] The final baseline is the exact protected preparation merge commit, while the ledger retains
+- [x] The final baseline is exact protected merge
+      `acf25dc483643ca9be0210320775708da116b715`, while the ledger retains
       Beta artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e` unchanged.
-- [ ] Dry-run and write reports bind the same baseline, two paths, and before/after digests; write
+- [x] Dry-run and write reports bind the same baseline, two paths, and before/after digests; write
       mode changes only the two canonical machine records.
-- [ ] Both feature-freeze records are `frozen` at the same full commit with zero initial
+- [x] Both feature-freeze records are `frozen` at the same full commit with zero initial
       exceptions and unchanged allowed change classes.
 - [ ] The source gate and protected checks pass on the exact activation PR head before Issue #77
       becomes Verified and Issue #70 becomes Ready.
-- [ ] No external publication, user outreach, RC transition, Stable authorization, native rebuild,
+- [x] No external publication, user outreach, RC transition, Stable authorization, native rebuild,
       or unsupported evidence claim occurs.
 
 ## Out of scope

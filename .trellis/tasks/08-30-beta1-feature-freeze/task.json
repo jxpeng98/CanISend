@@ -12,10 +12,10 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
   "completedAt": null,
-  "branch": "plan/beta1-freeze-release-policy",
+  "branch": "release/beta1-feature-freeze-activation-final",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "f0894235c3d56e88f402ef385f5b2ecd46e9c193",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -33,7 +33,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-10-1-0-roadmap-trellis-control/task.json"
   ],
-  "notes": "Preparation PR #207 is protected and merged. Final audit found root RELEASE.md is nonautomatic but had mutable pending-state text, so a minimal state-independent policy amendment must merge before the final baseline is selected. The unpushed local activation at the earlier baseline is superseded; public main remains planned and external publication remains pending.",
+  "notes": "Preparation PR #207 and policy amendment PR #208 are protected and merged. Matching dry-run/write reports activated exactly two machine files at final baseline acf25dc483643ca9be0210320775708da116b715, retained qualified Beta source 6e1397b79031cad54e794ccdc9edca2153f23b3e, and started with zero exceptions. The final local source gate passed; protected activation review remains pending. No external publication or user outreach occurred.",
   "meta": {
     "roadmap_id": "M4-FREEZE-002",
     "github_issue": 77,
@@ -61,15 +61,40 @@
     "preparation_release_check": "passed",
     "preparation_local_gate": "passed-focused-format-clippy-release-check",
     "preparation_ledger_state": "planned",
-    "activation_baseline_commit": null,
+    "activation_baseline_commit": "acf25dc483643ca9be0210320775708da116b715",
     "preparation_commit": "5448957ad6a74bd34aacd23cdf61e1cd7e351e55",
     "preparation_pr_url": "https://github.com/jxpeng98/CanISend/pull/207",
+    "preparation_protected_ci_run": "33288394375",
+    "preparation_dependency_assurance_run": "33288394360",
+    "preparation_protected_check_count": 7,
     "preparation_merge_commit": "bd83617efd3f1513d0635721566a4ad895311626",
     "policy_amendment_commit": "86d33fd4c884d0827be861edbb9d61da17f539ac",
     "policy_amendment_pr_url": "https://github.com/jxpeng98/CanISend/pull/208",
-    "policy_amendment_merge_commit": null,
+    "policy_amendment_merge_commit": "acf25dc483643ca9be0210320775708da116b715",
     "policy_amendment_local_gate": "passed-diff-trellis-release-check",
+    "policy_amendment_protected_ci_run": "33289215836",
+    "policy_amendment_protected_check_count": 6,
     "superseded_local_activation_commit": "399d3a3199acdc8bd1aa15b57e9266f7bbfe49b7",
+    "activation_state_commit": "f0894235c3d56e88f402ef385f5b2ecd46e9c193",
+    "activation_report_match": true,
+    "activation_files": [
+      {
+        "after_sha256": "557ae86e9334f6ada1b1328c1775ea21c0f0dee05d0d4bf6156bd6b305000084",
+        "before_sha256": "c49b11a05bd07197e3334a00298c7e8e2be6f9f90e28013d8a88d1046205cb6b",
+        "path": "release/feature-freeze-exceptions.json"
+      },
+      {
+        "after_sha256": "3a6868c2d9596bf8db23621c03d0c66d749691c0497988deb28ef84daae3bbf2",
+        "before_sha256": "7bff07d6e375fe879aae4e3d5f6e65c84c8f2cdcb223508108b818047b1415d0",
+        "path": "release/qualification-ledger.json"
+      }
+    ],
+    "activation_exception_count": 0,
+    "activation_source_gate": "passed",
+    "activation_local_gate": "passed-report-match-diff-task-validation-release-check",
+    "activation_pr_url": null,
+    "activation_protected_ci_run": null,
+    "activation_merge_commit": null,
     "next_roadmap_id": "M3-EVID-005"
   }
 }
