@@ -12043,7 +12043,9 @@ fn validate_feature_freeze_history(
 }
 
 fn is_automatic_feature_freeze_path(path: &str) -> bool {
-    path.starts_with("docs/")
+    path.starts_with(".trellis/tasks/")
+        || path.starts_with(".trellis/workspace/")
+        || path.starts_with("docs/")
         || path.starts_with("packaging/candidates/")
         || path.starts_with("release/evidence/")
         || matches!(
@@ -19217,6 +19219,19 @@ mod tests {
         assert!(is_automatic_feature_freeze_path(
             "release/qualification-ledger.json"
         ));
+        assert!(is_automatic_feature_freeze_path(
+            ".trellis/tasks/08-30-release/task.json"
+        ));
+        assert!(is_automatic_feature_freeze_path(
+            ".trellis/workspace/release-owner/journal-1.md"
+        ));
+        assert!(!is_automatic_feature_freeze_path(
+            ".trellis/scripts/task.py"
+        ));
+        assert!(!is_automatic_feature_freeze_path(
+            ".trellis/spec/backend/quality-guidelines.md"
+        ));
+        assert!(!is_automatic_feature_freeze_path(".trellis/workflow.md"));
         assert!(!is_automatic_feature_freeze_path(
             "crates/canisend-store/src/lib.rs"
         ));

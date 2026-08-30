@@ -9,9 +9,11 @@
   recorded as qualified against candidate run `33281162734`.
 - Local package-channel candidates: deterministic Homebrew, Scoop, and WinGet review files derived
   from the exact qualified public archives, with publication explicitly unauthorized.
-- Next intended checkpoint: activate feature freeze against the qualified Beta.1 source under the
-  [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The invited cohort runs
-  on public Beta.1 and remains required before RC.1.
+- Next intended checkpoint: merge the bounded pre-freeze controls, then activate feature freeze at
+  that exact protected repository baseline under the
+  [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The ledger retains the
+  qualified Beta.1 artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e`; the invited cohort
+  runs on public Beta.1 and remains required before RC.1.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
 - Machine stage: Beta / `beta-qualifying`; feature freeze remains pending, and RC and Stable are

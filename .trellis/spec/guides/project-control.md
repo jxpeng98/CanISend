@@ -33,13 +33,14 @@ regression only when drift can be detected mechanically.
   `M4-LEDGER-001` / Issue #75 is Verified by a fresh public download, matching dry-run/write
   transaction, and protected reconciliation. `M4-CHANNEL-001` / Issue #76 is Verified by exact
   regenerated local package metadata and protected reconciliation; `M4-FREEZE-002` / Issue #77 is
-  next.
+  In progress through a pre-freeze preparation PR followed by exact protected-baseline activation.
   `M3-EVID-005` / Issue #70 runs on public Beta.1 and remains required before RC.1;
   later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** activate feature freeze against the qualified Beta.1 source.
+- **Current:** prepare and activate feature freeze at an exact protected repository baseline while
+  retaining the qualified Beta.1 artifact source unchanged.
 - **Near term:** run the mixed-Application invited cohort without treating synthetic dogfood as
   user evidence.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
