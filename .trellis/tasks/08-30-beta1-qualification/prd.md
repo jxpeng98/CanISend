@@ -29,6 +29,9 @@ channels, activate feature freeze, count users, or advance to RC.
 - Make `beta_qualified_ledger` accept the exact status-only pending Beta object emitted by
   `initial_alpha_qualification_ledger` and preserved by `prepare-stage`.
 - Update the existing focused positive/negative regression to use that canonical input.
+- Keep provider dogfood bound to the current public checkpoint during Alpha, but after Alpha bind
+  it to the exact qualified Beta-readiness Alpha entry authority. Do not relabel Alpha.10 host
+  evidence as Beta.1 evidence or repeat provider dogfood.
 - Add no schema, migration, compatibility branch, second recorder, dependency, or workflow.
 
 ### R2 — Re-establish public asset identity
@@ -66,16 +69,18 @@ channels, activate feature freeze, count users, or advance to RC.
 
 ## Acceptance criteria
 
-- [ ] The existing recorder accepts the canonical status-only pending Beta shape and still rejects
+- [x] The existing recorder accepts the canonical status-only pending Beta shape and still rejects
       already-qualified, wrong-stage, zero-run, malformed-source, frozen, or noncanonical state.
-- [ ] One fresh public download verifies exact tag/source/manifest, all 20 assets, checksums,
+- [x] Post-Alpha source gates accept provider dogfood only through the exact qualified
+      Beta-readiness Alpha binding and still reject mismatched provider evidence.
+- [x] One fresh public download verifies exact tag/source/manifest, all 20 assets, checksums,
       signing records, and 20 attestations before qualification preview.
-- [ ] Preview and write reports bind tag `v1.0.0-beta.1`, source `6e1397b...`, candidate run
+- [x] Preview and write reports bind tag `v1.0.0-beta.1`, source `6e1397b...`, candidate run
       `33281162734`, and manifest digest `2435c335...`, with identical before/after ledger hashes.
-- [ ] Write mode starts clean and modifies only `release/qualification-ledger.json`.
-- [ ] The ledger records Beta status `qualified`, exact tag/source/run, and the three canonical
+- [x] Write mode starts clean and modifies only `release/qualification-ledger.json`.
+- [x] The ledger records Beta status `qualified`, exact tag/source/run, and the three canonical
       signing-evidence targets while freeze remains planned with a null baseline.
-- [ ] User-facing and project-control truth distinguish qualified Beta.1 from pending channels,
+- [x] User-facing and project-control truth distinguish qualified Beta.1 from pending channels,
       feature freeze, cohort evidence, RC, and Stable.
 - [ ] Focused checks, final source gate, and protected Fast CI pass on the exact PR head; Issue #75
       becomes Verified only after merge.

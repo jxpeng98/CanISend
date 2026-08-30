@@ -23,6 +23,11 @@ The minimum repair changes the recorder's pending equality check and its existin
 status-only object already owned by the generator. The qualified output remains unchanged and
 continues to add exact run, tag, source, and signing targets.
 
+After qualification, the current public checkpoint advances from Alpha.10 to Beta.1. Provider
+dogfood remains exact Alpha.10 evidence intentionally bound by `canisend.beta-readiness/v2`.
+Therefore the source gate uses current-public equality only during Alpha and reuses the existing
+readiness binding for Beta, RC, and Stable. It never rewrites or promotes an unrun provider record.
+
 ## Identity and mutation chain
 
 ~~~text

@@ -9679,10 +9679,25 @@ fn check_provider_dogfood() -> Result<(), String> {
     let root = repository_root();
     let record =
         validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)?;
-    let roadmap =
-        fs::read_to_string(root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"))
-            .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
-    validate_provider_dogfood_public_binding(&record, current_public_checkpoint_tag(&roadmap)?)?;
+    let version = Version::parse(env!("CARGO_PKG_VERSION"))
+        .map_err(|error| format!("workspace version is invalid: {error}"))?;
+    if ReleaseStage::from_version(&version)? == ReleaseStage::Alpha {
+        let roadmap = fs::read_to_string(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+        )
+        .map_err(|error| format!("active 1.0 roadmap is missing: {error}"))?;
+        validate_provider_dogfood_public_binding(
+            &record,
+            current_public_checkpoint_tag(&roadmap)?,
+        )?;
+    } else {
+        let readiness: Value = serde_json::from_slice(
+            &fs::read(root.join("release/beta-readiness.json"))
+                .map_err(|error| format!("Beta readiness record is missing: {error}"))?,
+        )
+        .map_err(|error| format!("Beta readiness record is invalid JSON: {error}"))?;
+        validate_provider_dogfood_readiness_binding(&record, &readiness)?;
+    }
     println!(
         "provider dogfood: ok ({} scenarios, {} excluded attempts)",
         record["scenarios"].as_array().map_or(0, Vec::len),
@@ -17967,6 +17982,10 @@ mod tests {
         );
         assert!(beta_qualified_ledger(&pending, "v0.7.0-alpha.1", 1, &source).is_err());
         assert!(beta_qualified_ledger(&pending, "v0.7.0-beta.1", 0, &source).is_err());
+        assert!(beta_qualified_ledger(&pending, "v0.7.0-beta.1", 1, "invalid").is_err());
+        let mut frozen = pending.clone();
+        frozen["feature_freeze"] = json!({"status": "frozen", "baseline_commit": "8".repeat(40)});
+        assert!(beta_qualified_ledger(&frozen, "v0.7.0-beta.1", 1, &source).is_err());
     }
 
     #[test]

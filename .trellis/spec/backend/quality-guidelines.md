@@ -107,8 +107,8 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
 ### 2. Signatures
 
 - `validate_provider_dogfood_file(path, root)` validates the complete evidence record.
-- `check_provider_dogfood()` also binds its candidate tag to the Roadmap's current public
-  checkpoint.
+- During Alpha, `check_provider_dogfood()` binds its candidate tag to the Roadmap's current public
+  checkpoint. After Alpha, it binds the candidate tag/source/run to `release/beta-readiness.json`.
 
 ### 3. Contracts
 
@@ -120,7 +120,8 @@ evidence-note, Pack, and Skill bindings. It requires exactly these passed scenar
 
 Both preserve a positive Application revision and `proposed` state, return `previewed`, and set
 mutation/submission to false. `excluded_attempts` is empty; historical Claude and stale-host
-outcomes belong in immutable body-free notes.
+outcomes belong in immutable body-free notes. The exact Alpha provider record remains immutable
+when the public checkpoint advances to Beta, RC, or Stable.
 
 ### 4. Validation & Error Matrix
 
@@ -128,7 +129,8 @@ outcomes belong in immutable body-free notes.
 - Failed, mutating, submitting, or state-changing scenario -> reject the record.
 - Unknown/private field, stale note/contract/Pack/Skill digest, or non-empty exclusion -> reject
   the record.
-- Candidate tag differs from the Roadmap checkpoint -> `release check` fails.
+- Candidate tag differs from the Roadmap checkpoint during Alpha, or from the Beta-readiness
+  Alpha tag/source/run after Alpha -> `release check` fails.
 
 ### 5. Good / Base / Bad Cases
 

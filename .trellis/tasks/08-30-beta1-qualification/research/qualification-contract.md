@@ -25,6 +25,15 @@ The smallest root fix aligns the recorder guard and existing fixture to the gene
 shape. Pre-expanding the checked-in ledger would create a second manual transition and bypass the
 recorder's one-file authority.
 
+## Post-qualification source-gate drift
+
+`check_provider_dogfood` previously required the provider candidate tag to equal the Roadmap's
+current public checkpoint at every stage. That is valid during Alpha, but after Beta qualification
+the checkpoint becomes Beta.1 while accepted provider evidence remains exact Alpha.10 input to
+`canisend.beta-readiness/v2`. The existing `validate_provider_dogfood_readiness_binding` already
+owns that tag/source/run relationship. The minimum stage-aware check keeps current-public equality
+during Alpha and uses the readiness binding after Alpha; it does not falsify or repeat host evidence.
+
 ## Exact external evidence
 
 - Tag: `v1.0.0-beta.1`
