@@ -92,7 +92,7 @@ policy-bearing Trellis files from freeze review.
       mode changes only the two canonical machine records.
 - [x] Both feature-freeze records are `frozen` at the same full commit with zero initial
       exceptions and unchanged allowed change classes.
-- [ ] The source gate and protected checks pass on the exact activation PR head before Issue #77
+- [x] The source gate and protected checks pass on the exact activation PR head before Issue #77
       becomes Verified and Issue #70 becomes Ready.
 - [x] No external publication, user outreach, RC transition, Stable authorization, native rebuild,
       or unsupported evidence claim occurs.
