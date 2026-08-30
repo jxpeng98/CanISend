@@ -66,7 +66,7 @@
     "preparation_pr_url": "https://github.com/jxpeng98/CanISend/pull/207",
     "preparation_merge_commit": "bd83617efd3f1513d0635721566a4ad895311626",
     "policy_amendment_commit": "86d33fd4c884d0827be861edbb9d61da17f539ac",
-    "policy_amendment_pr_url": null,
+    "policy_amendment_pr_url": "https://github.com/jxpeng98/CanISend/pull/208",
     "policy_amendment_merge_commit": null,
     "policy_amendment_local_gate": "passed-diff-trellis-release-check",
     "superseded_local_activation_commit": "399d3a3199acdc8bd1aa15b57e9266f7bbfe49b7",
