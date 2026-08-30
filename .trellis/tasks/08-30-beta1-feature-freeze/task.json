@@ -62,7 +62,8 @@
     "preparation_local_gate": "passed-focused-format-clippy-release-check",
     "preparation_ledger_state": "planned",
     "activation_baseline_commit": null,
-    "preparation_pr_url": null,
+    "preparation_commit": "5448957ad6a74bd34aacd23cdf61e1cd7e351e55",
+    "preparation_pr_url": "https://github.com/jxpeng98/CanISend/pull/207",
     "preparation_merge_commit": null,
     "next_roadmap_id": "M3-EVID-005"
   }
