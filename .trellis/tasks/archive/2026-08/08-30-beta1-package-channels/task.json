@@ -3,7 +3,7 @@
   "name": "beta1-package-channels",
   "title": "Generate Beta.1 package-channel candidates",
   "description": "Generate deterministic local-only package-channel candidates from exact qualified public Beta.1 assets and correct current generic-framework package metadata without rewriting historical candidates",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release-engineering",
   "package": null,
@@ -11,12 +11,12 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
-  "completedAt": null,
+  "completedAt": "2026-08-30",
   "branch": "plan/beta1-channels",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "bb3e3d5e4e8d1c4c9e5759b10776b8fab788ffe0",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/206",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -31,7 +31,7 @@
     ".trellis/spec/backend/quality-guidelines.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "The exact public Beta.1 asset directory reverified and generated one deterministic six-file local candidate tree with source-record SHA-256 d95588723a1fc4f66fd4d59aea002fdd9e7336385845b166295b055036b63141. Issue #76 is In progress; protected review remains before verification.",
+  "notes": "Verified through protected PR #206 and merge 1c9f36d94a567975b2a8318af9138b9cda7320ba. The exact public Beta.1 asset directory reverified and generated one deterministic six-file local candidate tree with source-record SHA-256 d95588723a1fc4f66fd4d59aea002fdd9e7336385845b166295b055036b63141. Issue #76 is Verified and Issue #77 is Ready; feature freeze and external publication remain pending.",
   "meta": {
     "roadmap_id": "M4-CHANNEL-001",
     "github_issue": 76,
@@ -58,6 +58,10 @@
     "winget_locale_sha256": "8c750ce51ba094753d42f6f8e283dedc59b43565f7eb15616ed9c933f3b3f8b9",
     "winget_version_sha256": "05d6619b5aa06feb2f92c26f87e3f2a17a04e26d1416e63fd102e2fa1dda81b8",
     "local_gate": "passed-focused-format-clippy-release-check",
+    "protected_ci_run": "33287442884",
+    "dependency_assurance_run": "33287442994",
+    "protected_check_count": 7,
+    "merge_commit": "1c9f36d94a567975b2a8318af9138b9cda7320ba",
     "next_roadmap_id": "M4-FREEZE-002"
   }
 }
