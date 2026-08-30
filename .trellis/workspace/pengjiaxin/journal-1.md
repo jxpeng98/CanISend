@@ -223,3 +223,39 @@ Repaired cross-stage source projections, applied and verified the exact 28-file 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: Publish and verify Beta.1 candidate
+
+**Date**: 2026-08-30
+**Task**: Publish and verify Beta.1 candidate
+**Branch**: `plan/beta1-candidate`
+
+### Summary
+
+Published exact build-once Beta.1, independently reverified all public assets, merged protected control PR #204, and reconciled Issues #74 and #75.
+
+### Main Changes
+
+- Recorded body-free candidate, promotion, public verification, signing, and provenance evidence.
+- Separated qualified Alpha.10 checkpoint truth from public unqualified Beta.1 prerelease truth.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0d211db8` | (see git log) |
+| `686249b8` | (see git log) |
+
+### Testing
+
+- [OK] Candidate run 33281162734 and promotion/public verification run 33283530240 passed.
+- [OK] Protected Fast CI run 33284838397 passed all six jobs after the focused documentation-contract fix.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Execute M4-LEDGER-001 from a fresh independent public Beta.1 download.
