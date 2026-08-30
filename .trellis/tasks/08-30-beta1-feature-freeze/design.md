@@ -1,15 +1,16 @@
 # Beta.1 feature-freeze activation design
 
-## 1. Two protected transactions
+## 1. Protected preparation followed by activation
 
-Use two PRs because the freeze baseline must precede every post-freeze commit and GitHub creates a
-first-parent merge commit:
+Use a protected preparation sequence followed by one activation PR because the freeze baseline
+must precede every post-freeze commit and GitHub creates a first-parent merge commit:
 
-1. **Preparation PR:** land the narrow Trellis record-path policy, its existing-test extension,
-   guidance clarification, and task planning/control records while freeze state is still planned.
-2. **Activation PR:** branch from the protected preparation merge, use that merge as the exact
-   baseline, apply the existing two-file transaction, and reconcile only automatic documentation
-   and Trellis record paths.
+1. **Preparation PRs:** land the narrow Trellis record-path policy, its existing-test extension,
+   guidance, and task controls while freeze state is still planned. Before the final preparation
+   merge, make nonautomatic root `RELEASE.md` state-independent.
+2. **Activation PR:** branch from the latest protected preparation merge, use that merge as the
+   exact baseline, apply the existing two-file transaction, and reconcile only automatic
+   documentation and Trellis record paths.
 
 Combining nonautomatic preparation and activation in one PR would pass on the feature branch but
 make the protected merge commit introduce unrecorded nonautomatic paths after the baseline.
@@ -18,8 +19,8 @@ make the protected merge commit introduce unrecorded nonautomatic paths after th
 
 - **Beta artifact source:** `6e1397b79031cad54e794ccdc9edca2153f23b3e`; immutable identity of
   the bytes published as `v1.0.0-beta.1`.
-- **Freeze baseline:** the full protected preparation merge commit; immutable start of repository
-  history enforcement for later 1.0 work.
+- **Freeze baseline:** the latest full protected preparation merge commit; immutable start of
+  repository history enforcement for later 1.0 work.
 
 Activation changes neither the Beta tag nor its artifact source. Both freeze records receive the
 same repository baseline.
@@ -36,6 +37,9 @@ Do not exempt `.trellis/` broadly. Scripts, workflow rules, specs, generated pla
 and other control logic remain nonautomatic and require an exact `release-blocker` or
 `release-evidence` exception after freeze. Extend the existing policy test for both allowed and
 rejected Trellis paths.
+
+Root `RELEASE.md` also remains nonautomatic. Its current-state wording must derive from machine
+authorities so activation does not require a post-baseline policy-file edit.
 
 ## 4. Activation data flow
 

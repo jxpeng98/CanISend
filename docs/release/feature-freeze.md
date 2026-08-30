@@ -40,9 +40,11 @@ RC and Stable workspace versions fail unless the freeze is active.
 
 ## Allowed post-baseline changes
 
-Documentation and narrowly defined release-evidence files are accepted automatically. These include `docs/`, root
-project/support Markdown files, the qualification ledger, feedback/support state, final release notes, checked-in
-package candidates, committed release evidence, and the exception record itself.
+Documentation and narrowly defined release-evidence files are accepted automatically. These include `docs/`, the
+exact root files `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`, the qualification ledger,
+feedback/support state, final release notes, checked-in package candidates, committed release evidence, and the
+exception record itself. Root `RELEASE.md` is policy-bearing and remains nonautomatic: make its mutable status text
+state-independent before resolving the baseline, or record an exact exception for a later change.
 
 Trellis task records under `.trellis/tasks/` and developer journals under `.trellis/workspace/` are also automatic
 bookkeeping. Executable or policy-bearing Trellis paths remain controlled: `.trellis/scripts/`, `.trellis/spec/`,

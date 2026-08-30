@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
   "completedAt": null,
-  "branch": "plan/beta1-feature-freeze",
+  "branch": "plan/beta1-freeze-release-policy",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -33,7 +33,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-10-1-0-roadmap-trellis-control/task.json"
   ],
-  "notes": "Preparation implementation and local gate are complete: the shared path policy permits only Trellis task/workspace records, the existing focused regression, format, xtask Clippy, and final release check pass, and release guidance distinguishes the Beta artifact source from the later repository baseline. The ledger remains planned; protected preparation review, activation, and external publication remain pending.",
+  "notes": "Preparation PR #207 is protected and merged. Final audit found root RELEASE.md is nonautomatic but had mutable pending-state text, so a minimal state-independent policy amendment must merge before the final baseline is selected. The unpushed local activation at the earlier baseline is superseded; public main remains planned and external publication remains pending.",
   "meta": {
     "roadmap_id": "M4-FREEZE-002",
     "github_issue": 77,
@@ -64,7 +64,12 @@
     "activation_baseline_commit": null,
     "preparation_commit": "5448957ad6a74bd34aacd23cdf61e1cd7e351e55",
     "preparation_pr_url": "https://github.com/jxpeng98/CanISend/pull/207",
-    "preparation_merge_commit": null,
+    "preparation_merge_commit": "bd83617efd3f1513d0635721566a4ad895311626",
+    "policy_amendment_commit": null,
+    "policy_amendment_pr_url": null,
+    "policy_amendment_merge_commit": null,
+    "policy_amendment_local_gate": "passed-diff-trellis-release-check",
+    "superseded_local_activation_commit": "399d3a3199acdc8bd1aa15b57e9266f7bbfe49b7",
     "next_roadmap_id": "M3-EVID-005"
   }
 }

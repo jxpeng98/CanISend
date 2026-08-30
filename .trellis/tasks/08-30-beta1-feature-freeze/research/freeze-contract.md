@@ -30,6 +30,12 @@
 7. The minimum safe adaptation is to exempt only `.trellis/tasks/` and
    `.trellis/workspace/`. `.trellis/scripts/`, `.trellis/spec/`, `.trellis/workflow.md`, platform
    adapters, and all product paths remain reviewed exceptions.
+8. Protected preparation PR #207 merged as
+   `bd83617efd3f1513d0635721566a4ad895311626`. A subsequent dry-run/write audit found that root
+   `RELEASE.md` is intentionally nonautomatic but still contained mutable pending-state wording.
+   The unpushed local activation at that baseline is therefore superseded. The minimum safe fix is
+   a docs/control amendment that makes `RELEASE.md` state-independent before selecting the final
+   protected baseline; activation still uses the existing two-file transaction.
 
 ## Verification ownership
 
