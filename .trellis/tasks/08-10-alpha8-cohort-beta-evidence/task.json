@@ -25,7 +25,8 @@
     "release/qualification-ledger.json",
     "release/feature-freeze-exceptions.json",
     "release/cohort-evidence.json",
-    "docs/notes/rust-native/<date>-beta1-cohort.md"
+    "docs/notes/rust-native/<date>-beta1-cohort.md",
+    ".trellis/tasks/08-10-alpha8-cohort-beta-evidence/research/beta1-cohort-flow-matrix.md"
   ],
   "notes": "The stable task ID is retained to avoid link churn. Issue #70 is Ready against exact public Beta.1 and the active feature-freeze baseline. Participant consent and an owner schedule are still required before invitations or cohort execution.",
   "meta": {
