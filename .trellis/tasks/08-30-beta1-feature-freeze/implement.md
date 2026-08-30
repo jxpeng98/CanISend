@@ -18,8 +18,17 @@
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] One final `cargo run -p xtask --locked -- release check`
 - [x] `git diff --check` and Trellis task validation
-- [ ] Protected Fast CI on the exact preparation PR head
-- [ ] Merge preparation before resolving the final baseline
+- [x] Protected Fast CI on preparation PR #207 head
+- [x] Merge preparation as `bd83617efd3f1513d0635721566a4ad895311626`
+
+## 2a. Final policy amendment before baseline
+
+- [x] Make `RELEASE.md` freeze status state-independent without changing release authority.
+- [x] Document that root `RELEASE.md` is nonautomatic after freeze.
+- [x] Reconcile the spec and task plan; do not change Rust or machine release state.
+- [x] Run `git diff --check`, Trellis validation, and one final `release check`.
+- [ ] Pass protected Fast CI on the exact amendment head.
+- [ ] Merge the amendment before resolving a new activation baseline.
 
 ## 3. Exact activation transaction
 
@@ -35,7 +44,8 @@
 ## 4. Reconcile automatic release state
 
 - [ ] Add one body-free dated activation evidence note.
-- [ ] Update README, RELEASE, Roadmap, Trellis control, and current/parent task truth.
+- [ ] Update README, Roadmap, Trellis control, and current/parent task truth.
+- [ ] Do not update nonautomatic root `RELEASE.md` after the baseline.
 - [ ] Keep cohort, RC, Stable, package publication, and native lifecycle work pending.
 
 ## 5. Minimum activation gate

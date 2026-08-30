@@ -9,15 +9,15 @@
   recorded as qualified against candidate run `33281162734`.
 - Local package-channel candidates: deterministic Homebrew, Scoop, and WinGet review files derived
   from the exact qualified public archives, with publication explicitly unauthorized.
-- Next intended checkpoint: merge the bounded pre-freeze controls, then activate feature freeze at
-  that exact protected repository baseline under the
+- Release-path ordering after qualified Beta.1: activate feature freeze at an exact protected
+  repository baseline, then complete the consented body-free invited cohort before RC.1. The
+  active step is derived from the qualification ledger and the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The ledger retains the
-  qualified Beta.1 artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e`; the invited cohort
-  runs on public Beta.1 and remains required before RC.1.
+  qualified Beta.1 artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
-- Machine stage: Beta / `beta-qualifying`; feature freeze remains pending, and RC and Stable are
-  not authorized.
+- Machine stage: Beta / `beta-qualifying`; feature-freeze status is independently recorded in
+  `release/qualification-ledger.json`. RC and Stable remain unauthorized until their gates pass.
 
 PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
 or manually dispatched candidate is not a published release.

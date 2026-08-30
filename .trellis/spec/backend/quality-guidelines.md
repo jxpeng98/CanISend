@@ -125,6 +125,8 @@ feature-freeze exception record.
 Automatic Trellis bookkeeping is limited to `.trellis/tasks/` and `.trellis/workspace/`.
 Executable or policy-bearing paths such as `.trellis/scripts/`, `.trellis/spec/`,
 `.trellis/workflow.md`, and platform adapters remain exact post-baseline exceptions.
+Root `RELEASE.md` is likewise policy-bearing and nonautomatic; mutable freeze status must become
+state-independent before the baseline or use an exact later exception.
 
 ### 4. Validation & Error Matrix
 
@@ -132,12 +134,13 @@ Executable or policy-bearing paths such as `.trellis/scripts/`, `.trellis/spec/`
 - Dirty write worktree or noncanonical planned records -> reject before mutation.
 - Nonautomatic preparation and activation combined before a protected merge -> the merge commit
   introduces unrecorded paths; split preparation and activation at the protected baseline.
+- Post-baseline `RELEASE.md` update without an exact exception -> source gate fails.
 - Broad `.trellis/` exemption or missing exact post-baseline exception -> source gate fails.
 
 ### 5. Good / Base / Bad Cases
 
-- Good: merge pre-freeze controls, resolve that protected merge as baseline, then activate the two
-  machine records in a separate protected PR.
+- Good: make `RELEASE.md` state-independent, merge all pre-freeze controls, resolve the latest
+  protected merge as baseline, then activate the two machine records in a separate protected PR.
 - Base: task/archive/journal records remain automatic while Trellis scripts and specs stay frozen.
 - Bad: use the Beta artifact source as the repository baseline or exempt all `.trellis/` paths.
 

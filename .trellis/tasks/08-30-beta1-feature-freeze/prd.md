@@ -31,8 +31,8 @@ policy-bearing Trellis files from freeze review.
 
 ### R1 — Prepare the control boundary before resolving the baseline
 
-- Use a first protected preparation PR for all nonautomatic changes required by the current
-  Trellis-managed release process.
+- Use protected preparation PRs for all nonautomatic changes required by the current
+  Trellis-managed release process; the latest protected preparation merge becomes the baseline.
 - Treat only `.trellis/tasks/` and `.trellis/workspace/` as automatic post-baseline control records.
   Keep `.trellis/scripts/`, `.trellis/spec/`, `.trellis/workflow.md`, platform adapters, product
   source, workflows, and every other Trellis path subject to an exact freeze exception.
@@ -40,11 +40,13 @@ policy-bearing Trellis files from freeze review.
   abstraction, schema, command, or alternate activation path.
 - Clarify in the release guidance that the qualified Beta artifact source and the feature-freeze
   repository baseline are separate exact identities.
+- Keep root `RELEASE.md` nonautomatic and make its mutable freeze status state-independent before
+  resolving the baseline.
 - Do not activate the feature freeze in the preparation PR.
 
 ### R2 — Bind activation to the protected preparation merge
 
-- Merge the preparation PR after focused checks, one source gate, and protected Fast CI pass.
+- Merge every preparation PR after its minimum local gate and protected Fast CI pass.
 - Fast-forward local `main`, create the activation branch from that exact protected merge, and
   resolve the new full `HEAD` with Git. That commit is the only permitted activation baseline.
 - Run dry-run first, then `--write` from the same clean HEAD. Require matching baseline, file paths,
@@ -57,8 +59,9 @@ policy-bearing Trellis files from freeze review.
 
 - Commit the two activation files as their own reviewable change before later automatic docs and
   Trellis task-record updates.
-- Add one dated body-free evidence note and reconcile README, RELEASE, the Master Roadmap, Trellis
-  project control, parent/current task state, and Issue #77 through protected review.
+- Add one dated body-free evidence note and reconcile README, the Master Roadmap, Trellis project
+  control, parent/current task state, and Issue #77 through protected review. Do not modify
+  nonautomatic root `RELEASE.md` after the baseline.
 - Mark `M3-EVID-005` / Issue #70 Ready only after the activation PR is protected and merged.
 - Do not create or move a tag, publish a release or package channel, authorize Stable, start RC.1,
   invite users, or claim cohort evidence.
@@ -77,7 +80,10 @@ policy-bearing Trellis files from freeze review.
 
 - [x] The preparation policy accepts only `.trellis/tasks/` and `.trellis/workspace/` as automatic
       Trellis records and still rejects executable, spec, workflow, adapter, and product paths.
-- [ ] The preparation PR is protected and merged before the final activation baseline is resolved.
+- [x] The first preparation PR is protected and merged as
+      `bd83617efd3f1513d0635721566a4ad895311626`.
+- [ ] The final state-independent release-policy amendment is protected and merged before the
+      activation baseline is resolved.
 - [ ] The final baseline is the exact protected preparation merge commit, while the ledger retains
       Beta artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e` unchanged.
 - [ ] Dry-run and write reports bind the same baseline, two paths, and before/after digests; write
