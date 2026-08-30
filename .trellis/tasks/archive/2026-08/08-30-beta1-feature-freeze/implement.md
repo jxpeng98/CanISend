@@ -57,7 +57,7 @@
 - [x] Merge activation PR #209 as `e8487fb53cba1d42fef9f96acf5d5c9d9284188d`
 - [x] Mark Issue #77 Verified with exact reports, commit, PR, runs, and merge
 - [x] Make Issue #70 Ready
-- [ ] Archive this task
+- [x] Archive this task
 
 ## Stop conditions
 
