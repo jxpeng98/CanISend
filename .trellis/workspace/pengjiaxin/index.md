@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
+- **Total Sessions**: 11
 - **Last Active**: 2026-08-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~261 | Active |
+| `journal-1.md` | ~296 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-08-30 | Qualify and merge Beta.1 ledger | `bd1901c05b0a7e551b9548edcc51e475e5c3c177`, `8bc4f2fe5fdcfdcab4f2502a489985993987c2f2` | `plan/beta1-channels` |
 | 10 | 2026-08-30 | Publish and verify Beta.1 candidate | `0d211db8`, `686249b8` | `plan/beta1-candidate` |
 | 9 | 2026-08-30 | Stage Beta.1 source metadata | `018c2c29`, `19a7186f`, `84d56992` | `plan/beta1-candidate` |
 | 8 | 2026-08-29 | Freeze Alpha.10 v4 contracts for Beta.1 | `7326cd09e0f57c9e6299b07ee4288f39f9a4b1aa` | `plan/beta1-stage-transition` |
