@@ -1,6 +1,14 @@
 {
   "beta": {
-    "status": "pending"
+    "signed_matrix_run": 33281162734,
+    "signing_evidence_targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ],
+    "source_commit": "6e1397b79031cad54e794ccdc9edca2153f23b3e",
+    "status": "qualified",
+    "tag": "v1.0.0-beta.1"
   },
   "documentation_uninstall": {
     "evidence": [],

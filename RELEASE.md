@@ -4,19 +4,17 @@
 
 - Checked-in source: `1.0.0-beta.1`, matching exact public prerelease source
   `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
-- Latest public checkpoint: [`v1.0.0-alpha.10`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10),
-  built from `cd40180f2ff8ac957276f1948ba88da428511a82` and independently reverified after download.
-- Current public prerelease: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1).
-  Its build-once candidate, same-byte promotion, all 20 public assets, and attestations are
-  independently verified; ledger qualification remains pending.
-- Next intended checkpoint: record exact Beta.1 qualification, generate local package-channel
-  candidates, and activate feature freeze under the
+- Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
+  built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
+  recorded as qualified against candidate run `33281162734`.
+- Next intended checkpoint: generate local package-channel candidates and activate feature freeze
+  under the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The invited cohort runs
   on public Beta.1 and remains required before RC.1.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags
   retain their original license facts.
-- Machine stage: Beta / `beta-qualifying`; Beta.1 qualification and feature freeze remain pending,
-  and RC and Stable are not authorized.
+- Machine stage: Beta / `beta-qualifying`; package-channel candidates and feature freeze remain
+  pending, and RC and Stable are not authorized.
 
 PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
 or manually dispatched candidate is not a published release.

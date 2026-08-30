@@ -81,7 +81,7 @@ prerelease without recording Beta qualification or changing product code.
       prerelease and every public asset re-download verifies.
 - [x] Candidate and public `SHA256SUMS` and manifest bytes agree, and retained evidence contains
       only body-free identities and outcomes.
-- [ ] A protected control PR records the exact evidence; Issue #74 becomes `state:verified` only
+- [x] A protected control PR records the exact evidence; Issue #74 becomes `state:verified` only
       after merge, while Beta qualification, channel generation, feature freeze, and cohort
       evidence remain pending.
 
