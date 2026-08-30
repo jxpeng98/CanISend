@@ -27,8 +27,11 @@ export, and external submission decision.
 
 The checked-in source version is `1.0.0-beta.1`. The latest publicly qualified checkpoint is `v1.0.0-alpha.10`
 ([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.10)), built from
-`cd40180f2ff8ac957276f1948ba88da428511a82`. Later `main` changes are not part of those published
-bytes. Earlier release facts remain immutable at their tags.
+`cd40180f2ff8ac957276f1948ba88da428511a82`. The current public prerelease is
+[`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1), built once from
+`6e1397b79031cad54e794ccdc9edca2153f23b3e` and independently reverified after promotion. It is
+public but remains `beta-qualifying` until the qualification ledger is recorded. Earlier release
+facts remain immutable at their tags.
 
 Published Alpha.10 provides:
 

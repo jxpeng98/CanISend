@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-08-29
+- **Total Sessions**: 9
+- **Last Active**: 2026-08-30
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~202 | Active |
+| `journal-1.md` | ~225 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-08-30 | Stage Beta.1 source metadata | `018c2c29`, `19a7186f`, `84d56992` | `plan/beta1-candidate` |
 | 8 | 2026-08-29 | Freeze Alpha.10 v4 contracts for Beta.1 | `7326cd09e0f57c9e6299b07ee4288f39f9a4b1aa` | `plan/beta1-stage-transition` |
 | 7 | 2026-08-29 | Qualify Alpha.10 for Beta.1 readiness | `656d47b4`, `3c0d5719` | `plan/beta1-contract-freeze` |
 | 6 | 2026-08-29 | Qualify Alpha.10 for Codex-first Beta entry | `f1c0f5be48d5b4bfd9048cb2e4e2d7d1776f4d7f` | `plan/beta1-readiness-control` |

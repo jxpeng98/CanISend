@@ -200,3 +200,26 @@ Merged protected PR #202 after all seven required checks, qualified the exact Al
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: Stage Beta.1 source metadata
+
+**Date**: 2026-08-30
+**Task**: Stage Beta.1 source metadata
+**Branch**: `plan/beta1-candidate`
+
+### Summary
+
+Repaired cross-stage source projections, applied and verified the exact 28-file Alpha.10-to-Beta.1 transaction, preserved qualified Alpha authorities, fixed post-Alpha release validators and CI fixtures, merged protected PR #203 with 7/7 checks, verified Issue #73, and made Issue #74 Ready.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `018c2c29` | (see git log) |
+| `19a7186f` | (see git log) |
+| `84d56992` | (see git log) |
+
+### Status
+
+[OK] **Completed**

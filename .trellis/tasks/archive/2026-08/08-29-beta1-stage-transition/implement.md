@@ -40,16 +40,16 @@
 - [x] Focused stage-transition/source-projection regressions
 - [x] `cargo clippy -p xtask --all-targets --locked -- -D warnings`
 - [x] One final `cargo run -p xtask --locked -- release check`
-- [ ] Protected Fast CI on the exact PR head
+- [x] Protected Fast CI on the exact PR head
 - [x] No local full workspace suite, native candidate, desktop/provider matrix, package lifecycle,
       or extended assurance
 
 ## 6. Protected reconciliation
 
-- [ ] Merge the bounded PR after Fast CI.
-- [ ] Mark Issue #73 / `M4-STAGE-001` Verified and keep milestone 5 open.
-- [ ] Archive this task and make `M4-CANDIDATE-001` / Issue #74 next.
-- [ ] Do not build, tag, dispatch, publish, qualify, or activate feature freeze in this task.
+- [x] Merge the bounded PR after Fast CI.
+- [x] Mark Issue #73 / `M4-STAGE-001` Verified and keep milestone 5 open.
+- [x] Archive this task and make `M4-CANDIDATE-001` / Issue #74 next.
+- [x] Do not build, tag, dispatch, publish, qualify, or activate feature freeze in this task.
 
 ## Stop conditions
 
