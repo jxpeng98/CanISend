@@ -1,8 +1,8 @@
 {
   "id": "alpha8-cohort-beta-evidence",
   "name": "alpha8-cohort-beta-evidence",
-  "title": "Complete Alpha.9 cohort and Beta evidence",
-  "description": "Run the invited mixed-Application cohort on exact public Alpha.9 and refresh body-free Beta readiness evidence",
+  "title": "Qualify public Beta.1 with post-Beta cohort evidence",
+  "description": "Run the consented Codex-first mixed-Application cohort on exact public Beta.1 before RC.1 planning",
   "status": "planning",
   "dev_type": null,
   "scope": "validation",
@@ -21,21 +21,30 @@
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
   "relatedFiles": [
-    "release/provider-dogfood.json",
-    "release/beta-readiness.json",
-    "scripts/refresh_beta_readiness.sh"
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    "release/qualification-ledger.json",
+    "release/feature-freeze-exceptions.json",
+    "release/cohort-evidence.json",
+    "docs/notes/rust-native/<date>-beta1-cohort.md"
   ],
-  "notes": "The stable task ID is retained to avoid link churn; exact public Alpha.9 supersedes the unstarted Alpha.8 cohort baseline. External invitations and private-data handling still require explicit consent.",
+  "notes": "The stable task ID is retained to avoid link churn. Issue #70 is Ready against exact public Beta.1 and the active feature-freeze baseline. Participant consent and an owner schedule are still required before invitations or cohort execution.",
   "meta": {
     "roadmap_id": "M3-EVID-005",
     "github_issue": 70,
-    "github_milestone": "M3 — Invited cohort evidence",
+    "github_milestone": "Beta — Contract freeze",
     "owner_role": "validation",
     "dependencies": [
-      "M3-ALPHA9-001",
-      "M3-EVID-004"
+      "M3-EVID-004",
+      "M4-CANDIDATE-001",
+      "M4-LEDGER-001",
+      "M4-FREEZE-002"
     ],
-    "expected_evidence": "measured body-free real-user cohort record and qualified Beta readiness bound to exact public Alpha.9",
+    "authoritative_files": [
+      "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+      "release/qualification-ledger.json",
+      "release/feature-freeze-exceptions.json"
+    ],
+    "expected_evidence": "consented body-free post-Beta cohort record bound to exact public Beta.1, both Packs, at least 8 cumulative users, at least 20 supported flows, measured metrics, exclusions, and evidence-note digest",
     "verification_tier": 2
   }
 }

@@ -12,10 +12,10 @@ and the next gated task from repository state alone.
 - `docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md` is the sole active top-level Roadmap.
 - Accepted ADRs, release contracts, ledgers, exact tags, runs, and artifacts remain higher-fidelity
   authorities for their owned facts.
-- GitHub currently projects 26 open Roadmap Issues across Alpha.7, Beta, RC, and Stable. Only
-  Issue #70 (`M3-EVID-005`) is labelled `state:in-progress`.
-- The current Trellis child task `08-10-alpha7-followup-cohort-entry` owns the Alpha.7 cohort and
-  Beta-entry decision and is linked to this parent task.
+- Exact public Beta.1 is qualified and feature freeze is active. Issue #70 (`M3-EVID-005`) is
+  labelled `state:ready`; participant consent and invited-user evidence remain pending.
+- The current Trellis child task `08-10-alpha8-cohort-beta-evidence` retains its stable ID and owns
+  the post-Beta.1 cohort required before RC.1 planning.
 - Several future GitHub Issue titles still describe superseded v2/v3 or "dual-pack" wording. They
   must be reconciled before those Issues become active; their existence does not change current
   v4 Roadmap authority.
@@ -36,9 +36,8 @@ and the next gated task from repository state alone.
    and one qualification/evidence task, matching the Roadmap WIP rule.
 6. Treat GitHub as the public projection, not the execution memory. GitHub state changes require
    protected evidence and must not be inferred from a local Trellis status.
-7. Make the next-task rule deterministic: finish the current M3 cohort/Beta-readiness gate, then
-   activate `M4-READY-001`; later Beta, RC, and Stable work remains in GitHub until its entry gate
-   is satisfied.
+7. Make the next-task rule deterministic: finish `M3-EVID-005` on exact public Beta.1, then begin
+   RC.1 planning; later RC and Stable work remains in GitHub until its entry gate is satisfied.
 8. Update the local Trellis project-control guide and active Roadmap governance text together so
    later sessions use the same model.
 
@@ -57,9 +56,9 @@ and the next gated task from repository state alone.
       just-in-time execution layer.
 - [x] `.trellis/spec/guides/project-control.md` defines the authority stack, required task fields,
       lifecycle mapping, WIP limit, drift rule, and next-task rule without duplicating backlog.
-- [x] A single `1-0-roadmap-trellis-control` parent exists and links the current Alpha.7 cohort
+- [x] A single `1-0-roadmap-trellis-control` parent exists and links the current post-Beta.1 cohort
       child task.
-- [x] The current child identifies `M3-EVID-005`, Issue #70, Alpha.7 milestone, P0 validation
+- [x] The current child identifies `M3-EVID-005`, Issue #70, Beta milestone, P0 validation
       ownership, dependencies, authoritative files, expected evidence, and verification tier.
 - [x] Future M4/M5/M6 Trellis children are absent until their Roadmap entry gates are met.
 - [x] Known v2/v3 and "dual-pack" GitHub projection drift is recorded for later authorized sync
