@@ -12872,6 +12872,24 @@ fn channel_license(version: &str) -> Result<&'static str, String> {
     })
 }
 
+fn channel_product_metadata(version: &str) -> Result<(&'static str, &'static str), String> {
+    let version = Version::parse(version)
+        .map_err(|error| format!("channel candidate version is invalid SemVer: {error}"))?;
+    let first_generic = Version::parse(FIRST_ALPHA_PACKAGE_V3_VERSION)
+        .expect("the first generic package version constant must be valid SemVer");
+    Ok(if version < first_generic {
+        (
+            "Prepare evidence-backed academic job applications with agent hosts",
+            "- academic-jobs\n- agent\n- cli",
+        )
+    } else {
+        (
+            "Prepare evidence-bound applications and submissions locally",
+            "- applications\n- agent\n- cli",
+        )
+    })
+}
+
 fn render_channel_manifest_files(
     version: &str,
     tag: &str,
@@ -12887,6 +12905,7 @@ fn render_channel_manifest_files(
     let intel = artifact("x86_64-apple-darwin")?;
     let windows = artifact("x86_64-pc-windows-msvc")?;
     let license = channel_license(version)?;
+    let (description, tags) = channel_product_metadata(version)?;
     let download = |archive: &str| format!("{repository}/releases/download/{tag}/{archive}");
     let homebrew = format!(
         r##"cask "canisend" do
@@ -12898,7 +12917,7 @@ fn render_channel_manifest_files(
 
   url "{repository}/releases/download/v#{{version}}/canisend-#{{version}}-#{{arch}}-apple-darwin.tar.gz"
   name "CanISend"
-  desc "Prepare evidence-backed academic job applications with agent hosts"
+  desc "{description}"
   homepage "{repository}"
 
   binary "canisend-#{{version}}-#{{arch}}-apple-darwin/canisend"
@@ -12906,12 +12925,13 @@ end
 "##,
         repository = repository,
         version = version,
+        description = description,
         arm_sha256 = arm.sha256,
         intel_sha256 = intel.sha256,
     );
     let scoop = serde_json::to_string_pretty(&json!({
         "version": version,
-        "description": "Prepare evidence-backed academic job applications with agent hosts",
+        "description": description,
         "homepage": repository,
         "license": license,
         "architecture": {
@@ -12953,12 +12973,10 @@ PackageName: CanISend
 PackageUrl: {repository}
 License: {license}
 LicenseUrl: {repository}/blob/{tag}/LICENSE
-ShortDescription: Prepare evidence-backed academic job applications with agent hosts
+ShortDescription: {description}
 Moniker: canisend
 Tags:
-- academic-jobs
-- agent
-- cli
+{tags}
 ReleaseNotesUrl: {repository}/releases/tag/{tag}
 ManifestType: defaultLocale
 ManifestVersion: {schema}
@@ -12968,6 +12986,8 @@ ManifestVersion: {schema}
         repository = repository,
         tag = tag,
         license = license,
+        description = description,
+        tags = tags,
     );
     let winget_installer = format!(
         r#"# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.{schema}.schema.json
@@ -19361,6 +19381,7 @@ mod tests {
         assert!(homebrew.contains("arch arm: \"aarch64\", intel: \"x86_64\""));
         assert!(homebrew.contains("sha256 arm:"));
         assert!(homebrew.contains("binary \"canisend-#{version}-#{arch}-apple-darwin/canisend\""));
+        assert!(homebrew.contains("Prepare evidence-backed academic job applications"));
         let scoop: Value =
             serde_json::from_str(&files["scoop/bucket/canisend.json"]).expect("valid Scoop JSON");
         assert_eq!(
@@ -19386,6 +19407,32 @@ mod tests {
         assert!(installer.contains("  PortableCommandAlias: canisend\n"));
         assert!(installer.contains("  InstallerUrl: https://"));
         assert!(installer.contains("canisend-0.7.0-alpha.1-x86_64-pc-windows-msvc\\canisend.exe"));
+
+        let generic = render_channel_manifest_files(
+            "1.0.0-beta.1",
+            "v1.0.0-beta.1",
+            env!("CARGO_PKG_REPOSITORY"),
+            &sample_channel_source().artifacts,
+        )
+        .expect("render generic candidates");
+        assert!(
+            generic["homebrew/Casks/canisend.rb"]
+                .contains("Prepare evidence-bound applications and submissions locally")
+        );
+        let generic_scoop: Value = serde_json::from_str(&generic["scoop/bucket/canisend.json"])
+            .expect("valid generic Scoop JSON");
+        assert_eq!(generic_scoop["license"], GPL_LICENSE);
+        assert_eq!(
+            generic_scoop["description"],
+            "Prepare evidence-bound applications and submissions locally"
+        );
+        let generic_locale = generic
+            .iter()
+            .find(|(path, _)| path.ends_with(".locale.en-US.yaml"))
+            .map(|(_, body)| body)
+            .expect("generic WinGet locale candidate");
+        assert!(generic_locale.contains("- applications\n- agent\n- cli\n"));
+        assert!(!generic_locale.contains("academic-jobs"));
     }
 
     #[test]

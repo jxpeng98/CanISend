@@ -3,7 +3,7 @@
   "name": "beta1-qualification",
   "title": "Record Beta.1 qualification ledger",
   "description": "Preview and record exact public Beta.1 qualification from a fresh independent asset download without generating channels or activating freeze",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release-engineering",
   "package": null,
@@ -11,12 +11,12 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
-  "completedAt": null,
+  "completedAt": "2026-08-30",
   "branch": "plan/beta1-qualification",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "8bc4f2fe5fdcfdcab4f2502a489985993987c2f2",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/205",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -31,7 +31,7 @@
     ".trellis/spec/backend/quality-guidelines.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "Fresh public verification passed for 20 assets and 20 attestations. Matching dry-run/write reports recorded exact Beta.1 qualification in ledger SHA-256 7bff07d6e375fe879aae4e3d5f6e65c84c8f2cdcb223508108b818047b1415d0; channels and freeze remain pending.",
+  "notes": "Verified through protected PR #205 and merge 43dc80b0fb5e3accc602795c8e3b706e0bce8fea. Fresh public verification passed for 20 assets and 20 attestations; matching dry-run/write reports recorded exact Beta.1 qualification. Issue #75 is Verified and Issue #76 is Ready; channels and freeze remain pending.",
   "meta": {
     "roadmap_id": "M4-LEDGER-001",
     "github_issue": 75,
@@ -59,6 +59,10 @@
     "ledger_after_sha256": "7bff07d6e375fe879aae4e3d5f6e65c84c8f2cdcb223508108b818047b1415d0",
     "preview_write_match": true,
     "local_gate": "passed-focused-format-clippy-release-check",
+    "protected_ci_run": "33286351753",
+    "dependency_assurance_run": "33286351755",
+    "protected_check_count": 7,
+    "merge_commit": "43dc80b0fb5e3accc602795c8e3b706e0bce8fea",
     "next_roadmap_id": "M4-CHANNEL-001"
   }
 }

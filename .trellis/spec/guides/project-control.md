@@ -31,16 +31,17 @@ regression only when drift can be detected mechanically.
   `M4-STAGE-001` / Issue #73 are Verified through protected PRs #201, #202, and #203.
   `M4-CANDIDATE-001` / Issue #74 is Verified by exact public Beta.1 and protected PR #204.
   `M4-LEDGER-001` / Issue #75 is Verified by a fresh public download, matching dry-run/write
-  transaction, and protected reconciliation; `M4-CHANNEL-001` / Issue #76 is next.
+  transaction, and protected reconciliation. `M4-CHANNEL-001` / Issue #76 is Verified by exact
+  regenerated local package metadata and protected reconciliation; `M4-FREEZE-002` / Issue #77 is
+  next.
   `M3-EVID-005` / Issue #70 runs on public Beta.1 and remains required before RC.1;
   later RC and Stable work remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** generate local package-channel candidates from independently verified public
-  Beta.1 assets without modifying an external package index.
-- **Near term:** activate feature freeze against the qualified source, then run the
-  mixed-Application invited cohort without treating synthetic dogfood as user evidence.
+- **Current:** activate feature freeze against the qualified Beta.1 source.
+- **Near term:** run the mixed-Application invited cohort without treating synthetic dogfood as
+  user evidence.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
   package-manager, accessibility, feedback, and final-notes evidence classes.
 - **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then

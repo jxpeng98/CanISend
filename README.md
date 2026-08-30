@@ -28,8 +28,10 @@ export, and external submission decision.
 The checked-in source version is `1.0.0-beta.1`. The latest publicly qualified checkpoint is `v1.0.0-beta.1`
 ([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1)), built once from
 `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified after promotion, and bound
-to candidate run `33281162734` in the qualification ledger. Package-channel candidates and
-feature-freeze activation remain pending. Earlier release facts remain immutable at their tags.
+to candidate run `33281162734` in the qualification ledger. Deterministic local Homebrew, Scoop,
+and WinGet review candidates are derived from those exact public bytes; they do not authorize or
+modify an external package index. Feature-freeze activation remains pending. Earlier release facts
+remain immutable at their tags.
 
 Qualified Beta.1 provides:
 

@@ -259,3 +259,38 @@ Published exact build-once Beta.1, independently reverified all public assets, m
 ### Next Steps
 
 - Execute M4-LEDGER-001 from a fresh independent public Beta.1 download.
+
+
+## Session 11: Qualify and merge Beta.1 ledger
+
+**Date**: 2026-08-30
+**Task**: Qualify and merge Beta.1 ledger
+**Branch**: `plan/beta1-channels`
+
+### Summary
+
+Recorded exact public Beta.1 qualification, repaired canonical ledger and provider bindings, passed protected CI, merged PR #205, verified Issue #75, and made Issue #76 Ready.
+
+### Main Changes
+
+- Recorded fresh 20-asset and 20-attestation Beta.1 qualification evidence and the exact ledger transaction.
+- Aligned the canonical pending-ledger guard and post-Alpha Codex provider binding with existing authorities.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bd1901c05b0a7e551b9548edcc51e475e5c3c177` | (see git log) |
+| `8bc4f2fe5fdcfdcab4f2502a489985993987c2f2` | (see git log) |
+
+### Testing
+
+- [OK] Focused xtask regressions, Rust format, xtask Clippy, final release check, and seven protected checks passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Execute M4-CHANNEL-001 / Issue #76 using local-only package-channel candidates.

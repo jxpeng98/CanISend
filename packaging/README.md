@@ -42,8 +42,8 @@ References:
 
 ## Publication gates
 
-The current Alpha-derived set proves generation and review shape only. It is intentionally not submitted to an
-external package repository. For the version that will be published:
+Checked-in Alpha, Beta, and RC candidate sets prove generation and review shape only. They are intentionally not
+submitted to an external package repository. For the version that will be published:
 
 1. Regenerate from the final community-signed, provenance-verified release assets; never edit hashes or URLs by hand.
 2. Run `brew style` and `brew audit --strict --cask`, then install, execute `canisend version --json`, upgrade, and
@@ -55,7 +55,8 @@ external package repository. For the version that will be published:
    telemetry.
 6. Publish only when the roadmap's release-stage authorization and rollback evidence are both complete.
 
-Historical candidate sets remain checked in as auditable derivations. After the two clean release-candidate
+Historical candidate sets remain checked in as auditable derivations. The current Beta.1 set is derived from exact
+qualified public bytes and remains local review evidence only. After the two clean release-candidate
 matrices and every Stable ledger gate pass, release assembly generates canonical Homebrew, Scoop, and WinGet files
 from the final signed archives. Those files, their scoped publication record, release-manifest entries,
 `SHA256SUMS`, and GitHub build provenance are published as one Stable GitHub release unit.

@@ -83,6 +83,10 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
 
 ## Date-Bound Release Authority
 
+- The active Roadmap header is machine-readable. Keep the exact literal
+  `**Next intended checkpoint:** \`TAG\`` at the start of that field; describe the next action only
+  after the tag. During Alpha `TAG` is the next Beta.1 tag, and after Alpha it is the current
+  workspace tag. `release check` owns this contract.
 - `reviewed_on` must not be later than the current UTC date. If the local calendar has advanced
   before UTC, wait for UTC rollover or record the actual UTC review date; never fake the clock or
   weaken the validator.
@@ -322,6 +326,62 @@ if from_stage == Alpha && to_stage == Alpha { update_source_projections()?; }
 // Correct: every transition updates source projections; only evidence reset is Alpha-specific.
 update_source_projections()?;
 if from_stage == Alpha && to_stage == Alpha { reset_candidate_evidence()?; }
+```
+
+## Scenario: versioned package-channel candidate rendering
+
+### 1. Scope / Trigger
+
+- Trigger: changing `xtask release channels`, `render_channel_manifest_files`, or a checked-in
+  tree under `packaging/candidates/`.
+
+### 2. Signatures
+
+- `xtask release channels <TAG> <ASSETS> <OUTPUT>` verifies exact public assets, then writes one
+  new candidate tree.
+- `render_channel_manifest_files(version, tag, repository, artifacts)` renders Homebrew, Scoop,
+  and WinGet from one source.
+- `check_channel_candidate_directory(path)` regenerates and exact-compares the complete tree.
+
+### 3. Contracts
+
+The output contains one canonical `canisend.channel-candidate-source/v1`, one Homebrew Cask, one
+Scoop manifest, and three WinGet manifests. The source record binds exact release and archive
+identity, sets `candidate_only: true`, and sets `publication_authorized: false`. Versions before
+`1.0.0-alpha.6` retain historical academic metadata; Alpha.6 and later use domain-neutral
+evidence-application metadata. Historical candidate files are never rewritten.
+
+### 4. Validation & Error Matrix
+
+- Incomplete, stale, wrong-tag, or checksum-mismatched release assets -> fail before output.
+- Existing output directory -> reject instead of merging or overwriting.
+- Symlink, unknown file/field, missing target, manual digest or body drift -> source gate fails.
+- Current 1.0 output uses historical academic metadata -> focused regression fails.
+- Unversioned renderer change alters an audited historical tree -> `release check` fails.
+
+### 5. Good / Base / Bad Cases
+
+- Good: exact qualified Beta bytes generate generic GPL candidate-only manifests.
+- Base: checked-in 0.7 candidates regenerate byte-identically with historical metadata.
+- Bad: hand-edit the new manifests or update the shared static text without a version boundary.
+
+### 6. Tests Required
+
+- Focused regression:
+  `cargo test -p xtask --locked channel_candidates_preserve_archives_and_nested_binary_paths`.
+- Operator check: `xtask release verify TAG ASSETS` before one `xtask release channels` run.
+- Source gate: one final `cargo run -p xtask --locked -- release check`.
+- Protected Fast CI owns the workspace suite; generation does not require a native rebuild or
+  external package-manager lifecycle run.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: changes current wording by rewriting historical rendering.
+let description = "Prepare evidence-bound applications and submissions locally";
+
+// Correct: one versioned selector feeds all channel formats.
+let (description, tags) = channel_product_metadata(version)?;
 ```
 
 ## Code Review Checklist

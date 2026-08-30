@@ -82,7 +82,7 @@ channels, activate feature freeze, count users, or advance to RC.
       signing-evidence targets while freeze remains planned with a null baseline.
 - [x] User-facing and project-control truth distinguish qualified Beta.1 from pending channels,
       feature freeze, cohort evidence, RC, and Stable.
-- [ ] Focused checks, final source gate, and protected Fast CI pass on the exact PR head; Issue #75
+- [x] Focused checks, final source gate, and protected Fast CI pass on the exact PR head; Issue #75
       becomes Verified only after merge.
 
 ## Out of scope

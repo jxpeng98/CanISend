@@ -1,0 +1,14 @@
+{
+  "architecture": {
+    "64bit": {
+      "hash": "fcf716be63dda6627d13392638e9ccd7c6829668080abc5516a149fe9aea1db8",
+      "url": "https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-x86_64-pc-windows-msvc.zip"
+    }
+  },
+  "bin": "canisend.exe",
+  "description": "Prepare evidence-bound applications and submissions locally",
+  "extract_dir": "canisend-1.0.0-beta.1-x86_64-pc-windows-msvc",
+  "homepage": "https://github.com/jxpeng98/CanISend",
+  "license": "GPL-3.0-only",
+  "version": "1.0.0-beta.1"
+}

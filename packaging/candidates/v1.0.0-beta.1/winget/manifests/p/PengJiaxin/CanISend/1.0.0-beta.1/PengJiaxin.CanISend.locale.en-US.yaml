@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+
+PackageIdentifier: PengJiaxin.CanISend
+PackageVersion: 1.0.0-beta.1
+PackageLocale: en-US
+Publisher: Peng Jiaxin
+PublisherUrl: https://github.com/jxpeng98
+PublisherSupportUrl: https://github.com/jxpeng98/CanISend/issues
+PackageName: CanISend
+PackageUrl: https://github.com/jxpeng98/CanISend
+License: GPL-3.0-only
+LicenseUrl: https://github.com/jxpeng98/CanISend/blob/v1.0.0-beta.1/LICENSE
+ShortDescription: Prepare evidence-bound applications and submissions locally
+Moniker: canisend
+Tags:
+- applications
+- agent
+- cli
+ReleaseNotesUrl: https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0
