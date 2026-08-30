@@ -16,7 +16,7 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": "f0894235c3d56e88f402ef385f5b2ecd46e9c193",
-  "pr_url": null,
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/209",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -92,7 +92,7 @@
     "activation_exception_count": 0,
     "activation_source_gate": "passed",
     "activation_local_gate": "passed-report-match-diff-task-validation-release-check",
-    "activation_pr_url": null,
+    "activation_pr_url": "https://github.com/jxpeng98/CanISend/pull/209",
     "activation_protected_ci_run": null,
     "activation_merge_commit": null,
     "next_roadmap_id": "M3-EVID-005"
