@@ -23,7 +23,8 @@ silently reinterpret historical Beta-entry evidence.
 1. The validation owner confirms a bounded window and consent for 5–8 invited users. Names,
    contacts, and private bodies are not committed.
 2. Before each window, the operator verifies the public Beta.1 tag/source identity and supplies a
-   body-free coverage matrix derived from Issue #70.
+   body-free coverage matrix derived from Issue #70. The planning matrix is
+   `research/beta1-cohort-flow-matrix.md`; it contains placeholder slots only.
 3. Participants run supported App, CLI, and Codex paths. Results are reduced immediately to
    aggregate counts, coverage tokens, exclusions, and minimum-safe blocker links.
 4. Product failures stay in the applicable denominator. Only withdrawal and documented

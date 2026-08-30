@@ -7,13 +7,13 @@
 - [x] Bind the plan to Issue #70, the qualified Beta.1 identity, and the active feature-freeze
       baseline.
 - [x] Keep `release/beta-readiness.json` immutable and define a separate post-Beta aggregate.
+- [x] Derive the minimum 8-slot, 20-flow body-free coverage matrix from existing Pack and Roadmap
+      contracts without adding participant management or new product capability.
 - [ ] Obtain explicit participant consent and a bounded owner schedule before any invitation,
       provider send, private-data access, or cohort execution.
 
 ## Phase B — minimum execution packet
 
-- [ ] Derive one body-free flow/coverage checklist directly from Issue #70; do not create a new
-      project-management system or participant database.
 - [ ] Verify the exact public Beta.1 tag/source before each cohort window.
 - [ ] Run 5–8 invited users per bounded window until at least 8 cumulative users and 20 completed
       supported flows satisfy the coverage contract.
