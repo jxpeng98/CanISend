@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 12
+- **Total Sessions**: 13
 - **Last Active**: 2026-08-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~317 | Active |
+| `journal-1.md` | ~342 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 13 | 2026-08-30 | Activate Beta.1 feature freeze | `5448957ad6a74bd34aacd23cdf61e1cd7e351e55`, `86d33fd4c884d0827be861edbb9d61da17f539ac`, `f0894235c3d56e88f402ef385f5b2ecd46e9c193`, `1a9493860cefdede422afa04bdd5d198c8121600`, `f62f8170ac6ed3fcfc9a975b4fe4bb275c97599b` | `chore/beta1-feature-freeze-closeout` |
 | 12 | 2026-08-30 | Beta.1 package-channel candidates | `bb3e3d5e4e8d1c4c9e5759b10776b8fab788ffe0` | `main` |
 | 11 | 2026-08-30 | Qualify and merge Beta.1 ledger | `bd1901c05b0a7e551b9548edcc51e475e5c3c177`, `8bc4f2fe5fdcfdcab4f2502a489985993987c2f2` | `plan/beta1-channels` |
 | 10 | 2026-08-30 | Publish and verify Beta.1 candidate | `0d211db8`, `686249b8` | `plan/beta1-candidate` |
