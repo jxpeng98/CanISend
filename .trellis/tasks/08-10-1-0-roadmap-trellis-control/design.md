@@ -22,14 +22,14 @@ Lower layers may link higher layers but may not override them.
 `08-10-1-0-roadmap-trellis-control` is the programme parent. It owns the execution model and the
 cross-child integration review, but no implementation. One child applies this governance contract;
 only Ready/In-progress Roadmap work becomes a delivery child. The existing
-`08-10-alpha7-followup-cohort-entry` task is the sole current Roadmap delivery child.
+`08-10-alpha8-cohort-beta-evidence` task retains its stable ID and is the current Roadmap delivery
+child.
 
 Future work remains in GitHub until its entry gate is satisfied:
 
-1. `M3-EVID-005` / Issue #70 — current Alpha.7 cohort and Beta-entry evidence.
-2. `M4-READY-001` / Issue #71 — next only after M3 exit.
-3. Remaining M4 release/freeze Issues — activated in Roadmap order.
-4. M5 and M6 — remain backlog until their milestone entry gates pass.
+1. `M3-EVID-005` / Issue #70 — post-Beta.1 cohort evidence required before RC.1 planning.
+2. M5 RC.1 work — next only after Issue #70 becomes Verified.
+3. Remaining M5 and M6 work — remains backlog until its milestone entry gates pass.
 
 ## Task contract
 
