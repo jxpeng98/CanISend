@@ -3,7 +3,7 @@
   "name": "beta1-candidate",
   "title": "Build and publicly verify Beta.1 candidate",
   "description": "Build, inspect, promote, and publicly reverify exact v1.0.0-beta.1 bytes.",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release-engineering",
   "package": null,
@@ -11,12 +11,12 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
-  "completedAt": null,
+  "completedAt": "2026-08-30",
   "branch": "plan/beta1-candidate",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "686249b8ff4b32aef32c8f3f8daaac9e8128c52f",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/204",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -29,7 +29,7 @@
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "Exact public Beta.1 contains the same 20 bytes as candidate artifact 9723581536 and remains beta-qualifying. M4-LEDGER-001 owns qualification.",
+  "notes": "Verified through protected PR #204 and merge a223d9e6a2cd9e9195f98fdf7a052184f71de7d0. Exact public Beta.1 contains the same 20 bytes as candidate artifact 9723581536 and remains beta-qualifying. Issue #74 is Verified; M4-LEDGER-001 / Issue #75 is Ready.",
   "meta": {
     "roadmap_id": "M4-CANDIDATE-001",
     "github_issue": 74,
@@ -57,6 +57,9 @@
     "public_release": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1",
     "asset_count": "20",
     "public_checked_at": "2026-08-30T00:42:43Z",
+    "protected_ci_run": "33284838397",
+    "protected_check_count": 6,
+    "merge_commit": "a223d9e6a2cd9e9195f98fdf7a052184f71de7d0",
     "next_roadmap_id": "M4-LEDGER-001"
   }
 }

@@ -50,10 +50,10 @@
       Beta.1; keep ledger, channels, freeze, cohort, RC, and Stable claims pending.
 - [x] Update this task and its parent without rewriting historical release evidence.
 - [x] Run `git diff --check`; documentation/control-only changes do not run local Rust tests.
-- [ ] Commit and push the bounded evidence/control changes, open one PR, and rely on protected CI.
-- [ ] After merge, mark Issue #74 `state:verified` with exact evidence and hand Issue #75 the public
+- [x] Commit and push the bounded evidence/control changes, open one PR, and rely on protected CI.
+- [x] After merge, mark Issue #74 `state:verified` with exact evidence and hand Issue #75 the public
       asset directory plus candidate run identity.
-- [ ] Archive this task only after GitHub, Roadmap, Trellis, protected `main`, tag, release, and
+- [x] Archive this task only after GitHub, Roadmap, Trellis, protected `main`, tag, release, and
       public bytes agree.
 
 ## Stop conditions
