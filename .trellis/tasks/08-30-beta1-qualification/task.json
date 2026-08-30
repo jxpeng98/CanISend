@@ -1,0 +1,53 @@
+{
+  "id": "beta1-qualification",
+  "name": "beta1-qualification",
+  "title": "Record Beta.1 qualification ledger",
+  "description": "Preview and record exact public Beta.1 qualification from a fresh independent asset download without generating channels or activating freeze",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release-engineering",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-08-30",
+  "completedAt": null,
+  "branch": "plan/beta1-qualification",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "xtask/src/main.rs",
+    "release/qualification-ledger.json",
+    "docs/release/qualification-ledger.md",
+    "README.md",
+    "RELEASE.md",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/guides/project-control.md"
+  ],
+  "notes": "The supported stage transition emits a status-only pending Beta object; the recorder alone expects unused placeholders. Repair that single guard before exact public-asset qualification.",
+  "meta": {
+    "roadmap_id": "M4-LEDGER-001",
+    "github_issue": 75,
+    "github_milestone": 5,
+    "dependencies": [
+      "M4-CANDIDATE-001",
+      "a223d9e6a2cd9e9195f98fdf7a052184f71de7d0"
+    ],
+    "owner_role": "release",
+    "verification_tier": "focused-plus-tier2-and-fast-ci",
+    "tag": "v1.0.0-beta.1",
+    "source_commit": "6e1397b79031cad54e794ccdc9edca2153f23b3e",
+    "candidate_run": "33281162734",
+    "candidate_artifact_id": "9723581536",
+    "promotion_run": "33283530240",
+    "manifest_sha256": "2435c335f2edd31e1a59afd4065380112f4e24924f68f76a26be84acef0041f8",
+    "public_release": "https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1",
+    "expected_asset_count": 20,
+    "next_roadmap_id": "M4-CHANNEL-001"
+  }
+}

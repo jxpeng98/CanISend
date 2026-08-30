@@ -4549,13 +4549,7 @@ fn beta_qualified_ledger(
 ) -> Result<Value, String> {
     let (_, stage) = parse_release_tag(tag)?;
     validate_lower_hex("Beta source commit", source_commit, 40)?;
-    let pending = json!({
-        "signed_matrix_run": null,
-        "signing_evidence_targets": [],
-        "source_commit": null,
-        "status": "pending",
-        "tag": null
-    });
+    let pending = json!({"status": "pending"});
     if stage != ReleaseStage::Beta
         || run_id == 0
         || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
@@ -17952,13 +17946,7 @@ mod tests {
             "status": "beta-qualifying",
             "stable_authorized": false,
             "feature_freeze": {"status": "planned", "baseline_commit": null},
-            "beta": {
-                "signed_matrix_run": null,
-                "signing_evidence_targets": [],
-                "source_commit": null,
-                "status": "pending",
-                "tag": null
-            }
+            "beta": {"status": "pending"}
         });
         let source = "7".repeat(40);
         let qualified = beta_qualified_ledger(&pending, "v0.7.0-beta.1", 29_640_000_001, &source)
