@@ -3,7 +3,7 @@
   "name": "beta1-feature-freeze",
   "title": "Activate Beta.1 feature freeze",
   "description": "Prepare the current Trellis control boundary before freeze, then activate the existing two-file feature-freeze transaction against the exact protected Beta.1 evidence baseline",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release-engineering",
   "package": null,
@@ -11,8 +11,8 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-30",
-  "completedAt": null,
-  "branch": "release/beta1-feature-freeze-activation-final",
+  "completedAt": "2026-08-30",
+  "branch": "chore/beta1-feature-freeze-closeout",
   "base_branch": "main",
   "worktree_path": null,
   "commit": "f0894235c3d56e88f402ef385f5b2ecd46e9c193",
@@ -33,7 +33,7 @@
     ".trellis/spec/guides/project-control.md",
     ".trellis/tasks/08-10-1-0-roadmap-trellis-control/task.json"
   ],
-  "notes": "Preparation PR #207 and policy amendment PR #208 are protected and merged. Matching dry-run/write reports activated exactly two machine files at final baseline acf25dc483643ca9be0210320775708da116b715, retained qualified Beta source 6e1397b79031cad54e794ccdc9edca2153f23b3e, and started with zero exceptions. The final local source gate passed; protected activation review remains pending. No external publication or user outreach occurred.",
+  "notes": "Preparation PR #207, policy amendment PR #208, and activation PR #209 are protected and merged. Matching dry-run/write reports activated exactly two machine files at final baseline acf25dc483643ca9be0210320775708da116b715, retained qualified Beta source 6e1397b79031cad54e794ccdc9edca2153f23b3e, and started with zero exceptions. Local, protected, and post-merge source gates passed; Issue #77 is Verified and closed, and Issue #70 is Ready. No external publication or user outreach occurred.",
   "meta": {
     "roadmap_id": "M4-FREEZE-002",
     "github_issue": 77,
@@ -93,8 +93,13 @@
     "activation_source_gate": "passed",
     "activation_local_gate": "passed-report-match-diff-task-validation-release-check",
     "activation_pr_url": "https://github.com/jxpeng98/CanISend/pull/209",
-    "activation_protected_ci_run": null,
-    "activation_merge_commit": null,
+    "activation_protected_ci_run": "33289756272",
+    "activation_protected_check_count": 6,
+    "activation_merge_commit": "e8487fb53cba1d42fef9f96acf5d5c9d9284188d",
+    "activation_post_merge_source_gate": "passed",
+    "github_issue_state": "verified-closed",
+    "next_github_issue": 70,
+    "next_github_issue_state": "ready",
     "next_roadmap_id": "M3-EVID-005"
   }
 }

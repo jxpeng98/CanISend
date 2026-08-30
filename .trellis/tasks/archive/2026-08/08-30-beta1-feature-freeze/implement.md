@@ -53,10 +53,11 @@
 
 - [x] One final `cargo run -p xtask --locked -- release check`
 - [x] `git diff --check` and Trellis task validation
-- [ ] Protected Fast CI on the exact activation PR head
-- [ ] Merge the activation PR after protected checks pass
-- [ ] Mark Issue #77 Verified with exact reports, commit, PR, runs, and merge
-- [ ] Make Issue #70 Ready and archive this task
+- [x] Protected Fast CI on exact activation PR #209 head
+- [x] Merge activation PR #209 as `e8487fb53cba1d42fef9f96acf5d5c9d9284188d`
+- [x] Mark Issue #77 Verified with exact reports, commit, PR, runs, and merge
+- [x] Make Issue #70 Ready
+- [x] Archive this task
 
 ## Stop conditions
 

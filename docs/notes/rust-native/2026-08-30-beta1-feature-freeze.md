@@ -42,15 +42,25 @@ The two machine files were committed alone as
 qualification ledger retains allowed classes `documentation`, `release-blocker`, and
 `release-evidence`; the exception record starts with zero entries.
 
-## Local source gate
+## Protected activation review
+
+- PR: [#209](https://github.com/jxpeng98/CanISend/pull/209)
+- Exact reviewed head: `329967d71331768ada47f089374dfb464d4751a8`
+- Protected merge: `e8487fb53cba1d42fef9f96acf5d5c9d9284188d`
+- Fast CI run: `33289756272`
+- Required checks: 6 passed, 0 failed
+
+## Local and merge source gates
 
 `cargo run -p xtask --locked -- release check` passed after the activation transaction and
 automatic documentation/control reconciliation. Its feature-freeze result was frozen at
 `acf25dc483643ca9be0210320775708da116b715` with zero exceptions. `git diff --check` and Trellis
-task validation also passed. Protected Fast CI remains the owner of the exact activation PR head.
+task validation also passed. The same source gate passed again on protected merge
+`e8487fb53cba1d42fef9f96acf5d5c9d9284188d`, proving that its first-parent path set remained
+automatic.
 
 ## Non-claims
 
 This transaction does not create or move a tag, rebuild or publish artifacts, modify an external
 package channel, run a participant cohort, prepare RC.1, or authorize Stable. The activation PR
-must pass its final source gate and protected checks before Issue #77 becomes Verified.
+passed its final source gate and protected checks before Issue #77 became Verified.
