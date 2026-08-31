@@ -1,0 +1,32 @@
+{
+  "id": "windows-desktop-validation",
+  "name": "windows-desktop-validation",
+  "title": "Fix Windows desktop validation gaps",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "cross-layer",
+  "package": null,
+  "priority": "P2",
+  "creator": "Jiaxi",
+  "assignee": "Jiaxi",
+  "createdAt": "2026-08-31",
+  "completedAt": null,
+  "branch": "fix/windows-desktop-validation",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "requirement_ids": "WIN-VAL-1,WIN-CHECKPOINT-1,MAC-HANDOFF-1,WIN-GUI-1,WIN-COPY-1,WIN-RUST-1,WIN-PROBE-1,WIN-A11Y-1,WIN-DELIVERY-1",
+    "verification_tier": "focused plus final source gate",
+    "support_boundary": "Windows CLI validation and nonpublishing desktop candidate only",
+    "current_checkpoint": "review-only Windows commit; product work resumes on macOS",
+    "native_windows_closure": "required after macOS; cannot be inferred from macOS results"
+  }
+}
