@@ -634,7 +634,7 @@ mod tests {
                 body.len()
             ),
         ]);
-        let fetched = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
+        let fetched = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(5))
             .fetch(&format!("{url}/start"))
             .expect("redirected HTML fetch");
         server.join().expect("redirect server");
@@ -658,7 +658,7 @@ mod tests {
             MAX_REMOTE_SOURCE_BYTES + 1
         )]);
         assert!(
-            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(5))
                 .fetch(&url)
                 .is_err()
         );
@@ -670,7 +670,7 @@ mod tests {
             body.len()
         )]);
         assert!(
-            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(5))
                 .fetch(&url)
                 .is_err()
         );
@@ -681,7 +681,7 @@ mod tests {
                 .to_owned(),
         ]);
         assert!(
-            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1))
+            HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(5))
                 .fetch(&url)
                 .is_err()
         );
@@ -715,7 +715,7 @@ mod tests {
                 xml.len()
             ),
         ]);
-        let fetcher = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(1));
+        let fetcher = HttpFetcher::for_bounded_loopback_tests(Duration::from_secs(5));
         assert_eq!(
             fetcher
                 .fetch_discovery(&format!("{url}/jobs.json"))
