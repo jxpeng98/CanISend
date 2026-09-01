@@ -23,7 +23,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 820 },
   },
   webServer: {
-    command: `pnpm exec vite --host 127.0.0.1 --port ${previewPort} --strictPort`,
+    command: `vite --host 127.0.0.1 --port ${previewPort} --strictPort`,
     url: `${previewUrl}/?ui-system=1`,
     reuseExistingServer: false,
     timeout: 30_000,

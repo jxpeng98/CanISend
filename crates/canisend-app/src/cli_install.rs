@@ -1,6 +1,8 @@
+#[cfg(unix)]
+use std::io::Write;
 use std::{
     env, fs,
-    io::{self, Read, Write},
+    io::{self, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -24,8 +26,11 @@ const MANIFEST_NAME: &str = ".canisend-install-v1.json";
 const MAX_CLI_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_VERSION_OUTPUT_BYTES: u64 = 64 * 1024;
 const VERSION_PROBE_TIMEOUT: Duration = Duration::from_millis(750);
+#[cfg(unix)]
 const MAX_SHELL_PROFILE_BYTES: u64 = 1024 * 1024;
+#[cfg(unix)]
 const PATH_BLOCK_START: &str = "# >>> CanISend CLI PATH >>>";
+#[cfg(unix)]
 const PATH_BLOCK_END: &str = "# <<< CanISend CLI PATH <<<";
 #[cfg(windows)]
 const WINDOWS_USER_ENVIRONMENT_KEY: &str = "Environment";
@@ -507,6 +512,14 @@ fn parse_comparable_version(value: &str) -> Option<Version> {
 }
 
 fn probe_cli_version(path: &Path) -> Option<String> {
+    #[cfg(windows)]
+    {
+        let mut prefix = [0; 2];
+        fs::File::open(path).ok()?.read_exact(&mut prefix).ok()?;
+        if prefix != *b"MZ" {
+            return None;
+        }
+    }
     for arguments in [
         &["version", "--json"][..],
         &["--version"][..],
@@ -531,29 +544,38 @@ fn run_version_probe(path: &Path, arguments: &[&str]) -> Option<Vec<u8>> {
         .spawn()
         .ok()?;
     let mut stdout = child.stdout.take()?;
-    let reader = thread::spawn(move || {
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    let _reader = thread::spawn(move || {
         let mut bytes = Vec::new();
-        stdout
+        let result = stdout
             .by_ref()
             .take(MAX_VERSION_OUTPUT_BYTES + 1)
             .read_to_end(&mut bytes)
-            .map(|_| bytes)
+            .map(|_| bytes);
+        let _ = sender.send(result);
     });
     let started = Instant::now();
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
             Ok(None) if started.elapsed() < VERSION_PROBE_TIMEOUT => {
-                thread::sleep(Duration::from_millis(20));
+                thread::sleep(
+                    VERSION_PROBE_TIMEOUT
+                        .saturating_sub(started.elapsed())
+                        .min(Duration::from_millis(20)),
+                );
             }
             Ok(None) | Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break;
+                return None;
             }
         }
     }
-    let bytes = reader.join().ok()?.ok()?;
+    let bytes = receiver
+        .recv_timeout(VERSION_PROBE_TIMEOUT.saturating_sub(started.elapsed()))
+        .ok()?
+        .ok()?;
     (u64::try_from(bytes.len()).ok()? <= MAX_VERSION_OUTPUT_BYTES).then_some(bytes)
 }
 

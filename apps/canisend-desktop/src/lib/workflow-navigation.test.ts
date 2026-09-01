@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ApplicationDossierReadModel, JobDetailReadModel, JobRecord } from "./bridge";
+import type { ApplicationDossierReadModel, JobRecord } from "./bridge";
 import {
   applicationSectionForRoute,
   defaultNavigationMemory,
@@ -25,12 +25,31 @@ const job: JobRecord = {
   archived: false,
 };
 
-function detail(overrides: Partial<JobDetailReadModel> = {}): JobDetailReadModel {
+function application(
+  overrides: Partial<ApplicationDossierReadModel> = {},
+): ApplicationDossierReadModel {
   return {
     workspace: "/tmp/canisend",
     job,
-    sources: [],
+    metadata: {
+      origin: "direct",
+      discovery_lead_id: null,
+      discovery_source_id: null,
+      location: null,
+      deadline: null,
+      source_url: null,
+      freshness: null,
+      last_seen_at: null,
+    },
+    source_count: 0,
+    profile_source_count: 0,
+    state: "needs-source",
+    current_stage: null,
+    completed_stages: 0,
+    total_stages: 11,
     workflow: null,
+    blockers: [],
+    next_actions: [],
     ...overrides,
   };
 }
@@ -254,7 +273,6 @@ describe("connected workflow routing", () => {
         workspacePath: null,
         jobs: [],
         selectedJob: null,
-        profileSourceCount: 0,
       }).reason,
     ).toBe("choose-workspace");
 
@@ -262,8 +280,7 @@ describe("connected workflow routing", () => {
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
         jobs: [job],
-        selectedJob: detail(),
-        profileSourceCount: 1,
+        selectedJob: application({ profile_source_count: 1 }),
       }),
     ).toMatchObject({
       reason: "attach-source",
@@ -271,8 +288,11 @@ describe("connected workflow routing", () => {
     });
 
     const sourcedJob = { ...job, source_ids: ["source-1"] };
-    const workflowDetail = detail({
+    const workflowApplication = application({
       job: sourcedJob,
+      source_count: 1,
+      profile_source_count: 1,
+      state: "in-progress",
       workflow: {
         run_id: "run-1",
         job_id: "job-1",
@@ -301,8 +321,7 @@ describe("connected workflow routing", () => {
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
         jobs: [sourcedJob],
-        selectedJob: workflowDetail,
-        profileSourceCount: 1,
+        selectedJob: workflowApplication,
       }),
     ).toMatchObject({
       reason: "continue-workflow",
@@ -328,7 +347,7 @@ describe("connected workflow routing", () => {
       current_stage: "review",
       completed_stages: 8,
       total_stages: 11,
-      workflow: workflowDetail.workflow,
+      workflow: workflowApplication.workflow,
       blockers: [],
       next_actions: [],
     };
@@ -336,9 +355,7 @@ describe("connected workflow routing", () => {
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
         jobs: [sourcedJob],
-        selectedJob: workflowDetail,
-        dossier,
-        profileSourceCount: 0,
+        selectedJob: dossier,
       }),
     ).toMatchObject({
       reason: "continue-workflow",

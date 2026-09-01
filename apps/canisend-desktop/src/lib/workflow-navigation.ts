@@ -1,7 +1,6 @@
 import type {
   ApplicationDossierReadModel,
   ContentCatalogEntryReadModel,
-  JobDetailReadModel,
   JobRecord,
   TaskOperation,
   WorkflowStage,
@@ -368,9 +367,7 @@ export function routeForAgentAction(action: string): WorkflowRoute {
 export function recommendWorkflowRoute(input: {
   workspacePath: string | null;
   jobs: JobRecord[];
-  selectedJob: JobDetailReadModel | null;
-  dossier?: ApplicationDossierReadModel | null;
-  profileSourceCount: number;
+  selectedJob: ApplicationDossierReadModel | null;
 }): WorkflowRecommendation {
   if (!input.workspacePath) {
     return { route: { view: "workspaces" }, reason: "choose-workspace" };
@@ -386,19 +383,19 @@ export function recommendWorkflowRoute(input: {
   }
 
   const jobId = input.selectedJob.job.id;
-  if (input.dossier?.state === "needs-source" || input.selectedJob.job.source_ids.length === 0) {
+  if (input.selectedJob.state === "needs-source" || input.selectedJob.source_count === 0) {
     return {
       route: { view: "applications", detail: "source-intake", jobId },
       reason: "attach-source",
     };
   }
-  if ((input.dossier?.profile_source_count ?? input.profileSourceCount) === 0) {
+  if (input.selectedJob.profile_source_count === 0) {
     return {
       route: { view: "profile", detail: "profile-sources", jobId },
       reason: "build-profile",
     };
   }
-  if (!input.dossier?.workflow && !input.selectedJob.workflow) {
+  if (!input.selectedJob.workflow) {
     return {
       route: { view: "workflow", detail: "workflow-stages", jobId },
       reason: "start-workflow",
@@ -406,17 +403,15 @@ export function recommendWorkflowRoute(input: {
   }
 
   const nextStage =
-    input.dossier?.current_stage ??
-    (input.dossier?.workflow?.stages ?? input.selectedJob.workflow?.stages ?? []).find(
-      (stage) => stage.status !== "complete",
-    )?.stage;
+    input.selectedJob.current_stage ??
+    input.selectedJob.workflow.stages.find((stage) => stage.status !== "complete")?.stage;
   if (nextStage) {
     return {
       route: { ...routeForWorkflowStage(nextStage), jobId },
       reason: "continue-workflow",
     };
   }
-  if (input.dossier?.state === "complete" || input.selectedJob.workflow?.status === "complete") {
+  if (input.selectedJob.state === "complete" || input.selectedJob.workflow.status === "complete") {
     return {
       route: { view: "delivery", detail: "delivery-package", jobId },
       reason: "complete",

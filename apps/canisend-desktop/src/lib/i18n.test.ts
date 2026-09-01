@@ -26,6 +26,15 @@ describe("desktop translations", () => {
     }
   });
 
+  it("keeps PATH guidance accurate for Windows, macOS, and other hosts", () => {
+    for (const locale of Object.values(messages)) {
+      expect(locale.addToPathDescription.windows).toContain("HKCU\\Environment\\Path");
+      expect(locale.addToPathDescription.macos).toContain(".zprofile");
+      expect(locale.addToPathDescription.other).not.toContain(".zprofile");
+      expect(locale.pathConfigurationLocation.windows).not.toMatch(/shell|Shell/u);
+    }
+  });
+
   it("translates critical loading, recovery, empty, and guidance states", () => {
     for (const locale of Object.values(messages)) {
       const criticalStates = [

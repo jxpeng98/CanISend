@@ -23,7 +23,6 @@
   import type {
     ApplicationFlowStageV3,
     ApplicationDossierReadModel,
-    JobDetailReadModel,
     JobRecord,
     RegistrySnapshot,
     StoredApplicationModelV3,
@@ -46,11 +45,10 @@
     snapshot: RegistrySnapshot | null;
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
-    selectedJob: JobDetailReadModel | null;
+    selectedJob: ApplicationDossierReadModel | null;
     v4Applications: StoredApplicationModelV3[];
     selectedV4Application: StoredApplicationModelV3 | null;
     v4Stages: ApplicationFlowStageV3[];
-    dossier: ApplicationDossierReadModel | null;
     activeView: NavigationId;
     activeDetail: WorkflowDetail | null;
     recommendation: WorkflowRecommendation;
@@ -71,7 +69,6 @@
     v4Applications,
     selectedV4Application,
     v4Stages,
-    dossier,
     activeView,
     activeDetail,
     recommendation,
@@ -97,7 +94,9 @@
     }),
   );
   const progressPercent = $derived(
-    dossier?.total_stages ? Math.round((dossier.completed_stages / dossier.total_stages) * 100) : 0,
+    selectedJob?.total_stages
+      ? Math.round((selectedJob.completed_stages / selectedJob.total_stages) * 100)
+      : 0,
   );
   const usesV4ApplicationContext = $derived(activeView === "applications");
   const v4CompletedStages = $derived(v4Stages.filter((stage) => stage.state === "complete").length);
@@ -111,14 +110,15 @@
       .at(-1) ?? copy.allStagesComplete,
   );
   const currentStageLabel = $derived(
-    dossier?.current_stage
-      ? copy.workflowStageLabel[dossier.current_stage]
-      : dossier?.state === "complete"
+    selectedJob?.current_stage
+      ? copy.workflowStageLabel[selectedJob.current_stage]
+      : selectedJob?.state === "complete"
         ? copy.allStagesComplete
         : copy.notApplicable,
   );
   const nextActionDescription = $derived(
-    dossier?.next_actions[0]?.description ?? copy.recommendationDescription[recommendation.reason],
+    selectedJob?.next_actions[0]?.description ??
+      copy.recommendationDescription[recommendation.reason],
   );
   const sections = $derived([
     {
@@ -210,9 +210,9 @@
                 <Badge variant="outline" class="px-1.5 py-0 text-[9px]">
                   {selectedV4Application.snapshot.application.lifecycle}
                 </Badge>
-              {:else if dossier}
+              {:else if selectedJob}
                 <Badge variant="outline" class="px-1.5 py-0 text-[9px]">
-                  {copy.applicationDossierState[dossier.state]}
+                  {copy.applicationDossierState[selectedJob.state]}
                 </Badge>
               {/if}
             </div>
@@ -326,7 +326,7 @@
                   {copy.deadline}
                 </dt>
                 <dd class="mt-1 truncate text-xs font-semibold">
-                  {dossier?.metadata.deadline ?? copy.noDeadlineRecorded}
+                  {selectedJob?.metadata.deadline ?? copy.noDeadlineRecorded}
                 </dd>
               </div>
               <div class="min-w-0 rounded-lg bg-muted/55 px-2.5 py-2">
@@ -404,10 +404,10 @@
               </div>
             </div>
 
-            {#if dossier?.blockers[0] || lastAction}
+            {#if selectedJob?.blockers[0] || lastAction}
               <div class="flex flex-col justify-between gap-2 border-t pt-2">
                 <div class="flex min-w-0 items-center gap-2">
-                  {#if dossier?.blockers[0]}
+                  {#if selectedJob?.blockers[0]}
                     <TriangleAlert
                       size={14}
                       strokeWidth={1.8}
@@ -416,7 +416,7 @@
                     />
                     <p class="truncate text-xs text-muted-foreground">
                       <span class="font-medium text-foreground">{copy.currentBlocker}:</span>
-                      {dossier.blockers[0].description}
+                      {selectedJob.blockers[0].description}
                     </p>
                   {/if}
                 </div>
