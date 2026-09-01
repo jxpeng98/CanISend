@@ -1,0 +1,41 @@
+{
+  "id": "windows-merge-multiplatform-build",
+  "name": "windows-merge-multiplatform-build",
+  "title": "Integrate Windows branch and verify multi-platform builds",
+  "description": "Complete the Windows blockers, preserve freeze-safe protected integration, merge the reviewed branch, and verify macOS plus cross-built and native Windows evidence.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "Windows blocker repair, freeze-safe protected integration, and post-merge multi-platform verification",
+  "package": null,
+  "priority": "P1",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-09-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/tasks/08-31-windows-desktop-validation",
+    ".trellis/tasks/09-01-windows-merge-multiplatform-build/research/windows-branch-readiness.md",
+    "docs/release/feature-freeze.md",
+    "release/feature-freeze-exceptions.json"
+  ],
+  "notes": "Maintainer selected complete-and-verify-before-merge and requested a macOS-first focused test cadence on 2026-09-01. The amended planning summary requires fresh explicit approval before implementation.",
+  "meta": {
+    "windows_branch": "fix/windows-desktop-validation",
+    "windows_checkpoint": "42036258fa07fe25e9b42a358b7e64088cbd502e",
+    "local_main": "aaa4e98a8e788fc34d86357efc9749e795e5bd4f",
+    "origin_main": "0d11c456d726990ff9940f404a6aebad24cf72fc",
+    "known_windows_blockers": 5,
+    "integration_blocker": "feature-freeze verifier double-counts tree-identical protected merge commits",
+    "merge_order": "complete-and-verify-before-merge",
+    "test_cadence": "focused macOS checks during implementation, protected full suites at integration, one post-merge cargo-xwin pass",
+    "verification_tier": "focused, final source gate, protected Fast CI, post-merge cross-build, and native Windows closure"
+  }
+}
