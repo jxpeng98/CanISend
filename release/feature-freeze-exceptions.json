@@ -34,6 +34,14 @@
         "crates/canisend-io/src/remote.rs"
       ],
       "reason": "Stabilize bounded loopback success fixtures on Windows CI without changing production or negative timeout behavior."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f31045d6b66f32f28565bad9b47d6ca33fcc4164",
+      "paths": [
+        "xtask/src/main.rs"
+      ],
+      "reason": "Refresh the provisional offline WebView2 artifact budget from same-target evidence after Microsoft runtime growth without changing application or standard-package budgets."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
