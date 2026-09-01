@@ -26,6 +26,14 @@
         "crates/canisend-app/src/cli_install.rs"
       ],
       "reason": "Close the reproduced Windows desktop blockers in dossier reads, platform PATH copy, CLI probing, strict Clippy, and Playwright startup."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "7fbdbfb5eeb1100c59363e3bec404f88ae60911c",
+      "paths": [
+        "crates/canisend-io/src/remote.rs"
+      ],
+      "reason": "Stabilize bounded loopback success fixtures on Windows CI without changing production or negative timeout behavior."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
