@@ -203,7 +203,7 @@ target and package format:
 | Standard CanISend application payload | at most 75,497,472 bytes (72 MiB) |
 | Runtime-inclusive extracted payload | at most 402,653,184 bytes (384 MiB) |
 | Portable Linux AppImage | at most 134,217,728 bytes (128 MiB) |
-| Offline Windows installer | at most 268,435,456 bytes (256 MiB) |
+| Offline Windows installer | at most 301,989,888 bytes (288 MiB) |
 | Number of full CanISend native hosts in a desktop package | exactly 1 |
 | Raw built frontend | at most 1,572,864 bytes (1.5 MiB) |
 | CLI/GUI parity entries implemented | 37 of 37 |

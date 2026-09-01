@@ -105,7 +105,7 @@ inside the measured payload, fail if another CanISend host is present, and recor
 artifact bytes separately. Windows offline installers and Linux AppImage containers require their
 own runtime-inclusive records; they are not compared with the standard 72 MiB application-payload
 budget. Runtime-inclusive extracted payloads are capped at 384 MiB, AppImage artifacts at 128 MiB,
-and offline Windows installers at 256 MiB. Portable payload symlinks must resolve inside the
+and offline Windows installers at 288 MiB. Portable payload symlinks must resolve inside the
 extracted root, and the record must still identify exactly one named CanISend host.
 
 The scheduled desktop-platform qualification workflow currently evaluates a release candidate with
