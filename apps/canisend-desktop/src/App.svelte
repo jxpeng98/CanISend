@@ -94,7 +94,6 @@
     installCli,
     isDesktopRuntime,
     listApplicationDossiers,
-    listJobs,
     listProfileSources,
     listDiscoveryLeads,
     listDiscoverySources,
@@ -121,7 +120,6 @@
     searchContent,
     selectWorkspace,
     showDiscoveryLead,
-    showJob,
     startWorkflow,
     suggestDiscoveryDuplicates,
     uninstallCli,
@@ -163,7 +161,6 @@
     type DocumentWorkspaceReadModel,
     type EvidenceCatalogRecord,
     type ExecutionMode,
-    type JobDetailReadModel,
     type JobIntakePreviewReadModel,
     type JobRecord,
     type InspectionCatalogReadModel,
@@ -284,7 +281,7 @@
   let activeWorkspace = $state<WorkspaceReadModel | null>(null);
   let workspaceHealth = $state<WorkspaceHealthReadModel | null>(null);
   let jobs = $state<JobRecord[]>([]);
-  let selectedJob = $state<JobDetailReadModel | null>(null);
+  let selectedJob = $state<ApplicationDossierReadModel | null>(null);
   let applicationDossiers = $state<ApplicationDossierReadModel[]>([]);
   let contentCatalog = $state<ContentCatalogReadModel | null>(null);
   let contentSearchResult = $state<ContentSearchReadModel | null>(null);
@@ -320,8 +317,6 @@
       workspacePath: activeWorkspace?.path ?? null,
       jobs,
       selectedJob,
-      dossier: selectedDossier,
-      profileSourceCount: profileSources.length,
     }),
   );
   const workNavigation = $derived([
@@ -886,13 +881,12 @@
     jobsLoading = true;
     contentLoading = true;
     try {
-      const [receipt, dossierReceipt, catalogReceipt] = await Promise.all([
-        listJobs(activeWorkspace.path, false),
+      const [dossierReceipt, catalogReceipt] = await Promise.all([
         listApplicationDossiers(activeWorkspace.path, false),
         getContentCatalog(activeWorkspace.path),
       ]);
-      jobs = receipt.data.jobs;
       applicationDossiers = dossierReceipt.data.applications;
+      jobs = applicationDossiers.map((dossier) => dossier.job);
       contentCatalog = catalogReceipt.data;
       contentSearchResult = null;
       const currentBelongsToWorkspace =
@@ -901,7 +895,7 @@
       const nextId = currentBelongsToWorkspace
         ? selectedJob?.job.id
         : rememberedJob(navigationMemory, activeWorkspace.path, jobs);
-      selectedJob = nextId ? (await showJob(activeWorkspace.path, nextId)).data : null;
+      selectedJob = applicationDossiers.find((dossier) => dossier.job.id === nextId) ?? null;
       if (selectedJob) {
         navigationMemory = {
           ...navigationMemory,
@@ -922,12 +916,11 @@
   async function refreshSelectedJobSnapshot(jobId: string): Promise<void> {
     if (!activeWorkspace || selectedJob?.job.id !== jobId) return;
     try {
-      const [jobReceipt, dossierReceipt, catalogReceipt] = await Promise.all([
-        showJob(activeWorkspace.path, jobId),
+      const [dossierReceipt, catalogReceipt] = await Promise.all([
         getApplicationDossier(activeWorkspace.path, jobId),
         getContentCatalog(activeWorkspace.path),
       ]);
-      selectedJob = jobReceipt.data;
+      selectedJob = dossierReceipt.data;
       applicationDossiers = applicationDossiers.map((dossier) =>
         dossier.job.id === jobId ? dossierReceipt.data : dossier,
       );
@@ -2284,19 +2277,14 @@
       );
       jobIntakePreview = null;
     }
-    const result = await runAction(() =>
-      Promise.all([
-        showJob(activeWorkspace!.path, jobId),
-        getApplicationDossier(activeWorkspace!.path, jobId),
-      ]),
-    );
+    const result = await runAction(() => getApplicationDossier(activeWorkspace!.path, jobId));
     if (!result) return false;
-    selectedJob = result[0].data;
+    selectedJob = result.data;
     if (contentSearchResult?.filter.job_id && contentSearchResult.filter.job_id !== jobId) {
       contentSearchResult = null;
     }
     applicationDossiers = applicationDossiers.map((dossier) =>
-      dossier.job.id === jobId ? result[1].data : dossier,
+      dossier.job.id === jobId ? result.data : dossier,
     );
     navigationMemory = {
       ...navigationMemory,
@@ -2488,7 +2476,6 @@
         {v4Applications}
         {selectedV4Application}
         {v4Stages}
-        dossier={selectedDossier}
         {activeView}
         {activeDetail}
         {recommendation}
@@ -2928,6 +2915,7 @@
             {copy}
             {desktopRuntime}
             {busy}
+            targetOs={product?.target_os ?? null}
             {language}
             {darkMode}
             {compact}

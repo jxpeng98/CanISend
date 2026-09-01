@@ -42,6 +42,7 @@
     copy: Messages;
     desktopRuntime: boolean;
     busy: boolean;
+    targetOs: string | null;
     language: "en" | "zh-CN";
     darkMode: boolean;
     compact: boolean;
@@ -78,6 +79,7 @@
     copy,
     desktopRuntime,
     busy,
+    targetOs,
     language,
     darkMode,
     compact,
@@ -113,6 +115,9 @@
   let selectedDetail = $state("");
   let catalogDestination = $state("");
   let formError = $state<string | null>(null);
+  const pathPlatform = $derived<"windows" | "macos" | "other">(
+    targetOs === "windows" ? "windows" : targetOs === "macos" ? "macos" : "other",
+  );
 
   async function loadCli(): Promise<void> {
     formError = null;
@@ -405,7 +410,7 @@
                 <div>
                   <p class="text-sm font-semibold">{copy.addToPath}</p>
                   <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                    {copy.addToPathDescription}
+                    {copy.addToPathDescription[pathPlatform]}
                   </p>
                 </div>
                 <Button
@@ -425,7 +430,9 @@
               </div>
             {:else if cliStatus.path_configuration_file}
               <div class="rounded-lg border bg-muted/20 p-[var(--density-panel-padding)]">
-                <p class="text-xs text-muted-foreground">{copy.pathConfigurationFile}</p>
+                <p class="text-xs text-muted-foreground">
+                  {copy.pathConfigurationLocation[pathPlatform]}
+                </p>
                 <p class="mt-2 break-all font-mono text-xs">
                   {cliStatus.path_configuration_file}
                 </p>

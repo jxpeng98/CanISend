@@ -9,6 +9,15 @@ const contextBar = readFileSync(
   "utf8",
 );
 const agentView = readFileSync(new URL("./views/AgentView.svelte", import.meta.url), "utf8");
+const applicationsView = readFileSync(
+  new URL("./views/ApplicationsView.svelte", import.meta.url),
+  "utf8",
+);
+const settingsView = readFileSync(new URL("./views/SettingsView.svelte", import.meta.url), "utf8");
+const playwrightConfig = readFileSync(
+  new URL("../../playwright.config.ts", import.meta.url),
+  "utf8",
+);
 const genericApplicationsView = readFileSync(
   new URL("./views/GenericApplicationsView.svelte", import.meta.url),
   "utf8",
@@ -150,6 +159,9 @@ describe("desktop accessibility contract", () => {
   });
 
   it("rejects retired read projections before invoking the desktop host", () => {
+    expect(app).not.toMatch(/\b(?:listJobs|showJob)\b/u);
+    expect(app).toContain("listApplicationDossiers");
+    expect(app).toContain("getApplicationDossier");
     for (const operation of [
       "agent.capabilities",
       "agent.context",
@@ -174,6 +186,21 @@ describe("desktop accessibility contract", () => {
     ]) {
       expect(bridge).not.toContain(`invoke("${handler}"`);
     }
+  });
+
+  it("uses dossier selection, platform-owned PATH copy, and direct Vite startup", () => {
+    expect(app).toContain("$state<ApplicationDossierReadModel | null>");
+    expect(app).toContain("jobs = applicationDossiers.map((dossier) => dossier.job)");
+    expect(applicationsView).toContain("selectedJob.source_count");
+    expect(applicationsView).toContain("contentCatalog?.entries");
+    expect(applicationsView).not.toContain("selectedJob.sources");
+    expect(app).toContain("targetOs={product?.target_os ?? null}");
+    expect(settingsView).toContain('targetOs === "windows"');
+    expect(settingsView).toContain('targetOs === "macos"');
+    expect(settingsView).toContain("copy.addToPathDescription[pathPlatform]");
+    expect(settingsView).toContain("copy.pathConfigurationLocation[pathPlatform]");
+    expect(playwrightConfig).toContain("command: `vite --host 127.0.0.1");
+    expect(playwrightConfig).not.toContain("pnpm exec vite");
   });
 
   it("centralizes semantic controls and compact desktop target sizes", () => {

@@ -1,6 +1,41 @@
 {
   "baseline_commit": "acf25dc483643ca9be0210320775708da116b715",
-  "exceptions": [],
+  "exceptions": [
+    {
+      "class": "release-blocker",
+      "commit": "cc9a655103846f32589ed9b76736fb2304216727",
+      "paths": [
+        "xtask/src/main.rs"
+      ],
+      "reason": "Allow a protected merge that exactly preserves an already-audited PR tree without requiring a duplicate feature-freeze exception."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "01313eb31f17301ee4255726822a200f6104ed13",
+      "paths": [
+        "apps/canisend-desktop/playwright.config.ts",
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/accessibility-contract.test.ts",
+        "apps/canisend-desktop/src/lib/components/WorkspaceContextBar.svelte",
+        "apps/canisend-desktop/src/lib/i18n.test.ts",
+        "apps/canisend-desktop/src/lib/i18n.ts",
+        "apps/canisend-desktop/src/lib/views/ApplicationsView.svelte",
+        "apps/canisend-desktop/src/lib/views/SettingsView.svelte",
+        "apps/canisend-desktop/src/lib/workflow-navigation.test.ts",
+        "apps/canisend-desktop/src/lib/workflow-navigation.ts",
+        "crates/canisend-app/src/cli_install.rs"
+      ],
+      "reason": "Close the reproduced Windows desktop blockers in dossier reads, platform PATH copy, CLI probing, strict Clippy, and Playwright startup."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "7fbdbfb5eeb1100c59363e3bec404f88ae60911c",
+      "paths": [
+        "crates/canisend-io/src/remote.rs"
+      ],
+      "reason": "Stabilize bounded loopback success fixtures on Windows CI without changing production or negative timeout behavior."
+    }
+  ],
   "schema": "canisend.feature-freeze-exceptions/v1",
   "status": "frozen"
 }

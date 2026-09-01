@@ -867,9 +867,18 @@ export const messages = {
     pathPending: "Configured; open a new terminal",
     pathNotConfigured: "Not configured",
     addToPath: "Add to PATH",
-    addToPathDescription:
-      "Add this CLI directory to the managed block in your macOS .zprofile. Existing shell settings are preserved.",
-    pathConfigurationFile: "Shell profile",
+    addToPathDescription: {
+      windows:
+        "Persist this CLI directory in the current user's HKCU\\Environment\\Path registry value. Open a new terminal to use it.",
+      macos:
+        "Add this CLI directory to the managed block in your macOS .zprofile. Existing shell settings are preserved.",
+      other: "Persist this CLI directory in your user PATH. Open a new terminal to use it.",
+    },
+    pathConfigurationLocation: {
+      windows: "User PATH registry value",
+      macos: "Shell profile",
+      other: "PATH configuration",
+    },
     checkUpdates: "Check for updates",
     updateConsent: "I confirm CanISend may query the bounded GitHub Releases endpoint.",
     latestVersion: "Latest version",
@@ -1680,9 +1689,18 @@ export const messages = {
     pathPending: "已配置；请打开新终端",
     pathNotConfigured: "尚未配置",
     addToPath: "添加到 PATH",
-    addToPathDescription:
-      "将该 CLI 目录添加到 macOS .zprofile 中由 CanISend 管理的区块；不会覆盖现有 Shell 设置。",
-    pathConfigurationFile: "Shell 配置文件",
+    addToPathDescription: {
+      windows:
+        "将该 CLI 目录持久写入当前用户的 HKCU\\Environment\\Path 注册表值；请打开新终端使其生效。",
+      macos:
+        "将该 CLI 目录添加到 macOS .zprofile 中由 CanISend 管理的区块；不会覆盖现有 Shell 设置。",
+      other: "将该 CLI 目录持久加入用户 PATH；请打开新终端使其生效。",
+    },
+    pathConfigurationLocation: {
+      windows: "用户 PATH 注册表值",
+      macos: "Shell 配置文件",
+      other: "PATH 配置位置",
+    },
     checkUpdates: "检查更新",
     updateConsent: "我确认允许 CanISend 查询受限的 GitHub Releases 端点。",
     latestVersion: "最新版本",

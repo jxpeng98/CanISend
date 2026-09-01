@@ -61,5 +61,9 @@ The verifier requires the baseline to exist and be an ancestor of `HEAD`, recons
 in `BASELINE..HEAD`, and rejects missing, extra, reordered, duplicated, stale, or invented exception entries. A code
 change therefore cannot be relabeled by adding a broad path pattern or an unrelated commit.
 
+A merge commit does not need a duplicate exception only when its complete tree exactly matches a non-first parent
+that is also present and audited in `BASELINE..HEAD`. A merge that adds conflict-resolution or any other independent
+content remains an ordinary controlled commit and requires its own exact exception.
+
 The mechanism records review scope; it does not itself decide whether a blocker fix is correct. Each exception still
 requires normal tests, review, and the clean-tag RC matrices.

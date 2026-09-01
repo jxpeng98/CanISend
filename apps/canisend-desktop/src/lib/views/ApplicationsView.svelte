@@ -43,7 +43,6 @@
     type ContentCatalogFilter,
     type ContentCatalogReadModel,
     type ContentSearchReadModel,
-    type JobDetailReadModel,
     type JobIntakePreviewReadModel,
     type JobRecord,
     type WorkspaceReadModel,
@@ -60,7 +59,7 @@
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
-    selectedJob: JobDetailReadModel | null;
+    selectedJob: ApplicationDossierReadModel | null;
     presentation: WorkflowPackPresentationReadModel | null;
     dossiers: ApplicationDossierReadModel[];
     dossier: ApplicationDossierReadModel | null;
@@ -135,6 +134,13 @@
   let contentPanelFailed = $state(false);
   const academicOpportunityField = $derived(
     presentation?.opportunity_fields.length === 1 ? presentation.opportunity_fields[0] : null,
+  );
+  const selectedSourceEntries = $derived(
+    (contentCatalog?.entries ?? []).filter(
+      (entry) =>
+        entry.provenance.source_role === "original" &&
+        entry.subject_jobs.some((job) => job.id === selectedJob?.job.id),
+    ),
   );
 
   $effect(() => {
@@ -467,34 +473,40 @@
               <div>
                 <div class="mb-3 flex items-center justify-between">
                   <h3 class="text-sm font-semibold">{copy.attachedSources}</h3>
-                  <Badge variant="secondary">{selectedJob.sources.length}</Badge>
+                  <Badge variant="secondary">{selectedJob.source_count}</Badge>
                 </div>
-                {#if selectedJob.sources.length}
+                {#if selectedSourceEntries.length}
                   <div class="space-y-2">
-                    {#each selectedJob.sources as source (source.id)}
+                    {#each selectedSourceEntries as source (source.artifact.id)}
                       <div class="flex items-start gap-3 rounded-lg border p-3">
                         <div
                           class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground"
                         >
-                          {#if source.kind === "user-url"}
+                          {#if source.provenance.source_kind === "user-url"}
                             <Link size={16} strokeWidth={1.8} aria-hidden="true" />
                           {:else}
                             <FileText size={16} strokeWidth={1.8} aria-hidden="true" />
                           {/if}
                         </div>
                         <div class="min-w-0 flex-1">
-                          <p class="text-sm font-medium">{source.content_type}</p>
+                          <p class="text-sm font-medium">
+                            {source.provenance.content_type ?? source.title}
+                          </p>
                           <p class="mt-1 truncate text-xs text-muted-foreground">
-                            {source.final_url ?? source.source_url ?? source.kind}
+                            {source.provenance.locator ??
+                              source.provenance.source_kind ??
+                              source.title}
                           </p>
                         </div>
                       </div>
                     {/each}
                   </div>
-                {:else}
+                {:else if selectedJob.source_count === 0}
                   <Empty.Root class="min-h-20 border">
                     <Empty.Header><Empty.Title>{copy.noSources}</Empty.Title></Empty.Header>
                   </Empty.Root>
+                {:else}
+                  <p class="text-xs text-muted-foreground">{copy.contentNoResults}</p>
                 {/if}
               </div>
             {:else}
