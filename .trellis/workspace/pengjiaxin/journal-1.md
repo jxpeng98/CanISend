@@ -340,3 +340,37 @@ Prepared the bounded freeze policy, made RELEASE.md state-independent, activated
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: Validate macOS feature completeness
+
+**Date**: 2026-09-01
+**Task**: Validate macOS feature completeness
+**Branch**: `main`
+
+### Summary
+
+Validated main on Apple Silicon macOS with native Rust, CLI, MCP, host, frontend, accessibility, App bundle, and CLI lifecycle evidence; recorded one UI-control environment limitation and deferred Windows integration.
+
+### Main Changes
+
+- Archived the macOS validation task with a capability matrix and retained preview hashes.
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] cargo test --workspace --locked
+- [OK] CLI quickstart, host v4, MCP v4, and macOS GUI CLI lifecycle smokes
+- [OK] Vitest 80/80 and Playwright 17/17
+- [OK] macOS Design Preview build, signatures, bundle integrity, and synthetic Workspace health
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Review and integrate the completed Windows branch, then establish the cargo-xwin development loop.
