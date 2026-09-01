@@ -11947,9 +11947,43 @@ fn validate_feature_freeze_history(
     run_git(root, &["cat-file", "-e", &format!("{baseline}^{{commit}}")])?;
     run_git(root, &["merge-base", "--is-ancestor", baseline, "HEAD"])?;
     let range = format!("{baseline}..HEAD");
-    let commits = run_git_lines(root, &["rev-list", "--reverse", &range])?;
+    let history = run_git_lines(root, &["rev-list", "--parents", "--reverse", &range])?;
+    let commits = history
+        .iter()
+        .map(|line| {
+            line.split_whitespace()
+                .next()
+                .map(str::to_owned)
+                .ok_or_else(|| "feature-freeze Git history contains an empty row".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let commit_set = commits.iter().cloned().collect::<BTreeSet<_>>();
     let mut changed_by_commit = BTreeMap::new();
-    for commit in &commits {
+    for (commit, history_line) in commits.iter().zip(&history) {
+        let parents = history_line.split_whitespace().skip(1).collect::<Vec<_>>();
+        if parents.len() > 1 {
+            let commit_tree = format!("{commit}^{{tree}}");
+            let commit_tree = run_git_lines(root, &["rev-parse", &commit_tree])?
+                .pop()
+                .ok_or_else(|| format!("feature-freeze merge `{commit}` has no tree"))?;
+            let mut duplicates_audited_parent = false;
+            for parent in parents.iter().skip(1) {
+                if !commit_set.contains(*parent) {
+                    continue;
+                }
+                let parent_tree = format!("{parent}^{{tree}}");
+                let parent_tree = run_git_lines(root, &["rev-parse", &parent_tree])?
+                    .pop()
+                    .ok_or_else(|| format!("feature-freeze merge parent `{parent}` has no tree"))?;
+                if commit_tree == parent_tree {
+                    duplicates_audited_parent = true;
+                    break;
+                }
+            }
+            if duplicates_audited_parent {
+                continue;
+            }
+        }
         let paths = run_git_lines(
             root,
             &[
@@ -19355,6 +19389,7 @@ mod tests {
         run_git(&root, &["commit", "-m", "document release"])
             .expect("commit documentation fixture");
 
+        run_git(&root, &["switch", "-c", "release-blocker"]).expect("create blocker branch");
         fs::write(root.join("crates/core.txt"), "release blocker fix\n")
             .expect("write blocker fixture");
         run_git(&root, &["add", "crates/core.txt"]).expect("stage blocker fixture");
@@ -19363,6 +19398,18 @@ mod tests {
             .expect("read blocker commit")
             .pop()
             .expect("blocker commit");
+        run_git(&root, &["switch", "main"]).expect("return to fixture main");
+        run_git(
+            &root,
+            &[
+                "merge",
+                "--no-ff",
+                "release-blocker",
+                "-m",
+                "integrate release blocker",
+            ],
+        )
+        .expect("merge tree-identical blocker branch");
 
         let exceptions = vec![json!({
             "commit": blocker,
@@ -19376,6 +19423,52 @@ mod tests {
         let mut wrong = exceptions;
         wrong[0]["paths"] = json!(["crates/other.txt"]);
         assert!(validate_feature_freeze_history(&root, &baseline, &wrong).is_err());
+
+        run_git(&root, &["switch", "-c", "merge-content"]).expect("create merge-content branch");
+        fs::write(root.join("crates/branch.txt"), "branch change\n").expect("write branch fixture");
+        run_git(&root, &["add", "crates/branch.txt"]).expect("stage branch fixture");
+        run_git(&root, &["commit", "-m", "change branch source"]).expect("commit branch fixture");
+        let branch_change = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .expect("read branch commit")
+            .pop()
+            .expect("branch commit");
+        run_git(&root, &["switch", "main"]).expect("return to fixture main");
+        run_git(&root, &["merge", "--no-ff", "--no-commit", "merge-content"])
+            .expect("stage merge with independent content");
+        fs::write(
+            root.join("crates/resolution.txt"),
+            "independent merge content\n",
+        )
+        .expect("write independent merge fixture");
+        run_git(&root, &["add", "crates/resolution.txt"]).expect("stage independent merge fixture");
+        run_git(&root, &["commit", "-m", "merge with independent content"])
+            .expect("commit merge with independent content");
+        let merge_with_content = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .expect("read content merge commit")
+            .pop()
+            .expect("content merge commit");
+
+        let mut incomplete = vec![json!({
+            "commit": blocker,
+            "class": "release-blocker",
+            "reason": "Correct the owned release implementation before RC qualification.",
+            "paths": ["crates/core.txt"]
+        })];
+        incomplete.push(json!({
+            "commit": branch_change,
+            "class": "release-blocker",
+            "reason": "Exercise a branch source change before merge validation.",
+            "paths": ["crates/branch.txt"]
+        }));
+        assert!(validate_feature_freeze_history(&root, &baseline, &incomplete).is_err());
+        incomplete.push(json!({
+            "commit": merge_with_content,
+            "class": "release-blocker",
+            "reason": "Record independent source content introduced by the merge.",
+            "paths": ["crates/branch.txt", "crates/resolution.txt"]
+        }));
+        validate_feature_freeze_history(&root, &baseline, &incomplete)
+            .expect("merge with independent content requires an exact exception");
         fs::remove_dir_all(root).expect("remove feature-freeze fixture");
     }
 
