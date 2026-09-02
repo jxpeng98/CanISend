@@ -2,4 +2,4 @@
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review end-to-end behavior across macOS, Windows, frontend, Rust, and packaging."}
 {"file":".trellis/spec/backend/error-handling.md","reason":"Review timeout, malformed-input, replacement, rollback, and cleanup invariants."}
 {"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review the staged test cadence and final quality evidence."}
-{"file":".trellis/tasks/09-01-windows-merge-multiplatform-build/research/closure-evidence.md","reason":"Review each acceptance criterion against recorded final evidence and limitations."}
+{"file":".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/closure-evidence.md","reason":"Review each acceptance criterion against recorded final evidence and limitations."}
