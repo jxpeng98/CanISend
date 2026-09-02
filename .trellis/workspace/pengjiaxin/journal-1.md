@@ -374,3 +374,38 @@ Validated main on Apple Silicon macOS with native Rust, CLI, MCP, host, frontend
 ### Next Steps
 
 - Review and integrate the completed Windows branch, then establish the cargo-xwin development loop.
+
+
+## Session 15: Close Windows multi-platform validation
+
+**Date**: 2026-09-02
+**Task**: Close Windows multi-platform validation
+**Branch**: `main`
+
+### Summary
+
+Recorded protected integration and cross-platform evidence, restored native Windows test state, and archived the completed Windows tasks.
+
+### Main Changes
+
+- Recorded PR #213/#214, final CI, cross-build hashes, package artifact sizes, and native WebView2/PATH/accessibility evidence.
+- Archived the Windows handoff and multi-platform verification tasks after targeted closure passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8ee0c11a` | (see git log) |
+
+### Testing
+
+- [OK] Trellis context validation passed for both archived tasks.
+- [OK] git diff --check passed; product suites were not repeated for docs-only closure.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Use the existing desktop size-optimization plan for any further package slimming work.
