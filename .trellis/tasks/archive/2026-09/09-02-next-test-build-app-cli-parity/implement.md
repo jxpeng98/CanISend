@@ -57,7 +57,7 @@ cargo run -p xtask --locked -- semantics check
 - [x] Resolve its full commit ID, regenerate the prior Trellis journal reference, and add one sorted feature-freeze exception covering every changed nonautomatic path.
 - [x] Commit the exception separately so it binds the unchanged product/test commit identity.
 - [x] Commit current Trellis progress separately so the candidate build starts from a clean worktree; later evidence-only commits must record, not obscure, the candidate product commit.
-- [ ] Ensure the eventual merge method preserves those commit IDs; do not squash or rebase-merge.
+- [x] Ensure the eventual merge method preserves those commit IDs; do not squash or rebase-merge.
 
 Rollback point: if the exception cannot be exact or the branch requires identity rewriting, regenerate it before any source gate or push.
 
@@ -98,11 +98,11 @@ cargo run -p xtask --locked -- release check
 ## 8. Create, verify, and merge the PR
 
 - [x] Push the clean branch and create a PR describing scope, known fixes, exact checks, freeze exception, candidate boundary, and rollback.
-- [ ] Wait for `desktop-ui`, `browser-keyboard-accessibility`, `core-linux`, `core-windows`, `macos-quality`, and `macos-tests`; investigate failures at the owning layer, then rerun only invalidated evidence.
-- [ ] Merge through the protected commit-preserving method only when local, candidate, and required CI gates are green.
-- [ ] Confirm the merged tree contains the exact exception-bound product/test commit and no public release/tag/workflow was created.
+- [x] Wait for `desktop-ui`, `browser-keyboard-accessibility`, `core-linux`, `core-windows`, `macos-quality`, and `macos-tests`; investigate failures at the owning layer, then rerun only invalidated evidence.
+- [x] Merge through the protected commit-preserving method only when local, candidate, and required CI gates are green.
+- [x] Confirm the merged tree contains the exact exception-bound product/test commit and no public release/tag/workflow was created.
 
 ## 9. Finish the task
 
-- [ ] Update `research/readiness-matrix.md` and the final task evidence with PR URL, candidate product commit, merge commit, checks, candidate receipt/digests, blockers/warnings, and `Ready` or `Not ready`.
-- [ ] Run `trellis-check`, update any durable spec only if a new reusable invariant was learned, commit Trellis records, archive the task, and record the session.
+- [x] Update `research/readiness-matrix.md` and the final task evidence with PR URL, candidate product commit, merge commit, checks, candidate receipt/digests, blockers/warnings, and `Ready` or `Not ready`.
+- [x] Run `trellis-check`, update any durable spec only if a new reusable invariant was learned, commit Trellis records, archive the task, and record the session.

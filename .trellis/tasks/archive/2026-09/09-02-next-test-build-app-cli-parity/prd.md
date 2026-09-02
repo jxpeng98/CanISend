@@ -32,16 +32,16 @@ Create and merge a focused pull request, then produce an evidence-backed readine
 
 ## Acceptance Criteria
 
-- [ ] The PR diff contains only the intended desktop, focused regression, release-exception, and Trellis records; unrelated local-main commits are absent.
-- [ ] Sidebar metadata remains removed, version remains in Settings, and English/Simplified Chinese copy checks pass.
-- [ ] The Agent view presents all four canonical v4 Skills accurately and contains no retired Skill ID mapping.
-- [ ] A compiled CLI regression proves nested and explicit-marker Workspace recognition plus fail-closed missing-marker behavior.
-- [ ] A cross-process regression proves an MCP-confirmed Plan is visible through `canisend plan show` with the same Application and confirmed state.
-- [ ] Existing desktop Workspace bootstrap/reopen, v4 Skill installation/status/removal, mixed-Pack, guarded planning, and semantic-parity tests pass.
-- [ ] `operations check`, `semantics check`, desktop checks/tests/build, formatting, affected Rust Clippy/tests, and one final `release check` pass on the final PR head.
-- [ ] An ad-hoc-signed, non-notarized macOS Design Preview is built from the clean exception-bound product/test commit and its integrity verification plus packaged-host quick-start, Skill, and MCP smokes pass.
-- [ ] All six required protected PR checks pass against current `main`, and the PR is merged without rewriting the commit referenced by the feature-freeze exception.
-- [ ] The final report labels the artifact as unpublished and does not claim Beta.2, RC.1, cohort, public-download, notarization, or five-target release qualification.
+- [x] The PR diff contains only the intended desktop, focused regression, release-exception, and Trellis records; unrelated local-main commits are absent.
+- [x] Sidebar metadata remains removed, version remains in Settings, and English/Simplified Chinese copy checks pass.
+- [x] The Agent view presents all four canonical v4 Skills accurately and contains no retired Skill ID mapping.
+- [x] A compiled CLI regression proves nested and explicit-marker Workspace recognition plus fail-closed missing-marker behavior.
+- [x] A cross-process regression proves an MCP-confirmed Plan is visible through `canisend plan show` with the same Application and confirmed state.
+- [x] Existing desktop Workspace bootstrap/reopen, v4 Skill installation/status/removal, mixed-Pack, guarded planning, and semantic-parity tests pass.
+- [x] `operations check`, `semantics check`, desktop checks/tests/build, formatting, affected Rust Clippy/tests, and one final `release check` pass on the final PR head.
+- [x] An ad-hoc-signed, non-notarized macOS Design Preview is built from the clean exception-bound product/test commit and its integrity verification plus packaged-host quick-start, Skill, and MCP smokes pass.
+- [x] All six required protected PR checks pass against current `main`, and the PR is merged without rewriting the commit referenced by the feature-freeze exception.
+- [x] The final report labels the artifact as unpublished and does not claim Beta.2, RC.1, cohort, public-download, notarization, or five-target release qualification.
 
 ## Out of Scope
 
