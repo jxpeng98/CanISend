@@ -97,7 +97,7 @@ cargo run -p xtask --locked -- release check
 
 ## 8. Create, verify, and merge the PR
 
-- [ ] Push the clean branch and create a PR describing scope, known fixes, exact checks, freeze exception, candidate boundary, and rollback.
+- [x] Push the clean branch and create a PR describing scope, known fixes, exact checks, freeze exception, candidate boundary, and rollback.
 - [ ] Wait for `desktop-ui`, `browser-keyboard-accessibility`, `core-linux`, `core-windows`, `macos-quality`, and `macos-tests`; investigate failures at the owning layer, then rerun only invalidated evidence.
 - [ ] Merge through the protected commit-preserving method only when local, candidate, and required CI gates are green.
 - [ ] Confirm the merged tree contains the exact exception-bound product/test commit and no public release/tag/workflow was created.

@@ -31,7 +31,7 @@
 | Final source and release gate | Repository release policy | diff check; desktop format, 85 unit tests, 17 Playwright tests, Svelte check; Rust format and strict affected-package Clippy; final `release check` | Passed |
 | Packaged App and bundled-host smokes | macOS Design Preview builder | Clean-source staged bundle verification; documented quick-start; project/global Skill lifecycle; guarded dual-Pack MCP lifecycle; backup, restore, and reopen | Passed |
 | Packaged App inspection | Isolated macOS Design Preview | Workspace create/connect/reopen; both Packs; four canonical Skills; MCP-created Revision 7 Application; Settings version; English and Simplified Chinese layouts | Passed |
-| Protected pull request | GitHub ruleset | Six required Fast CI checks and commit-preserving merge | Pending |
+| Protected pull request | [PR #215](https://github.com/jxpeng98/CanISend/pull/215) | Six required Fast CI checks and commit-preserving merge | Pending |
 
 ## Candidate artifact evidence
 
