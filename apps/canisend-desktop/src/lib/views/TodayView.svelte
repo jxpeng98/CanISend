@@ -157,8 +157,6 @@
           class="space-y-[var(--density-section-gap)] pb-[var(--density-panel-padding)]"
         >
           <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt class="text-muted-foreground">{copy.version}</dt>
-            <dd class="truncate text-right font-medium">{product?.version ?? "—"}</dd>
             <dt class="text-muted-foreground">{copy.protocol}</dt>
             <dd class="truncate text-right font-medium">{product?.protocol ?? "—"}</dd>
             <dt class="text-muted-foreground">{copy.platform}</dt>

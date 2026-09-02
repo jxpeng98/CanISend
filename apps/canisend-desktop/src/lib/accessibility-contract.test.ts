@@ -14,6 +14,7 @@ const applicationsView = readFileSync(
   "utf8",
 );
 const settingsView = readFileSync(new URL("./views/SettingsView.svelte", import.meta.url), "utf8");
+const todayView = readFileSync(new URL("./views/TodayView.svelte", import.meta.url), "utf8");
 const playwrightConfig = readFileSync(
   new URL("../../playwright.config.ts", import.meta.url),
   "utf8",
@@ -201,6 +202,33 @@ describe("desktop accessibility contract", () => {
     expect(settingsView).toContain("copy.pathConfigurationLocation[pathPlatform]");
     expect(playwrightConfig).toContain("command: `vite --host 127.0.0.1");
     expect(playwrightConfig).not.toContain("pnpm exec vite");
+  });
+
+  it("keeps build metadata out of navigation and shows the product version in Settings", () => {
+    expect(app).not.toContain(">Svelte</Badge>");
+    expect(app).not.toContain('product?.version ?? "1.0.0-beta.1"');
+    expect(app).toContain("productVersion={product?.version ?? null}");
+    expect(settingsView).toContain('{copy.version} {productVersion ?? "—"}');
+    expect(todayView).not.toContain("product?.version");
+  });
+
+  it("presents only the four canonical v4 Skills", () => {
+    for (const id of [
+      "canisend-workspace",
+      "canisend-intake",
+      "canisend-materials",
+      "canisend-review-export",
+    ]) {
+      expect(agentView).toContain(`id === "${id}"`);
+    }
+    for (const id of [
+      "canisend-application",
+      "canisend-job-intake",
+      "canisend-application-materials",
+      "canisend-application-review",
+    ]) {
+      expect(agentView).not.toContain(`id === "${id}"`);
+    }
   });
 
   it("centralizes semantic controls and compact desktop target sizes", () => {

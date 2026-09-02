@@ -117,7 +117,7 @@ test("English light application shell meets automated accessibility rules", asyn
   await expect(pageHelp).toHaveCount(1);
   await pageHelp.hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
-    "Track the evidence, decisions, documents, and next action",
+    "See evidence, decisions, documents, and next steps in one place.",
   );
 });
 
@@ -247,7 +247,7 @@ test("toolbar appearance and language buttons update the application state", asy
   await expect(page.getByRole("button", { name: "English", exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "用更清晰的流程，准备更有说服力的申请。",
+      name: "让每一份申请都清晰、有据可依。",
       level: 1,
     }),
   ).toBeVisible();
@@ -270,9 +270,9 @@ test("deferred product views remain reachable from primary navigation", async ({
   });
 
   for (const [navigationName, headingName] of [
-    ["Opportunities", "Opportunity discovery"],
+    ["Opportunities", "Find opportunities"],
     ["Application workspace", "Application workspace"],
-    ["Profile", "Reusable profile evidence"],
+    ["Profile", "Profile evidence"],
     ["Workspaces", "Workspaces"],
     ["Settings", "Settings and diagnostics"],
   ] as const) {
@@ -343,7 +343,7 @@ test("secondary workspace and Agent actions use progressive disclosure", async (
   await page.keyboard.press("Escape");
   await expect(cliActions).toBeFocused();
 
-  await page.getByRole("button", { name: "Agent integration", exact: true }).click();
+  await page.getByRole("button", { name: "AI agent", exact: true }).click();
   for (const hiddenAction of [
     "Refresh runtimes",
     "Refresh guidance",
@@ -413,7 +413,7 @@ test("settings and Agent tabs bind selected triggers to their exact panels", asy
     ["Appearance", "Accessibility & appearance"],
     ["Terminal CLI", "Terminal CLI"],
     ["Check for updates", "Check for updates"],
-    ["Schema and resource inspection", "Schema and resource inspection"],
+    ["Schemas & resources", "Schemas & resources"],
   ] as const) {
     const trigger = page.getByRole("tab", { name: tabName, exact: true });
     await trigger.click();
@@ -430,7 +430,7 @@ test("settings and Agent tabs bind selected triggers to their exact panels", asy
     expect(activeBackground).not.toBe(inactiveBackground);
   }
 
-  await page.getByRole("button", { name: "Agent integration", exact: true }).click();
+  await page.getByRole("button", { name: "AI agent", exact: true }).click();
   for (const [tabName, panelText] of [
     ["Agent host", "Continue in agent host"],
     ["In-App read-only", "Optional runtime bridge"],
@@ -489,9 +489,9 @@ test("primary navigation starts each page at its visible header", async ({ page 
     textScale: 100,
   });
 
-  await page.getByRole("button", { name: "Agent integration", exact: true }).click();
+  await page.getByRole("button", { name: "AI agent", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Connected agent workspace", level: 1 }),
+    page.getByRole("heading", { name: "Work with an AI agent", level: 1 }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
@@ -522,10 +522,10 @@ test("all primary views reflow in Chinese at 200 percent text", async ({ page })
   await expectNoLayoutOverflow(page);
 
   for (const [navigationName, headingName] of [
-    ["职位机会", "职位机会发现"],
+    ["职位机会", "寻找机会"],
     ["申请工作台", "申请工作台"],
-    ["个人资料", "可复用的个人证据"],
-    ["Agent 集成", "Agent 协作工作区"],
+    ["个人资料", "个人证据"],
+    ["AI Agent", "与 AI Agent 协作"],
     ["工作区", "工作区"],
     ["设置", "设置与诊断"],
   ] as const) {

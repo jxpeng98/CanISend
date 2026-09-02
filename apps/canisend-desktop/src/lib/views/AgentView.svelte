@@ -455,18 +455,18 @@
   }
 
   function skillTitle(id: string): string {
-    if (id === "canisend-application") return copy.skillApplication;
-    if (id === "canisend-job-intake") return copy.skillJobIntake;
-    if (id === "canisend-application-materials") return copy.skillApplicationMaterials;
-    if (id === "canisend-application-review") return copy.skillApplicationReview;
+    if (id === "canisend-workspace") return copy.skillWorkspace;
+    if (id === "canisend-intake") return copy.skillIntake;
+    if (id === "canisend-materials") return copy.skillMaterials;
+    if (id === "canisend-review-export") return copy.skillReviewExport;
     return id;
   }
 
   function skillDescription(id: string): string {
-    if (id === "canisend-application") return copy.skillApplicationDescription;
-    if (id === "canisend-job-intake") return copy.skillJobIntakeDescription;
-    if (id === "canisend-application-materials") return copy.skillApplicationMaterialsDescription;
-    if (id === "canisend-application-review") return copy.skillApplicationReviewDescription;
+    if (id === "canisend-workspace") return copy.skillWorkspaceDescription;
+    if (id === "canisend-intake") return copy.skillIntakeDescription;
+    if (id === "canisend-materials") return copy.skillMaterialsDescription;
+    if (id === "canisend-review-export") return copy.skillReviewExportDescription;
     return copy.skillsManagerDescription;
   }
 

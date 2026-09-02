@@ -316,6 +316,65 @@ fn workspace_v4_initialize_check_backup_restore_and_repair_round_trip() {
 }
 
 #[test]
+fn workspace_v4_discovers_parent_and_explicit_marker_without_mutation_on_missing() {
+    let workspace = TestDirectory::new("workspace-discovery");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+
+    let nested = workspace.path().join("projects/example");
+    fs::create_dir_all(&nested).expect("nested fixture directory");
+    let nested_status = assert_json_output(
+        Command::new(env!("CARGO_BIN_EXE_canisend"))
+            .args(["workspace", "status", "--json"])
+            .current_dir(&nested)
+            .output()
+            .expect("canisend discovers a parent Workspace"),
+    );
+    let marker = workspace.path().join("canisend.toml");
+    let marker_status = run_json(&[
+        "--workspace",
+        marker.to_str().expect("marker path is UTF-8"),
+        "workspace",
+        "status",
+        "--json",
+    ]);
+    assert_eq!(nested_status["operation"], "workspace.status");
+    assert_eq!(nested_status["data"], marker_status["data"]);
+    assert_eq!(
+        nested_status["data"]["workspace_format"],
+        "canisend.workspace/v4"
+    );
+
+    let missing = TestDirectory::new("workspace-discovery-missing");
+    fs::create_dir_all(missing.path()).expect("missing Workspace fixture directory");
+    fs::write(missing.path().join("sentinel.txt"), b"UNCHANGED")
+        .expect("missing Workspace sentinel");
+    let before = file_snapshot(missing.path());
+    let missing_marker = missing.path().join("canisend.toml");
+    let output = run(&[
+        "--workspace",
+        missing_marker
+            .to_str()
+            .expect("missing marker path is UTF-8"),
+        "workspace",
+        "status",
+        "--json",
+    ]);
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty());
+    let response: Value =
+        serde_json::from_slice(&output.stdout).expect("missing Workspace response is JSON");
+    assert_eq!(response["operation"], "workspace.status");
+    assert_eq!(response["error"]["code"], "workspace.not_found");
+    assert_eq!(file_snapshot(missing.path()), before);
+}
+
+#[test]
 fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
     let workspace = TestDirectory::new("host-workflows");
     run_json(&[
