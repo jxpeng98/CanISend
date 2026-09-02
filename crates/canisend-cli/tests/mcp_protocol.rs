@@ -378,6 +378,34 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
         json!("confirmed")
     );
 
+    let cli_output = Command::new(env!("CARGO_BIN_EXE_canisend"))
+        .args([
+            "--workspace",
+            root.to_str().expect("UTF-8 fixture path"),
+            "plan",
+            "show",
+            "--application",
+            application_id.as_str(),
+            "--json",
+        ])
+        .output()
+        .expect("read the MCP-confirmed Plan through the CLI");
+    assert!(
+        cli_output.status.success(),
+        "stderr: {}\nstdout: {}",
+        String::from_utf8_lossy(&cli_output.stderr),
+        String::from_utf8_lossy(&cli_output.stdout)
+    );
+    assert!(cli_output.stderr.is_empty());
+    let cli_plan: Value =
+        serde_json::from_slice(&cli_output.stdout).expect("CLI Plan response is JSON");
+    assert_eq!(cli_plan["operation"], json!("plan.show"));
+    assert_eq!(
+        cli_plan["data"]["context"]["application_id"],
+        json!(application_id.as_str())
+    );
+    assert_eq!(cli_plan["data"]["plan"]["state"], json!("confirmed"));
+
     let draft_body = "PRIVATE-MCP-DELIVERABLE-V1";
     let draft_preview = mcp.request(
         10,

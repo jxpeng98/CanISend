@@ -14,7 +14,6 @@
   } from "@lucide/svelte";
   import { onMount, tick } from "svelte";
 
-  import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
@@ -2571,10 +2570,6 @@
         <ShieldCheck size={15} strokeWidth={1.8} class="shrink-0" aria-hidden="true" />
         <span class="truncate text-xs font-medium">{copy.localFirst}</span>
       </div>
-      <div class="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-        <span>{product?.version ?? "1.0.0-beta.1"}</span>
-        <Badge variant="outline" class="text-[10px]">Svelte</Badge>
-      </div>
     </Sidebar.Footer>
   </Sidebar.DesktopRoot>
 
@@ -2915,6 +2910,7 @@
             {copy}
             {desktopRuntime}
             {busy}
+            productVersion={product?.version ?? null}
             targetOs={product?.target_os ?? null}
             {language}
             {darkMode}

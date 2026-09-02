@@ -26,6 +26,10 @@ describe("desktop translations", () => {
     }
   });
 
+  it("keeps implementation framework names out of user-facing copy", () => {
+    expect(JSON.stringify(messages)).not.toMatch(/\b(?:Rust|Svelte|Tauri)\b/u);
+  });
+
   it("keeps PATH guidance accurate for Windows, macOS, and other hosts", () => {
     for (const locale of Object.values(messages)) {
       expect(locale.addToPathDescription.windows).toContain("HKCU\\Environment\\Path");

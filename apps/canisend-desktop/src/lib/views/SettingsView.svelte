@@ -42,6 +42,7 @@
     copy: Messages;
     desktopRuntime: boolean;
     busy: boolean;
+    productVersion: string | null;
     targetOs: string | null;
     language: "en" | "zh-CN";
     darkMode: boolean;
@@ -79,6 +80,7 @@
     copy,
     desktopRuntime,
     busy,
+    productVersion,
     targetOs,
     language,
     darkMode,
@@ -208,11 +210,16 @@
   });
 </script>
 
+{#snippet headerActions()}
+  <Badge variant="outline">{copy.version} {productVersion ?? "—"}</Badge>
+{/snippet}
+
 <Page.Root>
   <Page.Header
     eyebrow={copy.settings}
     title={copy.settingsTitle}
     description={copy.settingsDescription}
+    actions={headerActions}
   />
 
   <Tabs.Root bind:value={section}>
@@ -497,9 +504,9 @@
           <div class="flex items-start justify-between gap-[var(--density-section-gap)]">
             <div>
               <Card.Title>{copy.checkUpdates}</Card.Title>
-              <Card.Description class="mt-1.5">
-                {update?.channel ?? copy.updateConsent}
-              </Card.Description>
+              {#if update}
+                <Card.Description class="mt-1.5">{update.channel}</Card.Description>
+              {/if}
             </div>
             <div
               class="grid size-10 place-items-center rounded-lg bg-accent text-accent-foreground"
@@ -523,15 +530,7 @@
             {copy.checkUpdates}
           </Button>
           {#if update}
-            <Item.Group class="grid gap-3 md:grid-cols-3">
-              <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
-                <Item.Content>
-                  <Item.Title class="text-xs text-muted-foreground">{copy.version}</Item.Title>
-                  <Item.Description class="text-lg font-semibold text-foreground">
-                    {update.current_version}
-                  </Item.Description>
-                </Item.Content>
-              </Item.Root>
+            <Item.Group class="grid gap-3 md:grid-cols-2">
               <Item.Root variant="outline" class="items-start p-[var(--density-panel-padding)]">
                 <Item.Content>
                   <Item.Title class="text-xs text-muted-foreground">{copy.latestVersion}</Item.Title
