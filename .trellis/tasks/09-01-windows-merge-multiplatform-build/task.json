@@ -15,18 +15,19 @@
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "9c0d5c5bf809bf8c2aa15344abb7f6b2acd9e4f7",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/213",
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [
-    ".trellis/tasks/08-31-windows-desktop-validation",
-    ".trellis/tasks/09-01-windows-merge-multiplatform-build/research/windows-branch-readiness.md",
+    ".trellis/tasks/archive/2026-09/08-31-windows-desktop-validation",
+    ".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/windows-branch-readiness.md",
+    ".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/closure-evidence.md",
     "docs/release/feature-freeze.md",
     "release/feature-freeze-exceptions.json"
   ],
-  "notes": "Maintainer selected complete-and-verify-before-merge and requested a macOS-first focused test cadence on 2026-09-01. The amended planning summary requires fresh explicit approval before implementation.",
+  "notes": "The maintainer approved macOS-first development, staged checks, protected integration, and post-merge Windows/multi-platform closure. PRs #213 and #214 are merged; protected checks, one cargo-xwin pass, targeted Windows runtime checks, cleanup, and limitations are recorded in research/closure-evidence.md.",
   "meta": {
     "windows_branch": "fix/windows-desktop-validation",
     "windows_checkpoint": "42036258fa07fe25e9b42a358b7e64088cbd502e",
@@ -34,8 +35,16 @@
     "origin_main": "0d11c456d726990ff9940f404a6aebad24cf72fc",
     "known_windows_blockers": 5,
     "integration_blocker": "feature-freeze verifier double-counts tree-identical protected merge commits",
-    "merge_order": "complete-and-verify-before-merge",
+    "merge_order": "protected merge followed by targeted native guest closure, per maintainer continuation",
     "test_cadence": "focused macOS checks during implementation, protected full suites at integration, one post-merge cargo-xwin pass",
-    "verification_tier": "focused, final source gate, protected Fast CI, post-merge cross-build, and native Windows closure"
+    "verification_tier": "focused, final source gate, protected Fast CI, post-merge cross-build, and native Windows closure",
+    "windows_pr": "https://github.com/jxpeng98/CanISend/pull/213",
+    "packaging_followup_pr": "https://github.com/jxpeng98/CanISend/pull/214",
+    "windows_merge": "5d994886ce2bfec327f08c4f6caa48c26cf232b3",
+    "final_protected_head": "9c0d5c5bf809bf8c2aa15344abb7f6b2acd9e4f7",
+    "final_fast_ci_run": "33562667950",
+    "dependency_assurance_run": "33562667940",
+    "platform_qualification_run": "33562710073",
+    "native_windows_result": "passed on Windows 11 Arm64 with x64 emulation; not native x64 hardware certification"
   }
 }
