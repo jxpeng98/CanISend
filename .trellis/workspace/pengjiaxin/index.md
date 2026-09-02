@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
-- **Last Active**: 2026-09-01
+- **Total Sessions**: 15
+- **Last Active**: 2026-09-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~376 | Active |
+| `journal-1.md` | ~406 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-09-02 | Merge unpublished App and CLI parity candidate | `3ac3bdbf0173a1c9ea6f0abeb33a8f50d96d8d53`, `f03cb412b20f37f3a0ff5ad3af14c39a3ab66845`, `f32afb55efcb642672f4820e012dd77d01550ccb`, `988ca16fe9c004f1269bf6e501cedf8d5355b0e4`, `1fa42081f17705de9b309297f485932672a410be`, `8959cc16e23c3a28b7026500a89adad84702ab46`, `0f88a1f15a620b00c1d6ae4c4b8f03b6b08faeba`, `054d2b1c7eefe3f8d1411a4089da8421776a93f4`, `c96e3e16c0dba761c54340c002ce4622f0ec13ea`, `38f06cf13a6e77809d7160e4838ef096330d7956` | `chore/archive-app-cli-parity` |
 | 14 | 2026-09-01 | Validate macOS feature completeness | - | `main` |
 | 13 | 2026-08-30 | Activate Beta.1 feature freeze | `5448957ad6a74bd34aacd23cdf61e1cd7e351e55`, `86d33fd4c884d0827be861edbb9d61da17f539ac`, `f0894235c3d56e88f402ef385f5b2ecd46e9c193`, `1a9493860cefdede422afa04bdd5d198c8121600`, `f62f8170ac6ed3fcfc9a975b4fe4bb275c97599b` | `chore/beta1-feature-freeze-closeout` |
 | 12 | 2026-08-30 | Beta.1 package-channel candidates | `bb3e3d5e4e8d1c4c9e5759b10776b8fab788ffe0` | `main` |

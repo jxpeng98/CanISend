@@ -374,3 +374,33 @@ Validated main on Apple Silicon macOS with native Rust, CLI, MCP, host, frontend
 ### Next Steps
 
 - Review and integrate the completed Windows branch, then establish the cargo-xwin development loop.
+
+
+## Session 15: Merge unpublished App and CLI parity candidate
+
+**Date**: 2026-09-02
+**Task**: Merge unpublished App and CLI parity candidate
+**Branch**: `chore/archive-app-cli-parity`
+
+### Summary
+
+Refined the desktop sidebar and bilingual copy, aligned canonical v4 Skills, added CLI and MCP parity regressions, qualified an unpublished macOS Design Preview, and merged PR #215 after all six required Fast CI checks passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3ac3bdbf0173a1c9ea6f0abeb33a8f50d96d8d53` | (see git log) |
+| `f03cb412b20f37f3a0ff5ad3af14c39a3ab66845` | (see git log) |
+| `f32afb55efcb642672f4820e012dd77d01550ccb` | (see git log) |
+| `988ca16fe9c004f1269bf6e501cedf8d5355b0e4` | (see git log) |
+| `1fa42081f17705de9b309297f485932672a410be` | (see git log) |
+| `8959cc16e23c3a28b7026500a89adad84702ab46` | (see git log) |
+| `0f88a1f15a620b00c1d6ae4c4b8f03b6b08faeba` | (see git log) |
+| `054d2b1c7eefe3f8d1411a4089da8421776a93f4` | (see git log) |
+| `c96e3e16c0dba761c54340c002ce4622f0ec13ea` | (see git log) |
+| `38f06cf13a6e77809d7160e4838ef096330d7956` | (see git log) |
+
+### Status
+
+[OK] **Completed**
