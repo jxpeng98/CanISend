@@ -84,12 +84,12 @@
       "rust": 81,
       "schemas": 31,
       "sql": 7,
-      "tests": 85,
-      "ui": 24
+      "tests": 86,
+      "ui": 25
     },
     "classification_counts": {
       "academic-pack": 6,
-    "compatibility-surface": 137,
+    "compatibility-surface": 138,
     "kernel": 39,
       "optional-adapter": 2
     },
@@ -97,9 +97,9 @@
     "academic-vocabulary": 80,
       "fixed-academic-deliverables": 69,
       "fixed-workflow-stage": 18,
-    "legacy-job-surface": 124
+    "legacy-job-surface": 125
     },
-  "inventory_sha256": "340121ef443c027601892f2bdbb2b1d1f28685abf485fae5ebef1d7eaea5906d",
-  "matching_files": 184
+  "inventory_sha256": "713b77249b97478fb84c7d3a305c42acf6d0a4197e59dce4db7ca98bec0b4b45",
+  "matching_files": 185
   }
 }
