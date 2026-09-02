@@ -58,6 +58,14 @@
         "crates/canisend-cli/tests/mcp_protocol.rs"
       ],
       "reason": "Refine desktop navigation and bilingual copy, present canonical v4 Skills, and add App/CLI parity regressions for the unpublished test candidate."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "8959cc16e23c3a28b7026500a89adad84702ab46",
+      "paths": [
+        "apps/canisend-desktop/tests/visual/application-shell.a11y.spec.ts"
+      ],
+      "reason": "Keep the existing visual accessibility, navigation, and reflow checks aligned with the refined bilingual interface copy."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
