@@ -54,7 +54,7 @@ cargo run -p xtask --locked -- semantics check
 ## 5. Commit the bounded product/test change and freeze exception
 
 - [x] Review the complete product/test diff and commit it as one auditable Conventional Commit.
-- [ ] Resolve its full commit ID, regenerate the prior Trellis journal reference, and add one sorted feature-freeze exception covering every changed nonautomatic path.
+- [x] Resolve its full commit ID, regenerate the prior Trellis journal reference, and add one sorted feature-freeze exception covering every changed nonautomatic path.
 - [x] Commit the exception separately so it binds the unchanged product/test commit identity.
 - [x] Commit current Trellis progress separately so the candidate build starts from a clean worktree; later evidence-only commits must record, not obscure, the candidate product commit.
 - [ ] Ensure the eventual merge method preserves those commit IDs; do not squash or rebase-merge.
@@ -63,7 +63,7 @@ Rollback point: if the exception cannot be exact or the branch requires identity
 
 ## 6. Run final source checks once
 
-- [ ] Run:
+- [x] Run:
 
 ```console
 git diff --check origin/main...HEAD
@@ -74,18 +74,18 @@ cargo clippy -p canisend-cli -p canisend-gui --all-targets --locked -- -D warnin
 cargo run -p xtask --locked -- release check
 ```
 
-- [ ] Re-read the final diff and `git status`; no unrelated, generated, secret, private-body, or local-path content may remain.
+- [x] Re-read the final diff and `git status`; no unrelated, generated, secret, private-body, or local-path content may remain.
 
 ## 7. Build and smoke the unpublished candidate
 
-- [ ] From a clean exact commit, run the existing Design Preview builder without skipping its UI checks:
+- [x] From a clean exact commit, run the existing Design Preview builder without skipping its UI checks:
 
 ```console
 ./scripts/build_macos_design_preview.sh
 ```
 
-- [ ] Verify the receipt reports the exact commit, `source.dirty == false`, ad-hoc signing, no notarization, and `publication_allowed == false`.
-- [ ] Run against `CanISend Design Preview.app/Contents/MacOS/canisend-gui` using fresh temporary directories:
+- [x] Verify the receipt reports the exact commit, `source.dirty == false`, ad-hoc signing, no notarization, and `publication_allowed == false`.
+- [x] Run against `CanISend Design Preview.app/Contents/MacOS/canisend-gui` using fresh temporary directories:
 
 ```console
 ./scripts/smoke_documented_quickstart.sh BUNDLED_HOST NEW_TEMP_DIRECTORY
@@ -93,7 +93,7 @@ cargo run -p xtask --locked -- release check
 ./scripts/smoke_agent_v4_mcp.sh BUNDLED_HOST NEW_TEMP_DIRECTORY
 ```
 
-- [ ] Launch the isolated App and inspect Workspace create/connect/reopen, both Packs, canonical Skill labels, Plan state, Settings version, and English/Simplified Chinese layout. Retain only body-free paths/digests/results.
+- [x] Launch the isolated App and inspect Workspace create/connect/reopen, both Packs, canonical Skill labels, Plan state, Settings version, and English/Simplified Chinese layout. Retain only body-free paths/digests/results.
 
 ## 8. Create, verify, and merge the PR
 
