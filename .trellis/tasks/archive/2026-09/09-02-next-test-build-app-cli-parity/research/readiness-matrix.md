@@ -5,6 +5,8 @@
 | Fact | Value |
 |---|---|
 | Candidate source commit | `0f88a1f15a620b00c1d6ae4c4b8f03b6b08faeba` |
+| Final PR head | `c96e3e16c0dba761c54340c002ce4622f0ec13ea` |
+| Protected merge commit | `38f06cf13a6e77809d7160e4838ef096330d7956` |
 | Product/test commit | `f03cb412b20f37f3a0ff5ad3af14c39a3ab66845` |
 | Coupling-inventory commit | `1fa42081f17705de9b309297f485932672a410be` |
 | Visual-regression commit | `8959cc16e23c3a28b7026500a89adad84702ab46` |
@@ -12,6 +14,7 @@
 | Candidate type | Unpublished macOS Design Preview |
 | Product version | `1.0.0-beta.1` (unchanged) |
 | Publication authorization | No (`publication_allowed == false`) |
+| Readiness decision | Ready for unpublished maintainer testing |
 
 ## Fresh source evidence
 
@@ -31,7 +34,7 @@
 | Final source and release gate | Repository release policy | diff check; desktop format, 85 unit tests, 17 Playwright tests, Svelte check; Rust format and strict affected-package Clippy; final `release check` | Passed |
 | Packaged App and bundled-host smokes | macOS Design Preview builder | Clean-source staged bundle verification; documented quick-start; project/global Skill lifecycle; guarded dual-Pack MCP lifecycle; backup, restore, and reopen | Passed |
 | Packaged App inspection | Isolated macOS Design Preview | Workspace create/connect/reopen; both Packs; four canonical Skills; MCP-created Revision 7 Application; Settings version; English and Simplified Chinese layouts | Passed |
-| Protected pull request | [PR #215](https://github.com/jxpeng98/CanISend/pull/215) | Six required Fast CI checks and commit-preserving merge | Pending |
+| Protected pull request | [PR #215](https://github.com/jxpeng98/CanISend/pull/215) | [Fast CI run 33689984312](https://github.com/jxpeng98/CanISend/actions/runs/33689984312): `desktop-ui`, `browser-keyboard-accessibility`, `core-linux`, `core-windows`, `macos-quality`, and `macos-tests`; merge commit `38f06cf13a6e77809d7160e4838ef096330d7956` | Passed |
 
 ## Candidate artifact evidence
 
@@ -48,6 +51,6 @@
 - Warning: macOS debug linking emitted the existing compact-unwind size warning; all owning checks passed.
 - The first preview build could not fetch the pnpm signature inside the restricted sandbox; the approved network retry completed without changing source or dependencies.
 - The first preview run exposed stale Playwright copy expectations. They were corrected, exception-bound, and the complete 17-test browser suite then passed.
-- Pending protected-PR evidence is not counted as passed.
 - No release tag, public artifact, notarization, cohort result, or five-target qualification is claimed.
-- Current blocker: none reproduced; the decision remains pending until the protected PR is green and merged.
+- Current blocker: none.
+- Decision: Ready for unpublished maintainer testing. Public promotion remains unauthorized.
