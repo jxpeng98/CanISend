@@ -42,6 +42,22 @@
         "xtask/src/main.rs"
       ],
       "reason": "Refresh the provisional offline WebView2 artifact budget from same-target evidence after Microsoft runtime growth without changing application or standard-package budgets."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f03cb412b20f37f3a0ff5ad3af14c39a3ab66845",
+      "paths": [
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/accessibility-contract.test.ts",
+        "apps/canisend-desktop/src/lib/i18n.test.ts",
+        "apps/canisend-desktop/src/lib/i18n.ts",
+        "apps/canisend-desktop/src/lib/views/AgentView.svelte",
+        "apps/canisend-desktop/src/lib/views/SettingsView.svelte",
+        "apps/canisend-desktop/src/lib/views/TodayView.svelte",
+        "crates/canisend-cli/tests/binary_contract.rs",
+        "crates/canisend-cli/tests/mcp_protocol.rs"
+      ],
+      "reason": "Refine desktop navigation and bilingual copy, present canonical v4 Skills, and add App/CLI parity regressions for the unpublished test candidate."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
