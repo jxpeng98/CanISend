@@ -2,20 +2,20 @@
 
 ## 1. Prepare the clean PR branch
 
-- [ ] Fetch current `origin/main` and inspect remote divergence before changing branch history.
-- [ ] Preserve the existing `fix/desktop-sidebar-copy` reference and local `main` commits.
-- [ ] Create a clean PR branch from current `origin/main`, apply only the intended desktop product diff, and update this task's branch field.
-- [ ] Commit the converged Trellis planning artifacts on that clean branch before product editing.
-- [ ] Verify `git log origin/main..HEAD` and `git diff --name-status origin/main...HEAD` exclude the three unrelated local-main commits.
+- [x] Fetch current `origin/main` and inspect remote divergence before changing branch history.
+- [x] Preserve the existing `fix/desktop-sidebar-copy` reference and local `main` commits.
+- [x] Create a clean PR branch from current `origin/main`, apply only the intended desktop product diff, and update this task's branch field.
+- [x] Commit the converged Trellis planning artifacts on that clean branch before product editing.
+- [x] Verify `git log origin/main..HEAD` and `git diff --name-status origin/main...HEAD` exclude the three unrelated local-main commits.
 
 Rollback point: stop before product editing if the intended diff cannot be separated without losing user work.
 
 ## 2. Fix the confirmed Skill presentation gap
 
-- [ ] Add a failing frontend source-contract assertion for the four canonical v4 Skill IDs and absence of retired IDs.
-- [ ] Update `AgentView.svelte` to map only `canisend-workspace`, `canisend-intake`, `canisend-materials`, and `canisend-review-export`.
-- [ ] Rename and tighten the corresponding English/Simplified Chinese copy keys and descriptions so they match Workspace, Intake, Materials, and Review & Export tasks.
-- [ ] Run:
+- [x] Add a failing frontend source-contract assertion for the four canonical v4 Skill IDs and absence of retired IDs.
+- [x] Update `AgentView.svelte` to map only `canisend-workspace`, `canisend-intake`, `canisend-materials`, and `canisend-review-export`.
+- [x] Rename and tighten the corresponding English/Simplified Chinese copy keys and descriptions so they match Workspace, Intake, Materials, and Review & Export tasks.
+- [x] Run:
 
 ```console
 pnpm --dir apps/canisend-desktop exec vitest run src/lib/i18n.test.ts src/lib/accessibility-contract.test.ts
@@ -24,9 +24,9 @@ pnpm --dir apps/canisend-desktop check
 
 ## 3. Add the two missing parity regressions
 
-- [ ] Add one compiled CLI test covering nested cwd discovery, explicit `canisend.toml` selection, and missing-marker failure without mutation.
-- [ ] Extend `completes_the_guarded_requirement_plan_and_deliverable_lifecycle` so an MCP-confirmed Plan is read by a separate CLI process and remains `confirmed`.
-- [ ] Run:
+- [x] Add one compiled CLI test covering nested cwd discovery, explicit `canisend.toml` selection, and missing-marker failure without mutation.
+- [x] Extend `completes_the_guarded_requirement_plan_and_deliverable_lifecycle` so an MCP-confirmed Plan is read by a separate CLI process and remains `confirmed`.
+- [x] Run:
 
 ```console
 cargo test -p canisend-store --locked --test store_contract workspace_init_discovery_status_and_check_are_consistent
@@ -36,7 +36,7 @@ cargo test -p canisend-cli --locked --test mcp_protocol completes_the_guarded_re
 
 ## 4. Verify existing App, CLI, Skill, and Plan owners
 
-- [ ] Run:
+- [x] Run:
 
 ```console
 cargo test -p canisend-resources --locked --test manifest agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift
@@ -49,14 +49,14 @@ cargo run -p xtask --locked -- operations check
 cargo run -p xtask --locked -- semantics check
 ```
 
-- [ ] Record every requested workflow, source owner, test owner, fresh result, and any warning/blocker in `research/readiness-matrix.md`.
+- [x] Record every requested workflow, source owner, test owner, fresh result, and any warning/blocker in `research/readiness-matrix.md`.
 
 ## 5. Commit the bounded product/test change and freeze exception
 
-- [ ] Review the complete product/test diff and commit it as one auditable Conventional Commit.
+- [x] Review the complete product/test diff and commit it as one auditable Conventional Commit.
 - [ ] Resolve its full commit ID, regenerate the prior Trellis journal reference, and add one sorted feature-freeze exception covering every changed nonautomatic path.
-- [ ] Commit the exception separately so it binds the unchanged product/test commit identity.
-- [ ] Commit current Trellis progress separately so the candidate build starts from a clean worktree; later evidence-only commits must record, not obscure, the candidate product commit.
+- [x] Commit the exception separately so it binds the unchanged product/test commit identity.
+- [x] Commit current Trellis progress separately so the candidate build starts from a clean worktree; later evidence-only commits must record, not obscure, the candidate product commit.
 - [ ] Ensure the eventual merge method preserves those commit IDs; do not squash or rebase-merge.
 
 Rollback point: if the exception cannot be exact or the branch requires identity rewriting, regenerate it before any source gate or push.
