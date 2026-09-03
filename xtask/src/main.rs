@@ -2796,6 +2796,12 @@ fn check_stage_transition_policy() -> Result<(), String> {
                 ]
             },
             {
+                "stage": "beta",
+                "target_prerelease": "next-sequential-beta",
+                "ledger_status": "beta-qualifying",
+                "release_notes_status": "beta-current"
+            },
+            {
                 "stage": "rc",
                 "target_prerelease": "next-sequential-rc",
                 "ledger_status": "rc-qualifying",
@@ -2814,8 +2820,9 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "release/alpha-package-contract.json versioned asset names",
             ".github/workflows/release.yml dispatch default",
             "active README, root release guide, and known-limitations source-version claims",
+            "active roadmap next-checkpoint source identity after Beta entry",
             "sequential-Alpha pending readiness, freeze, and feedback identities",
-            "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
+            "release/qualification-ledger.json stage, Beta history, Stable authorization, and RC notes-review reset fields",
             "release/RELEASE_NOTES.md heading",
             "release/support-policy.json Stable publication status",
             "release/feedback-snapshot.json next-roadmap publication status",
@@ -2851,6 +2858,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
         "release/stage-transition-policy.json",
         alpha_example.as_str(),
         "sequential Alpha",
+        "sequential Beta",
         beta_example.as_str(),
         "--write",
         "release/beta-readiness.json",
@@ -2886,7 +2894,9 @@ fn check_stage_transition_policy() -> Result<(), String> {
             ));
         }
     }
-    println!("stage-transition policy: ok (3 stage transitions + sequential Alpha/RC iteration)");
+    println!(
+        "stage-transition policy: ok (3 stage transitions + sequential Alpha/Beta/RC iteration)"
+    );
     Ok(())
 }
 
@@ -2896,7 +2906,7 @@ fn prepare_stage_transition(tag: &str, write: bool) -> Result<(), String> {
         require_clean_worktree(&root, "stage transition")?;
     }
     let transition = render_stage_transition(&root, tag)?;
-    if write && matches!(transition.to_stage, ReleaseStage::Beta) {
+    if write && is_beta_entry_transition(transition.from_stage, transition.to_stage) {
         check_beta_readiness_freshness(&root, OffsetDateTime::now_utc())?;
     }
     let report = stage_transition_report(&root, &transition, write)?;
@@ -4547,20 +4557,32 @@ fn beta_qualified_ledger(
     run_id: u64,
     source_commit: &str,
 ) -> Result<Value, String> {
-    let (_, stage) = parse_release_tag(tag)?;
+    let (version, stage) = parse_release_tag(tag)?;
     validate_lower_hex("Beta source commit", source_commit, 40)?;
-    let pending = json!({"status": "pending"});
     if stage != ReleaseStage::Beta
         || run_id == 0
         || ledger["schema"] != RELEASE_QUALIFICATION_SCHEMA
         || ledger["workspace_stage"] != "beta"
         || ledger["status"] != "beta-qualifying"
-        || ledger["beta"] != pending
-        || ledger["feature_freeze"]["status"] != "planned"
-        || !ledger["feature_freeze"]["baseline_commit"].is_null()
         || ledger["stable_authorized"] != false
+        || ledger["beta"] != json!({"status": "pending"})
     {
         return Err("qualification ledger is not canonical pending Beta state".to_owned());
+    }
+    let history = validate_beta_qualification_history(ledger)?;
+    validate_beta_qualification_state(ledger, Some(&version))?;
+    if history.is_empty() {
+        if ledger["feature_freeze"]["status"] != "planned"
+            || !ledger["feature_freeze"]["baseline_commit"].is_null()
+        {
+            return Err("first Beta qualification requires the planned feature freeze".to_owned());
+        }
+    } else if history.iter().any(|(_, existing_commit, existing_run)| {
+        existing_commit == source_commit || *existing_run == run_id
+    }) {
+        return Err(
+            "sequential Beta source commit and run ID must differ from Beta history".to_owned(),
+        );
     }
     let mut qualified = ledger.clone();
     qualified["beta"] = json!({
@@ -4781,10 +4803,7 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     let from_stage = ReleaseStage::from_version(&from_version)?;
     let (to_version, to_stage) = parse_release_tag(tag)?;
     validate_stage_transition(&from_version, from_stage, &to_version, to_stage)?;
-    if matches!(
-        (from_stage, to_stage),
-        (ReleaseStage::Alpha, ReleaseStage::Beta)
-    ) {
+    if is_beta_entry_transition(from_stage, to_stage) {
         check_beta_transition_authorities(root, &from_version)?;
     }
 
@@ -4942,6 +4961,20 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
     )
     .map_err(|error| format!("qualification ledger is invalid JSON: {error}"))?;
     validate_transition_ledger_preconditions(&ledger, &from_version, from_stage, to_stage)?;
+    if matches!(
+        (from_stage, to_stage),
+        (ReleaseStage::Beta, ReleaseStage::Beta)
+    ) {
+        let qualified_beta = ledger["beta"].clone();
+        if ledger.get("beta_history").is_none() {
+            ledger["beta_history"] = json!([]);
+        }
+        ledger["beta_history"]
+            .as_array_mut()
+            .expect("validated Beta qualification history")
+            .push(qualified_beta);
+        ledger["beta"] = json!({"status": "pending"});
+    }
     ledger["workspace_stage"] = Value::String(to_stage.as_str().to_owned());
     ledger["status"] = Value::String(qualification_status_for_stage(to_stage).to_owned());
     ledger["release_notes"]["status"] =
@@ -5010,8 +5043,14 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         );
 
         let roadmap_relative = feedback_roadmap_relative(&feedback)?;
-        let roadmap = fs::read_to_string(root.join(&roadmap_relative))
-            .map_err(|error| format!("could not read next roadmap: {error}"))?;
+        let roadmap = if let Some(staged) = files.get(&roadmap_relative) {
+            std::str::from_utf8(staged)
+                .map_err(|error| format!("staged next roadmap is not UTF-8: {error}"))?
+                .to_owned()
+        } else {
+            fs::read_to_string(root.join(&roadmap_relative))
+                .map_err(|error| format!("could not read next roadmap: {error}"))?
+        };
         files.insert(
             roadmap_relative.clone(),
             replace_exact_count(
@@ -5118,6 +5157,23 @@ fn insert_active_source_version_updates(
         files.insert(
             relative.to_owned(),
             replace_exact_count(&body, &before, &after, 1, context)?.into_bytes(),
+        );
+    }
+
+    if ReleaseStage::from_version(from_version)? != ReleaseStage::Alpha {
+        let roadmap_relative = "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md";
+        let roadmap = fs::read_to_string(root.join(roadmap_relative))
+            .map_err(|error| format!("could not read {roadmap_relative}: {error}"))?;
+        files.insert(
+            roadmap_relative.to_owned(),
+            replace_exact_count(
+                &roadmap,
+                &format!("**Next intended checkpoint:** `{from_tag}`"),
+                &format!("**Next intended checkpoint:** `{to_tag}`"),
+                1,
+                "active roadmap next-checkpoint source identity",
+            )?
+            .into_bytes(),
         );
     }
 
@@ -5241,6 +5297,10 @@ fn alpha_package_contract_schema(version: &Version) -> Result<&'static str, Stri
     })
 }
 
+fn is_beta_entry_transition(from: ReleaseStage, to: ReleaseStage) -> bool {
+    matches!((from, to), (ReleaseStage::Alpha, ReleaseStage::Beta))
+}
+
 fn validate_stage_transition(
     from: &Version,
     from_stage: ReleaseStage,
@@ -5257,24 +5317,13 @@ fn validate_stage_transition(
     }
     let expected_prerelease = match (from_stage, to_stage) {
         (ReleaseStage::Alpha, ReleaseStage::Alpha) => {
-            let from_iteration = prerelease_iteration(from, "alpha")?;
-            let to_iteration = prerelease_iteration(to, "alpha")?;
-            if to_iteration != from_iteration + 1 {
-                return Err(
-                    "Alpha iteration target must increment the prerelease number by one".to_owned(),
-                );
-            }
-            return Ok(());
+            return validate_sequential_prerelease(from, to, "alpha", "Alpha");
+        }
+        (ReleaseStage::Beta, ReleaseStage::Beta) => {
+            return validate_sequential_prerelease(from, to, "beta", "Beta");
         }
         (ReleaseStage::ReleaseCandidate, ReleaseStage::ReleaseCandidate) => {
-            let from_iteration = prerelease_iteration(from, "rc")?;
-            let to_iteration = prerelease_iteration(to, "rc")?;
-            if to_iteration != from_iteration + 1 {
-                return Err(
-                    "RC iteration target must increment the prerelease number by one".to_owned(),
-                );
-            }
-            return Ok(());
+            return validate_sequential_prerelease(from, to, "rc", "RC");
         }
         (ReleaseStage::Alpha, ReleaseStage::Beta) => "beta.1",
         (ReleaseStage::Beta, ReleaseStage::ReleaseCandidate) => "rc.1",
@@ -5292,6 +5341,22 @@ fn validate_stage_transition(
             "{} -> {} transition target must use prerelease `{expected_prerelease}`",
             from_stage.as_str(),
             to_stage.as_str()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_sequential_prerelease(
+    from: &Version,
+    to: &Version,
+    prefix: &str,
+    label: &str,
+) -> Result<(), String> {
+    let from_iteration = prerelease_iteration(from, prefix)?;
+    let to_iteration = prerelease_iteration(to, prefix)?;
+    if to_iteration != from_iteration + 1 {
+        return Err(format!(
+            "{label} iteration target must increment the prerelease number by one"
         ));
     }
     Ok(())
@@ -5325,6 +5390,30 @@ fn validate_transition_ledger_preconditions(
         || ledger["stable_authorized"] != false
     {
         return Err("qualification ledger does not match the current workspace stage".to_owned());
+    }
+    if matches!(
+        (from_stage, to_stage),
+        (ReleaseStage::Beta, ReleaseStage::Beta)
+    ) {
+        if ledger["feature_freeze"]["status"] != "frozen" || ledger["beta"]["status"] != "qualified"
+        {
+            return Err(
+                "sequential Beta requires a qualified active Beta and feature freeze".to_owned(),
+            );
+        }
+        let baseline = required_string(
+            &ledger["feature_freeze"],
+            "baseline_commit",
+            "feature freeze",
+        )?;
+        validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+        validate_beta_qualification_state(ledger, Some(from_version))?;
+    }
+    if matches!(
+        (from_stage, to_stage),
+        (ReleaseStage::Beta, ReleaseStage::ReleaseCandidate)
+    ) {
+        validate_beta_qualification_state(ledger, Some(from_version))?;
     }
     if matches!(to_stage, ReleaseStage::ReleaseCandidate)
         && (ledger["beta"]["status"] != "qualified"
@@ -11258,6 +11347,12 @@ fn build_release_status_document(sources: &ReleaseStatusSources) -> Result<Value
             stage.as_str()
         ));
     }
+    let current_beta_version = (stage == ReleaseStage::Beta).then_some(version);
+    let (latest_qualified_beta_tag, beta_history_count) =
+        validate_beta_qualification_state(&sources.qualification, current_beta_version)?;
+    if stage == ReleaseStage::Alpha && beta_history_count > 0 {
+        return Err("release-status Alpha ledger cannot contain Beta history".to_owned());
+    }
     let stable_authorized = sources.qualification["stable_authorized"]
         .as_bool()
         .ok_or_else(|| {
@@ -11553,6 +11648,8 @@ fn build_release_status_document(sources: &ReleaseStatusSources) -> Result<Value
             "stable_authorized": stable_authorized,
             "feature_freeze": required_string(&sources.qualification["feature_freeze"], "status", "release-status feature freeze")?,
             "beta": required_string(&sources.qualification["beta"], "status", "release-status Beta qualification")?,
+            "latest_qualified_beta_tag": latest_qualified_beta_tag,
+            "beta_history_count": beta_history_count,
             "release_candidate_count": release_candidates.len()
         },
         "support": {
@@ -11724,6 +11821,11 @@ fn check_release_qualification() -> Result<(), String> {
         .collect::<BTreeSet<_>>();
     if actual_channels != expected_channels || actual_channels.len() != channels.len() {
         return Err("release qualification package-manager channels differ".to_owned());
+    }
+    let current_beta_version = (stage == ReleaseStage::Beta).then_some(&version);
+    let (_, beta_history_count) = validate_beta_qualification_state(&ledger, current_beta_version)?;
+    if stage == ReleaseStage::Alpha && beta_history_count > 0 {
+        return Err("Alpha qualification ledger cannot contain Beta history".to_owned());
     }
     let beta_status = required_string(&ledger["beta"], "status", "Beta qualification")?;
     if !matches!(beta_status, "pending" | "qualified") {
@@ -12246,24 +12348,7 @@ fn validate_stable_qualification(ledger: &Value) -> Result<(), String> {
     if beta["status"] != "qualified" {
         return Err("Stable requires a qualified signed Beta".to_owned());
     }
-    validate_qualification_release(beta, ReleaseStage::Beta, "Beta")?;
-    let signing_targets = beta["signing_evidence_targets"]
-        .as_array()
-        .ok_or_else(|| "qualified Beta signing targets are missing".to_owned())?;
-    let expected_signing_targets = BTreeSet::from([
-        "aarch64-apple-darwin",
-        "x86_64-apple-darwin",
-        "x86_64-pc-windows-msvc",
-    ]);
-    let actual_signing_targets = signing_targets
-        .iter()
-        .filter_map(Value::as_str)
-        .collect::<BTreeSet<_>>();
-    if actual_signing_targets != expected_signing_targets
-        || actual_signing_targets.len() != signing_targets.len()
-    {
-        return Err("qualified Beta signing evidence targets differ".to_owned());
-    }
+    validate_beta_qualification_state(ledger, None)?;
 
     let candidates = ledger["release_candidates"]
         .as_array()
@@ -12341,6 +12426,131 @@ fn validate_qualification_release(
         .filter(|run| *run > 0)
         .ok_or_else(|| format!("{context} has no signed matrix run ID"))?;
     Ok((tag.to_owned(), commit.to_owned(), run))
+}
+
+fn validate_beta_qualification_record(
+    value: &Value,
+    context: &str,
+) -> Result<(Version, String, u64), String> {
+    let (tag, source_commit, run) =
+        validate_qualification_release(value, ReleaseStage::Beta, context)?;
+    let (version, _) = parse_release_tag(&tag)?;
+    if !version.build.is_empty() {
+        return Err(format!("{context} tag must omit build metadata"));
+    }
+    prerelease_iteration(&version, "beta")?;
+    let canonical = json!({
+        "signed_matrix_run": run,
+        "signing_evidence_targets": [
+            "aarch64-apple-darwin",
+            "x86_64-apple-darwin",
+            "x86_64-pc-windows-msvc"
+        ],
+        "source_commit": source_commit,
+        "status": "qualified",
+        "tag": tag
+    });
+    if *value != canonical {
+        return Err(format!(
+            "{context} contains unknown or non-canonical fields"
+        ));
+    }
+    Ok((version, source_commit, run))
+}
+
+fn validate_beta_qualification_history(
+    ledger: &Value,
+) -> Result<Vec<(Version, String, u64)>, String> {
+    let Some(history) = ledger.get("beta_history") else {
+        return Ok(Vec::new());
+    };
+    let history = history
+        .as_array()
+        .ok_or_else(|| "Beta qualification history must be an array".to_owned())?;
+    let mut validated = Vec::with_capacity(history.len());
+    let mut source_commits = BTreeSet::new();
+    let mut runs = BTreeSet::new();
+    for (index, record) in history.iter().enumerate() {
+        let context = format!("Beta qualification history entry {index}");
+        let (version, source_commit, run) = validate_beta_qualification_record(record, &context)?;
+        if let Some((previous, _, _)) = validated.last() {
+            validate_stage_transition(previous, ReleaseStage::Beta, &version, ReleaseStage::Beta)?;
+        } else if prerelease_iteration(&version, "beta")? != 1 {
+            return Err("Beta qualification history must start at beta.1".to_owned());
+        }
+        if !source_commits.insert(source_commit.clone()) || !runs.insert(run) {
+            return Err(
+                "Beta qualification history source commits and run IDs must be distinct".to_owned(),
+            );
+        }
+        validated.push((version, source_commit, run));
+    }
+    Ok(validated)
+}
+
+fn validate_beta_qualification_state(
+    ledger: &Value,
+    current_beta_version: Option<&Version>,
+) -> Result<(Option<String>, usize), String> {
+    let history = validate_beta_qualification_history(ledger)?;
+    if !history.is_empty() {
+        if ledger["feature_freeze"]["status"] != "frozen" {
+            return Err(
+                "sequential Beta qualification requires an active feature freeze".to_owned(),
+            );
+        }
+        let baseline = required_string(
+            &ledger["feature_freeze"],
+            "baseline_commit",
+            "feature freeze",
+        )?;
+        validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
+    }
+    let active = &ledger["beta"];
+    let status = required_string(active, "status", "Beta qualification")?;
+    let validate_next = |version: &Version| -> Result<(), String> {
+        if let Some((previous, _, _)) = history.last() {
+            validate_stage_transition(previous, ReleaseStage::Beta, version, ReleaseStage::Beta)
+        } else if prerelease_iteration(version, "beta")? == 1 {
+            Ok(())
+        } else {
+            Err("the first qualified Beta must be beta.1".to_owned())
+        }
+    };
+
+    match status {
+        "pending" => {
+            if *active != json!({"status": "pending"}) {
+                return Err("pending Beta qualification contains unknown fields".to_owned());
+            }
+            if let Some(version) = current_beta_version {
+                validate_next(version)?;
+            }
+            Ok((
+                history.last().map(|(version, _, _)| format!("v{version}")),
+                history.len(),
+            ))
+        }
+        "qualified" => {
+            let (version, source_commit, run) =
+                validate_beta_qualification_record(active, "active Beta qualification")?;
+            validate_next(&version)?;
+            if history.iter().any(|(_, existing_commit, existing_run)| {
+                existing_commit == &source_commit || *existing_run == run
+            }) {
+                return Err(
+                    "active Beta source commit and run ID must differ from Beta history".to_owned(),
+                );
+            }
+            if current_beta_version.is_some_and(|current| current != &version) {
+                return Err(
+                    "active Beta qualification must match the current Beta source".to_owned(),
+                );
+            }
+            Ok((Some(format!("v{version}")), history.len()))
+        }
+        _ => Err("Beta qualification status is invalid".to_owned()),
+    }
 }
 
 fn build_beta_contract_freeze() -> Result<Value, String> {
@@ -16389,7 +16599,14 @@ mod tests {
     }
 
     fn write_active_source_projection_fixture(root: &Path, version: &str) {
+        let parsed = Version::parse(version).expect("source projection version");
         let tag = format!("v{version}");
+        let next_checkpoint =
+            if ReleaseStage::from_version(&parsed).expect("source stage") == ReleaseStage::Alpha {
+                format!("v{}.{}.{}-beta.1", parsed.major, parsed.minor, parsed.patch)
+            } else {
+                tag.clone()
+            };
         for (relative, body) in [
             (
                 "tools/native-preview/package.json",
@@ -16427,13 +16644,16 @@ mod tests {
                 "docs/guides/known-limitations.md",
                 format!("It applies to the `{version}` development line.\n"),
             ),
+            (
+                "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+                format!("**Next intended checkpoint:** `{next_checkpoint}`; fixture.\n"),
+            ),
         ] {
             let path = root.join(relative);
             fs::create_dir_all(path.parent().expect("projection parent"))
                 .expect("create source projection fixture path");
             fs::write(path, body).expect("write source projection fixture");
         }
-        let parsed = Version::parse(version).expect("source projection version");
         write_pretty_json(
             &root.join("release/alpha-package-contract.json"),
             &json!({
@@ -18042,6 +18262,39 @@ mod tests {
         let mut frozen = pending.clone();
         frozen["feature_freeze"] = json!({"status": "frozen", "baseline_commit": "8".repeat(40)});
         assert!(beta_qualified_ledger(&frozen, "v0.7.0-beta.1", 1, &source).is_err());
+
+        let mut sequential = frozen;
+        sequential["beta_history"] = json!([qualified["beta"].clone()]);
+        let next_source = "8".repeat(40);
+        let mut sequential_unfrozen = sequential.clone();
+        sequential_unfrozen["feature_freeze"] =
+            json!({"status": "planned", "baseline_commit": null});
+        assert!(
+            validate_beta_qualification_state(
+                &sequential_unfrozen,
+                Some(&Version::parse("0.7.0-beta.2").expect("second Beta version"))
+            )
+            .is_err()
+        );
+        let next =
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.2", 29_640_000_002, &next_source)
+                .expect("qualify sequential Beta ledger");
+        assert_eq!(next["beta"]["tag"], "v0.7.0-beta.2");
+        assert_eq!(next["beta_history"], sequential["beta_history"]);
+        assert!(
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.3", 29_640_000_002, &next_source,)
+                .is_err()
+        );
+        assert!(
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.2", 29_640_000_001, &next_source,)
+                .is_err()
+        );
+        let mut malformed = sequential;
+        malformed["beta_history"][0]["extra"] = json!(true);
+        assert!(
+            beta_qualified_ledger(&malformed, "v0.7.0-beta.2", 29_640_000_002, &next_source,)
+                .is_err()
+        );
     }
 
     #[test]
@@ -18176,6 +18429,7 @@ mod tests {
         let alpha_three = Version::parse("0.7.0-alpha.3").expect("third Alpha version");
         let beta = Version::parse("0.7.0-beta.1").expect("Beta version");
         let beta_two = Version::parse("0.7.0-beta.2").expect("second Beta version");
+        let beta_three = Version::parse("0.7.0-beta.3").expect("third Beta version");
         let rc = Version::parse("0.7.0-rc.1").expect("RC version");
         let rc_two = Version::parse("0.7.0-rc.2").expect("second RC version");
         let rc_three = Version::parse("0.7.0-rc.3").expect("third RC version");
@@ -18221,9 +18475,63 @@ mod tests {
             )
             .is_err()
         );
+        validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
+            .expect("sequential Beta iteration");
+        for invalid in [
+            &beta,
+            &beta_three,
+            &Version::parse("0.8.0-beta.2").expect("cross-line Beta"),
+            &Version::parse("0.7.0-beta.2+local").expect("Beta with build metadata"),
+            &Version::parse("0.7.0-beta.next").expect("nonnumeric Beta"),
+        ] {
+            assert!(
+                validate_stage_transition(&beta, ReleaseStage::Beta, invalid, ReleaseStage::Beta)
+                    .is_err(),
+                "accepted invalid sequential Beta target {invalid}"
+            );
+        }
         assert!(
-            validate_stage_transition(&beta, ReleaseStage::Beta, &beta_two, ReleaseStage::Beta)
-                .is_err()
+            validate_stage_transition(&beta_two, ReleaseStage::Beta, &beta, ReleaseStage::Beta,)
+                .is_err(),
+            "a Beta iteration must not downgrade"
+        );
+
+        let current_beta = json!({
+            "schema": RELEASE_QUALIFICATION_SCHEMA,
+            "workspace_stage": "beta",
+            "status": "beta-qualifying",
+            "stable_authorized": false,
+            "beta": {
+                "signed_matrix_run": 29_640_000_001_u64,
+                "signing_evidence_targets": [
+                    "aarch64-apple-darwin",
+                    "x86_64-apple-darwin",
+                    "x86_64-pc-windows-msvc"
+                ],
+                "source_commit": "6".repeat(40),
+                "status": "qualified",
+                "tag": "v0.7.0-beta.1"
+            },
+            "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)}
+        });
+        validate_transition_ledger_preconditions(
+            &current_beta,
+            &beta,
+            ReleaseStage::Beta,
+            ReleaseStage::Beta,
+        )
+        .expect("qualified Beta may prepare its next sequential iteration");
+        let mut unqualified_beta = current_beta;
+        unqualified_beta["beta"] = json!({"status": "pending"});
+        assert!(
+            validate_transition_ledger_preconditions(
+                &unqualified_beta,
+                &beta,
+                ReleaseStage::Beta,
+                ReleaseStage::Beta,
+            )
+            .is_err(),
+            "unqualified Beta must not advance"
         );
 
         let current_rc = json!({
@@ -18800,6 +19108,17 @@ mod tests {
              dependencies = [\"contracts\"]\n\n[[package]]\nname = \"contracts\"\nversion = \"0.7.0-beta.1\"\n",
         )
         .expect("write lock fixture");
+        let qualified_beta = json!({
+            "signed_matrix_run": 29_640_000_001_u64,
+            "signing_evidence_targets": [
+                "aarch64-apple-darwin",
+                "x86_64-apple-darwin",
+                "x86_64-pc-windows-msvc"
+            ],
+            "source_commit": "6".repeat(40),
+            "status": "qualified",
+            "tag": "v0.7.0-beta.1"
+        });
         write_pretty_json(
             &root.join("release/qualification-ledger.json"),
             &json!({
@@ -18807,7 +19126,7 @@ mod tests {
                 "workspace_stage": "beta",
                 "status": "beta-qualifying",
                 "stable_authorized": false,
-                "beta": {"status": "qualified"},
+                "beta": qualified_beta,
                 "feature_freeze": {"status": "frozen", "baseline_commit": "7".repeat(40)},
                 "release_notes": {"status": "beta-current"}
             }),
@@ -18830,6 +19149,33 @@ mod tests {
         }
 
         let workspace_before = fs::read(root.join("Cargo.toml")).expect("read workspace before");
+        let beta_transition =
+            render_stage_transition(&root, "v0.7.0-beta.2").expect("render sequential Beta");
+        let beta_ledger: Value = serde_json::from_slice(
+            beta_transition
+                .files
+                .get("release/qualification-ledger.json")
+                .expect("rendered sequential Beta ledger"),
+        )
+        .expect("parse sequential Beta ledger");
+        assert_eq!(beta_ledger["beta"], json!({"status": "pending"}));
+        assert_eq!(beta_ledger["beta_history"], json!([qualified_beta]));
+        assert_eq!(beta_ledger["feature_freeze"]["status"], "frozen");
+        assert!(
+            std::str::from_utf8(
+                beta_transition
+                    .files
+                    .get("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md")
+                    .expect("rendered sequential Beta roadmap")
+            )
+            .expect("sequential Beta roadmap is UTF-8")
+            .contains("**Next intended checkpoint:** `v0.7.0-beta.2`")
+        );
+        assert_eq!(
+            fs::read(root.join("Cargo.toml")).expect("read workspace after Beta dry run"),
+            workspace_before
+        );
+
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.1").expect("render Beta to RC transition");
         let report = stage_transition_report(&root, &transition, false).expect("dry-run report");
@@ -18847,7 +19193,7 @@ mod tests {
             fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
             workspace_before
         );
-        assert_eq!(transition.files.len(), 15);
+        assert_eq!(transition.files.len(), 16);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply rendered transition fixture");
         }
@@ -18870,6 +19216,13 @@ mod tests {
             fs::read_to_string(root.join("release/alpha-package-contract.json"))
                 .expect("read transitioned package contract")
                 .contains("\"version\": \"0.7.0-rc.1\"")
+        );
+        assert!(
+            fs::read_to_string(
+                root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md")
+            )
+            .expect("read transitioned roadmap")
+            .contains("**Next intended checkpoint:** `v0.7.0-rc.1`")
         );
         let ledger: Value = serde_json::from_slice(
             &fs::read(root.join("release/qualification-ledger.json"))
@@ -18975,7 +19328,7 @@ mod tests {
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 17);
+        assert_eq!(transition.files.len(), 18);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
@@ -19149,7 +19502,8 @@ mod tests {
             .expect("read Stable feedback fixture");
         fs::write(
             root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
-            "# Next roadmap\n\n**Status:** Reviewed\n",
+            "# Next roadmap\n\n**Status:** Reviewed\n\n\
+             **Next intended checkpoint:** `v0.7.0-rc.2`\n",
         )
         .expect("write Stable roadmap fixture");
         write_pretty_json(
@@ -19185,17 +19539,15 @@ mod tests {
                 .replacen("\"status\": \"reviewed\"", "\"status\": \"published\"", 1)
                 .into_bytes()
         );
-        assert!(
-            String::from_utf8(
-                transition
-                    .files
-                    .get("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md")
-                    .expect("roadmap transition output")
-                    .clone()
-            )
-            .expect("UTF-8 roadmap")
-            .contains("**Status:** Published")
-        );
+        let roadmap = std::str::from_utf8(
+            transition
+                .files
+                .get("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md")
+                .expect("roadmap transition output"),
+        )
+        .expect("UTF-8 roadmap");
+        assert!(roadmap.contains("**Status:** Published"));
+        assert!(roadmap.contains("**Next intended checkpoint:** `v0.7.0`"));
         fs::remove_dir_all(root).expect("remove Stable fixture");
     }
 

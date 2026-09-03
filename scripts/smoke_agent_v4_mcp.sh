@@ -7,6 +7,10 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 source "$script_dir/lib/native_paths.sh"
 binary="$(canisend_absolute_path "$binary")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
+registered_binary="$binary"
+if command -v cygpath >/dev/null 2>&1; then
+  registered_binary="$(cygpath -w "$binary")"
+fi
 
 if [[ ! -x "$binary" ]]; then
   echo "Agent v4 MCP smoke: binary is not executable: $binary" >&2
@@ -165,6 +169,81 @@ printf '%s\n' \
 
 "$binary" --workspace "$workspace" workspace init --json \
   > "$smoke_root/workspace-init.json"
+"$binary" --workspace "$workspace" host setup \
+  --host codex \
+  --executable "$registered_binary" \
+  --json > "$smoke_root/codex-setup.json"
+"$binary" --workspace "$workspace" host setup \
+  --host codex \
+  --executable "$registered_binary" \
+  --json > "$smoke_root/codex-setup-repeat.json"
+"$binary" --workspace "$workspace" host status \
+  --host codex \
+  --executable "$registered_binary" \
+  --json > "$smoke_root/codex-status.json"
+
+jq -e \
+  --slurpfile setup "$smoke_root/codex-setup.json" \
+  --slurpfile repeat "$smoke_root/codex-setup-repeat.json" \
+  --slurpfile status "$smoke_root/codex-status.json" '
+    . as $manifest |
+    ($setup[0]) as $setup |
+    ($repeat[0]) as $repeat |
+    ($status[0]) as $status |
+    $setup.ok == true
+    and $setup.operation == "host.setup"
+    and $setup.status == "ready"
+    and $setup.data.host == "codex"
+    and $setup.data.scope == "project"
+    and $setup.data.skills.state == "installed"
+    and $setup.data.mcp.protocol_version == "2025-11-25"
+    and $setup.data.mcp.configuration_target == ".codex/config.toml"
+    and ($setup.data.mcp.registration_command | contains("mcp serve"))
+    and ($setup.data.mcp.tools | length) == 36
+    and ($setup.data.mcp.read_only_tools | length) == 26
+    and ($setup.data.mcp.guarded_write_tools | length) == 10
+    and $setup.data.mcp_configuration_mutated == false
+    and $repeat.ok == true
+    and $repeat.data.skills.state == "up-to-date"
+    and $repeat.data.skills.files == $setup.data.skills.files
+    and $status.ok == true
+    and $status.operation == "host.status"
+    and $status.status == "ready"
+    and $status.data.scope == "project"
+    and $status.data.skills.state == "up-to-date"
+    and $status.data.mcp_configuration_mutated == false
+    and ($status.data.skills.skills | sort_by(.id)) == [
+      {"file_count": 2, "id": "canisend-intake", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-materials", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-review-export", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-workspace", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"}
+    ]
+    and $manifest.format == "canisend.agent-host-resources/v4"
+    and $manifest.protocol == "canisend.agent/v4"
+    and $manifest.workspace_format == "canisend.workspace/v4"
+    and $manifest.resource_format == "canisend.agent-host-resources/v4"
+    and $manifest.host == "codex"
+    and ($manifest.task_resource_model_sha256 | test("^[0-9a-f]{64}$"))
+    and $manifest.files == $setup.data.skills.files
+    and ($manifest.files | length) == 8
+    and ($manifest.files | all(.[];
+      .resource_version == "4.0.0"
+      and .size > 0
+      and (.sha256 | test("^[0-9a-f]{64}$"))
+    ))
+    and ($manifest.files | map(.resource_id) | sort) == [
+      "skill.canisend-intake",
+      "skill.canisend-intake.openai",
+      "skill.canisend-materials",
+      "skill.canisend-materials.openai",
+      "skill.canisend-review-export",
+      "skill.canisend-review-export.openai",
+      "skill.canisend-workspace",
+      "skill.canisend-workspace.openai"
+    ]
+  ' "$workspace/.agents/canisend-agent-v4.json" >/dev/null
+test ! -e "$workspace/.codex/config.toml"
+test ! -e "$workspace/.mcp.json"
 "$binary" --workspace "$workspace" application create \
   --pack org.canisend.generic-application \
   --candidate "$generic_candidate" \
@@ -1105,4 +1184,4 @@ mcp_pid=""
 "$binary" --workspace "$restored" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
 
-echo "Agent v4 MCP smoke: ok (guarded dual-Pack lifecycle, backup, restore, and reopen passed)"
+echo "Agent v4 MCP smoke: ok (Skills, guarded dual-Pack lifecycle, backup, restore, and reopen passed)"
