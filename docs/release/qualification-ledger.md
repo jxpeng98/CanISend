@@ -16,6 +16,13 @@ tokens, application data, or copied private issue content.
 Changing the Cargo workspace version without changing the ledger to the corresponding state makes
 `xtask release check` fail. A prerelease ledger cannot set `stable_authorized: true`.
 
+The `beta` object is always the active/latest Beta slot. Before the first sequential Beta it holds
+the qualified Beta.1 record. Preparing Beta.N+1 appends that exact record to ordered,
+append-only `beta_history` and resets `beta` to canonical pending state. An absent history is
+equivalent to an empty history only before that first iteration. RC, Stable, upgrade, and
+package-manager qualification consume only the active qualified `beta`; they never fall back to a
+historical record.
+
 ## Derived current status
 
 Inspect the current source, latest reachable release tag, qualification stage, support surface,
@@ -44,7 +51,9 @@ cargo run -p xtask --locked -- release record-beta-qualification \
 The command re-verifies `SHA256SUMS`, the complete manifest, five archives, three canonical archive-bound signing
 evidence files, contract/trust metadata, sizes, and hashes. It derives the source commit from that verified manifest
 and renders the before/after ledger digest. It accepts only the exact current Beta version and canonical pending
-Beta state. Nothing changes unless the final `--write` flag is supplied from a clean worktree.
+Beta state. Beta.1 requires the planned entry freeze; a sequential Beta requires valid nonempty
+history and the existing frozen baseline. Tags, source commits, and signed-matrix run IDs must be
+sequential and distinct. Nothing changes unless the final `--write` flag is supplied from a clean worktree.
 
 The run ID remains an external reference, so the command cannot prove that the number identifies the inspected
 GitHub run. Retain the run URL and public `gh attestation verify` results independently; a locally assembled or
@@ -138,8 +147,8 @@ Stable requires all of these in the committed ledger:
 
 1. A frozen feature baseline commit. After that baseline, only release-blocker fixes, release evidence, and
    documentation changes are allowed.
-2. One qualified Beta tag/source/run with archive-bound signing evidence for macOS arm64, macOS Intel, and Windows
-   x86_64.
+2. The latest active qualified Beta tag/source/run with archive-bound signing evidence for macOS
+   arm64, macOS Intel, and Windows x86_64; historical Betas cannot substitute for it.
 3. At least two successful RC matrices with different clean tags, source commits, and GitHub Actions run IDs.
 4. Passed Beta-to-RC workspace upgrade, old-binary rejection or same-schema behavior, and restore-to-new-path
    evidence.
@@ -152,12 +161,12 @@ The ledger is necessary but not sufficient: referenced GitHub runs, public relea
 community platform-signing evidence, native signature results, and package-manager validations must still be
 independently inspected. An invented run ID or status string is not qualification evidence.
 
-## Pre-Beta boundary
+## Beta boundary
 
-The current source remains `1.0.0-alpha.10` in `pre-beta` while the Workspace v4, Agent v4,
-dual-Pack, headless, and Codex checkpoint is qualified. Earlier readiness and contract-freeze
-records are historical inputs; they cannot qualify Alpha.10 or a Beta transition. Sequential Alpha
-planning resets those authorities to a canonical pending identity for the new Alpha.
+Public `v1.0.0-beta.1` remains immutable and qualified while private Beta.2 source preparation is
+reviewed. The policy change alone does not change the workspace version, create a tag, dispatch a
+workflow, publish a release, or qualify Beta.2. Preparing Beta.2 preserves Beta.1 byte-for-byte in
+`beta_history`, keeps the feature freeze active, and makes only the new active Beta slot pending.
 
 Only a publicly qualified and independently reverified dual-Pack Alpha iteration of 7 or greater
 may be refreshed into the active readiness record. `canisend.beta-readiness/v2` binds the exact tag,
@@ -170,6 +179,6 @@ invalid Beta baselines even though their historical evidence is valid for the by
 
 `prepared-local` proves only that the documentation/uninstall control exists locally; it is
 deliberately weaker than `passed`, which requires the signed RC-stage matrix named by the Stable
-gate. Beta signing, a qualified public Beta, the feature-freeze activation, clean RC tags,
-version-pair migration, native channel lifecycle, final RC notes review, and Stable authorization
-remain pending.
+gate. The latest active Beta signing and qualification, clean RC tags, version-pair migration,
+native channel lifecycle, final RC notes review, and Stable authorization remain pending after a
+new Beta source is prepared.

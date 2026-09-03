@@ -2,7 +2,7 @@
 
 [`release/stage-transition-policy.json`](../../release/stage-transition-policy.json) defines the only supported
 forward transitions for the active 1.0 Rust-native line: sequential Alpha iteration, Alpha to
-Beta, Beta to RC, sequential RC iteration, and RC to Stable. The transition tool
+Beta, sequential Beta iteration, Beta to RC, sequential RC iteration, and RC to Stable. The transition tool
 changes current product state without rewriting the immutable Alpha readiness, contract-freeze, feedback, or
 package-candidate evidence that explains how the release reached that state.
 
@@ -18,26 +18,31 @@ The command is read-only unless the final `--write` flag is present:
 ```console
 cargo run -p xtask --locked -- release prepare-stage v1.0.0-alpha.8
 cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.1
+cargo run -p xtask --locked -- release prepare-stage v1.0.0-beta.2
 ```
 
 It prints `canisend.stage-transition-plan/v1` JSON containing the source and target stages plus the before/after
 SHA-256 digest of every controlled file. Review the complete file set. A transition cannot skip a
-stage, change the 1.0 release line, attach build metadata, or skip an iteration. Sequential Alpha
-and RC targets must increase exactly by one. Alpha iteration updates Cargo/internal pins/locks,
+stage, change the 1.0 release line, attach build metadata, or skip an iteration. Sequential Alpha,
+Beta, and RC targets must increase exactly by one. Alpha iteration updates Cargo/internal pins/locks,
 Tauri/npm/fallback versions, the CLI/GUI parity scope, Alpha package asset names, release workflow
 default, README/root-release/known-limitations source-version claims, the active macOS Alpha
 performance-baseline identity, and release-note heading in one plan. It resets stale Beta
 readiness, contract-freeze, and feedback identities to canonical pending state for the new Alpha;
-Git history retains the prior evidence. Once RC.1 evidence is committed,
-`prepare-stage v1.0.0-rc.2` is allowed; RC iteration preserves the
-qualification ledger's earlier clean-tag records. Beta same-stage iteration and RC number skipping are rejected.
+Git history retains the prior evidence. Once an active Beta is qualified and feature freeze is
+active, `prepare-stage v1.0.0-beta.N+1` preserves its exact canonical qualification in ordered
+`beta_history`, resets the active `beta` slot to pending, and leaves readiness, contract-freeze,
+feedback, cohort, and freeze evidence unchanged. Once RC.1 evidence is committed,
+`prepare-stage v1.0.0-rc.2` is allowed; RC iteration preserves the qualification ledger's earlier
+clean-tag records. Beta or RC number skipping is rejected.
 Any explicit release-notes review is reset during sequential RC iteration: the earlier review still exists in Git
 history, but it cannot authorize a candidate whose manifest, assets, issues, or package-channel state may differ.
 
-Before the Alpha-to-Beta write, refresh [`release/beta-readiness.json`](../../release/beta-readiness.json), run the
+Before the first Alpha-to-Beta write, refresh [`release/beta-readiness.json`](../../release/beta-readiness.json), run the
 ordinary release source gate, and complete the name-only signing configuration audit described in
 [the signing runbook](signing-operations.md). Write mode rejects a readiness snapshot older than 24 hours or more
-than five minutes in the future. Do not put any credential value in the repository or transition plan.
+than five minutes in the future. Sequential Beta iteration reuses the immutable entry evidence and
+does not refresh it. Do not put any credential value in the repository or transition plan.
 
 Refresh is also dry-run first:
 
@@ -90,6 +95,10 @@ cargo run -p xtask --locked -- release check
 git diff --check
 ```
 
+For an exact sequential Beta, preview `v1.0.0-beta.2` first and add `--write` only after reviewing
+the complete plan. The current Beta must be qualified, its canonical tag must match the workspace,
+and feature freeze must already be active.
+
 After feature freeze, the stage transition and its exception record use two reviewable commits so
 no record refers to its own unknowable commit ID:
 
@@ -105,10 +114,11 @@ self-referential entry. A branch containing only the first commit is intentional
 
 Write mode transactionally updates the workspace version, exact internal dependency versions,
 workspace package entries in `Cargo.lock`, the standalone fuzz workspace's exact dependencies and
-lockfile package entries,
-qualification-ledger stage/status, and release-note heading as one prevalidated file set. The Stable transition
+lockfile package entries, active roadmap checkpoint, qualification-ledger state, and release-note
+heading as one prevalidated file set. A sequential Beta transition additionally moves the exact
+qualified active record to `beta_history` and creates only a pending active Beta slot. The Stable transition
 also publishes the already-reviewed support-policy document and records explicit Stable authorization.
-The tool refuses RC without a qualified signed Beta and active feature freeze, and refuses Stable authorization
+The tool refuses RC without the latest active qualified signed Beta and active feature freeze, and refuses Stable authorization
 unless the qualification ledger already proves every other Stable evidence class. It never creates a tag, starts a
 workflow, publishes a release, or changes a package-manager repository.
 

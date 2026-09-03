@@ -43,6 +43,12 @@
       ]
     },
     {
+      "stage": "beta",
+      "target_prerelease": "next-sequential-beta",
+      "ledger_status": "beta-qualifying",
+      "release_notes_status": "beta-current"
+    },
+    {
       "stage": "rc",
       "target_prerelease": "next-sequential-rc",
       "ledger_status": "rc-qualifying",
@@ -61,8 +67,9 @@
     "release/alpha-package-contract.json versioned asset names",
     ".github/workflows/release.yml dispatch default",
     "active README, root release guide, and known-limitations source-version claims",
+    "active roadmap next-checkpoint source identity after Beta entry",
     "sequential-Alpha pending readiness, freeze, and feedback identities",
-    "release/qualification-ledger.json stage, Stable authorization, and RC notes-review reset fields",
+    "release/qualification-ledger.json stage, Beta history, Stable authorization, and RC notes-review reset fields",
     "release/RELEASE_NOTES.md heading",
     "release/support-policy.json Stable publication status",
     "release/feedback-snapshot.json next-roadmap publication status",
