@@ -10,8 +10,10 @@
 | Candidate type | Local macOS Design Preview |
 | Product version | `1.0.0-beta.1` (unchanged) |
 | Pull request | [#217](https://github.com/jxpeng98/CanISend/pull/217) |
+| Final PR head | `d8f017fe3b79ee3c7ef2639267790d354b9ad24d` |
+| Merge commit | `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` |
 | Publication authorization | No |
-| Current decision | Pull-request CI pending |
+| Current decision | Merged after all protected checks passed |
 
 ## Fresh verification
 
@@ -31,6 +33,7 @@
 | Project/global v4 Skills | `smoke_host_v4.sh` | Passed: Codex/Claude lifecycle and legacy refusal |
 | Guarded MCP lifecycle | `smoke_agent_v4_mcp.sh` | Passed: dual-Pack lifecycle, backup, restore, reopen |
 | Native App inspection | Isolated Design Preview | Passed: Workspace, both Packs, four Skills, bilingual shell, Settings, notification, diagnostics |
+| Protected pull-request CI | Fast CI run `33699412891` | Passed: all six jobs |
 
 ## Candidate artifact evidence
 
@@ -64,3 +67,4 @@
   tests and the optimized candidate build passed.
 - No tag, GitHub release, notarization, public artifact, downgrade path, or retired v2/v3 desktop
   migration surface was created or claimed.
+- The newest remote tag and GitHub Release remain `v1.0.0-beta.1` after the merge.

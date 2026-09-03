@@ -404,3 +404,31 @@ Refined the desktop sidebar and bilingual copy, aligned canonical v4 Skills, add
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: Merge desktop shell and Workspace migration hardening
+
+**Date**: 2026-09-03
+**Task**: Merge desktop shell and Workspace migration hardening
+**Branch**: `chore/archive-desktop-shell-workspace-migration`
+
+### Summary
+
+Refined the desktop shell and bilingual copy, moved transient feedback into accessible popups, normalized diagnostics, made pending Workspace migrations atomic, qualified the unpublished macOS candidate and v4 CLI/Skills flows, and merged PR #217 after all six Fast CI jobs passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a20b3d8ac888969db7cfc277279024ad8095a259` | (see git log) |
+| `5734ffac8138b8f1690db4161c3af4959cde8669` | (see git log) |
+| `ff64b6ebbdda3c660addf1d7e9fb6100a1ad9068` | (see git log) |
+| `ee617c08ff24fbb5567afda8a42cbefd197a3b9c` | (see git log) |
+| `23d884b8a6aa4e559a8d8995d74acf47721d3f55` | (see git log) |
+| `e296a74e4af698fa3f4540f1c1603a7b08d63722` | (see git log) |
+| `d8f017fe3b79ee3c7ef2639267790d354b9ad24d` | (see git log) |
+| `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` | (see git log) |
+
+### Status
+
+[OK] **Completed**
