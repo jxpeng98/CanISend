@@ -100,6 +100,15 @@
         "xtask/src/main.rs"
       ],
       "reason": "Permit exact sequential Beta source preparation and bind the existing App-closed CLI, Skills, MCP, and Workspace readiness smoke without authorizing qualification or publication."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "58d31c82ae35aba948fbe5bc1d4c37008fb2fa13",
+      "paths": [
+        "release/stage-transition-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Remove the obsolete desktop fallback projection so the audited Beta.2 source transition can use runtime product identity without restoring a forbidden UI literal."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
