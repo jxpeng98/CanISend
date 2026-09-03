@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.1`, matching exact public prerelease source
+- Checked-in source: `1.0.0-beta.2`, matching exact public prerelease source
   `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
