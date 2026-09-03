@@ -21,9 +21,9 @@ preview-qualification = ["dep:tauri-plugin-wdio-webdriver"]
 tauri-build.workspace = true
 
 [dependencies]
-canisend-app = { path = "../canisend-app", version = "=1.0.0-beta.1" }
-canisend-cli = { path = "../canisend-cli", version = "=1.0.0-beta.1" }
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.1" }
+canisend-app = { path = "../canisend-app", version = "=1.0.0-beta.2" }
+canisend-cli = { path = "../canisend-cli", version = "=1.0.0-beta.2" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.2" }
 hex.workspace = true
 open.workspace = true
 serde.workspace = true

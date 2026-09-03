@@ -100,6 +100,43 @@
         "xtask/src/main.rs"
       ],
       "reason": "Permit exact sequential Beta source preparation and bind the existing App-closed CLI, Skills, MCP, and Workspace readiness smoke without authorizing qualification or publication."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "58d31c82ae35aba948fbe5bc1d4c37008fb2fa13",
+      "paths": [
+        "release/stage-transition-policy.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Remove the obsolete desktop fallback projection so the audited Beta.2 source transition can use runtime product identity without restoring a forbidden UI literal."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "dcbeadf6e3f62943ffd072ceb1b409a30e9338b1",
+      "paths": [
+        ".github/ISSUE_TEMPLATE/bug.yml",
+        ".github/workflows/release.yml",
+        "Cargo.lock",
+        "Cargo.toml",
+        "RELEASE.md",
+        "apps/canisend-desktop/package.json",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-desktop/Cargo.toml",
+        "crates/canisend-desktop/tauri.conf.json",
+        "crates/canisend-desktop/tauri.windows.conf.json",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-mcp/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/alpha-package-contract.json",
+        "tools/native-preview/package.json",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Record the deterministic Beta.2 source projection while preserving Beta.1 qualification history and leaving qualification, tagging, workflow dispatch, packaging, and publication pending."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

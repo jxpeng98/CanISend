@@ -61,3 +61,13 @@ product changes require a failing reproduction first.
   qualification validation, and focused regressions before using the existing transition command.
 - Publication, qualification, cohort rebasing, tagging, and workflow dispatch remain separate and
   are not authorized by this planning decision.
+
+## Phase B dry-run finding — 2026-09-03
+
+- The first clean `prepare-stage v1.0.0-beta.2` preview stopped before mutation because `xtask`
+  still required a hard-coded version fallback in `App.svelte`.
+- The desktop refinement merged before this task intentionally removed that fallback, moved version
+  display to Settings, and added a regression forbidding the old literal.
+- The transition now reuses runtime product identity and stops treating the deleted fallback as a
+  controlled source projection. Focused projection and transition tests plus the original dry-run
+  reproduction pass without changing desktop product code.
