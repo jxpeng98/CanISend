@@ -90,6 +90,16 @@
         "apps/canisend-desktop/src/lib/views/TodayView.svelte"
       ],
       "reason": "Align the diagnostics disclosure with the shared feature-surface radius required by the desktop UI contract."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "3b46c6ee9d54db94a4c2851747a88d89afe12c10",
+      "paths": [
+        "release/stage-transition-policy.json",
+        "scripts/smoke_agent_v4_mcp.sh",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Permit exact sequential Beta source preparation and bind the existing App-closed CLI, Skills, MCP, and Workspace readiness smoke without authorizing qualification or publication."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
