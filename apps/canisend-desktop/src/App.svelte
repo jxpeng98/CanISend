@@ -8,9 +8,9 @@
     Moon,
     Search,
     Settings2,
-    ShieldCheck,
     Sun,
     UserRound,
+    X,
   } from "@lucide/svelte";
   import { onMount, tick } from "svelte";
 
@@ -760,8 +760,17 @@
   }
 
   function captureBridgeError(error: unknown): void {
+    notice = null;
+    noticeRoute = null;
     bridgeError = commandErrorMessage(error);
     bridgeErrorCanRetry = commandErrorRetryable(error);
+  }
+
+  function dismissNotification(): void {
+    bridgeError = null;
+    bridgeErrorCanRetry = false;
+    notice = null;
+    noticeRoute = null;
   }
 
   type SuccessfulActionContext = {
@@ -2433,7 +2442,7 @@
 
 <Sidebar.DesktopProvider
   class="desktop-shell min-h-screen bg-background text-foreground"
-  style="--sidebar-width: 18rem;"
+  style="--sidebar-width: min(18rem, 32vw);"
   data-density={compact ? "compact" : "comfortable"}
 >
   <a
@@ -2457,10 +2466,7 @@
         >
           <BriefcaseBusiness size={18} strokeWidth={1.8} />
         </div>
-        <div class="min-w-0">
-          <p class="truncate text-sm font-semibold tracking-tight">{copy.appName}</p>
-          <p class="truncate text-xs text-muted-foreground">{copy.appTagline}</p>
-        </div>
+        <p class="min-w-0 truncate text-sm font-semibold tracking-tight">{copy.appName}</p>
       </div>
       <Separator class="my-1.5 bg-sidebar-border" />
     </Sidebar.Header>
@@ -2562,13 +2568,42 @@
       </nav>
     </Sidebar.Content>
 
-    <Sidebar.Footer class="mt-auto space-y-[var(--density-panel-gap)] p-0 pt-2">
-      <div
-        class="flex min-h-9 items-center gap-2 rounded-lg border border-sidebar-border bg-background/55 px-2.5 py-2"
-        title={copy.localDescription}
-      >
-        <ShieldCheck size={15} strokeWidth={1.8} class="shrink-0" aria-hidden="true" />
-        <span class="truncate text-xs font-medium">{copy.localFirst}</span>
+    <Sidebar.Footer class="mt-auto border-t border-sidebar-border p-0 pt-2">
+      <div class="grid grid-cols-3 gap-1" role="group" aria-label={copy.appearance}>
+        <Button
+          variant="ghost"
+          size="icon-desktop"
+          class="w-full"
+          aria-label={language === "en" ? copy.switchChinese : copy.switchEnglish}
+          title={language === "en" ? copy.switchChinese : copy.switchEnglish}
+          onclick={() => handleLanguageChange(language === "en" ? "zh-CN" : "en")}
+        >
+          <Languages size={16} strokeWidth={1.8} aria-hidden="true" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-desktop"
+          class="w-full"
+          aria-label={darkMode ? copy.lightMode : copy.darkMode}
+          title={darkMode ? copy.lightMode : copy.darkMode}
+          onclick={() => (darkMode = !darkMode)}
+        >
+          {#if darkMode}
+            <Sun size={16} strokeWidth={1.8} aria-hidden="true" />
+          {:else}
+            <Moon size={16} strokeWidth={1.8} aria-hidden="true" />
+          {/if}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-desktop"
+          class="w-full"
+          aria-label={compact ? copy.comfortable : copy.compact}
+          title={compact ? copy.comfortable : copy.compact}
+          onclick={() => (compact = !compact)}
+        >
+          <Settings2 size={16} strokeWidth={1.8} aria-hidden="true" />
+        </Button>
       </div>
     </Sidebar.Footer>
   </Sidebar.DesktopRoot>
@@ -2579,92 +2614,9 @@
     aria-label={copy.mainContent}
     data-testid="canisend-svelte-shell"
   >
-    <div class="sticky top-0 z-10 bg-background/95 backdrop-blur-xl">
-      <header
-        class="flex min-h-[var(--app-header-height)] min-w-0 items-center justify-between gap-2 border-b px-4 transition-[min-height] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
-        data-tauri-drag-region
-      >
-        <p
-          class="min-w-0 truncate text-sm font-medium tracking-tight text-foreground"
-          title={currentViewLabel}
-        >
-          {currentViewLabel}
-        </p>
-        <div class="flex shrink-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-desktop"
-            aria-label={language === "en" ? copy.switchChinese : copy.switchEnglish}
-            title={language === "en" ? copy.switchChinese : copy.switchEnglish}
-            onclick={() => handleLanguageChange(language === "en" ? "zh-CN" : "en")}
-          >
-            <Languages size={16} strokeWidth={1.8} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-desktop"
-            aria-label={darkMode ? copy.lightMode : copy.darkMode}
-            title={darkMode ? copy.lightMode : copy.darkMode}
-            onclick={() => (darkMode = !darkMode)}
-          >
-            {#if darkMode}
-              <Sun size={16} strokeWidth={1.8} aria-hidden="true" />
-            {:else}
-              <Moon size={16} strokeWidth={1.8} aria-hidden="true" />
-            {/if}
-          </Button>
-          <Button
-            variant="outline"
-            size="desktop"
-            class="app-toolbar-density relative"
-            title={compact ? copy.comfortable : copy.compact}
-            onclick={() => (compact = !compact)}
-          >
-            <Settings2 size={16} strokeWidth={1.8} aria-hidden="true" />
-            <span class="app-toolbar-density-label">
-              {compact ? copy.comfortable : copy.compact}
-            </span>
-          </Button>
-        </div>
-      </header>
-    </div>
-
     <div
       class="mx-auto w-full min-w-0 max-w-[1480px] px-4 py-[var(--page-padding-block)] transition-[padding] duration-200 ease-out motion-reduce:transition-none sm:px-5 lg:px-6"
     >
-      {#if bridgeError}
-        <Alert.Root variant="destructive" class="mb-[var(--density-section-gap)] min-h-12 py-2">
-          <Alert.Description>{bridgeError}</Alert.Description>
-          {#if bridgeErrorCanRetry}
-            <Alert.Action class="right-2 top-1.5">
-              <Button variant="outline" size="desktop" disabled={busy} onclick={retryCurrentView}>
-                {copy.retry}
-              </Button>
-            </Alert.Action>
-          {/if}
-        </Alert.Root>
-      {:else if notice}
-        <Alert.Root
-          variant="success"
-          class="mb-[var(--density-section-gap)] min-h-12 py-2"
-          role="status"
-        >
-          <Alert.Description>{notice}</Alert.Description>
-          {#if noticeRoute}
-            <Alert.Action class="right-2 top-1.5">
-              <Button
-                variant="outline"
-                size="desktop"
-                class="bg-background/70"
-                onclick={() => void navigateTo(noticeRoute!)}
-              >
-                {copy.openAffectedContent}
-              </Button>
-            </Alert.Action>
-          {/if}
-        </Alert.Root>
-      {/if}
-
       {#if activeView === "workspaces"}
         {#if WorkspacesView}
           <WorkspacesView
@@ -2968,4 +2920,55 @@
       {/if}
     </div>
   </Sidebar.Inset>
+
+  {#if bridgeError || notice}
+    <div
+      data-slot="app-notification-region"
+      class="pointer-events-none fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))]"
+    >
+      <Alert.Root
+        variant={bridgeError ? "destructive" : "success"}
+        role={bridgeError ? "alert" : "status"}
+        aria-atomic="true"
+        class="pointer-events-auto gap-3 p-3 shadow-lg"
+      >
+        <div class="flex min-w-0 items-start gap-2">
+          <Alert.Description class="min-w-0 flex-1 pt-1">
+            {bridgeError ?? notice}
+          </Alert.Description>
+          <Button
+            variant="ghost"
+            size="icon-desktop"
+            class="-mt-1 -mr-1 shrink-0"
+            aria-label={copy.dismiss}
+            title={copy.dismiss}
+            onclick={dismissNotification}
+          >
+            <X size={16} strokeWidth={1.8} aria-hidden="true" />
+          </Button>
+        </div>
+        {#if bridgeErrorCanRetry || noticeRoute}
+          <div class="flex flex-wrap justify-end gap-2">
+            {#if bridgeErrorCanRetry}
+              <Button variant="outline" size="desktop" disabled={busy} onclick={retryCurrentView}>
+                {copy.retry}
+              </Button>
+            {:else if noticeRoute}
+              <Button
+                variant="outline"
+                size="desktop"
+                onclick={() => {
+                  const route = noticeRoute!;
+                  dismissNotification();
+                  void navigateTo(route);
+                }}
+              >
+                {copy.openAffectedContent}
+              </Button>
+            {/if}
+          </div>
+        {/if}
+      </Alert.Root>
+    </div>
+  {/if}
 </Sidebar.DesktopProvider>

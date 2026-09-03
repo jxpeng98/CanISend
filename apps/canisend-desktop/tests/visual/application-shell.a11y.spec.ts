@@ -134,9 +134,21 @@ test("Chinese dark compact shell at 200 percent meets automated accessibility ru
   });
   await expectNoAccessibilityViolations(page);
   await expectNoLayoutOverflow(page);
+  const shellWidths = await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>('[role="complementary"]');
+    const main = document.querySelector<HTMLElement>("#main-content");
+    if (!sidebar || !main) throw new Error("application shell is not rendered");
+    return {
+      sidebar: sidebar.getBoundingClientRect().width,
+      main: main.getBoundingClientRect().width,
+      viewport: document.documentElement.clientWidth,
+    };
+  });
+  expect(shellWidths.sidebar).toBeLessThanOrEqual(shellWidths.viewport * 0.33);
+  expect(shellWidths.main).toBeGreaterThanOrEqual(shellWidths.viewport * 0.67);
 });
 
-test("keyboard traversal reaches the skip link and primary navigation", async ({ page }) => {
+test("keyboard traversal reaches navigation and sidebar appearance controls", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -162,12 +174,19 @@ test("keyboard traversal reaches the skip link and primary navigation", async ({
   await page.keyboard.press("Shift+Tab");
   await expect(skipLink).toBeFocused();
 
+  const settings = page.getByRole("button", { name: "Settings", exact: true });
+  await settings.focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "简体中文", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Dark mode", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Compact density", exact: true })).toBeFocused();
+
+  await skipLink.focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("#main-content");
   await expect(page.locator("#main-content")).toBeVisible();
-
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "简体中文", exact: true })).toBeFocused();
 });
 
 test("density toggle changes the full application rhythm", async ({ page }) => {
@@ -182,10 +201,10 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
   const readDensity = () =>
     page.evaluate(() => {
       const shell = document.querySelector<HTMLElement>(".desktop-shell");
-      const header = document.querySelector<HTMLElement>("#main-content > div > header");
+      const pageRoot = document.querySelector<HTMLElement>('[data-slot="page-root"]');
       const sidebarItem = document.querySelector<HTMLElement>('[data-sidebar="menu-button"]');
       const card = document.querySelector<HTMLElement>('[data-slot="card"]');
-      if (!shell || !header || !sidebarItem || !card) {
+      if (!shell || !pageRoot || !sidebarItem || !card) {
         throw new Error("density fixtures are not rendered");
       }
       const style = getComputedStyle(shell);
@@ -196,7 +215,7 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
         panelPadding: style.getPropertyValue("--density-panel-padding").trim(),
         pagePadding: style.getPropertyValue("--page-padding-block").trim(),
         cardSpacing: getComputedStyle(card).getPropertyValue("--card-spacing").trim(),
-        headerHeight: header.getBoundingClientRect().height,
+        pageTop: pageRoot.getBoundingClientRect().top,
         sidebarItemHeight: sidebarItem.getBoundingClientRect().height,
       };
     });
@@ -209,7 +228,7 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
     panelPadding: "1rem",
     pagePadding: "1.5rem",
     cardSpacing: "1rem",
-    headerHeight: 56,
+    pageTop: 24,
     sidebarItemHeight: 36,
   });
 
@@ -225,12 +244,12 @@ test("density toggle changes the full application rhythm", async ({ page }) => {
     panelPadding: "0.75rem",
     pagePadding: "1rem",
     cardSpacing: "0.75rem",
-    headerHeight: 48,
+    pageTop: 16,
     sidebarItemHeight: 32,
   });
 });
 
-test("toolbar appearance and language buttons update the application state", async ({ page }) => {
+test("sidebar appearance and language buttons update the application state", async ({ page }) => {
   await openApplication(page, {
     language: "en",
     darkMode: false,
@@ -252,6 +271,38 @@ test("toolbar appearance and language buttons update the application state", asy
     }),
   ).toBeVisible();
   await expectNoLayoutOverflow(page);
+});
+
+test("application errors use a fixed dismissible notification without shifting content", async ({
+  page,
+}) => {
+  await page.route(/\/src\/lib\/views\/TodayView\.svelte(?:\?.*)?$/u, (route) => route.abort());
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "canisend.desktop.appearance.v1",
+      JSON.stringify({
+        language: "en",
+        darkMode: false,
+        compact: false,
+        reducedMotion: false,
+        textScale: 100,
+      }),
+    );
+  });
+  await page.goto("/");
+
+  const main = page.locator("#main-content");
+  const notification = page.locator('[data-slot="app-notification-region"]');
+  await expect(main).toBeVisible();
+  await expect(notification).toBeVisible();
+  await expect(notification).toHaveCSS("position", "fixed");
+  await expect(main.locator('[data-slot="app-notification-region"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+
+  const before = await main.boundingBox();
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(notification).toHaveCount(0);
+  expect(await main.boundingBox()).toEqual(before);
 });
 
 test("deferred product views remain reachable from primary navigation", async ({ page }) => {
@@ -300,6 +351,7 @@ test("secondary workspace and Agent actions use progressive disclosure", async (
     name: "System diagnostics",
     exact: true,
   });
+  await expect(diagnostics.locator("xpath=ancestor::*[@data-slot='card']")).toHaveCount(1);
   await diagnostics.click();
   await expect(page.getByRole("button", { name: "Run diagnostics" })).toBeVisible();
   await diagnostics.click();

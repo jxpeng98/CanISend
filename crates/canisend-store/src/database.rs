@@ -38,6 +38,28 @@ const WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION: &str =
     include_str!("../migrations/0019_workspace_source_provenance_v4.sql");
 const NATIVE_APPLICATION_V4_MIGRATION: &str =
     include_str!("../migrations/0020_native_application_v4.sql");
+const MIGRATIONS: &[(u32, &str)] = &[
+    (1, INITIAL_MIGRATION),
+    (2, INTAKE_MIGRATION),
+    (3, DISCOVERY_MIGRATION),
+    (4, AGENT_TASK_MIGRATION),
+    (5, WORKFLOW_KERNEL_MIGRATION),
+    (6, PROFILE_SOURCES_MIGRATION),
+    (7, EVIDENCE_WORKFLOW_MIGRATION),
+    (8, APPLICATION_PLANS_MIGRATION),
+    (9, DOCUMENT_HEADS_MIGRATION),
+    (10, REVIEW_HEADS_MIGRATION),
+    (11, PACKAGE_HEADS_MIGRATION),
+    (12, EXPORT_PROJECTIONS_MIGRATION),
+    (13, RENDER_HEADS_MIGRATION),
+    (14, APPLICATION_MODEL_V3_MIGRATION),
+    (15, WORKSPACE_V3_MIGRATION),
+    (16, APPLICATION_PROJECTIONS_V3_MIGRATION),
+    (17, APPLICATION_PACK_MIGRATIONS_V3_MIGRATION),
+    (18, APPLICATION_ASSOCIATIONS_V4_MIGRATION),
+    (19, WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION),
+    (20, NATIVE_APPLICATION_V4_MIGRATION),
+];
 
 pub struct Database {
     connection: Connection,
@@ -53,7 +75,7 @@ impl Database {
         let mut database = Self { connection };
         database.configure()?;
         database.migrate()?;
-        database.verify_migration_history()?;
+        database.verify_migration_history(DATABASE_SCHEMA_VERSION)?;
         Ok(database)
     }
 
@@ -66,136 +88,68 @@ impl Database {
     }
 
     fn migrate(&mut self) -> Result<(), StoreError> {
-        let version = ensure_supported_schema(&self.connection, DATABASE_SCHEMA_VERSION)?;
-        let mut version = version;
-        if version == 0 {
-            let applied_at = now_utc()?;
-            self.apply_migration(1, INITIAL_MIGRATION, &applied_at)?;
-            version = 1;
+        let current = ensure_supported_schema(&self.connection, DATABASE_SCHEMA_VERSION)?;
+        if current == DATABASE_SCHEMA_VERSION {
+            return Ok(());
         }
-        if version == 1 {
-            let applied_at = now_utc()?;
-            self.apply_migration(2, INTAKE_MIGRATION, &applied_at)?;
-            version = 2;
+        if current > 0 {
+            self.verify_migration_history(current)?;
         }
-        if version == 2 {
-            let applied_at = now_utc()?;
-            self.apply_migration(3, DISCOVERY_MIGRATION, &applied_at)?;
-            version = 3;
-        }
-        if version == 3 {
-            let applied_at = now_utc()?;
-            self.apply_migration(4, AGENT_TASK_MIGRATION, &applied_at)?;
-            version = 4;
-        }
-        if version == 4 {
-            let applied_at = now_utc()?;
-            self.apply_migration(5, WORKFLOW_KERNEL_MIGRATION, &applied_at)?;
-            version = 5;
-        }
-        if version == 5 {
-            let applied_at = now_utc()?;
-            self.apply_migration(6, PROFILE_SOURCES_MIGRATION, &applied_at)?;
-            version = 6;
-        }
-        if version == 6 {
-            let applied_at = now_utc()?;
-            self.apply_migration(7, EVIDENCE_WORKFLOW_MIGRATION, &applied_at)?;
-            version = 7;
-        }
-        if version == 7 {
-            let applied_at = now_utc()?;
-            self.apply_migration(8, APPLICATION_PLANS_MIGRATION, &applied_at)?;
-            version = 8;
-        }
-        if version == 8 {
-            let applied_at = now_utc()?;
-            self.apply_migration(9, DOCUMENT_HEADS_MIGRATION, &applied_at)?;
-            version = 9;
-        }
-        if version == 9 {
-            let applied_at = now_utc()?;
-            self.apply_migration(10, REVIEW_HEADS_MIGRATION, &applied_at)?;
-            version = 10;
-        }
-        if version == 10 {
-            let applied_at = now_utc()?;
-            self.apply_migration(11, PACKAGE_HEADS_MIGRATION, &applied_at)?;
-            version = 11;
-        }
-        if version == 11 {
-            let applied_at = now_utc()?;
-            self.apply_migration(12, EXPORT_PROJECTIONS_MIGRATION, &applied_at)?;
-            version = 12;
-        }
-        if version == 12 {
-            let applied_at = now_utc()?;
-            self.apply_migration(13, RENDER_HEADS_MIGRATION, &applied_at)?;
-            version = 13;
-        }
-        if version == 13 {
-            let applied_at = now_utc()?;
-            self.apply_migration(14, APPLICATION_MODEL_V3_MIGRATION, &applied_at)?;
-            version = 14;
-        }
-        if version == 14 {
-            let applied_at = now_utc()?;
-            self.apply_migration(15, WORKSPACE_V3_MIGRATION, &applied_at)?;
-            version = 15;
-        }
-        if version == 15 {
-            let applied_at = now_utc()?;
-            self.apply_migration(16, APPLICATION_PROJECTIONS_V3_MIGRATION, &applied_at)?;
-            version = 16;
-        }
-        if version == 16 {
-            let applied_at = now_utc()?;
-            self.apply_migration(17, APPLICATION_PACK_MIGRATIONS_V3_MIGRATION, &applied_at)?;
-            version = 17;
-        }
-        if version == 17 {
-            let applied_at = now_utc()?;
-            self.apply_migration(18, APPLICATION_ASSOCIATIONS_V4_MIGRATION, &applied_at)?;
-            version = 18;
-        }
-        if version == 18 {
-            let applied_at = now_utc()?;
-            self.apply_migration(19, WORKSPACE_SOURCE_PROVENANCE_V4_MIGRATION, &applied_at)?;
-            version = 19;
-        }
-        if version == 19 {
-            let applied_at = now_utc()?;
-            self.apply_migration(20, NATIVE_APPLICATION_V4_MIGRATION, &applied_at)?;
-        }
-        Ok(())
+        self.apply_migration_sequence(current, DATABASE_SCHEMA_VERSION, MIGRATIONS, &now_utc()?)
     }
 
-    fn apply_migration(
+    fn apply_migration_sequence(
         &mut self,
-        version: u32,
-        sql: &str,
+        current: u32,
+        target: u32,
+        migrations: &[(u32, &str)],
         applied_at: &UtcTimestamp,
     ) -> Result<(), StoreError> {
+        let pending = migrations
+            .iter()
+            .copied()
+            .filter(|(version, _)| *version > current && *version <= target)
+            .collect::<Vec<_>>();
+        let actual = pending
+            .iter()
+            .map(|(version, _)| *version)
+            .collect::<Vec<_>>();
+        let expected = ((current + 1)..=target).collect::<Vec<_>>();
+        if actual != expected {
+            return Err(StoreError::Invariant(format!(
+                "database migration sequence differs: expected {expected:?}, found {actual:?}"
+            )));
+        }
+
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        transaction.execute_batch(sql)?;
-        transaction.execute(
-            "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, ?2)",
-            params![version, applied_at.as_str()],
-        )?;
+        for (version, sql) in pending {
+            transaction.execute_batch(sql)?;
+            let found: u32 =
+                transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
+            if found != version {
+                return Err(StoreError::Invariant(format!(
+                    "database migration {version} set schema version {found}"
+                )));
+            }
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, ?2)",
+                params![version, applied_at.as_str()],
+            )?;
+        }
         transaction.commit()?;
         Ok(())
     }
 
-    fn verify_migration_history(&self) -> Result<(), StoreError> {
+    fn verify_migration_history(&self, expected_version: u32) -> Result<(), StoreError> {
         let mut statement = self
             .connection
             .prepare("SELECT version FROM schema_migrations ORDER BY version")?;
         let actual = statement
             .query_map([], |row| row.get::<_, u32>(0))?
             .collect::<Result<Vec<_>, _>>()?;
-        let expected = (1..=DATABASE_SCHEMA_VERSION).collect::<Vec<_>>();
+        let expected = (1..=expected_version).collect::<Vec<_>>();
         if actual != expected {
             return Err(StoreError::Invariant(format!(
                 "database migration history differs: expected {expected:?}, found {actual:?}"
@@ -445,7 +399,12 @@ mod tests {
             .expect("migration count");
         assert!(
             database
-                .apply_migration(99, "CREATE TABLE broken (", &now_utc().expect("timestamp"))
+                .apply_migration_sequence(
+                    DATABASE_SCHEMA_VERSION,
+                    DATABASE_SCHEMA_VERSION + 1,
+                    &[(DATABASE_SCHEMA_VERSION + 1, "CREATE TABLE broken (")],
+                    &now_utc().expect("timestamp"),
+                )
                 .is_err()
         );
         let after: i64 = database
@@ -458,6 +417,94 @@ mod tests {
         drop(database);
         fs::write(&path, b"not sqlite").expect("corrupt database");
         assert!(Database::open(&path).is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn migration_sequence_failure_rolls_back_entire_pending_chain_and_retries() {
+        const SECOND_MIGRATION: &str =
+            "CREATE TABLE migration_two (id INTEGER PRIMARY KEY) STRICT; PRAGMA user_version = 2;";
+        const INVALID_THIRD_MIGRATION: &str = "CREATE TABLE migration_three (id INTEGER PRIMARY KEY) STRICT; PRAGMA user_version = 4;";
+        const THIRD_MIGRATION: &str = "CREATE TABLE migration_three (id INTEGER PRIMARY KEY) STRICT; PRAGMA user_version = 3;";
+
+        let path = path("migration-sequence");
+        let connection = rusqlite::Connection::open(&path).expect("version one database");
+        connection
+            .execute_batch(INITIAL_MIGRATION)
+            .expect("initial migration");
+        connection
+            .execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?1)",
+                [now_utc().expect("timestamp").as_str()],
+            )
+            .expect("initial migration record");
+        let mut database = Database { connection };
+
+        let error = database
+            .apply_migration_sequence(
+                1,
+                3,
+                &[(2, SECOND_MIGRATION), (3, INVALID_THIRD_MIGRATION)],
+                &now_utc().expect("timestamp"),
+            )
+            .expect_err("invalid sequence must roll back");
+        assert!(matches!(error, StoreError::Invariant(_)));
+
+        let version: u32 = database
+            .connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("schema version after rollback");
+        assert_eq!(version, 1);
+        let migration_tables: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema
+                 WHERE type = 'table' AND name IN ('migration_two', 'migration_three')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("migration tables after rollback");
+        assert_eq!(migration_tables, 0);
+        let migration_count: i64 = database
+            .connection
+            .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
+            .expect("migration history after rollback");
+        assert_eq!(migration_count, 1);
+
+        database
+            .apply_migration_sequence(
+                1,
+                3,
+                &[(2, SECOND_MIGRATION), (3, THIRD_MIGRATION)],
+                &now_utc().expect("timestamp"),
+            )
+            .expect("corrected sequence retries");
+        let version: u32 = database
+            .connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("schema version after retry");
+        assert_eq!(version, 3);
+        let migration_tables: i64 = database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema
+                 WHERE type = 'table' AND name IN ('migration_two', 'migration_three')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("migration tables after retry");
+        assert_eq!(migration_tables, 2);
+        let migration_count: i64 = database
+            .connection
+            .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
+            .expect("migration history after retry");
+        assert_eq!(migration_count, 3);
+
+        drop(database);
         let _ = fs::remove_file(path);
     }
 
@@ -504,8 +551,32 @@ mod tests {
         drop(database);
         assert!(Database::open(&history_path).is_err());
 
+        let pending_history_path = path("incomplete-pending-history");
+        let pending = rusqlite::Connection::open(&pending_history_path).expect("version one db");
+        pending
+            .execute_batch(INITIAL_MIGRATION)
+            .expect("initial migration without history");
+        drop(pending);
+        assert!(Database::open(&pending_history_path).is_err());
+        let pending =
+            rusqlite::Connection::open(&pending_history_path).expect("reopen version one");
+        let version: u32 = pending
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .expect("pending version remains");
+        assert_eq!(version, 1);
+        let revision_column: i64 = pending
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('jobs') WHERE name = 'revision'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("pending schema remains");
+        assert_eq!(revision_column, 0);
+        drop(pending);
+
         let _ = fs::remove_file(future_path);
         let _ = fs::remove_file(history_path);
+        let _ = fs::remove_file(pending_history_path);
     }
 
     #[test]
