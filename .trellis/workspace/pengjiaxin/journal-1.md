@@ -432,3 +432,29 @@ Refined the desktop shell and bilingual copy, moved transient feedback into acce
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: Prepare private Beta.2 CLI and Workspace readiness
+
+**Date**: 2026-09-03
+**Task**: Prepare private Beta.2 CLI and Workspace readiness
+**Branch**: `chore/beta2-readiness-closeout`
+
+### Summary
+
+Merged policy PR #219 and source-transition PR #220; prepared the private untagged Beta.2 source checkpoint with sequential Beta history, complete App-closed CLI, Skills, MCP, and Workspace recovery evidence, and no Beta.2 publication.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3b46c6ee9d54db94a4c2851747a88d89afe12c10` | (see git log) |
+| `e3d1b04ede01e01ccdd4ef9acf17d08868980ab5` | (see git log) |
+| `58d31c82ae35aba948fbe5bc1d4c37008fb2fa13` | (see git log) |
+| `29ff5a58d071a67c240dad553fcb782f44c0118a` | (see git log) |
+| `dcbeadf6e3f62943ffd072ceb1b409a30e9338b1` | (see git log) |
+| `fba36525fa865d4ecc45b3b6ce9b5919111412d0` | (see git log) |
+
+### Status
+
+[OK] **Completed**
