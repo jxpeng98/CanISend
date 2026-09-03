@@ -82,6 +82,14 @@
         "crates/canisend-store/src/database.rs"
       ],
       "reason": "Harden the unpublished desktop test candidate by reclaiming content space, standardizing feedback and diagnostics, and making pending Workspace schema upgrades atomic."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "ee617c08ff24fbb5567afda8a42cbefd197a3b9c",
+      "paths": [
+        "apps/canisend-desktop/src/lib/views/TodayView.svelte"
+      ],
+      "reason": "Align the diagnostics disclosure with the shared feature-surface radius required by the desktop UI contract."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
