@@ -66,6 +66,22 @@
         "apps/canisend-desktop/tests/visual/application-shell.a11y.spec.ts"
       ],
       "reason": "Keep the existing visual accessibility, navigation, and reflow checks aligned with the refined bilingual interface copy."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "5734ffac8138b8f1690db4161c3af4959cde8669",
+      "paths": [
+        ".trellis/spec/backend/database-guidelines.md",
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/app.css",
+        "apps/canisend-desktop/src/lib/accessibility-contract.test.ts",
+        "apps/canisend-desktop/src/lib/i18n.ts",
+        "apps/canisend-desktop/src/lib/views/SettingsView.svelte",
+        "apps/canisend-desktop/src/lib/views/TodayView.svelte",
+        "apps/canisend-desktop/tests/visual/application-shell.a11y.spec.ts",
+        "crates/canisend-store/src/database.rs"
+      ],
+      "reason": "Harden the unpublished desktop test candidate by reclaiming content space, standardizing feedback and diagnostics, and making pending Workspace schema upgrades atomic."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
