@@ -61,7 +61,7 @@
     "fuzz/Cargo.toml exact internal dependencies",
     "Cargo.lock workspace package versions",
     "fuzz/Cargo.lock internal package versions",
-    "desktop and native-preview npm package versions plus the desktop fallback version",
+    "desktop and native-preview npm package versions",
     "docs/contracts/cli-gui-parity-v1.json Alpha scope",
     "docs/performance/macos-gui-alpha-baseline.json source version",
     "release/alpha-package-contract.json versioned asset names",

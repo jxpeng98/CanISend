@@ -2814,7 +2814,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "fuzz/Cargo.toml exact internal dependencies",
             "Cargo.lock workspace package versions",
             "fuzz/Cargo.lock internal package versions",
-            "desktop and native-preview npm package versions plus the desktop fallback version",
+            "desktop and native-preview npm package versions",
             "docs/contracts/cli-gui-parity-v1.json Alpha scope",
             "docs/performance/macos-gui-alpha-baseline.json source version",
             "release/alpha-package-contract.json versioned asset names",
@@ -5114,12 +5114,6 @@ fn insert_active_source_version_updates(
             format!("\"version\": \"{from}\""),
             format!("\"version\": \"{to}\""),
             "native-preview package version",
-        ),
-        (
-            "apps/canisend-desktop/src/App.svelte",
-            format!("product?.version ?? \"{from}\""),
-            format!("product?.version ?? \"{to}\""),
-            "desktop fallback version",
         ),
         (
             "docs/contracts/cli-gui-parity-v1.json",
@@ -16613,10 +16607,6 @@ mod tests {
                 format!("{{\n  \"version\": \"{version}\"\n}}\n"),
             ),
             (
-                "apps/canisend-desktop/src/App.svelte",
-                format!("<span>{{product?.version ?? \"{version}\"}}</span>\n"),
-            ),
-            (
                 "docs/contracts/cli-gui-parity-v1.json",
                 format!("{{\n  \"version\": \"{version}\"\n}}\n"),
             ),
@@ -18636,7 +18626,6 @@ mod tests {
         }
         for relative in [
             "tools/native-preview",
-            "apps/canisend-desktop/src",
             "docs/contracts",
             "docs/guides",
             "docs/performance",
@@ -18651,11 +18640,6 @@ mod tests {
             "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
         )
         .expect("write native-preview package fixture");
-        fs::write(
-            root.join("apps/canisend-desktop/src/App.svelte"),
-            "<span>{product?.version ?? \"1.0.0-alpha.5\"}</span>\n",
-        )
-        .expect("write desktop fallback fixture");
         fs::write(
             root.join("docs/contracts/cli-gui-parity-v1.json"),
             "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
@@ -18713,10 +18697,9 @@ mod tests {
         let mut cross_stage = BTreeMap::new();
         insert_active_source_version_updates(&root, &mut cross_stage, &from, &beta)
             .expect("render cross-stage source updates");
-        assert_eq!(cross_stage.len(), 10);
+        assert_eq!(cross_stage.len(), 9);
         for relative in [
             "tools/native-preview/package.json",
-            "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
             "docs/performance/macos-gui-alpha-baseline.json",
             ".github/workflows/release.yml",
@@ -18749,10 +18732,9 @@ mod tests {
             .expect("render Alpha source updates");
         insert_sequential_alpha_evidence_resets(&mut files, &to)
             .expect("render sequential Alpha evidence resets");
-        assert_eq!(files.len(), 13);
+        assert_eq!(files.len(), 12);
         for relative in [
             "tools/native-preview/package.json",
-            "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
             "docs/performance/macos-gui-alpha-baseline.json",
             ".github/workflows/release.yml",
@@ -19193,7 +19175,7 @@ mod tests {
             fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
             workspace_before
         );
-        assert_eq!(transition.files.len(), 16);
+        assert_eq!(transition.files.len(), 15);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply rendered transition fixture");
         }
@@ -19328,7 +19310,7 @@ mod tests {
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 18);
+        assert_eq!(transition.files.len(), 17);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
