@@ -148,7 +148,7 @@
           <Card.Header class="p-0">
             <Accordion.Trigger
               level={2}
-              class="rounded-xl px-[var(--card-spacing)] py-[var(--card-spacing)] text-sm font-semibold"
+              class="rounded-lg px-[var(--card-spacing)] py-[var(--card-spacing)] text-sm font-semibold"
             >
               <span class="flex items-center gap-2">
                 <Activity size={17} strokeWidth={1.8} aria-hidden="true" />
