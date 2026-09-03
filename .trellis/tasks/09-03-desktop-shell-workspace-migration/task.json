@@ -5,14 +5,14 @@
   "description": "",
   "status": "in_progress",
   "dev_type": null,
-  "scope": null,
+  "scope": "desktop-store",
   "package": null,
   "priority": "P2",
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-09-03",
   "completedAt": null,
-  "branch": null,
+  "branch": "fix/desktop-shell-workspace-migration",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -22,5 +22,7 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {
+    "candidate_commit": "23d884b8a6aa4e559a8d8995d74acf47721d3f55"
+  }
 }
