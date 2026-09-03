@@ -115,10 +115,10 @@ cargo run -p xtask --locked -- release check
 
 ## 8. Create, verify, and merge the pull request
 
-- [ ] Push the branch and create an English PR description covering scope, evidence, migration
+- [x] Push the branch and create an English PR description covering scope, evidence, migration
       limitation, exact freeze exception, risks, and rollback.
-- [ ] Wait for all protected required checks; fix root causes and rerun only invalidated evidence.
-- [ ] Merge through the protected commit-preserving path only when local, candidate, and CI gates
+- [x] Wait for all protected required checks; fix root causes and rerun only invalidated evidence.
+- [x] Merge through the protected commit-preserving path only when local, candidate, and CI gates
       pass; confirm no release, tag, or public artifact was created.
-- [ ] Reconcile task evidence, update durable specs only for a newly learned invariant, commit
+- [x] Reconcile task evidence, update durable specs only for a newly learned invariant, commit
       closeout records, archive the task, and record the session.
