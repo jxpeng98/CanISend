@@ -9,8 +9,9 @@
 | UI contract correction | `ee617c08ff24fbb5567afda8a42cbefd197a3b9c` |
 | Candidate type | Local macOS Design Preview |
 | Product version | `1.0.0-beta.1` (unchanged) |
+| Pull request | [#217](https://github.com/jxpeng98/CanISend/pull/217) |
 | Publication authorization | No |
-| Current decision | Ready for private pull-request validation |
+| Current decision | Pull-request CI pending |
 
 ## Fresh verification
 

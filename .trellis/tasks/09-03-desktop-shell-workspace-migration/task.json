@@ -16,7 +16,7 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
-  "pr_url": null,
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/217",
   "subtasks": [],
   "children": [],
   "parent": null,
