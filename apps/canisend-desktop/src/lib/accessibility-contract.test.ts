@@ -89,7 +89,10 @@ describe("desktop accessibility contract", () => {
   it("announces asynchronous, recovery, and conversation changes", () => {
     expect(app).toContain('<Alert.Root variant="destructive"');
     expect(alert).toContain('role="alert"');
-    expect(app).toContain('role="status"');
+    expect(app).toContain('data-slot="app-notification-region"');
+    expect(app).toContain('role={bridgeError ? "alert" : "status"}');
+    expect(app).toContain('aria-atomic="true"');
+    expect(app).toContain("aria-label={copy.dismiss}");
     expect(agentView).toContain("<LoadingPanel");
     expect(loadingPanel).toContain('role="status"');
     expect(agentView).toContain('<Alert.Root variant="destructive"');
@@ -204,12 +207,19 @@ describe("desktop accessibility contract", () => {
     expect(playwrightConfig).not.toContain("pnpm exec vite");
   });
 
-  it("keeps build metadata out of navigation and shows the product version in Settings", () => {
+  it("keeps the shell compact and moves persistent details into Settings", () => {
+    expect(app).not.toContain("{copy.appTagline}");
+    expect(app).not.toContain("{copy.localFirst}");
+    expect(app).not.toContain("<header");
+    expect(app).toContain('role="group" aria-label={copy.appearance}');
     expect(app).not.toContain(">Svelte</Badge>");
     expect(app).not.toContain('product?.version ?? "1.0.0-beta.1"');
     expect(app).toContain("productVersion={product?.version ?? null}");
     expect(settingsView).toContain('{copy.version} {productVersion ?? "—"}');
+    expect(settingsView).toContain("{copy.localFirst}");
+    expect(settingsView).toContain("{copy.localDescription}");
     expect(todayView).not.toContain("product?.version");
+    expect(todayView).toContain('<Card.Root class="self-start gap-0 py-0">');
   });
 
   it("presents only the four canonical v4 Skills", () => {

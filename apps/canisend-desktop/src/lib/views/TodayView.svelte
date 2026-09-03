@@ -142,44 +142,50 @@
       </Card.Content>
     </Card.Root>
 
-    <Accordion.Root
-      type="single"
-      class="self-start rounded-lg border bg-card px-[var(--density-panel-padding)] text-card-foreground shadow-xs"
-    >
-      <Accordion.Item value="system-diagnostics" class="border-0">
-        <Accordion.Trigger level={2} class="py-3 text-sm font-semibold">
-          <span class="flex items-center gap-2">
-            <Activity size={17} strokeWidth={1.8} aria-hidden="true" />
-            {copy.diagnostics}
-          </span>
-        </Accordion.Trigger>
-        <Accordion.Content
-          class="space-y-[var(--density-section-gap)] pb-[var(--density-panel-padding)]"
-        >
-          <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt class="text-muted-foreground">{copy.protocol}</dt>
-            <dd class="truncate text-right font-medium">{product?.protocol ?? "—"}</dd>
-            <dt class="text-muted-foreground">{copy.platform}</dt>
-            <dd class="truncate text-right font-medium">
-              {product ? `${product.target_os} / ${product.target_arch}` : "—"}
-            </dd>
-          </dl>
-          <Separator />
-          <div class="flex flex-wrap items-center justify-between gap-[var(--density-section-gap)]">
-            <p class="min-w-0 flex-1 text-sm text-muted-foreground" aria-live="polite">
-              {doctor?.summary ?? copy.diagnosticsReady}
-            </p>
-            <Button
-              variant="outline"
-              class="min-h-9 shrink-0"
-              disabled={doctorRunning || !desktopRuntime}
-              onclick={onDoctor}
+    <Card.Root class="self-start gap-0 py-0">
+      <Accordion.Root type="single">
+        <Accordion.Item value="system-diagnostics" class="border-0">
+          <Card.Header class="p-0">
+            <Accordion.Trigger
+              level={2}
+              class="rounded-lg px-[var(--card-spacing)] py-[var(--card-spacing)] text-sm font-semibold"
             >
-              {doctorRunning ? copy.runningDiagnostics : copy.runDiagnostics}
-            </Button>
-          </div>
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion.Root>
+              <span class="flex items-center gap-2">
+                <Activity size={17} strokeWidth={1.8} aria-hidden="true" />
+                {copy.diagnostics}
+              </span>
+            </Accordion.Trigger>
+          </Card.Header>
+          <Accordion.Content class="pb-0">
+            <Card.Content class="space-y-[var(--density-section-gap)] pb-[var(--card-spacing)]">
+              <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt class="text-muted-foreground">{copy.protocol}</dt>
+                <dd class="truncate text-right font-medium">{product?.protocol ?? "—"}</dd>
+                <dt class="text-muted-foreground">{copy.platform}</dt>
+                <dd class="truncate text-right font-medium">
+                  {product ? `${product.target_os} / ${product.target_arch}` : "—"}
+                </dd>
+              </dl>
+              <Separator />
+              <div
+                class="flex flex-wrap items-center justify-between gap-[var(--density-section-gap)]"
+              >
+                <p class="min-w-0 flex-1 text-sm text-muted-foreground" aria-live="polite">
+                  {doctor?.summary ?? copy.diagnosticsReady}
+                </p>
+                <Button
+                  variant="outline"
+                  class="min-h-9 shrink-0"
+                  disabled={doctorRunning || !desktopRuntime}
+                  onclick={onDoctor}
+                >
+                  {doctorRunning ? copy.runningDiagnostics : copy.runDiagnostics}
+                </Button>
+              </div>
+            </Card.Content>
+          </Accordion.Content>
+        </Accordion.Item>
+      </Accordion.Root>
+    </Card.Root>
   </Page.Grid>
 </Page.Root>

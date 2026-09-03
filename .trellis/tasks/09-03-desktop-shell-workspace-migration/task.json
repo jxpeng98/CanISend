@@ -1,0 +1,28 @@
+{
+  "id": "desktop-shell-workspace-migration",
+  "name": "desktop-shell-workspace-migration",
+  "title": "Refine desktop shell and harden workspace migration",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "desktop-store",
+  "package": null,
+  "priority": "P2",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-09-03",
+  "completedAt": null,
+  "branch": "fix/desktop-shell-workspace-migration",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/217",
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "candidate_commit": "23d884b8a6aa4e559a8d8995d74acf47721d3f55"
+  }
+}

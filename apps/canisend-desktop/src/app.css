@@ -16,8 +16,7 @@
   --card-spacing-default: 1rem;
   --card-spacing-sm: 0.75rem;
   --page-padding-block: 1.5rem;
-  --app-header-height: 3.5rem;
-  --sidebar-header-height: 3rem;
+  --sidebar-header-height: 2.5rem;
   --sidebar-item-height: 2.25rem;
   --sidebar-padding-block: 0.75rem;
   --tabs-height: 2.25rem;
@@ -95,8 +94,7 @@
 }
 
 @theme inline {
-  --font-sans:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -312,32 +310,15 @@ body {
 }
 
 @container main-content (max-width: 32rem) {
-  #main-content :where(
-    [class*="sm:grid-cols-"],
-    [class*="md:grid-cols-"],
-    [class*="lg:grid-cols-"],
-    [class*="xl:grid-cols-"],
-    [class*="2xl:grid-cols-"]
-  ) {
+  #main-content
+    :where(
+      [class*="sm:grid-cols-"],
+      [class*="md:grid-cols-"],
+      [class*="lg:grid-cols-"],
+      [class*="xl:grid-cols-"],
+      [class*="2xl:grid-cols-"]
+    ) {
     grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .app-toolbar-density {
-    width: var(--control-height);
-    min-width: var(--control-height);
-    padding-inline: 0;
-  }
-
-  .app-toolbar-density-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 
   .workspace-next-action-button {
@@ -403,8 +384,7 @@ textarea {
   --card-spacing-default: 0.75rem;
   --card-spacing-sm: 0.625rem;
   --page-padding-block: 1rem;
-  --app-header-height: 3rem;
-  --sidebar-header-height: 2.5rem;
+  --sidebar-header-height: 2.25rem;
   --sidebar-item-height: 2rem;
   --sidebar-padding-block: 0.5rem;
   --tabs-height: 2rem;
@@ -424,8 +404,7 @@ textarea {
   --card-spacing-default: 1rem;
   --card-spacing-sm: 0.75rem;
   --page-padding-block: 1.5rem;
-  --app-header-height: 3.5rem;
-  --sidebar-header-height: 3rem;
+  --sidebar-header-height: 2.5rem;
   --sidebar-item-height: 2.25rem;
   --sidebar-padding-block: 0.75rem;
   --tabs-height: 2.25rem;

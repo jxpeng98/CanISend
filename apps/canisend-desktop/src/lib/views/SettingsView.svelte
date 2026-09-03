@@ -317,6 +317,18 @@
               </Item.Content>
             </Item.Root>
           </Item.Group>
+          <Item.Root
+            variant="outline"
+            class="items-start gap-3 p-[var(--density-panel-padding)] md:col-span-2"
+          >
+            <Item.Media variant="icon" class="text-muted-foreground">
+              <ShieldCheck size={18} strokeWidth={1.8} aria-hidden="true" />
+            </Item.Media>
+            <Item.Content>
+              <Item.Title>{copy.localFirst}</Item.Title>
+              <Item.Description class="line-clamp-none">{copy.localDescription}</Item.Description>
+            </Item.Content>
+          </Item.Root>
         </Card.Content>
       </Card.Root>
       <Card.Root>
