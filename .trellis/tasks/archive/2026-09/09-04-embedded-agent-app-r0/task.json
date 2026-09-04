@@ -3,7 +3,7 @@
   "name": "embedded-agent-app-r0",
   "title": "R0 App-first architecture and Workspace v4 blocker",
   "description": "Establish the App-first Codex App Server/MCP authority and remove the clean Workspace v4 legacy compatibility blocker",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "desktop-agent-authority-and-workspace-v4-preparation",
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-09-04",
-  "completedAt": null,
+  "completedAt": "2026-09-04",
   "branch": "feat/beta2-cli-skills-readiness",
   "base_branch": "main",
   "worktree_path": null,
@@ -39,6 +39,9 @@
     "verification": "focused owning Rust regression plus typed bridge/screen regression and explicit legacy-repository case",
     "verified_head": "b8a412e8b02aba35520191d508df0aaed2e49b81",
     "freeze_exception_commit": "ab12758417d980a6e2a517a98ba69985f20fb8a4",
+    "scope_contract_commit": "b8a412e8b02aba35520191d508df0aaed2e49b81",
+    "completion_evidence_commit": "f09373a9e381dc402d1ebd5c2c7652c70b173f00",
+    "completion_exception_commit": "ea8e7b2062727a1771f30e7899a6463c2ca4e147",
     "rollback": "revert authority reconciliation and blocker patch; retain external handoff"
   }
 }

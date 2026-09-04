@@ -71,4 +71,6 @@ implemented in R0.
 `cargo run -p xtask --locked -- release check` passed on
 `b8a412e8b02aba35520191d508df0aaed2e49b81`. The implementation is
 `d167cc0a25e0a4e10033b21e89a94f69e07482e2`; its exact feature-freeze record is
-`ab12758417d980a6e2a517a98ba69985f20fb8a4`. R1 remains unstarted.
+`ab12758417d980a6e2a517a98ba69985f20fb8a4`. Completion status is recorded by
+`f09373a9e381dc402d1ebd5c2c7652c70b173f00` and its release-evidence exception
+`ea8e7b2062727a1771f30e7899a6463c2ca4e147`. R1 remains unstarted.
