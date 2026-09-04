@@ -1,6 +1,6 @@
 # Embedded Agent App Roadmap and MVP Checklist
 
-Status: Approved roadmap; R0 complete; R1 verification in progress
+Status: Approved roadmap; R0 and R1 complete; R2 not started
 Date: 2026-09-04
 
 ## Roadmap at a glance
@@ -66,22 +66,22 @@ direction; no shell migration is open-ended.
 
 Outcome: a user can hold one streamed Codex conversation inside the App.
 
-- [ ] Add a deterministic fake Codex App Server process for offline protocol tests.
-- [ ] Implement newline-delimited JSON-RPC framing with bounded input/output.
-- [ ] Implement `initialize`/`initialized` and required-method/capability validation.
-- [ ] Implement thread start/resume, turn start, notification/server-request streaming,
+- [x] Add a deterministic fake Codex App Server process for offline protocol tests.
+- [x] Implement newline-delimited JSON-RPC framing with bounded input/output.
+- [x] Implement `initialize`/`initialized` and required-method/capability validation.
+- [x] Implement thread start/resume, turn start, notification/server-request streaming,
       `turn/interrupt`, and shutdown.
-- [ ] Assign desktop session/turn IDs and monotonic event sequence numbers before normalizing provider
+- [x] Assign desktop session/turn IDs and monotonic event sequence numbers before normalizing provider
       events.
-- [ ] Reuse the existing Codex executable discovery path, run `codex --version`, and spawn exactly
+- [x] Reuse the existing Codex executable discovery path, run `codex --version`, and spawn exactly
       `codex app-server --listen stdio://` without a shell.
-- [ ] Separate stdout protocol parsing from bounded/redacted stderr diagnostics.
-- [ ] Add timeouts, request correlation, child-exit handling, and exact-child cleanup.
-- [ ] Expose one Tauri start/load command, one turn command with a streaming channel, one cancel
+- [x] Separate stdout protocol parsing from bounded/redacted stderr diagnostics.
+- [x] Add timeouts, request correlation, child-exit handling, and exact-child cleanup.
+- [x] Expose one Tauri start/load command, one turn command with a streaming channel, one cancel
       command, and one status/readiness command.
-- [ ] Version and migrate the existing session registry; persist only resumable metadata and
+- [x] Version and migrate the existing session registry; persist only resumable metadata and
       body-free receipt references, never transcript bodies.
-- [ ] Add a minimal conversation panel to prove streaming, cancel, restart, and resume.
+- [x] Add a minimal conversation panel to prove streaming, cancel, restart, and resume.
 
 Exit: fake-App-Server tests pass and a local Codex session streams in the App without invoking the old
 process-per-turn path.

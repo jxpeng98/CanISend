@@ -1,6 +1,6 @@
 # R1 design
 
-Status: Implemented; exact source gate pending
+Status: Complete; implementation and exact source gate verified
 
 ## Smallest viable shape
 

@@ -38,3 +38,22 @@ Source: https://learn.chatgpt.com/docs/app-server
   runtime controls needed for the vertical slice.
 - The operation registry already lists the three current runtime commands, so R1 needs only one new
   `start_agent_session` leaf.
+
+## Executed verification
+
+The source implementation is `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3`; its exact feature-freeze
+exception is `dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5`. The source gate passed on that
+exception head.
+
+- Registry tests: 4 passed; desktop library tests: 47 passed.
+- Fake App Server lifecycle integration: 1 passed, covering stream/resume/cancel, fail-closed
+  approval, malformed and oversized framing, timeout, child exit, and authentication-required.
+- Signed-in `codex-cli 0.152.0` smoke: start, resume, restart, and cancel passed through the
+  production App Server transport.
+- Frontend: Svelte check reported 0 errors and 0 warnings; 88 Vitest tests and the Vite build passed.
+- Rust formatting, affected-package strict Clippy, Prettier, and `git diff --check` passed.
+- `cargo run -p xtask --locked -- release check` passed with every reported release check `ok`.
+
+Only the registry format, Workspace/runtime scope, desktop session/turn IDs, external session/turn
+IDs, provider version, finite status, and timestamps are retained. No prompt, response, transcript,
+approval token, evidence body, account data, or raw diagnostic body was recorded as evidence.

@@ -15,12 +15,30 @@
   "branch": "feat/beta2-cli-skills-readiness",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3",
   "pr_url": null,
   "subtasks": [],
   "children": [],
   "parent": "09-04-embedded-agent-app-roadmap",
-  "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "relatedFiles": [
+    ".trellis/spec/backend/directory-structure.md",
+    "apps/canisend-desktop/src/lib/agent-state.svelte.ts",
+    "apps/canisend-desktop/src/lib/bridge.ts",
+    "apps/canisend-desktop/src/lib/views/AgentView.svelte",
+    "crates/canisend-app/src/agent_session.rs",
+    "crates/canisend-contracts/operation-registry-v1.json",
+    "crates/canisend-desktop/src/agent_runtime.rs",
+    "crates/canisend-desktop/tests/app_server_protocol.rs"
+  ],
+  "notes": "Implementation and verification are complete; completion evidence and archival remain. Conversation bodies, provider tokens, approval arguments, and private diagnostics were not recorded.",
+  "meta": {
+    "source_commit": "8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3",
+    "feature_freeze_exception_commit": "dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5",
+    "verified_head": "dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5",
+    "tested_codex_cli": "codex-cli 0.152.0",
+    "offline_protocol_test": "passed: streamed lifecycle, resume, cancellation, approval decline, malformed and oversized framing, timeout, child exit, and authentication-required",
+    "signed_in_smoke": "passed: start, resume, restart, and cancel through the production App Server transport",
+    "registry_persistence": "v2 body-free metadata only; no prompt, response, transcript, approval token, or evidence body",
+    "rollback": "External handoff and the Claude one-shot fallback remain available; R1 does not migrate Workspace data."
+  }
 }

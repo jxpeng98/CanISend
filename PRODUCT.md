@@ -1,6 +1,6 @@
 # CanISend Product
 
-Status: Approved product direction; R0 complete; R1 not started
+Status: Approved product direction; R0 and R1 complete; R2 not started
 Date: 2026-09-04
 
 ## Purpose

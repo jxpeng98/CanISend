@@ -1,6 +1,6 @@
 # R1 Codex App Server vertical slice
 
-Status: In progress; implementation and focused verification complete, exact source gate pending
+Status: Complete; verified on the exact R1 implementation and exception head
 Date: 2026-09-04
 
 ## Goal
@@ -51,19 +51,19 @@ readiness, continuity, cancellation, and recovery without adding CanISend produc
 
 ## Acceptance criteria
 
-- [ ] A fake server proves initialize, readiness, new thread, resume, multiple deltas, completion,
+- [x] A fake server proves initialize, readiness, new thread, resume, multiple deltas, completion,
       cancellation, child exit, malformed/oversized framing, timeout, and fail-closed approval.
-- [ ] A local signed-in Codex smoke streams one response in the App, cancels one turn, restarts one
+- [x] A local signed-in Codex smoke streams one response in the App, cancels one turn, restarts one
       conversation, resumes it after process restart, and records only body-free registry metadata.
-- [ ] `agent_runtime_catalog` reports missing, authentication-required, connecting, ready, running,
+- [x] `agent_runtime_catalog` reports missing, authentication-required, connecting, ready, running,
       cancelling, recoverable-disconnect, incompatible, and failed states without exposing account
       or token data.
-- [ ] The Tauri boundary has one start/load command, the existing catalog as readiness/status, one
+- [x] The Tauri boundary has one start/load command, the existing catalog as readiness/status, one
       streamed turn command, and the existing exact-scope cancel command.
-- [ ] A clean Workspace v4 regression proves the embedded path never reaches legacy Job resolution.
-- [ ] Registry migration reads a v1 fixture, writes canonical v2, preserves the resumable provider
+- [x] A clean Workspace v4 regression proves the embedded path never reaches legacy Job resolution.
+- [x] Registry migration reads a v1 fixture, writes canonical v2, preserves the resumable provider
       thread ID, and contains no prompt, response, transcript, approval token, or evidence body.
-- [ ] Focused Rust and frontend checks pass, followed by the required final source gate on the final
+- [x] Focused Rust and frontend checks pass, followed by the required final source gate on the final
       implementation head.
 
 ## Product decisions carried forward

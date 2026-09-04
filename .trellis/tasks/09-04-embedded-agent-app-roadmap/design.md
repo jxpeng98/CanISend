@@ -1,6 +1,6 @@
 # Embedded Agent App Technical Design
 
-Status: Approved architecture; R0 complete; R1 verification in progress
+Status: Approved architecture; R0 and R1 complete; R2 not started
 Date: 2026-09-04
 
 UX decision: conversation-led Workbench approved by the product owner on 2026-09-04.

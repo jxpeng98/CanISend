@@ -1,6 +1,6 @@
 # Embedded Agent App Roadmap
 
-Status: Approved product roadmap; R0 complete; R1 verification in progress
+Status: Approved product roadmap; R0 and R1 complete; R2 not started
 Date: 2026-09-04
 
 ## Goal

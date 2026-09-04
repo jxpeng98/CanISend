@@ -1,6 +1,6 @@
 # R1 implementation plan
 
-Status: Steps 1-4 complete; Step 5 exact commit and source gate pending
+Status: Complete; Steps 1-5 verified
 
 ## Step 1 — Session metadata
 
@@ -66,3 +66,7 @@ Status: Steps 1-4 complete; Step 5 exact commit and source gate pending
 - Exact implementation/source/spec commit IDs and their feature-freeze exception records.
 - Focused command/test output and final source-gate output.
 - Body-free manual smoke note: Codex version, scenario outcomes, and registry field names only.
+
+Recorded in `research/app-server-evidence.md`. The source commit is
+`8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3`, its feature-freeze exception commit is
+`dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5`, and the exact source gate passed on that exception head.
