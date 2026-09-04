@@ -48,6 +48,13 @@ the four installed Skill files inside the same end-to-end fixture. Unit and bina
 cover these separately. Extending the existing smoke is the smallest useful closure; broader
 product changes require a failing reproduction first.
 
+The desktop handoff is a separately reproduced release blocker. On a disposable clean Workspace
+v4, `Application::prepare_agent_handoff` failed with
+`workspace-v4-legacy-surface-retired` because it called `agent_context` (and selected-Job
+`agent_assistance`) after v4 Skill installation. The smallest owner-level repair is to make that
+shared handoff read Workspace v4 status directly and emit only Agent v4 orientation data; the
+retired compatibility validator remains unchanged.
+
 ## Release-identity constraint and resolved direction
 
 - ADR-RN-0014 defines `beta.1 -> rc.1 -> sequential RC if required -> stable`.

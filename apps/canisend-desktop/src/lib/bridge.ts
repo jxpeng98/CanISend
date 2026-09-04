@@ -1307,19 +1307,26 @@ export interface AgentPackExportReadModel {
 export interface AgentHandoffReadModel {
   host: "codex" | "claude" | "generic";
   workspace: string;
-  selected_job_id: string | null;
+  protocol: "canisend.agent/v4";
   launch_command: string;
   start_command: string;
-  capabilities_command: string;
   context_command: string;
-  assistance_command: string | null;
   bootstrap_prompt: string;
   recommended_skill: string;
-  recommended_integration: "external-host";
+  recommended_integration: "persistent-mcp";
   session_authority: string;
   state_authority: "canisend";
-  context: AgentContextReadModel;
-  assistance: AgentAssistanceReadModel | null;
+  context: {
+    workspace_id: string;
+    workspace_format: "canisend.workspace/v4";
+    application: {
+      id: string;
+      pack: { id: string; version: string; content_digest: string };
+      expected_revision: number;
+      snapshot_sha256: string;
+    } | null;
+  };
+  next_actions: Array<{ action: string; description: string }>;
 }
 
 export interface AgentSkillsInstallReadModel {
@@ -2842,13 +2849,11 @@ export async function exportAgentPack(
 export async function prepareAgentHandoff(
   host: "codex" | "claude" | "generic",
   workspace: string,
-  selectedJobId?: string,
 ): Promise<ActionReceipt<AgentHandoffReadModel>> {
   return invoke("prepare_agent_handoff", {
     request: {
       host,
       workspace,
-      selected_job_id: selectedJobId || null,
     },
   });
 }
@@ -2856,14 +2861,12 @@ export async function prepareAgentHandoff(
 export async function copyAgentHandoff(
   host: "codex" | "claude" | "generic",
   workspace: string,
-  selectedJobId: string | undefined,
   field: "launch-command" | "start-command" | "bootstrap-prompt",
 ): Promise<void> {
   return invoke("copy_agent_handoff", {
     request: {
       host,
       workspace,
-      selected_job_id: selectedJobId || null,
       field,
     },
   });

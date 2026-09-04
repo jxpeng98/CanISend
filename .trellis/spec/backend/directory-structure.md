@@ -165,6 +165,62 @@ install_embedded_agent_skills(host, &home.join(".agents"))?;
 Application::install_agent_skills(&AgentSkillsInstallRequest { host, workspace, scope })?;
 ```
 
+## Scenario: desktop Agent v4 Workspace handoff
+
+### 1. Scope / Trigger
+
+Use this contract when the desktop **Prepare AI workspace** action prepares an external Codex,
+Claude, or generic-host handoff.
+
+### 2. Signatures
+
+- Tauri request: `prepare_agent_handoff { request: { host, workspace } }`.
+- App facade: `Application::prepare_agent_handoff(&AgentHandoffRequest { host, workspace })`.
+- The response identifies `canisend.agent/v4`, an `AgentContextBindingV4`, the
+  `canisend-workspace` Skill, persistent MCP integration, and ordered `next_actions`.
+
+### 3. Contracts
+
+- The App facade opens the Workspace through `workspace_status_v4`; adapters do not synthesize or
+  downgrade the binding.
+- Handoff orientation starts with `canisend_workspace_status`, then
+  `canisend_application_list`; Application selection and revision binding happen through Agent v4.
+- The payload contains no legacy Agent context, assistance, Job, Task, or Workflow command fields.
+- The handoff remains body-free even when the Workspace contains private-local Profile Sources.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Clean Workspace v4 | Body-free Agent v4 handoff is returned |
+| Pre-v4 Workspace | Shared compatibility-unavailable failure before handoff generation |
+| Missing or invalid Workspace | Existing typed Workspace open failure |
+| Private-local source exists | Metadata-only handoff; source body is not serialized |
+
+### 5. Good / Base / Bad Cases
+
+- Good: desktop installs v4 Skills and asks the App facade for one Workspace v4 handoff.
+- Base: copy regenerates the same handoff and copies only an allowlisted command or prompt field.
+- Bad: handoff generation calls `agent_context`, `agent_assistance`, or advertises their CLI forms.
+
+### 6. Tests Required
+
+- App regression: a clean Workspace v4 with a private-local sentinel prepares the handoff, reports
+  the v4 protocol/actions, and never serializes the sentinel or legacy commands.
+- Negative App regression: a legacy Workspace fails with `CompatibilityUnavailable`.
+- Tauri and TypeScript bridge tests: `{ host, workspace }` crosses the boundary without a legacy
+  Job selector, and clipboard requests remain field-allowlisted.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: a Workspace v4 action enters the retired compatibility surface.
+let context = Application::agent_context(Some(&workspace), selected_job_id)?;
+
+// Correct: the App facade derives one exact Workspace v4 authority binding.
+let workspace = Application::workspace_status_v4(&workspace)?.data;
+```
+
 ## Examples
 
 - `crates/canisend-app/src/error.rs` centralizes adapter-neutral failure classification.

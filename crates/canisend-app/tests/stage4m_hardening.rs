@@ -8,8 +8,8 @@ use std::{
 };
 
 use canisend_app::{
-    AgentHandoffRequest, AgentHost, Application, ApplicationError, ContentCatalogFilter,
-    ContentSearchRequest, PrivateReadConsent, WorkspaceRegistry,
+    Application, ApplicationError, ContentCatalogFilter, ContentSearchRequest, PrivateReadConsent,
+    WorkspaceRegistry,
 };
 use canisend_store::StoreError;
 
@@ -228,25 +228,6 @@ fn stale_intake_preview_fails_and_assistance_rebuilds_from_current_revisions() {
         refreshed.recommendation.next_action,
         initial.recommendation.next_action
     );
-
-    let handoff = Application::prepare_agent_handoff(&AgentHandoffRequest {
-        host: AgentHost::Codex,
-        workspace: fixture.root.clone(),
-        selected_job_id: Some(job.id.to_string()),
-    })
-    .expect("prepare current handoff")
-    .data;
-    assert_eq!(
-        handoff
-            .assistance
-            .as_ref()
-            .expect("job-scoped handoff assistance")
-            .dossier
-            .job
-            .revision
-            .get(),
-        2
-    );
 }
 
 #[test]
@@ -286,12 +267,6 @@ fn routine_coordination_and_diagnostics_never_serialize_private_bodies() {
             .expect("agent context"),
         "agent_assistance": Application::agent_assistance(&fixture.root, &job_id)
             .expect("agent assistance"),
-        "handoff": Application::prepare_agent_handoff(&AgentHandoffRequest {
-            host: AgentHost::Codex,
-            workspace: fixture.root.clone(),
-            selected_job_id: Some(job_id),
-        })
-        .expect("agent handoff"),
     }))
     .expect("serialize routine read models");
 

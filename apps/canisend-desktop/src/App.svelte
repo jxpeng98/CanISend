@@ -1744,17 +1744,15 @@
 
   async function handlePrepareAgentHandoff(
     host: "codex" | "claude" | "generic",
-    jobId?: string,
   ): Promise<AgentHandoffReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() => prepareAgentHandoff(host, activeWorkspace!.path, jobId), {
+    const result = await runAction(() => prepareAgentHandoff(host, activeWorkspace!.path), {
       operation: "agent.handoff.prepare",
       route: {
         view: "agent",
         detail: "agent-handoff",
-        jobId,
       },
-      jobId: jobId ?? null,
+      jobId: null,
     });
     if (!result) return null;
     notice = result.summary;
@@ -1792,12 +1790,11 @@
 
   async function handleCopyAgentHandoff(
     host: "codex" | "claude" | "generic",
-    jobId: string | undefined,
     field: "launch-command" | "start-command" | "bootstrap-prompt",
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(async () => {
-      await copyAgentHandoff(host, activeWorkspace!.path, jobId, field);
+      await copyAgentHandoff(host, activeWorkspace!.path, field);
       return true;
     });
     return result === true;

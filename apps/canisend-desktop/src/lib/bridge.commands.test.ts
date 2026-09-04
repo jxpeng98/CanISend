@@ -645,14 +645,13 @@ describe("typed Tauri command requests", () => {
     });
   });
 
-  it("prepares a body-free external-host handoff for the selected job", async () => {
-    await prepareAgentHandoff("claude", "/tmp/workspace", "job-id");
+  it("prepares a body-free Agent v4 Workspace handoff", async () => {
+    await prepareAgentHandoff("claude", "/tmp/workspace");
 
     expect(mocks.invoke).toHaveBeenCalledWith("prepare_agent_handoff", {
       request: {
         host: "claude",
         workspace: "/tmp/workspace",
-        selected_job_id: "job-id",
       },
     });
   });
@@ -669,13 +668,12 @@ describe("typed Tauri command requests", () => {
   });
 
   it("copies only a regenerated handoff field through the native adapter", async () => {
-    await copyAgentHandoff("codex", "/tmp/workspace", "job-id", "bootstrap-prompt");
+    await copyAgentHandoff("codex", "/tmp/workspace", "bootstrap-prompt");
 
     expect(mocks.invoke).toHaveBeenCalledWith("copy_agent_handoff", {
       request: {
         host: "codex",
         workspace: "/tmp/workspace",
-        selected_job_id: "job-id",
         field: "bootstrap-prompt",
       },
     });

@@ -16,12 +16,17 @@
    malformed history, duplicate evidence, and transactional rollback.
 4. Extend `scripts/smoke_agent_v4_mcp.sh` with project-scoped host setup/status and exact four-Skill
    ownership/digest/MCP-guidance assertions in its existing disposable App-closed journey.
-5. Run formatting, relevant Clippy, focused `xtask`, CLI, MCP, resource, database, and smoke tests.
+5. Reproduce the desktop **Prepare AI workspace** failure in the App facade, then replace its
+   retired context/assistance dependency with one Workspace v4 status binding, the canonical
+   `canisend-workspace` entry Skill, and Agent v4 MCP orientation actions. Update only the existing
+   Tauri/Svelte handoff payload and its focused bridge test.
+6. Run formatting, relevant Clippy, focused `xtask`, CLI, MCP, resource, database, desktop bridge,
+   and smoke tests.
    Run `cargo run -p xtask --locked -- release check` once on the final PR head.
-6. Commit the policy/readiness changes, then add their exact nonautomatic paths to
+7. Commit the policy/readiness changes, then add their exact nonautomatic paths to
    `release/feature-freeze-exceptions.json` in a separate evidence commit. Exclude the existing
    cohort-task working-tree edits from both commits.
-7. Open the policy/readiness PR, wait for Fast CI, review the exact diff, and merge it before source
+8. Open the policy/readiness PR, wait for Fast CI, review the exact diff, and merge it before source
    preparation.
 
 ## Phase B — Controlled Beta.2 source preparation

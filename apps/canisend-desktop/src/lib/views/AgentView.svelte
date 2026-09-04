@@ -89,13 +89,12 @@
     onLoadCapabilities: () => Promise<AgentCapabilitiesReadModel | null>;
     onLoadContext: (jobId?: string) => Promise<AgentContextReadModel | null>;
     onLoadAssistance: (jobId: string) => Promise<AgentAssistanceReadModel | null>;
-    onPrepareHandoff: (host: AgentHost, jobId?: string) => Promise<AgentHandoffReadModel | null>;
+    onPrepareHandoff: (host: AgentHost) => Promise<AgentHandoffReadModel | null>;
     onInstallSkills: (host: AgentHost) => Promise<AgentSkillsInstallReadModel | null>;
     onLoadSkills: (host: AgentHost) => Promise<AgentSkillsStatusReadModel | null>;
     onUninstallSkills: (host: AgentHost) => Promise<AgentSkillsUninstallReadModel | null>;
     onCopyHandoff: (
       host: AgentHost,
-      jobId: string | undefined,
       field: "launch-command" | "start-command" | "bootstrap-prompt",
     ) => Promise<boolean>;
     onPrepareMcpConfiguration: (host: AgentHost) => Promise<AgentMcpConfigurationReadModel | null>;
@@ -248,24 +247,15 @@
     if (!installation) return;
     agentUiState.skillsInstallation = installation;
     agentUiState.skillsStatus = await onLoadSkills(agentUiState.host);
-    const handoff = await onPrepareHandoff(
-      agentUiState.host,
-      agentUiState.selectedJobId || undefined,
-    );
+    const handoff = await onPrepareHandoff(agentUiState.host);
     if (!handoff) return;
     agentUiState.handoff = handoff;
-    agentUiState.context = handoff.context;
-    agentUiState.assistance = handoff.assistance;
   }
 
   async function copyHandoff(target: HandoffCopyTarget): Promise<void> {
     if (!activeWorkspace) return;
     const field = target === "start" ? "start-command" : "bootstrap-prompt";
-    const copiedSuccessfully = await onCopyHandoff(
-      agentUiState.host,
-      agentUiState.selectedJobId || undefined,
-      field,
-    );
+    const copiedSuccessfully = await onCopyHandoff(agentUiState.host, field);
     if (!copiedSuccessfully) {
       agentUiState.formError = copy.copyFailed;
       return;
@@ -1097,16 +1087,16 @@
               </div>
             </div>
 
-            {#if agentUiState.handoff.context.next_actions[0]}
+            {#if agentUiState.handoff.next_actions[0]}
               <div class="rounded-lg border bg-primary/5 p-[var(--density-panel-padding)]">
                 <p class="text-xs font-medium text-muted-foreground">
                   {copy.currentNextAction}
                 </p>
                 <p class="mt-2 text-sm font-semibold">
-                  {agentUiState.handoff.context.next_actions[0].description}
+                  {agentUiState.handoff.next_actions[0].description}
                 </p>
                 <p class="mt-2 overflow-x-auto font-mono text-xs text-muted-foreground">
-                  {agentUiState.handoff.context.next_actions[0].action}
+                  {agentUiState.handoff.next_actions[0].action}
                 </p>
               </div>
             {/if}
@@ -1115,14 +1105,12 @@
             <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-2">
               <div class="space-y-3">
                 <Label>
-                  {agentUiState.handoff.assistance_command
-                    ? copy.assistanceCommand
-                    : copy.contextCommand}
+                  {copy.contextCommand}
                 </Label>
                 <div
                   class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5"
                 >
-                  {agentUiState.handoff.assistance_command ?? agentUiState.handoff.context_command}
+                  {agentUiState.handoff.context_command}
                 </div>
               </div>
               <div class="space-y-3">

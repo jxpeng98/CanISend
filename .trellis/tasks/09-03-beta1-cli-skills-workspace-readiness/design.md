@@ -73,6 +73,15 @@ No product code changes are planned for Workspace migration: the current single 
 transaction already provides the required all-or-nothing behavior. A product fix is allowed only
 if the extended smoke or an existing focused test reproduces a release-blocking defect.
 
+## Desktop Agent v4 handoff correction
+
+Keep the existing adapter-only `prepare_agent_handoff` command, but make its application-facade
+implementation Workspace v4-only. It reads the canonical v4 Workspace status once, returns the
+exact Workspace binding, installs no second state model, and generates the external-host command
+from the `canisend-workspace` Skill plus persistent MCP orientation operations. Remove the retired
+Agent v2 context, assistance, and CLI command fields from this handoff payload. Pre-v4 Workspaces
+continue to fail at the shared v4 open boundary before any handoff state is produced.
+
 ## Delivery sequence
 
 1. Policy/readiness PR: ADR, policy, validators, focused tests, documentation, and smoke extension.
