@@ -126,6 +126,11 @@ export const messages = {
     moreActions: "More actions",
     chooseDirectory: "Choose directory",
     chooseFile: "Choose file",
+    dropFileHere: "Drop one file here, or choose it manually.",
+    dropFileActive: "Release to select this file.",
+    dropOneFile: "Drop one file at a time.",
+    unsupportedDroppedFile: "This file type isn't supported for this import.",
+    fileDropUnavailable: "Drag and drop isn't available. Use Choose file instead.",
     noWorkspace: "No workspace selected",
     createWorkspace: "Create workspace",
     connectWorkspace: "Connect existing",
@@ -165,6 +170,9 @@ export const messages = {
       "The requirement must be an exact excerpt of the reviewed source text.",
     applicationIntakeSourceHelp:
       "Each non-empty source line becomes one proposed, exact-span Requirement for review after creation.",
+    applicationImportStorageDescription:
+      "The original stays in place. After confirmation, the Application and a verified source copy are stored in .canisend; exports go to applications/, never the legacy jobs/ folder.",
+    applicationCreatedInWorkspace: "Application created in this Workspace:",
     requirementCategory: "Requirement category",
     priority: "Priority",
     mandatory: "Mandatory",
@@ -231,7 +239,7 @@ export const messages = {
     backupDirectory: "Verified backup directory",
     restoreDestination: "Restore destination",
     repairWorkspace: "Repair projections",
-    workspaceJobs: "Jobs",
+    workspaceApplications: "Applications",
     workspaceArtifacts: "Artifacts",
     workspaceBlobs: "Referenced blobs",
     databaseSchema: "Database schema",
@@ -499,6 +507,9 @@ export const messages = {
     profileMarkdown: "Profile Markdown",
     profileStorageDescription:
       "CanISend saves the original and normalized Markdown locally with revision history. This action does not send it to a provider.",
+    profileImportStorageDescription:
+      "The original stays in place. CanISend stores a verified internal copy in .canisend; no editable duplicate is created.",
+    profileSourceStoredInWorkspace: "Profile source imported into this Workspace:",
     profileInitializationConsent:
       "I confirm CanISend may store this reviewed profile text in the active local workspace.",
     profileInitializationTemplate:
@@ -985,6 +996,11 @@ export const messages = {
     moreActions: "更多操作",
     chooseDirectory: "选择目录",
     chooseFile: "选择文件",
+    dropFileHere: "将一个文件拖到这里，或手动选择。",
+    dropFileActive: "松开即可选择此文件。",
+    dropOneFile: "每次只能拖入一个文件。",
+    unsupportedDroppedFile: "此导入不支持该文件类型。",
+    fileDropUnavailable: "当前无法使用拖放，请改用“选择文件”。",
     noWorkspace: "尚未选择工作区",
     createWorkspace: "创建工作区",
     connectWorkspace: "连接已有工作区",
@@ -1017,6 +1033,9 @@ export const messages = {
     requirementMustMatchSource: "要求必须是已审查来源文本中的精确片段。",
     applicationIntakeSourceHelp:
       "每个非空来源行会成为一条带精确位置的候选要求，创建后仍需由用户审查。",
+    applicationImportStorageDescription:
+      "原文件会保留在原处。确认后，申请记录和经校验的来源副本会存入 .canisend；导出文件写入 applications/，不会写入旧版 jobs/ 目录。",
+    applicationCreatedInWorkspace: "申请项目已创建于此工作区：",
     requirementCategory: "要求类别",
     priority: "优先级",
     mandatory: "必需",
@@ -1073,7 +1092,7 @@ export const messages = {
     backupDirectory: "已验证的备份目录",
     restoreDestination: "恢复目标目录",
     repairWorkspace: "修复托管投影",
-    workspaceJobs: "职位",
+    workspaceApplications: "申请项目",
     workspaceArtifacts: "工件",
     workspaceBlobs: "已引用数据块",
     databaseSchema: "数据库 Schema",
@@ -1322,6 +1341,9 @@ export const messages = {
     profileMarkdown: "个人资料 Markdown",
     profileStorageDescription:
       "CanISend 会在本地保存原始和整理后的 Markdown 及其版本记录；此操作不会把内容发送给提供商。",
+    profileImportStorageDescription:
+      "原文件会保留在原处。CanISend 会在 .canisend 中保存经校验的内部副本，不会另建可编辑文件。",
+    profileSourceStoredInWorkspace: "个人资料来源已导入此工作区：",
     profileInitializationConsent:
       "我确认允许 CanISend 将这份已审查的个人资料文本保存到当前本地工作区。",
     profileInitializationTemplate:

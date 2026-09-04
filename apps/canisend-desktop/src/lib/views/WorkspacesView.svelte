@@ -345,8 +345,8 @@
       <Card.Content class="space-y-[var(--density-section-gap)]">
         {#if activeWorkspace}
           <dl class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm">
-            <dt class="text-muted-foreground">{copy.workspaceJobs}</dt>
-            <dd class="font-semibold">{activeWorkspace.status.job_count}</dd>
+            <dt class="text-muted-foreground">{copy.workspaceApplications}</dt>
+            <dd class="font-semibold">{activeWorkspace.status.application_count}</dd>
             <dt class="text-muted-foreground">{copy.workspaceArtifacts}</dt>
             <dd class="font-semibold">{activeWorkspace.status.artifact_count}</dd>
             <dt class="text-muted-foreground">{copy.workspaceBlobs}</dt>

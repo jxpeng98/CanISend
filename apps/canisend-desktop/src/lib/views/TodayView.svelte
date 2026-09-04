@@ -22,7 +22,7 @@
     copy: Messages;
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
-    jobCount: number;
+    applicationCount: number;
     upcomingDeadlineCount: number;
     nearestDeadlineItem: ApplicationDossierReadModel | null;
     workspaceHealth: WorkspaceHealthReadModel | null;
@@ -39,7 +39,7 @@
     copy,
     desktopRuntime,
     activeWorkspace,
-    jobCount,
+    applicationCount,
     upcomingDeadlineCount,
     nearestDeadlineItem,
     workspaceHealth,
@@ -75,7 +75,7 @@
     <Card.Root class="min-h-32">
       <Card.Header class="p-[var(--shell-card-padding)] pb-2">
         <Card.Description>{copy.activeApplications}</Card.Description>
-        <Card.Title class="text-2xl">{jobCount}</Card.Title>
+        <Card.Title class="text-2xl">{applicationCount}</Card.Title>
       </Card.Header>
       <Card.Content class="p-[var(--shell-card-padding)] pt-0 text-sm text-muted-foreground">
         {activeWorkspace ? copy.applicationsDescription : copy.activeDescription}
