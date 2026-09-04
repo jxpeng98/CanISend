@@ -127,6 +127,14 @@
         "crates/canisend-desktop/src/agent_runtime.rs"
       ],
       "reason": "Close the reproduced clean Workspace v4 Agent-screen blocker and establish the approved App-first Codex client authority without weakening legacy refusal or changing release claims."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "f09373a9e381dc402d1ebd5c2c7652c70b173f00",
+      "paths": [
+        "PRODUCT.md"
+      ],
+      "reason": "Record that the approved App-first R0 implementation and its final source gate are complete while leaving R1 and all support or release claims unstarted."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
