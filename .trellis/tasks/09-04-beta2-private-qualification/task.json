@@ -1,0 +1,49 @@
+{
+  "id": "beta2-private-qualification",
+  "name": "beta2-private-qualification",
+  "title": "Build and inspect private Beta.2 native candidate",
+  "description": "Correct release-truth drift, then build and independently verify one exact nonpublishing Beta.2 native candidate without tagging, publication, or qualification",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "release-readiness",
+  "package": null,
+  "priority": "P0",
+  "creator": "pengjiaxin",
+  "assignee": "pengjiaxin",
+  "createdAt": "2026-09-04",
+  "completedAt": null,
+  "branch": "plan/beta2-private-qualification",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "08-10-1-0-roadmap-trellis-control",
+  "relatedFiles": [
+    "xtask/src/main.rs",
+    "RELEASE.md",
+    "release/feature-freeze-exceptions.json",
+    ".github/workflows/release.yml",
+    "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+    ".trellis/spec/backend/quality-guidelines.md",
+    ".trellis/spec/guides/project-control.md"
+  ],
+  "notes": "The maintainer authorized one nonpublishing workflow dispatch on 2026-09-04. The private-only boundary still forbids tagging, publication, package release, and Beta.2 qualification.",
+  "meta": {
+    "roadmap_link": "M4-BETA2-003",
+    "owner_role": "release-readiness",
+    "verification_tier": 3,
+    "dependencies": [
+      "M4-BETA2-001",
+      "M4-BETA2-002"
+    ],
+    "authoritative_files": [
+      "release/qualification-ledger.json",
+      "release/feature-freeze-exceptions.json",
+      "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
+      ".github/workflows/release.yml"
+    ],
+    "expected_evidence": "one exact nonpublishing Beta.2 native-release run plus independent complete-artifact and attestation verification"
+  }
+}

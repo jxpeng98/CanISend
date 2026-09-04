@@ -31,7 +31,8 @@
     "08-30-beta1-candidate",
     "08-30-beta1-qualification",
     "08-30-beta1-package-channels",
-    "08-30-beta1-feature-freeze"
+    "08-30-beta1-feature-freeze",
+    "09-04-beta2-private-qualification"
   ],
   "parent": null,
   "relatedFiles": [

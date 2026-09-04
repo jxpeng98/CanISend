@@ -87,6 +87,12 @@ Active release assets must bind `canisend.agent/v4`, schema `4.0.0`,
   `**Next intended checkpoint:** \`TAG\`` at the start of that field; describe the next action only
   after the tag. During Alpha `TAG` is the next Beta.1 tag, and after Alpha it is the current
   workspace tag. `release check` owns this contract.
+- When the checked-in version is newer than the current public checkpoint, `RELEASE.md` must not
+  describe its source line as matching the public checkpoint, and the Roadmap next-checkpoint line
+  must not call it publicly qualified. State the checked-in source and latest public checkpoint as
+  separate facts; `check_active_release_truth_for_version` rejects either conflation.
+- Keep the source-ahead regression in
+  `active_release_truth_rejects_stale_or_conflated_current_surfaces_and_ignores_history`.
 - `reviewed_on` must not be later than the current UTC date. If the local calendar has advanced
   before UTC, wait for UTC rollover or record the actual UTC review date; never fake the clock or
   weaken the validator.

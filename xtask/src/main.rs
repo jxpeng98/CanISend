@@ -2085,6 +2085,28 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
             ));
         }
     }
+    let public_version = Version::parse(public_tag.trim_start_matches('v'))
+        .map_err(|error| format!("current public checkpoint tag is invalid: {error}"))?;
+    if version > &public_version {
+        let source_marker = format!("Checked-in source: `{version}`");
+        if release.lines().any(|line| {
+            line.contains(&source_marker)
+                && (line.contains("matching") || line.contains("public checkpoint"))
+        }) {
+            return Err(
+                "root release guide conflates checked-in source with the public checkpoint"
+                    .to_owned(),
+            );
+        }
+        if roadmap.lines().any(|line| {
+            line.starts_with(&next_checkpoint) && line.contains("qualified public checkpoint")
+        }) {
+            return Err(
+                "active 1.0 roadmap conflates the next source checkpoint with public qualification"
+                    .to_owned(),
+            );
+        }
+    }
 
     let issue_template = fs::read_to_string(root.join(".github/ISSUE_TEMPLATE/bug.yml"))
         .map_err(|error| format!("bug Issue template is missing: {error}"))?;
@@ -17977,7 +17999,7 @@ mod tests {
     }
 
     #[test]
-    fn active_release_truth_rejects_stale_current_surfaces_and_ignores_history() {
+    fn active_release_truth_rejects_stale_or_conflated_current_surfaces_and_ignores_history() {
         let root = std::env::temp_dir().join(format!(
             "canisend-active-release-truth-{}",
             std::process::id()
@@ -18048,13 +18070,14 @@ mod tests {
         .expect("seed stale README fixture");
         assert!(check_active_release_truth_for_version(&root, &version).is_err());
 
-        fs::write(
-            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
-            "# CanISend generic framework 1.0 delivery roadmap\n\n\
+        let beta_roadmap = "# CanISend generic framework 1.0 delivery roadmap\n\n\
              **Status:** Active — authoritative\n\n\
              **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
              **Current machine stage:** Beta / `beta-qualifying`\n\n\
-             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n",
+             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n";
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            beta_roadmap,
         )
         .expect("write Beta roadmap fixture");
         fs::write(
@@ -18065,14 +18088,11 @@ mod tests {
             ),
         )
         .expect("write Beta README fixture");
-        fs::write(
-            root.join("RELEASE.md"),
-            "Checked-in source: `1.0.0-beta.1`\n\
+        let beta_release = "Checked-in source: `1.0.0-beta.1`\n\
              Latest public checkpoint: [`v1.0.0-alpha.5`]\n\
              GPL-3.0-only Community signing is not a publicly trusted publisher identity.\n\
-             Verify GitHub build provenance.\n",
-        )
-        .expect("write Beta release fixture");
+             Verify GitHub build provenance.\n";
+        fs::write(root.join("RELEASE.md"), beta_release).expect("write Beta release fixture");
         fs::write(
             root.join(".github/ISSUE_TEMPLATE/bug.yml"),
             "placeholder: 1.0.0-beta.1\n",
@@ -18083,6 +18103,37 @@ mod tests {
             &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
         )
         .expect("Beta source truth");
+
+        fs::write(
+            root.join("RELEASE.md"),
+            beta_release.replace(
+                "Checked-in source: `1.0.0-beta.1`",
+                "Checked-in source: `1.0.0-beta.1`, matching the public checkpoint",
+            ),
+        )
+        .expect("write conflated Beta release fixture");
+        let error = check_active_release_truth_for_version(
+            &root,
+            &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
+        )
+        .expect_err("source-ahead release guide must separate source and public truth");
+        assert!(error.contains("conflates checked-in source with the public checkpoint"));
+
+        fs::write(root.join("RELEASE.md"), beta_release).expect("restore Beta release fixture");
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            beta_roadmap.replace(
+                "is the next checkpoint",
+                "is the qualified public checkpoint",
+            ),
+        )
+        .expect("write conflated Beta roadmap fixture");
+        let error = check_active_release_truth_for_version(
+            &root,
+            &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
+        )
+        .expect_err("source-ahead roadmap must separate source and public truth");
+        assert!(error.contains("conflates the next source checkpoint with public qualification"));
         fs::remove_dir_all(root).expect("remove active-truth fixture");
     }
 
