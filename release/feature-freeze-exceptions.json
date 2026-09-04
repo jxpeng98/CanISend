@@ -148,6 +148,15 @@
         "xtask/src/main.rs"
       ],
       "reason": "Correct source/public release-truth drift, reject future conflation, and register the nonpublishing Beta.2 native-candidate gate without changing product bytes or authorizing publication."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "d5ec49300661b1ebdc9b9ebcb14c615d317fb369",
+      "paths": [
+        ".trellis/spec/guides/project-control.md",
+        "RELEASE.md"
+      ],
+      "reason": "Record exact private Beta.2 candidate identities and advance the planning projection to invited-user evidence without authorizing tagging, publication, qualification, or RC."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
