@@ -489,3 +489,27 @@ Approved and recorded the App-first Codex App Server/MCP roadmap, fixed retained
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: Complete R1 Codex App Server vertical slice
+
+**Date**: 2026-09-04
+**Task**: Complete R1 Codex App Server vertical slice
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Implemented and verified the bounded persistent Codex App Server desktop session, body-free registry v2, streamed UI lifecycle, exact freeze evidence, and final source gate; archived the R1 task while leaving R2 unstarted.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3` | (see git log) |
+| `dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5` | (see git log) |
+| `694b407bbd74d04b40fe8a3df4c23b97b61fa9c6` | (see git log) |
+| `89cd331fbd38a7f90aa94c37884c340d00fc51c8` | (see git log) |
+
+### Status
+
+[OK] **Completed**

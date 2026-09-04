@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~491 | Active |
+| `journal-1.md` | ~515 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-09-04 | Complete R1 Codex App Server vertical slice | `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3`, `dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5`, `694b407bbd74d04b40fe8a3df4c23b97b61fa9c6`, `89cd331fbd38a7f90aa94c37884c340d00fc51c8` | `feat/beta2-cli-skills-readiness` |
 | 18 | 2026-09-04 | Complete App-first Agent R0 | `d167cc0a25e0a4e10033b21e89a94f69e07482e2`, `ab12758417d980a6e2a517a98ba69985f20fb8a4`, `b8a412e8b02aba35520191d508df0aaed2e49b81`, `f09373a9e381dc402d1ebd5c2c7652c70b173f00`, `ea8e7b2062727a1771f30e7899a6463c2ca4e147` | `feat/beta2-cli-skills-readiness` |
 | 17 | 2026-09-04 | Fix desktop Agent v4 workspace handoff | `8da28b3322ea1774048f870335afe8bbca1cc6b9`, `4d4d17b06852834c4852b2702e537173e245fdf8` | `feat/beta2-cli-skills-readiness` |
 | 16 | 2026-09-03 | Merge desktop shell and Workspace migration hardening | `a20b3d8ac888969db7cfc277279024ad8095a259`, `5734ffac8138b8f1690db4161c3af4959cde8669`, `ff64b6ebbdda3c660addf1d7e9fb6100a1ad9068`, `ee617c08ff24fbb5567afda8a42cbefd197a3b9c`, `23d884b8a6aa4e559a8d8995d74acf47721d3f55`, `e296a74e4af698fa3f4540f1c1603a7b08d63722`, `d8f017fe3b79ee3c7ef2639267790d354b9ad24d`, `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` | `chore/archive-desktop-shell-workspace-migration` |
