@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~488 | Active |
+| `journal-1.md` | ~509 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-09-04 | Beta2 import workflow clarity | `8091061f` | `fix/beta2-import-workflow` |
 | 18 | 2026-09-04 | Verify private Beta.2 native candidate | `d7dac49c26409190132fee5d896003bb1afc2a61`, `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc`, `d5ec49300661b1ebdc9b9ebcb14c615d317fb369`, `2a928dd3baa642920b5f420d4ba58337c165331a` | `chore/beta2-private-candidate-closeout` |
 | 17 | 2026-09-03 | Prepare private Beta.2 CLI and Workspace readiness | `3b46c6ee9d54db94a4c2851747a88d89afe12c10`, `e3d1b04ede01e01ccdd4ef9acf17d08868980ab5`, `58d31c82ae35aba948fbe5bc1d4c37008fb2fa13`, `29ff5a58d071a67c240dad553fcb782f44c0118a`, `dcbeadf6e3f62943ffd072ceb1b409a30e9338b1`, `fba36525fa865d4ecc45b3b6ce9b5919111412d0` | `chore/beta2-readiness-closeout` |
 | 16 | 2026-09-03 | Merge desktop shell and Workspace migration hardening | `a20b3d8ac888969db7cfc277279024ad8095a259`, `5734ffac8138b8f1690db4161c3af4959cde8669`, `ff64b6ebbdda3c660addf1d7e9fb6100a1ad9068`, `ee617c08ff24fbb5567afda8a42cbefd197a3b9c`, `23d884b8a6aa4e559a8d8995d74acf47721d3f55`, `e296a74e4af698fa3f4540f1c1603a7b08d63722`, `d8f017fe3b79ee3c7ef2639267790d354b9ad24d`, `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` | `chore/archive-desktop-shell-workspace-migration` |
