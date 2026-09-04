@@ -3,7 +3,7 @@
   "name": "beta2-private-qualification",
   "title": "Build and inspect private Beta.2 native candidate",
   "description": "Correct release-truth drift, then build and independently verify one exact nonpublishing Beta.2 native candidate without tagging, publication, or qualification",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "release-readiness",
   "package": null,
@@ -11,12 +11,12 @@
   "creator": "pengjiaxin",
   "assignee": "pengjiaxin",
   "createdAt": "2026-09-04",
-  "completedAt": null,
+  "completedAt": "2026-09-04",
   "branch": "docs/beta2-private-candidate-evidence",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "129ebe416d51add6eca4dbfb887cd24f9ddd88a7",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/223",
   "subtasks": [],
   "children": [],
   "parent": "08-10-1-0-roadmap-trellis-control",
@@ -30,7 +30,7 @@
     ".trellis/spec/backend/quality-guidelines.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "Private Beta.2 candidate run 33824463477 and artifact 9920609356 passed the full native matrix plus independent verification against protected source 2ae2b507b953eef3101aa9689bd60f91a0046605. The evidence PR and post-merge archive remain pending; tagging, publication, package release, Beta.2 qualification, and RC action remain forbidden.",
+  "notes": "Verified through protected PR #223 and merge 129ebe416d51add6eca4dbfb887cd24f9ddd88a7. Private Beta.2 candidate run 33824463477 and artifact 9920609356 passed the full native matrix plus independent verification against protected source 2ae2b507b953eef3101aa9689bd60f91a0046605. Beta.2 remains untagged, unpublished, and unqualified; M3-EVID-005 / Issue #70 is the next pre-RC evidence gate.",
   "meta": {
     "roadmap_link": "M4-BETA2-003",
     "owner_role": "release-readiness",
@@ -59,6 +59,11 @@
     "asset_count": 20,
     "manifest_managed_asset_count": 19,
     "verified_attestation_count": 20,
-    "evidence_note": "docs/notes/rust-native/2026-09-04-beta2-private-candidate.md"
+    "evidence_note": "docs/notes/rust-native/2026-09-04-beta2-private-candidate.md",
+    "evidence_pr": "https://github.com/jxpeng98/CanISend/pull/223",
+    "evidence_merge_commit": "129ebe416d51add6eca4dbfb887cd24f9ddd88a7",
+    "protected_ci_run": "33828764991",
+    "protected_check_count": 6,
+    "next_roadmap_id": "M3-EVID-005"
   }
 }
