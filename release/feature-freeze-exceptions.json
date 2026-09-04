@@ -100,6 +100,21 @@
         "xtask/src/main.rs"
       ],
       "reason": "Permit exact sequential Beta source preparation and bind the existing App-closed CLI, Skills, MCP, and Workspace readiness smoke without authorizing qualification or publication."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "8da28b3322ea1774048f870335afe8bbca1cc6b9",
+      "paths": [
+        ".trellis/spec/backend/directory-structure.md",
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
+        "apps/canisend-desktop/src/lib/bridge.ts",
+        "apps/canisend-desktop/src/lib/views/AgentView.svelte",
+        "crates/canisend-app/src/agent.rs",
+        "crates/canisend-app/tests/stage4m_hardening.rs",
+        "crates/canisend-desktop/src/agent.rs"
+      ],
+      "reason": "Repair the reproduced desktop Prepare AI workspace blocker by keeping handoff generation on Workspace v4 and Agent v4 without weakening legacy compatibility refusal."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
