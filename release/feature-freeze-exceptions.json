@@ -137,6 +137,17 @@
         "xtask/Cargo.toml"
       ],
       "reason": "Record the deterministic Beta.2 source projection while preserving Beta.1 qualification history and leaving qualification, tagging, workflow dispatch, packaging, and publication pending."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "d7dac49c26409190132fee5d896003bb1afc2a61",
+      "paths": [
+        ".trellis/spec/backend/quality-guidelines.md",
+        ".trellis/spec/guides/project-control.md",
+        "RELEASE.md",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Correct source/public release-truth drift, reject future conflation, and register the nonpublishing Beta.2 native-candidate gate without changing product bytes or authorizing publication."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
