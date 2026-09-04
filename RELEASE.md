@@ -8,10 +8,13 @@
   recorded as qualified against candidate run `33281162734`.
 - Local package-channel candidates: deterministic Homebrew, Scoop, and WinGet review files derived
   from the exact qualified public archives, with publication explicitly unauthorized.
-- Release-path ordering after qualified Beta.1: feature freeze is active and the private Beta.2
-  source is prepared. The next authorized step is one nonpublishing native candidate; the
-  consented body-free invited cohort remains required before RC.1. The active step is derived from
-  the qualification ledger and the
+- Release-path ordering after qualified Beta.1: feature freeze is active, the private Beta.2
+  source is prepared, and one nonpublishing native candidate has passed independent verification
+  at protected source `2ae2b507b953eef3101aa9689bd60f91a0046605`. Beta.2 remains untagged,
+  unpublished, and unqualified; the exact identities are retained in the
+  [private candidate note](docs/notes/rust-native/2026-09-04-beta2-private-candidate.md). The
+  consented body-free invited cohort is the next evidence gate before RC.1. The active step is
+  derived from the qualification ledger and the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The ledger retains the
   qualified Beta.1 artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags

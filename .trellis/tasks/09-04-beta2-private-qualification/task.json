@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-09-04",
   "completedAt": null,
-  "branch": "plan/beta2-private-qualification",
+  "branch": "docs/beta2-private-candidate-evidence",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -25,11 +25,12 @@
     "RELEASE.md",
     "release/feature-freeze-exceptions.json",
     ".github/workflows/release.yml",
+    "docs/notes/rust-native/2026-09-04-beta2-private-candidate.md",
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
     ".trellis/spec/backend/quality-guidelines.md",
     ".trellis/spec/guides/project-control.md"
   ],
-  "notes": "The maintainer authorized one nonpublishing workflow dispatch on 2026-09-04. The private-only boundary still forbids tagging, publication, package release, and Beta.2 qualification.",
+  "notes": "Private Beta.2 candidate run 33824463477 and artifact 9920609356 passed the full native matrix plus independent verification against protected source 2ae2b507b953eef3101aa9689bd60f91a0046605. The evidence PR and post-merge archive remain pending; tagging, publication, package release, Beta.2 qualification, and RC action remain forbidden.",
   "meta": {
     "roadmap_link": "M4-BETA2-003",
     "owner_role": "release-readiness",
@@ -44,6 +45,20 @@
       "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md",
       ".github/workflows/release.yml"
     ],
-    "expected_evidence": "one exact nonpublishing Beta.2 native-release run plus independent complete-artifact and attestation verification"
+    "expected_evidence": "one exact nonpublishing Beta.2 native-release run plus independent complete-artifact and attestation verification",
+    "entry_pr": "https://github.com/jxpeng98/CanISend/pull/222",
+    "source_commit": "2ae2b507b953eef3101aa9689bd60f91a0046605",
+    "fast_ci_run": "33824048853",
+    "dependency_assurance_run": "33824048854",
+    "candidate_run": "33824463477",
+    "candidate_artifact_id": "9920609356",
+    "candidate_artifact_digest": "sha256:38b3666b9e9de07cc55b77e8798f1200e4b76f611418b14598c39524b68d7c03",
+    "candidate_artifact_expires_at": "2026-10-04T02:00:48Z",
+    "manifest_sha256": "2a36947740a198d00499adfc5655d9e9a8f62599ce2bacdee836fbec5b5e3206",
+    "sha256sums_sha256": "bb6b7a42227dd6f22939ee618fb25df74458a986f5a4a3b13b248d8fe7d0a124",
+    "asset_count": 20,
+    "manifest_managed_asset_count": 19,
+    "verified_attestation_count": 20,
+    "evidence_note": "docs/notes/rust-native/2026-09-04-beta2-private-candidate.md"
   }
 }

@@ -85,17 +85,17 @@ and cannot silently become a release.
 
 ## Acceptance criteria
 
-- [ ] The entry PR corrects the source/public truth, adds the focused regression, records exact
+- [x] The entry PR corrects the source/public truth, adds the focused regression, records exact
       freeze paths, and passes the source gate plus protected CI.
-- [ ] Candidate dispatch is bound to the exact protected entry-PR merge commit, with no existing
+- [x] Candidate dispatch is bound to the exact protected entry-PR merge commit, with no existing
       Beta.2 tag or Release.
-- [ ] One nonpublishing native candidate run succeeds for `v1.0.0-beta.2` and produces the complete
+- [x] One nonpublishing native candidate run succeeds for `v1.0.0-beta.2` and produces the complete
       unexpired release-assets artifact.
-- [ ] Independent verification passes for checksums, manifest, target archives, App packages,
+- [x] Independent verification passes for checksums, manifest, target archives, App packages,
       signing evidence, SBOM, provenance, and exact source identity.
 - [ ] A protected evidence PR records body-free results and the task is archived only after that
       PR merges.
-- [ ] Public Beta.1 remains unchanged; Beta.2 remains untagged, unpublished, unqualified, and
+- [x] Public Beta.1 remains unchanged; Beta.2 remains untagged, unpublished, unqualified, and
       absent from external package indexes.
 
 ## Out of scope
