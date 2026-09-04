@@ -34,16 +34,17 @@ regression only when drift can be detected mechanically.
   transaction, and protected reconciliation. `M4-CHANNEL-001` / Issue #76 is Verified by exact
   regenerated local package metadata and protected reconciliation; `M4-FREEZE-002` / Issue #77 is
   Verified at the exact protected repository baseline. `M4-BETA2-001` and `M4-BETA2-002` are
-  Verified through protected PRs #219 and #220. `M4-BETA2-003` is the current private native
-  candidate task. `M3-EVID-005` / Issue #70 runs on public Beta.1 and remains required before RC.1;
-  later RC and Stable work remains in GitHub until its entry gate is satisfied.
+  Verified through protected PRs #219 and #220. `M4-BETA2-003` is Verified by private candidate
+  run `33824463477`, artifact `9920609356`, and independent inspection against protected source
+  `2ae2b507b953eef3101aa9689bd60f91a0046605`. `M3-EVID-005` / Issue #70 runs on public Beta.1,
+  is the current pre-RC evidence task, and remains required before RC.1; later RC and Stable work
+  remains in GitHub until its entry gate is satisfied.
 
 ## Planning Horizons
 
-- **Current:** build and independently inspect one exact nonpublishing Beta.2 native candidate
-  while retaining the qualified Beta.1 public checkpoint unchanged.
-- **Near term:** run the mixed-Application invited cohort without treating synthetic dogfood as
-  user evidence.
+- **Current:** run the mixed-Application invited cohort on qualified public Beta.1 without treating
+  synthetic dogfood as user evidence.
+- **Near term:** reconcile the body-free cohort metrics and blocker classes before RC.1 planning.
 - **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
   package-manager, accessibility, feedback, and final-notes evidence classes.
 - **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then
