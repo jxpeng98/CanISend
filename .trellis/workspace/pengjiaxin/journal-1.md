@@ -464,3 +464,28 @@ Replaced the desktop Prepare AI workspace handoff's retired Agent v2 dependency 
 ### Next Steps
 
 - Open and merge the policy/readiness PR after Fast CI before preparing Beta.2 source state
+
+
+## Session 18: Complete App-first Agent R0
+
+**Date**: 2026-09-04
+**Task**: Complete App-first Agent R0
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Approved and recorded the App-first Codex App Server/MCP roadmap, fixed retained legacy Job scope in clean Workspace v4, preserved explicit pre-v4 behavior, and passed focused desktop checks plus the release source gate.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d167cc0a25e0a4e10033b21e89a94f69e07482e2` | (see git log) |
+| `ab12758417d980a6e2a517a98ba69985f20fb8a4` | (see git log) |
+| `b8a412e8b02aba35520191d508df0aaed2e49b81` | (see git log) |
+| `f09373a9e381dc402d1ebd5c2c7652c70b173f00` | (see git log) |
+| `ea8e7b2062727a1771f30e7899a6463c2ca4e147` | (see git log) |
+
+### Status
+
+[OK] **Completed**

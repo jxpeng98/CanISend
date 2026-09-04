@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~466 | Active |
+| `journal-1.md` | ~491 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-09-04 | Complete App-first Agent R0 | `d167cc0a25e0a4e10033b21e89a94f69e07482e2`, `ab12758417d980a6e2a517a98ba69985f20fb8a4`, `b8a412e8b02aba35520191d508df0aaed2e49b81`, `f09373a9e381dc402d1ebd5c2c7652c70b173f00`, `ea8e7b2062727a1771f30e7899a6463c2ca4e147` | `feat/beta2-cli-skills-readiness` |
 | 17 | 2026-09-04 | Fix desktop Agent v4 workspace handoff | `8da28b3322ea1774048f870335afe8bbca1cc6b9`, `4d4d17b06852834c4852b2702e537173e245fdf8` | `feat/beta2-cli-skills-readiness` |
 | 16 | 2026-09-03 | Merge desktop shell and Workspace migration hardening | `a20b3d8ac888969db7cfc277279024ad8095a259`, `5734ffac8138b8f1690db4161c3af4959cde8669`, `ff64b6ebbdda3c660addf1d7e9fb6100a1ad9068`, `ee617c08ff24fbb5567afda8a42cbefd197a3b9c`, `23d884b8a6aa4e559a8d8995d74acf47721d3f55`, `e296a74e4af698fa3f4540f1c1603a7b08d63722`, `d8f017fe3b79ee3c7ef2639267790d354b9ad24d`, `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` | `chore/archive-desktop-shell-workspace-migration` |
 | 15 | 2026-09-02 | Merge unpublished App and CLI parity candidate | `3ac3bdbf0173a1c9ea6f0abeb33a8f50d96d8d53`, `f03cb412b20f37f3a0ff5ad3af14c39a3ab66845`, `f32afb55efcb642672f4820e012dd77d01550ccb`, `988ca16fe9c004f1269bf6e501cedf8d5355b0e4`, `1fa42081f17705de9b309297f485932672a410be`, `8959cc16e23c3a28b7026500a89adad84702ab46`, `0f88a1f15a620b00c1d6ae4c4b8f03b6b08faeba`, `054d2b1c7eefe3f8d1411a4089da8421776a93f4`, `c96e3e16c0dba761c54340c002ce4622f0ec13ea`, `38f06cf13a6e77809d7160e4838ef096330d7956` | `chore/archive-app-cli-parity` |
