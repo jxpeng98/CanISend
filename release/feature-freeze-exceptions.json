@@ -158,6 +158,14 @@
         "crates/canisend-desktop/tests/fixtures/fake_app_server.rs"
       ],
       "reason": "Establish the approved bounded Codex App Server R1 transport with streamed desktop sessions, body-free continuity metadata, exact cancellation, and offline protocol coverage."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "694b407bbd74d04b40fe8a3df4c23b97b61fa9c6",
+      "paths": [
+        "PRODUCT.md"
+      ],
+      "reason": "Record that the approved Codex App Server R1 implementation and final source gate are complete while leaving R2 product-tool integration and later phases unstarted."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
