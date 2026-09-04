@@ -271,6 +271,8 @@ describe("connected workflow routing", () => {
     expect(
       recommendWorkflowRoute({
         workspacePath: null,
+        applicationCount: 0,
+        hasSelectedApplication: false,
         jobs: [],
         selectedJob: null,
       }).reason,
@@ -279,6 +281,8 @@ describe("connected workflow routing", () => {
     expect(
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
+        applicationCount: 0,
+        hasSelectedApplication: false,
         jobs: [job],
         selectedJob: application({ profile_source_count: 1 }),
       }),
@@ -320,6 +324,8 @@ describe("connected workflow routing", () => {
     expect(
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
+        applicationCount: 0,
+        hasSelectedApplication: false,
         jobs: [sourcedJob],
         selectedJob: workflowApplication,
       }),
@@ -354,12 +360,27 @@ describe("connected workflow routing", () => {
     expect(
       recommendWorkflowRoute({
         workspacePath: "/tmp/canisend",
+        applicationCount: 0,
+        hasSelectedApplication: false,
         jobs: [sourcedJob],
         selectedJob: dossier,
       }),
     ).toMatchObject({
       reason: "continue-workflow",
       route: { view: "delivery", detail: "delivery-review", jobId: "job-1" },
+    });
+
+    expect(
+      recommendWorkflowRoute({
+        workspacePath: "/tmp/canisend",
+        applicationCount: 1,
+        hasSelectedApplication: true,
+        jobs: [],
+        selectedJob: null,
+      }),
+    ).toEqual({
+      reason: "continue-workflow",
+      route: { view: "applications" },
     });
   });
 });

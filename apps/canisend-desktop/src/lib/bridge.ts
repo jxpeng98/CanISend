@@ -3247,7 +3247,7 @@ export async function chooseApplicationSource(): Promise<string | null> {
     filters: [
       {
         name: "Application source",
-        extensions: ["pdf", "txt", "md", "json"],
+        extensions: ["pdf", "typ", "txt", "md", "markdown", "json"],
       },
     ],
   });
