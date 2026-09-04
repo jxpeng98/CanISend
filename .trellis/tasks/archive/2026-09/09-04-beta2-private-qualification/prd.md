@@ -93,7 +93,7 @@ and cannot silently become a release.
       unexpired release-assets artifact.
 - [x] Independent verification passes for checksums, manifest, target archives, App packages,
       signing evidence, SBOM, provenance, and exact source identity.
-- [ ] A protected evidence PR records body-free results and the task is archived only after that
+- [x] A protected evidence PR records body-free results and the task is archived only after that
       PR merges.
 - [x] Public Beta.1 remains unchanged; Beta.2 remains untagged, unpublished, unqualified, and
       absent from external package indexes.
