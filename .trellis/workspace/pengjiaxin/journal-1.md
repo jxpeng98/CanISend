@@ -432,3 +432,35 @@ Refined the desktop shell and bilingual copy, moved transient feedback into acce
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: Fix desktop Agent v4 workspace handoff
+
+**Date**: 2026-09-04
+**Task**: Fix desktop Agent v4 workspace handoff
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Replaced the desktop Prepare AI workspace handoff's retired Agent v2 dependency with a body-free Workspace v4 and Agent v4 binding, updated adapter contracts, and recorded the exact feature-freeze exception.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8da28b3322ea1774048f870335afe8bbca1cc6b9` | (see git log) |
+| `4d4d17b06852834c4852b2702e537173e245fdf8` | (see git log) |
+
+### Testing
+
+- [OK] Focused App and Stage4M Rust regressions passed
+- [OK] Tauri agent tests, Clippy, Svelte check, Prettier, and all 85 Vitest tests passed
+- [OK] Operation registry and final release check passed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Open and merge the policy/readiness PR after Fast CI before preparing Beta.2 source state
