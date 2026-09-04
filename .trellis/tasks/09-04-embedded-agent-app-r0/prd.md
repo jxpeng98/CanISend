@@ -1,6 +1,6 @@
 # R0 App-first architecture and Workspace v4 blocker
 
-Status: Implemented; final Git/source-gate evidence pending
+Status: Complete; source gate passed
 Date: 2026-09-04
 
 ## Goal

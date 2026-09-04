@@ -1,6 +1,6 @@
 # R0 Technical Design
 
-Status: Implemented; final Git/source-gate evidence pending
+Status: Complete; source gate passed
 Date: 2026-09-04
 
 ## Scope

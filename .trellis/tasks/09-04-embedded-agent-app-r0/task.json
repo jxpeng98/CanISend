@@ -12,10 +12,10 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-09-04",
   "completedAt": null,
-  "branch": null,
+  "branch": "feat/beta2-cli-skills-readiness",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "d167cc0a25e0a4e10033b21e89a94f69e07482e2",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -29,7 +29,7 @@
     "docs/architecture/rust-native/decisions/0019-current-product-graph.md",
     "docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"
   ],
-  "notes": "The owner approved the converged plan and R0 on 2026-09-04. R0 reconciles App-first authority and fixes the reproduced clean Workspace v4 scope leak; App Server session code, ACP, Workbench, and file-history implementation remain out of scope. Focused checks pass; exact commit and final source-gate evidence are pending the feature-freeze commit sequence.",
+  "notes": "The owner approved the converged plan and R0 on 2026-09-04. R0 reconciles App-first authority and fixes the reproduced clean Workspace v4 scope leak. Focused checks and the final source gate pass; App Server session code, ACP, Workbench, and file-history implementation remain out of scope, and R1 is not started.",
   "meta": {
     "parent_gate": "approved by the owner on 2026-09-04",
     "session_protocol": "Codex App Server stdio JSON-RPC",
@@ -37,6 +37,8 @@
     "post_mvp_extension": "generic ACP v1 stdio channel first qualified with Claude Agent; Harness remains MCP/external until a session interface is qualified",
     "root_cause": "AgentView retained selected_job_id when the current global Job selection became empty, so its mounted catalog load entered resolve_scope and legacy Application::job_detail for Workspace v4",
     "verification": "focused owning Rust regression plus typed bridge/screen regression and explicit legacy-repository case",
+    "verified_head": "b8a412e8b02aba35520191d508df0aaed2e49b81",
+    "freeze_exception_commit": "ab12758417d980a6e2a517a98ba69985f20fb8a4",
     "rollback": "revert authority reconciliation and blocker patch; retain external handoff"
   }
 }

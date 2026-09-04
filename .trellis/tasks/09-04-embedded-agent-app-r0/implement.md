@@ -1,6 +1,6 @@
 # R0 Implementation Plan
 
-Status: Implemented; final Git/source-gate evidence pending
+Status: Complete; source gate passed
 Date: 2026-09-04
 
 ## Gate
@@ -46,10 +46,10 @@ Date: 2026-09-04
 
 ## E — Close R0
 
-- [ ] Run `cargo run -p xtask --locked -- release check` once on the final R0 head after focused
+- [x] Run `cargo run -p xtask --locked -- release check` once on the final R0 head after focused
       checks pass.
-- [ ] Record requirement-to-test evidence and the exact Git commit or PR head in this task.
-- [ ] Stop at the R0 exit criterion. Create R1 only after R0 is accepted.
+- [x] Record requirement-to-test evidence and the exact Git commit or PR head in this task.
+- [x] Stop at the R0 exit criterion. Create R1 only after R0 is accepted.
 
 ## Exit criterion
 
@@ -68,5 +68,7 @@ implemented in R0.
 | Production frontend bundle | `pnpm --dir apps/canisend-desktop build` | Passed |
 | Rust format and lint | `cargo fmt --all -- --check` and `cargo clippy -p canisend-gui --all-targets -- -D warnings` | Passed |
 
-The final source gate and exact commit evidence remain open until the required feature-freeze
-exception sequence is committed.
+`cargo run -p xtask --locked -- release check` passed on
+`b8a412e8b02aba35520191d508df0aaed2e49b81`. The implementation is
+`d167cc0a25e0a4e10033b21e89a94f69e07482e2`; its exact feature-freeze record is
+`ab12758417d980a6e2a517a98ba69985f20fb8a4`. R1 remains unstarted.

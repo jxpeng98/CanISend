@@ -1,6 +1,6 @@
 # Embedded Agent App Roadmap and MVP Checklist
 
-Status: Approved roadmap; R0 implemented with final source-gate evidence pending
+Status: Approved roadmap; R0 complete; R1 not started
 Date: 2026-09-04
 
 ## Roadmap at a glance
