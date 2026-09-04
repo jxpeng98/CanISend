@@ -458,3 +458,31 @@ Merged policy PR #219 and source-transition PR #220; prepared the private untagg
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: Verify private Beta.2 native candidate
+
+**Date**: 2026-09-04
+**Task**: Verify private Beta.2 native candidate
+**Branch**: `chore/beta2-private-candidate-closeout`
+
+### Summary
+
+Corrected source/public release truth, passed one exact nonpublishing Beta.2 native matrix and independent 20-file provenance verification, merged protected evidence, and left Beta.2 untagged, unpublished, and unqualified.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d7dac49c26409190132fee5d896003bb1afc2a61` | (see git log) |
+| `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc` | (see git log) |
+| `d5ec49300661b1ebdc9b9ebcb14c615d317fb369` | (see git log) |
+| `2a928dd3baa642920b5f420d4ba58337c165331a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Run the consented body-free invited cohort on qualified public Beta.1 before RC.1 planning.
