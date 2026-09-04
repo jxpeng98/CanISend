@@ -7,11 +7,14 @@ use std::{
 
 use canisend_contracts::EntityId;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-const REGISTRY_FORMAT: &str = "canisend.agent-session-registry/v1";
+const REGISTRY_FORMAT: &str = "canisend.agent-session-registry/v2";
+const LEGACY_REGISTRY_FORMAT: &str = "canisend.agent-session-registry/v1";
 const MAX_REGISTRY_BYTES: u64 = 256 * 1024;
 const MAX_REGISTRY_ENTRIES: usize = 128;
 const MAX_EXTERNAL_SESSION_ID_BYTES: usize = 128;
+const MAX_PROVIDER_VERSION_BYTES: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -30,6 +33,31 @@ impl AgentRuntimeKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentSessionStatus {
+    #[default]
+    Disconnected,
+    Connecting,
+    AuthenticationRequired,
+    Ready,
+    Running,
+    Cancelling,
+    Interrupted,
+    RecoverableDisconnect,
+    Incompatible,
+    Failed,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AgentSessionMetadata {
+    pub desktop_session_id: Option<String>,
+    pub desktop_turn_id: Option<String>,
+    pub external_turn_id: Option<String>,
+    pub provider_version: Option<String>,
+    pub last_status: AgentSessionStatus,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentSessionEntry {
@@ -37,6 +65,11 @@ pub struct AgentSessionEntry {
     pub runtime: AgentRuntimeKind,
     pub job_id: Option<String>,
     pub external_session_id: String,
+    pub desktop_session_id: Option<String>,
+    pub desktop_turn_id: Option<String>,
+    pub external_turn_id: Option<String>,
+    pub provider_version: Option<String>,
+    pub last_status: AgentSessionStatus,
     pub created_at_unix: u64,
     pub updated_at_unix: u64,
 }
@@ -46,6 +79,24 @@ pub struct AgentSessionEntry {
 pub struct AgentSessionRegistry {
     pub format: String,
     pub entries: Vec<AgentSessionEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentSessionEntryV1 {
+    workspace: PathBuf,
+    runtime: AgentRuntimeKind,
+    job_id: Option<String>,
+    external_session_id: String,
+    created_at_unix: u64,
+    updated_at_unix: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentSessionRegistryV1 {
+    format: String,
+    entries: Vec<AgentSessionEntryV1>,
 }
 
 impl Default for AgentSessionRegistry {
@@ -74,8 +125,27 @@ impl AgentSessionRegistry {
         }
         let bytes = fs::read(path)
             .map_err(|error| format!("Cannot read agent session registry: {error}"))?;
-        let registry: Self = serde_json::from_slice(&bytes)
+        let value: Value = serde_json::from_slice(&bytes)
             .map_err(|error| format!("Agent session registry is invalid: {error}"))?;
+        let format = value
+            .get("format")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Agent session registry format is missing".to_owned())?
+            .to_owned();
+        let registry = match format.as_str() {
+            REGISTRY_FORMAT => serde_json::from_value(value)
+                .map_err(|error| format!("Agent session registry is invalid: {error}"))?,
+            LEGACY_REGISTRY_FORMAT => {
+                let legacy: AgentSessionRegistryV1 = serde_json::from_value(value)
+                    .map_err(|error| format!("Agent session registry is invalid: {error}"))?;
+                Self::migrate_v1(legacy)?
+            }
+            other => {
+                return Err(format!(
+                    "Unsupported agent session registry format: {other}"
+                ));
+            }
+        };
         registry.validate()?;
         Ok(registry)
     }
@@ -100,9 +170,27 @@ impl AgentSessionRegistry {
         job_id: Option<&str>,
         external_session_id: &str,
     ) -> Result<AgentSessionEntry, String> {
+        self.upsert_with_metadata(
+            workspace,
+            runtime,
+            job_id,
+            external_session_id,
+            AgentSessionMetadata::default(),
+        )
+    }
+
+    pub fn upsert_with_metadata(
+        &mut self,
+        workspace: &Path,
+        runtime: AgentRuntimeKind,
+        job_id: Option<&str>,
+        external_session_id: &str,
+        metadata: AgentSessionMetadata,
+    ) -> Result<AgentSessionEntry, String> {
         validate_active_workspace(workspace)?;
         validate_job_id(job_id)?;
         validate_external_session_id(external_session_id)?;
+        validate_metadata(&metadata)?;
         let now = unix_now()?;
         if let Some(entry) = self.entries.iter_mut().find(|entry| {
             entry.workspace == workspace
@@ -110,6 +198,11 @@ impl AgentSessionRegistry {
                 && entry.job_id.as_deref() == job_id
         }) {
             entry.external_session_id = external_session_id.to_owned();
+            entry.desktop_session_id = metadata.desktop_session_id;
+            entry.desktop_turn_id = metadata.desktop_turn_id;
+            entry.external_turn_id = metadata.external_turn_id;
+            entry.provider_version = metadata.provider_version;
+            entry.last_status = metadata.last_status;
             entry.updated_at_unix = now;
             return Ok(entry.clone());
         }
@@ -123,6 +216,11 @@ impl AgentSessionRegistry {
             runtime,
             job_id: job_id.map(ToOwned::to_owned),
             external_session_id: external_session_id.to_owned(),
+            desktop_session_id: metadata.desktop_session_id,
+            desktop_turn_id: metadata.desktop_turn_id,
+            external_turn_id: metadata.external_turn_id,
+            provider_version: metadata.provider_version,
+            last_status: metadata.last_status,
             created_at_unix: now,
             updated_at_unix: now,
         };
@@ -186,6 +284,13 @@ impl AgentSessionRegistry {
             validate_workspace_path(&entry.workspace)?;
             validate_job_id(entry.job_id.as_deref())?;
             validate_external_session_id(&entry.external_session_id)?;
+            validate_metadata(&AgentSessionMetadata {
+                desktop_session_id: entry.desktop_session_id.clone(),
+                desktop_turn_id: entry.desktop_turn_id.clone(),
+                external_turn_id: entry.external_turn_id.clone(),
+                provider_version: entry.provider_version.clone(),
+                last_status: entry.last_status,
+            })?;
             if entry.created_at_unix > entry.updated_at_unix {
                 return Err(
                     "Agent session registry contains an invalid update timestamp".to_owned(),
@@ -207,6 +312,37 @@ impl AgentSessionRegistry {
                 .then_with(|| left.runtime.cmp(&right.runtime))
                 .then_with(|| left.job_id.cmp(&right.job_id))
         });
+    }
+
+    fn migrate_v1(legacy: AgentSessionRegistryV1) -> Result<Self, String> {
+        if legacy.format != LEGACY_REGISTRY_FORMAT {
+            return Err(format!(
+                "Unsupported agent session registry format: {}",
+                legacy.format
+            ));
+        }
+        let registry = Self {
+            format: REGISTRY_FORMAT.to_owned(),
+            entries: legacy
+                .entries
+                .into_iter()
+                .map(|entry| AgentSessionEntry {
+                    workspace: entry.workspace,
+                    runtime: entry.runtime,
+                    job_id: entry.job_id,
+                    external_session_id: entry.external_session_id,
+                    desktop_session_id: None,
+                    desktop_turn_id: None,
+                    external_turn_id: None,
+                    provider_version: None,
+                    last_status: AgentSessionStatus::Disconnected,
+                    created_at_unix: entry.created_at_unix,
+                    updated_at_unix: entry.updated_at_unix,
+                })
+                .collect(),
+        };
+        registry.validate()?;
+        Ok(registry)
     }
 }
 
@@ -256,6 +392,30 @@ fn validate_external_session_id(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_metadata(metadata: &AgentSessionMetadata) -> Result<(), String> {
+    for (label, value) in [
+        ("Desktop session ID", metadata.desktop_session_id.as_deref()),
+        ("Desktop turn ID", metadata.desktop_turn_id.as_deref()),
+        ("External turn ID", metadata.external_turn_id.as_deref()),
+    ] {
+        if let Some(value) = value {
+            validate_external_session_id(value)
+                .map_err(|error| error.replacen("External agent session ID", label, 1))?;
+        }
+    }
+    if let Some(version) = metadata.provider_version.as_deref() {
+        if version.is_empty() || version.len() > MAX_PROVIDER_VERSION_BYTES {
+            return Err(format!(
+                "Agent provider version must contain 1 to {MAX_PROVIDER_VERSION_BYTES} bytes"
+            ));
+        }
+        if version.chars().any(char::is_control) {
+            return Err("Agent provider version contains control characters".to_owned());
+        }
+    }
+    Ok(())
+}
+
 fn unix_now() -> Result<u64, String> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -288,7 +448,7 @@ mod tests {
         sync::atomic::{AtomicU64, Ordering},
     };
 
-    use super::{AgentRuntimeKind, AgentSessionRegistry};
+    use super::{AgentRuntimeKind, AgentSessionMetadata, AgentSessionRegistry, AgentSessionStatus};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
 
@@ -311,7 +471,19 @@ mod tests {
 
         let mut registry = AgentSessionRegistry::default();
         registry
-            .upsert(&workspace, AgentRuntimeKind::Codex, None, "thread-1")
+            .upsert_with_metadata(
+                &workspace,
+                AgentRuntimeKind::Codex,
+                None,
+                "thread-1",
+                AgentSessionMetadata {
+                    desktop_session_id: Some("desktop-session-1".to_owned()),
+                    desktop_turn_id: Some("desktop-turn-1".to_owned()),
+                    external_turn_id: Some("provider-turn-1".to_owned()),
+                    provider_version: Some("codex-cli 0.152.0".to_owned()),
+                    last_status: AgentSessionStatus::Ready,
+                },
+            )
             .expect("workspace session");
         registry
             .upsert(&workspace, AgentRuntimeKind::Codex, None, "thread-2")
@@ -345,13 +517,60 @@ mod tests {
             entry.keys().map(String::as_str).collect::<BTreeSet<_>>(),
             BTreeSet::from([
                 "created_at_unix",
+                "desktop_session_id",
+                "desktop_turn_id",
                 "external_session_id",
+                "external_turn_id",
                 "job_id",
+                "last_status",
+                "provider_version",
                 "runtime",
                 "updated_at_unix",
                 "workspace",
             ])
         );
+
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn version_one_registry_migrates_without_content_or_identity_loss() {
+        let root = root();
+        let workspace = root.join("workspace");
+        fs::create_dir_all(&workspace).expect("workspace");
+        fs::write(workspace.join("canisend.toml"), "format = \"fixture\"\n")
+            .expect("workspace marker");
+        let path = root.join("agent-sessions.json");
+        let legacy = serde_json::json!({
+            "format": "canisend.agent-session-registry/v1",
+            "entries": [{
+                "workspace": workspace,
+                "runtime": "codex",
+                "job_id": null,
+                "external_session_id": "thread-legacy",
+                "created_at_unix": 10,
+                "updated_at_unix": 20
+            }]
+        });
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&legacy).expect("legacy registry"),
+        )
+        .expect("write legacy registry");
+
+        let migrated = AgentSessionRegistry::load(&path).expect("migrate registry");
+        assert_eq!(migrated.format, "canisend.agent-session-registry/v2");
+        assert_eq!(migrated.entries[0].external_session_id, "thread-legacy");
+        assert_eq!(
+            migrated.entries[0].last_status,
+            AgentSessionStatus::Disconnected
+        );
+        migrated.save(&path).expect("write canonical v2 registry");
+        let encoded = fs::read_to_string(&path).expect("read canonical registry");
+        assert!(encoded.contains("canisend.agent-session-registry/v2"));
+        for private_key in ["prompt", "response", "transcript", "approval_token"] {
+            assert!(!encoded.contains(private_key));
+        }
 
         fs::remove_dir_all(root).expect("remove fixture");
     }

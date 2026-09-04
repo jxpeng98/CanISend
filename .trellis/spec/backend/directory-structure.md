@@ -230,6 +230,89 @@ let context = Application::agent_context(Some(&workspace), selected_job_id)?;
 let workspace = Application::workspace_status_v4(&workspace)?.data;
 ```
 
+## Scenario: desktop Codex App Server session transport
+
+### 1. Scope / Trigger
+
+Use this boundary when the desktop starts, resumes, streams, cancels, or reports a Codex
+conversation. R1 is transport-only: it does not grant Workspace access or inject CanISend MCP
+tools.
+
+### 2. Signatures
+
+- `start_agent_session(window, state, AgentSessionStartRequest) -> AgentEmbeddedSession`
+- `run_agent_turn(window, state, AgentTurnRequest, Channel<AgentStreamEvent>) -> AgentTurnResult`
+- `agent_runtime_catalog(window, state, AgentRuntimeCatalogRequest) -> AgentRuntimeCatalog`
+- `cancel_agent_turn(window, state, AgentTurnCancelRequest) -> AgentTurnCancelResult`
+- The App-local registry is `canisend.agent-session-registry/v2`; v1 loads migrate in memory and
+  the next successful mutation writes canonical v2.
+
+### 3. Contracts
+
+- Reuse executable/version discovery, then spawn exactly
+  `codex app-server --listen stdio://` without a shell, with piped stdio and an App-owned private
+  working directory outside the Workspace. One exact child is owned per desktop window.
+- Speak bounded newline-delimited App Server JSON-RPC: `initialize`, `initialized`, `account/read`,
+  `thread/start` or `thread/resume`, `turn/start`, and `turn/interrupt`.
+- Thread setup always uses `sandbox: "read-only"` and `approvalPolicy: "never"`. R1 supplies no
+  CanISend MCP server and tells the model that Workspace tools are not connected.
+- `AgentStreamEvent` carries only a monotonic sequence, desktop session/turn IDs, finite status,
+  assistant delta, body-free method name, and bounded provider event ID. Raw provider payloads,
+  approval arguments, stderr bodies, prompts, and transcripts do not cross the IPC boundary.
+- Registry v2 stores only runtime/version, Workspace scope, desktop/provider session and turn IDs,
+  finite last status, and timestamps. The Svelte reducer keeps conversation bodies in memory and
+  reconciles the final response into the same streamed assistant message.
+- Keep Claude on the existing bounded one-shot fallback until it has a separately qualified
+  embedded-session protocol.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Missing executable or version | `agent-runtime-unavailable` or `agent-runtime-incompatible` |
+| `account/read` requires login with no account | `agent-runtime-authentication-required` |
+| Malformed/oversized JSONL, wrong correlation, timeout, or child exit | Exact child is closed; state becomes recoverable or failed |
+| Command/file approval request | Emit only its method/ID and reply `decline` |
+| Any other server request | Reply `-32601`, close the connection, and report incompatible |
+| Cancel matching active scope | Send exact thread/turn IDs; retain received partial text |
+| Clean Workspace v4 plus Job selector | `input-invalid` before any legacy Job lookup |
+
+Protocol bounds are 1 MiB per line, 16 queued messages, 4 MiB per response, 256 KiB retained
+stderr, 10 seconds startup, 30 seconds per ordinary request, 10 minutes per turn, 5 seconds to
+interrupt, and 2 seconds graceful child shutdown.
+
+### 5. Good / Base / Bad Cases
+
+- Good: one live Codex child resumes its stored thread and streams ordered deltas into one message.
+- Base: missing or signed-out Codex leaves external handoff available; Claude still uses one-shot.
+- Bad: run Codex once per turn, expose raw server request parameters, persist transcript bodies, or
+  point the App Server working directory at the Workspace.
+
+### 6. Tests Required
+
+- Registry: v1 fixture preserves the thread ID, writes v2, and contains only the allowlisted keys.
+- Fake child: initialize/readiness, start/resume, two turns, multiple deltas, cancellation,
+  approval decline, unsupported request, malformed/oversized framing, timeout, child exit, exact
+  cleanup, and body-free errors.
+- Desktop: clean-v4 scope refusal, exact-scope cancellation, strict Clippy, and all library tests.
+- Frontend: typed Channel request, ordered/duplicate delta reducer, Svelte type-check, tests, build,
+  formatting, and an `aria-live` finite status.
+- Manual evidence: one signed-in supported Codex CLI starts, resumes, restarts, and cancels without
+  recording response bodies.
+
+### 7. Wrong vs Correct
+
+```rust
+// Wrong: give the provider ambient Workspace access and forward arbitrary protocol JSON.
+Command::new("codex").current_dir(workspace).spawn()?;
+
+// Correct: isolate transport and expose one normalized, body-free event boundary.
+Command::new(executable)
+    .args(["app-server", "--listen", "stdio://"])
+    .current_dir(app_owned_session_directory)
+    .spawn()?;
+```
+
 ## Examples
 
 - `crates/canisend-app/src/error.rs` centralizes adapter-neutral failure classification.

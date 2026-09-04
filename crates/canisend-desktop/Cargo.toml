@@ -13,9 +13,17 @@ publish.workspace = true
 name = "canisend-gui"
 path = "src/main.rs"
 
+[[bin]]
+name = "canisend-fake-app-server"
+path = "tests/fixtures/fake_app_server.rs"
+required-features = ["app-server-test-fixture"]
+test = false
+bench = false
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 preview-qualification = ["dep:tauri-plugin-wdio-webdriver"]
+app-server-test-fixture = []
 
 [build-dependencies]
 tauri-build.workspace = true

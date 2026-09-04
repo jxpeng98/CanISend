@@ -21,8 +21,11 @@
 
   import {
     agentUiState,
+    applyAgentStreamEvent,
     appendAgentMessage,
     beginNewAgentConversation,
+    reconcileAgentMessage,
+    removeEmptyAgentMessage,
     scopeAgentUiState,
     switchAgentConversationScope,
   } from "$lib/agent-state.svelte";
@@ -56,6 +59,7 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentStreamEvent,
     type AgentSkillsInstallReadModel,
     type AgentSkillsStatusReadModel,
     type AgentSkillsUninstallReadModel,
@@ -109,6 +113,7 @@
       prompt: string;
       startNew: boolean;
       confirmedProviderSend: boolean;
+      onEvent: (event: AgentStreamEvent) => void;
     }) => Promise<AgentTurnResult | null>;
     onCancelTurn: (options: { jobId?: string; runtime: AgentRuntimeKind }) => Promise<boolean>;
     onExport: (host: AgentHost, destination: string) => Promise<AgentPackExportReadModel | null>;
@@ -201,7 +206,15 @@
 
   async function refreshRuntimes(): Promise<void> {
     agentUiState.formError = null;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
+    setRuntimeCatalog(await onLoadRuntimes(agentUiState.selectedJobId || undefined));
+  }
+
+  function setRuntimeCatalog(catalog: AgentRuntimeCatalog | null): void {
+    agentUiState.runtimeCatalog = catalog;
+    agentUiState.embeddedSessionState =
+      agentUiState.runtime === "codex"
+        ? (catalog?.embedded_session.state ?? "not-configured")
+        : "not-configured";
   }
 
   async function changeScope(jobId: string): Promise<void> {
@@ -215,7 +228,7 @@
     agentUiState.handoff = null;
     agentUiState.skillsInstallation = null;
     agentUiState.mcpConfiguration = null;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(jobId || undefined);
+    setRuntimeCatalog(await onLoadRuntimes(jobId || undefined));
     if (jobId) await loadAssistance();
   }
 
@@ -233,6 +246,10 @@
   function changeRuntime(runtime: AgentRuntimeKind): void {
     agentUiState.host = runtime;
     switchAgentConversationScope(runtime, agentUiState.selectedJobId);
+    if (runtime === "codex") {
+      agentUiState.embeddedSessionState =
+        agentUiState.runtimeCatalog?.embedded_session.state ?? "not-configured";
+    }
   }
 
   async function prepareHandoff(): Promise<void> {
@@ -380,20 +397,28 @@
       agentUiState.formError = copy.providerConsent;
       return;
     }
+    appendAgentMessage("user", prompt);
+    const assistantMessageId = appendAgentMessage("assistant", "");
+    agentUiState.prompt = "";
+    if (agentUiState.runtime === "codex") {
+      agentUiState.embeddedSessionState = "connecting";
+    }
     const result = await onRunTurn({
       jobId: agentUiState.selectedJobId || undefined,
       runtime: agentUiState.runtime,
       prompt,
       startNew: agentUiState.startNew,
       confirmedProviderSend: agentUiState.confirmedProviderSend,
+      onEvent: (event) => applyAgentStreamEvent(event, assistantMessageId),
     });
-    if (!result) return;
-    appendAgentMessage("user", prompt);
-    appendAgentMessage("assistant", result.response);
+    if (!result) {
+      removeEmptyAgentMessage(assistantMessageId);
+      return;
+    }
+    reconcileAgentMessage(assistantMessageId, result.response);
     agentUiState.lastTurn = result;
-    agentUiState.prompt = "";
     agentUiState.startNew = false;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
+    setRuntimeCatalog(await onLoadRuntimes(agentUiState.selectedJobId || undefined));
   }
 
   async function cancelTurn(): Promise<void> {
@@ -460,6 +485,29 @@
 
   function shortSessionId(value: string): string {
     return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
+  }
+
+  function embeddedSessionStateLabel(): string {
+    switch (agentUiState.embeddedSessionState) {
+      case "connecting":
+        return copy.sessionConnecting;
+      case "authentication-required":
+        return copy.sessionAuthenticationRequired;
+      case "ready":
+        return copy.sessionReady;
+      case "running":
+        return copy.sessionRunning;
+      case "cancelling":
+        return copy.sessionCancelling;
+      case "recoverable-disconnect":
+        return copy.sessionRecoverableDisconnect;
+      case "incompatible":
+        return copy.sessionIncompatible;
+      case "failed":
+        return copy.sessionFailed;
+      default:
+        return copy.sessionNotConfigured;
+    }
   }
 
   function proposalLabel(
@@ -1270,6 +1318,13 @@
               </div>
               <div class="flex flex-wrap gap-2">
                 <Badge variant="outline">{copy.readOnlyMode}</Badge>
+                {#if agentUiState.runtime === "codex"}
+                  <span aria-live="polite">
+                    <Badge variant="secondary">
+                      {copy.embeddedSessionStatus}: {embeddedSessionStateLabel()}
+                    </Badge>
+                  </span>
+                {/if}
                 {#if currentSession}
                   <Badge variant="secondary">
                     {shortSessionId(currentSession.external_session_id)}

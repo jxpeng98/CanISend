@@ -119,6 +119,7 @@
     searchContent,
     selectWorkspace,
     showDiscoveryLead,
+    startAgentSession,
     startWorkflow,
     suggestDiscoveryDuplicates,
     uninstallCli,
@@ -137,6 +138,7 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentStreamEvent,
     type AgentSkillsInstallReadModel,
     type AgentSkillsStatusReadModel,
     type AgentSkillsUninstallReadModel,
@@ -1834,6 +1836,7 @@
     prompt: string;
     startNew: boolean;
     confirmedProviderSend: boolean;
+    onEvent: (event: AgentStreamEvent) => void;
   }): Promise<AgentTurnResult | null> {
     if (!activeWorkspace) return null;
     busy = true;
@@ -1842,6 +1845,19 @@
     bridgeErrorCanRetry = false;
     notice = null;
     try {
+      if (options.runtime === "codex") {
+        agentUiState.embeddedSessionState = "connecting";
+        const session = await startAgentSession({
+          workspace: activeWorkspace.path,
+          selectedJobId: options.jobId,
+          runtime: options.runtime,
+          startNew: options.startNew,
+          confirmedProviderSend: options.confirmedProviderSend,
+        });
+        agentUiState.embeddedSessionState = session.state;
+        agentUiState.streamSessionId = session.desktop_session_id;
+        agentUiState.lastStreamSequence = 0;
+      }
       const result = await runAgentTurn({
         workspace: activeWorkspace.path,
         selectedJobId: options.jobId,
@@ -1849,6 +1865,7 @@
         prompt: options.prompt,
         startNew: options.startNew,
         confirmedProviderSend: options.confirmedProviderSend,
+        onEvent: options.onEvent,
       });
       recordSuccessfulAction(
         {
@@ -1865,9 +1882,21 @@
       notice = result.resumed ? copy.agentSessionResumed : copy.agentSessionStarted;
       return result;
     } catch (error) {
-      if (commandErrorCode(error) === "agent-runtime-cancelled") {
+      const code = commandErrorCode(error);
+      if (code === "agent-runtime-cancelled") {
+        agentUiState.embeddedSessionState = "ready";
         notice = copy.agentTurnCancelled;
         return null;
+      }
+      if (options.runtime === "codex") {
+        agentUiState.embeddedSessionState =
+          code === "agent-runtime-authentication-required"
+            ? "authentication-required"
+            : code === "agent-runtime-incompatible"
+              ? "incompatible"
+              : code === "agent-runtime-unavailable"
+                ? "failed"
+                : "recoverable-disconnect";
       }
       captureBridgeError(error);
       return null;

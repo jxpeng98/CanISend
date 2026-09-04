@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { AgentAssistanceReadModel, AgentSkillsStatusReadModel } from "./bridge";
+import type {
+  AgentAssistanceReadModel,
+  AgentSkillsStatusReadModel,
+  AgentStreamEvent,
+} from "./bridge";
 import {
   agentUiState,
+  applyAgentStreamEvent,
+  appendAgentMessage,
   scopeAgentUiState,
   switchAgentConversationScope,
 } from "./agent-state.svelte";
@@ -27,6 +33,9 @@ describe("Agent UI architecture boundary", () => {
     agentUiState.messages = [];
     agentUiState.lastTurn = null;
     agentUiState.formError = null;
+    agentUiState.embeddedSessionState = "not-configured";
+    agentUiState.streamSessionId = null;
+    agentUiState.lastStreamSequence = 0;
     agentUiState.nextMessageId = 1;
     agentUiState.activeConversationKey = "codex:workspace";
     agentUiState.conversationCache = {};
@@ -126,5 +135,37 @@ describe("Agent UI architecture boundary", () => {
     expect(agentUiState.assistance).toBeNull();
     expect(agentUiState.prompt).toBe("Continue application A");
     expect(agentUiState.messages).toEqual([{ id: 1, role: "user", text: "Application A" }]);
+  });
+
+  it("reduces ordered stream events into one assistant message", () => {
+    const messageId = appendAgentMessage("assistant", "");
+    const event = (sequence: number, text: string): AgentStreamEvent => ({
+      sequence,
+      desktop_session_id: "desktop-session",
+      desktop_turn_id: "desktop-turn",
+      kind: "assistant-delta",
+      state: null,
+      text,
+      method: null,
+      provider_event_id: "item-1",
+    });
+
+    expect(applyAgentStreamEvent(event(1, "Hello"), messageId)).toBe(true);
+    expect(applyAgentStreamEvent(event(1, " duplicate"), messageId)).toBe(false);
+    expect(applyAgentStreamEvent(event(2, " world"), messageId)).toBe(true);
+    applyAgentStreamEvent(
+      {
+        ...event(3, ""),
+        kind: "completed",
+        state: "ready",
+        text: null,
+      },
+      messageId,
+    );
+
+    expect(agentUiState.messages).toEqual([
+      { id: messageId, role: "assistant", text: "Hello world" },
+    ]);
+    expect(agentUiState.embeddedSessionState).toBe("ready");
   });
 });

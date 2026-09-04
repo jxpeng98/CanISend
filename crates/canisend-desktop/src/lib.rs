@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 
 mod agent;
+#[cfg(not(feature = "app-server-test-fixture"))]
 mod agent_runtime;
+#[cfg(feature = "app-server-test-fixture")]
+pub mod agent_runtime;
 mod application_intake;
 mod application_mutations_v4;
 mod application_resources_v4;
@@ -41,6 +44,7 @@ pub fn run() {
             agent_runtime::agent_runtime_catalog,
             agent_runtime::cancel_agent_turn,
             agent_runtime::run_agent_turn,
+            agent_runtime::start_agent_session,
             application_intake::commit_application_intake_preview,
             application_intake::discard_application_intake_preview,
             application_intake::preview_local_application_intake,

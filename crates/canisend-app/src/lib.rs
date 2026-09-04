@@ -55,7 +55,8 @@ pub use agent::{
     CANISEND_MCP_V2_TOOLS,
 };
 pub use agent_session::{
-    AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, default_agent_session_registry_path,
+    AgentRuntimeKind, AgentSessionEntry, AgentSessionMetadata, AgentSessionRegistry,
+    AgentSessionStatus, default_agent_session_registry_path,
 };
 pub use agent_v3::{
     AGENT_V3_PROTOCOL, AgentV3ApplicationSummaryReadModel, AgentV3CapabilitiesReadModel,

@@ -7,6 +7,8 @@ import type {
   AgentPackExportReadModel,
   AgentRuntimeCatalog,
   AgentRuntimeKind,
+  AgentEmbeddedSessionState,
+  AgentStreamEvent,
   AgentSkillsInstallReadModel,
   AgentSkillsStatusReadModel,
   AgentTurnResult,
@@ -48,6 +50,9 @@ type AgentUiState = {
   destination: string;
   exported: AgentPackExportReadModel | null;
   formError: string | null;
+  embeddedSessionState: AgentEmbeddedSessionState;
+  streamSessionId: string | null;
+  lastStreamSequence: number;
   nextMessageId: number;
   activeConversationKey: string;
   conversationCache: Record<string, AgentConversationSnapshot>;
@@ -75,6 +80,9 @@ export const agentUiState = $state<AgentUiState>({
   destination: "",
   exported: null,
   formError: null,
+  embeddedSessionState: "not-configured",
+  streamSessionId: null,
+  lastStreamSequence: 0,
   nextMessageId: 1,
   activeConversationKey: "codex:workspace",
   conversationCache: {},
@@ -98,6 +106,9 @@ export function scopeAgentUiState(workspacePath: string | null): void {
   agentUiState.confirmedProviderSend = false;
   agentUiState.startNew = false;
   agentUiState.formError = null;
+  agentUiState.embeddedSessionState = "not-configured";
+  agentUiState.streamSessionId = null;
+  agentUiState.lastStreamSequence = 0;
   agentUiState.activeConversationKey = `${agentUiState.runtime}:workspace`;
   agentUiState.conversationCache = {};
 }
@@ -122,6 +133,9 @@ export function switchAgentConversationScope(runtime: AgentRuntimeKind, jobId: s
   agentUiState.messages = target ? [...target.messages] : [];
   agentUiState.lastTurn = target?.lastTurn ?? null;
   agentUiState.formError = null;
+  agentUiState.embeddedSessionState = "not-configured";
+  agentUiState.streamSessionId = null;
+  agentUiState.lastStreamSequence = 0;
   agentUiState.handoff = null;
   if (jobScopeChanged) agentUiState.assistance = null;
   agentUiState.skillsInstallation = null;
@@ -129,13 +143,53 @@ export function switchAgentConversationScope(runtime: AgentRuntimeKind, jobId: s
   agentUiState.activeConversationKey = targetKey;
 }
 
-export function appendAgentMessage(role: AgentChatMessage["role"], text: string): void {
+export function appendAgentMessage(role: AgentChatMessage["role"], text: string): number {
+  const id = agentUiState.nextMessageId;
   agentUiState.messages.push({
-    id: agentUiState.nextMessageId,
+    id,
     role,
     text,
   });
   agentUiState.nextMessageId += 1;
+  return id;
+}
+
+export function applyAgentStreamEvent(
+  event: AgentStreamEvent,
+  assistantMessageId: number,
+): boolean {
+  if (agentUiState.streamSessionId !== event.desktop_session_id) {
+    agentUiState.streamSessionId = event.desktop_session_id;
+    agentUiState.lastStreamSequence = 0;
+  }
+  if (event.sequence <= agentUiState.lastStreamSequence) return false;
+  agentUiState.lastStreamSequence = event.sequence;
+  if (event.state) agentUiState.embeddedSessionState = event.state;
+  switch (event.kind) {
+    case "assistant-delta": {
+      if (!event.text) return true;
+      const message = agentUiState.messages.find((item) => item.id === assistantMessageId);
+      if (message) message.text += event.text;
+      return true;
+    }
+    case "status":
+    case "server-request":
+    case "completed":
+    case "interrupted":
+    case "failed":
+      return true;
+  }
+}
+
+export function reconcileAgentMessage(messageId: number, text: string): void {
+  const message = agentUiState.messages.find((item) => item.id === messageId);
+  if (message) message.text = text;
+}
+
+export function removeEmptyAgentMessage(messageId: number): void {
+  const message = agentUiState.messages.find((item) => item.id === messageId);
+  if (message?.text) return;
+  agentUiState.messages = agentUiState.messages.filter((item) => item.id !== messageId);
 }
 
 export function beginNewAgentConversation(): void {
@@ -144,4 +198,7 @@ export function beginNewAgentConversation(): void {
   agentUiState.prompt = "";
   agentUiState.startNew = true;
   agentUiState.formError = null;
+  agentUiState.embeddedSessionState = "not-configured";
+  agentUiState.streamSessionId = null;
+  agentUiState.lastStreamSequence = 0;
 }

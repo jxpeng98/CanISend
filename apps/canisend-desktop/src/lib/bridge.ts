@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
 export interface ProductSummary {
@@ -1402,8 +1402,56 @@ export interface AgentSessionEntry {
   runtime: AgentRuntimeKind;
   job_id: string | null;
   external_session_id: string;
+  desktop_session_id: string | null;
+  desktop_turn_id: string | null;
+  external_turn_id: string | null;
+  provider_version: string | null;
+  last_status:
+    | "disconnected"
+    | "connecting"
+    | "authentication-required"
+    | "ready"
+    | "running"
+    | "cancelling"
+    | "interrupted"
+    | "recoverable-disconnect"
+    | "incompatible"
+    | "failed";
   created_at_unix: number;
   updated_at_unix: number;
+}
+
+export type AgentEmbeddedSessionState =
+  | "not-configured"
+  | "connecting"
+  | "authentication-required"
+  | "ready"
+  | "running"
+  | "cancelling"
+  | "recoverable-disconnect"
+  | "incompatible"
+  | "failed";
+
+export interface AgentEmbeddedSession {
+  runtime: "codex";
+  state: AgentEmbeddedSessionState;
+  desktop_session_id: string | null;
+  desktop_turn_id: string | null;
+  external_session_id: string | null;
+  external_turn_id: string | null;
+  provider_version: string | null;
+  resumed: boolean;
+}
+
+export interface AgentStreamEvent {
+  sequence: number;
+  desktop_session_id: string;
+  desktop_turn_id: string | null;
+  kind: "status" | "assistant-delta" | "server-request" | "completed" | "interrupted" | "failed";
+  state: AgentEmbeddedSessionState | null;
+  text: string | null;
+  method: string | null;
+  provider_event_id: string | null;
 }
 
 export interface AgentRuntimeProbe {
@@ -1422,6 +1470,7 @@ export interface AgentRuntimeCatalog {
   runtimes: AgentRuntimeProbe[];
   sessions: AgentSessionEntry[];
   session_storage: string;
+  embedded_session: AgentEmbeddedSession;
 }
 
 export interface AgentTurnResult {
@@ -2930,6 +2979,24 @@ export async function getAgentRuntimeCatalog(
   });
 }
 
+export async function startAgentSession(options: {
+  workspace: string;
+  selectedJobId?: string;
+  runtime: AgentRuntimeKind;
+  startNew: boolean;
+  confirmedProviderSend: boolean;
+}): Promise<AgentEmbeddedSession> {
+  return invoke("start_agent_session", {
+    request: {
+      workspace: options.workspace,
+      selected_job_id: options.selectedJobId || null,
+      runtime: options.runtime,
+      start_new: options.startNew,
+      confirmed_provider_send: options.confirmedProviderSend,
+    },
+  });
+}
+
 export async function runAgentTurn(options: {
   workspace: string;
   selectedJobId?: string;
@@ -2937,7 +3004,10 @@ export async function runAgentTurn(options: {
   prompt: string;
   startNew: boolean;
   confirmedProviderSend: boolean;
+  onEvent: (event: AgentStreamEvent) => void;
 }): Promise<AgentTurnResult> {
+  const onEvent = new Channel<AgentStreamEvent>();
+  onEvent.onmessage = options.onEvent;
   return invoke("run_agent_turn", {
     request: {
       workspace: options.workspace,
@@ -2947,6 +3017,7 @@ export async function runAgentTurn(options: {
       start_new: options.startNew,
       confirmed_provider_send: options.confirmedProviderSend,
     },
+    onEvent,
   });
 }
 

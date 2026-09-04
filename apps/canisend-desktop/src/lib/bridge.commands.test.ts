@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
+  Channel: class<T> {
+    onmessage: (message: T) => void = () => undefined;
+  },
   invoke: mocks.invoke,
   isTauri: () => true,
 }));
@@ -61,6 +64,7 @@ import {
   previewUrlApplicationIntake,
   runAgentTurn,
   searchContent,
+  startAgentSession,
   uninstallAgentSkills,
 } from "./bridge";
 
@@ -608,6 +612,7 @@ describe("typed Tauri command requests", () => {
   });
 
   it("keeps agent runtime scope, continuity, and provider consent explicit", async () => {
+    const onEvent = vi.fn();
     await runAgentTurn({
       workspace: "/tmp/workspace",
       selectedJobId: "job-id",
@@ -615,6 +620,7 @@ describe("typed Tauri command requests", () => {
       prompt: "Review the next action.",
       startNew: false,
       confirmedProviderSend: true,
+      onEvent,
     });
 
     expect(mocks.invoke).toHaveBeenCalledWith("run_agent_turn", {
@@ -624,6 +630,27 @@ describe("typed Tauri command requests", () => {
         runtime: "codex",
         prompt: "Review the next action.",
         start_new: false,
+        confirmed_provider_send: true,
+      },
+      onEvent: expect.objectContaining({ onmessage: onEvent }),
+    });
+  });
+
+  it("starts the exact embedded Codex session before its first turn", async () => {
+    await startAgentSession({
+      workspace: "/tmp/workspace",
+      selectedJobId: "job-id",
+      runtime: "codex",
+      startNew: true,
+      confirmedProviderSend: true,
+    });
+
+    expect(mocks.invoke).toHaveBeenCalledWith("start_agent_session", {
+      request: {
+        workspace: "/tmp/workspace",
+        selected_job_id: "job-id",
+        runtime: "codex",
+        start_new: true,
         confirmed_provider_send: true,
       },
     });
