@@ -115,6 +115,18 @@
         "crates/canisend-desktop/src/agent.rs"
       ],
       "reason": "Repair the reproduced desktop Prepare AI workspace blocker by keeping handoff generation on Workspace v4 and Agent v4 without weakening legacy compatibility refusal."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "d167cc0a25e0a4e10033b21e89a94f69e07482e2",
+      "paths": [
+        ".trellis/spec/backend/directory-structure.md",
+        "PRODUCT.md",
+        "apps/canisend-desktop/src/lib/agent-v4-screen.test.ts",
+        "apps/canisend-desktop/src/lib/views/AgentView.svelte",
+        "crates/canisend-desktop/src/agent_runtime.rs"
+      ],
+      "reason": "Close the reproduced clean Workspace v4 Agent-screen blocker and establish the approved App-first Codex client authority without weakening legacy refusal or changing release claims."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
