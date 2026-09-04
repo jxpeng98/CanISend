@@ -135,6 +135,29 @@
         "PRODUCT.md"
       ],
       "reason": "Record that the approved App-first R0 implementation and its final source gate are complete while leaving R1 and all support or release claims unstarted."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3",
+      "paths": [
+        ".trellis/spec/backend/directory-structure.md",
+        "apps/canisend-desktop/src/App.svelte",
+        "apps/canisend-desktop/src/lib/agent-state.svelte.ts",
+        "apps/canisend-desktop/src/lib/agent-state.test.ts",
+        "apps/canisend-desktop/src/lib/bridge.commands.test.ts",
+        "apps/canisend-desktop/src/lib/bridge.ts",
+        "apps/canisend-desktop/src/lib/i18n.ts",
+        "apps/canisend-desktop/src/lib/views/AgentView.svelte",
+        "crates/canisend-app/src/agent_session.rs",
+        "crates/canisend-app/src/lib.rs",
+        "crates/canisend-contracts/operation-registry-v1.json",
+        "crates/canisend-desktop/Cargo.toml",
+        "crates/canisend-desktop/src/agent_runtime.rs",
+        "crates/canisend-desktop/src/lib.rs",
+        "crates/canisend-desktop/tests/app_server_protocol.rs",
+        "crates/canisend-desktop/tests/fixtures/fake_app_server.rs"
+      ],
+      "reason": "Establish the approved bounded Codex App Server R1 transport with streamed desktop sessions, body-free continuity metadata, exact cancellation, and offline protocol coverage."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
