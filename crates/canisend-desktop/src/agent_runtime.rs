@@ -13,9 +13,10 @@ use std::{
 };
 
 use canisend_app::{
-    AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, Application,
+    AgentRuntimeKind, AgentSessionEntry, AgentSessionRegistry, Application, ApplicationError,
     default_agent_session_registry_path,
 };
+use canisend_contracts::{WORKSPACE_FORMAT, WORKSPACE_V3_FORMAT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -364,13 +365,33 @@ fn resolve_scope(
         }
         return Ok((None, None));
     };
-    let status =
-        Application::workspace_status(workspace).map_err(DesktopCommandError::application)?;
-    let canonical = status
-        .data
-        .path
+    let (root, workspace_v4) = match Application::workspace_status_v4(workspace) {
+        Ok(status) => (status.data.path, true),
+        Err(error) => {
+            let legacy_format = match &error {
+                ApplicationError::CompatibilityUnavailable { details, .. } => {
+                    let found = details.get("found").and_then(Value::as_str);
+                    found == Some(WORKSPACE_FORMAT) || found == Some(WORKSPACE_V3_FORMAT)
+                }
+                _ => false,
+            };
+            if !legacy_format {
+                return Err(DesktopCommandError::application(error));
+            }
+            let status = Application::workspace_status(workspace)
+                .map_err(DesktopCommandError::application)?;
+            (status.data.path, false)
+        }
+    };
+    let canonical = root
         .canonicalize()
         .map_err(|error| runtime_input_error(format!("Cannot resolve workspace: {error}")))?;
+    if workspace_v4 && selected_job_id.is_some() {
+        return Err(runtime_input_error(
+            "Workspace v4 Agent sessions are Workspace/Application-scoped; clear the retired Job \
+             selection",
+        ));
+    }
     if let Some(job_id) = selected_job_id {
         Application::job_detail(&canonical, job_id).map_err(DesktopCommandError::application)?;
     }
@@ -1002,8 +1023,9 @@ mod tests {
     use super::runtime_candidates;
     use super::{
         AgentTurnCancelRequest, ProcessLimits, agent_scope_key, cancel_agent_turn_impl,
-        integration_prompt, parse_claude_output, parse_codex_output_with_fallback, run_process,
-        runtime_arguments, runtime_executable_name_for_platform, runtime_probe_from_observation,
+        integration_prompt, parse_claude_output, parse_codex_output_with_fallback, resolve_scope,
+        run_process, runtime_arguments, runtime_executable_name_for_platform,
+        runtime_probe_from_observation,
     };
     use canisend_app::{AgentRuntimeKind, Application};
 
@@ -1167,6 +1189,42 @@ mod tests {
         assert!(cancellation.load(Ordering::SeqCst));
 
         fs::remove_dir_all(root).expect("remove workspace");
+    }
+
+    #[test]
+    fn v4_runtime_scope_never_enters_legacy_job_compatibility() {
+        let root = temporary_root("v4-scope");
+        Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
+
+        let (workspace, selected_job_id) =
+            resolve_scope(Some(&root), None).expect("resolve Workspace v4 scope");
+        assert_eq!(
+            workspace,
+            Some(root.canonicalize().expect("canonical Workspace"))
+        );
+        assert_eq!(selected_job_id, None);
+
+        let error = resolve_scope(Some(&root), Some("legacy-job"))
+            .expect_err("Workspace v4 must refuse a legacy job scope before compatibility lookup");
+        assert_eq!(error.code, "input-invalid");
+        assert!(!error.message.contains("Legacy Agent"));
+
+        fs::remove_dir_all(root).expect("remove Workspace v4");
+    }
+
+    #[test]
+    fn explicit_legacy_job_scope_remains_available() {
+        let root = temporary_root("legacy-job-scope");
+        Application::initialize_workspace(&root).expect("initialize legacy Workspace");
+        let job = Application::create_job(&root, "Lecturer", "University")
+            .expect("create legacy Job")
+            .data;
+
+        let (_, selected_job_id) = resolve_scope(Some(&root), Some(job.id.as_str()))
+            .expect("resolve explicit legacy Job scope");
+        assert_eq!(selected_job_id.as_deref(), Some(job.id.as_str()));
+
+        fs::remove_dir_all(root).expect("remove legacy Workspace");
     }
 
     #[test]

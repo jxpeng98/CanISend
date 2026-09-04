@@ -187,6 +187,11 @@ Claude, or generic-host handoff.
   `canisend_application_list`; Application selection and revision binding happen through Agent v4.
 - The payload contains no legacy Agent context, assistance, Job, Task, or Workflow command fields.
 - The handoff remains body-free even when the Workspace contains private-local Profile Sources.
+- The Agent screen treats an empty selected-Job prop as an explicit Workspace scope. It must clear
+  any retained Job-era conversation scope before loading the runtime catalog.
+- The desktop runtime resolver identifies clean v4 through `workspace_status_v4` and rejects a
+  supplied legacy Job selector before `job_detail`. Only an explicitly detected v2/v3 Workspace
+  may enter the labelled legacy resolver path.
 
 ### 4. Validation & Error Matrix
 
@@ -196,6 +201,7 @@ Claude, or generic-host handoff.
 | Pre-v4 Workspace | Shared compatibility-unavailable failure before handoff generation |
 | Missing or invalid Workspace | Existing typed Workspace open failure |
 | Private-local source exists | Metadata-only handoff; source body is not serialized |
+| Clean v4 plus retained legacy Job selector | Screen clears it; direct runtime input fails as `input-invalid` before legacy lookup |
 
 ### 5. Good / Base / Bad Cases
 
@@ -210,6 +216,9 @@ Claude, or generic-host handoff.
 - Negative App regression: a legacy Workspace fails with `CompatibilityUnavailable`.
 - Tauri and TypeScript bridge tests: `{ host, workspace }` crosses the boundary without a legacy
   Job selector, and clipboard requests remain field-allowlisted.
+- Agent screen/runtime regressions: an empty current selection clears retained Job state before the
+  runtime catalog loads; direct v4 runtime scope never invokes `job_detail`; explicit pre-v4 Job
+  scope retains its labelled behavior.
 
 ### 7. Wrong vs Correct
 

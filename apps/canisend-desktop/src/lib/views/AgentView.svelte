@@ -176,9 +176,7 @@
     const globalScope = `${activeWorkspace?.path ?? ""}:${selectedJobId}`;
     if (globalScope !== observedGlobalScope) {
       observedGlobalScope = globalScope;
-      if (selectedJobId) {
-        switchAgentConversationScope(agentUiState.runtime, selectedJobId);
-      }
+      switchAgentConversationScope(agentUiState.runtime, selectedJobId);
     }
     if (focus === "agent-handoff" || focus === "agent-task") {
       agentUiState.integrationMode = "handoff";
