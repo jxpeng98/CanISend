@@ -2,16 +2,19 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.1`, matching exact public prerelease source
-  `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
+- Checked-in source: `1.0.0-beta.2`. This source is not a published checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
 - Local package-channel candidates: deterministic Homebrew, Scoop, and WinGet review files derived
   from the exact qualified public archives, with publication explicitly unauthorized.
-- Release-path ordering after qualified Beta.1: activate feature freeze at an exact protected
-  repository baseline, then complete the consented body-free invited cohort before RC.1. The
-  active step is derived from the qualification ledger and the
+- Release-path ordering after qualified Beta.1: feature freeze is active, the private Beta.2
+  source is prepared, and one nonpublishing native candidate has passed independent verification
+  at protected source `2ae2b507b953eef3101aa9689bd60f91a0046605`. Beta.2 remains untagged,
+  unpublished, and unqualified; the exact identities are retained in the
+  [private candidate note](docs/notes/rust-native/2026-09-04-beta2-private-candidate.md). The
+  consented body-free invited cohort is the next evidence gate before RC.1. The active step is
+  derived from the qualification ledger and the
   [1.0 Roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md). The ledger retains the
   qualified Beta.1 artifact source `6e1397b79031cad54e794ccdc9edca2153f23b3e`.
 - License for current CanISend-authored source and future releases: `GPL-3.0-only`. Historical tags

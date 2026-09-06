@@ -443,6 +443,15 @@ Refined the desktop shell and bilingual copy, moved transient feedback into acce
 ### Summary
 
 Replaced the desktop Prepare AI workspace handoff's retired Agent v2 dependency with a body-free Workspace v4 and Agent v4 binding, updated adapter contracts, and recorded the exact feature-freeze exception.
+## Session 17: Prepare private Beta.2 CLI and Workspace readiness
+
+**Date**: 2026-09-03
+**Task**: Prepare private Beta.2 CLI and Workspace readiness
+**Branch**: `chore/beta2-readiness-closeout`
+
+### Summary
+
+Merged policy PR #219 and source-transition PR #220; prepared the private untagged Beta.2 source checkpoint with sequential Beta history, complete App-closed CLI, Skills, MCP, and Workspace recovery evidence, and no Beta.2 publication.
 
 ### Git Commits
 
@@ -456,6 +465,36 @@ Replaced the desktop Prepare AI workspace handoff's retired Agent v2 dependency 
 - [OK] Focused App and Stage4M Rust regressions passed
 - [OK] Tauri agent tests, Clippy, Svelte check, Prettier, and all 85 Vitest tests passed
 - [OK] Operation registry and final release check passed
+| `3b46c6ee9d54db94a4c2851747a88d89afe12c10` | (see git log) |
+| `e3d1b04ede01e01ccdd4ef9acf17d08868980ab5` | (see git log) |
+| `58d31c82ae35aba948fbe5bc1d4c37008fb2fa13` | (see git log) |
+| `29ff5a58d071a67c240dad553fcb782f44c0118a` | (see git log) |
+| `dcbeadf6e3f62943ffd072ceb1b409a30e9338b1` | (see git log) |
+| `fba36525fa865d4ecc45b3b6ce9b5919111412d0` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 18: Verify private Beta.2 native candidate
+
+**Date**: 2026-09-04
+**Task**: Verify private Beta.2 native candidate
+**Branch**: `chore/beta2-private-candidate-closeout`
+
+### Summary
+
+Corrected source/public release truth, passed one exact nonpublishing Beta.2 native matrix and independent 20-file provenance verification, merged protected evidence, and left Beta.2 untagged, unpublished, and unqualified.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d7dac49c26409190132fee5d896003bb1afc2a61` | (see git log) |
+| `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc` | (see git log) |
+| `d5ec49300661b1ebdc9b9ebcb14c615d317fb369` | (see git log) |
+| `2a928dd3baa642920b5f420d4ba58337c165331a` | (see git log) |
 
 ### Status
 
@@ -513,3 +552,4 @@ Implemented and verified the bounded persistent Codex App Server desktop session
 ### Status
 
 [OK] **Completed**
+- Run the consented body-free invited cohort on qualified public Beta.1 before RC.1 planning.

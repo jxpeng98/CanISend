@@ -31,6 +31,10 @@ Do not rewrite historical release identities or weaken a product control to acce
 - A local Roadmap row may carry owner, scope, acceptance, and pending Issue projection until public
   synchronization is authorized. Pending projection never counts as completed release governance.
 
+Private Beta.2 baseline evidence is retained: M4-BETA2-001/002 reached protected main through
+PRs #219/#220; M4-BETA2-003 binds private candidate run `33824463477`, artifact `9920609356`,
+and protected source `2ae2b507b953eef3101aa9689bd60f91a0046605`. This is not public qualification.
+
 ## Current sequence
 
 ADR-RN-0023 supersedes App-first delivery priority. Close out R0/R1 source and retain partial R2

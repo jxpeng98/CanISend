@@ -2085,6 +2085,28 @@ fn check_active_release_truth_for_version(root: &Path, version: &Version) -> Res
             ));
         }
     }
+    let public_version = Version::parse(public_tag.trim_start_matches('v'))
+        .map_err(|error| format!("current public checkpoint tag is invalid: {error}"))?;
+    if version > &public_version {
+        let source_marker = format!("Checked-in source: `{version}`");
+        if release.lines().any(|line| {
+            line.contains(&source_marker)
+                && (line.contains("matching") || line.contains("public checkpoint"))
+        }) {
+            return Err(
+                "root release guide conflates checked-in source with the public checkpoint"
+                    .to_owned(),
+            );
+        }
+        if roadmap.lines().any(|line| {
+            line.starts_with(&next_checkpoint) && line.contains("qualified public checkpoint")
+        }) {
+            return Err(
+                "active 1.0 roadmap conflates the next source checkpoint with public qualification"
+                    .to_owned(),
+            );
+        }
+    }
 
     let issue_template = fs::read_to_string(root.join(".github/ISSUE_TEMPLATE/bug.yml"))
         .map_err(|error| format!("bug Issue template is missing: {error}"))?;
@@ -2814,7 +2836,7 @@ fn check_stage_transition_policy() -> Result<(), String> {
             "fuzz/Cargo.toml exact internal dependencies",
             "Cargo.lock workspace package versions",
             "fuzz/Cargo.lock internal package versions",
-            "desktop and native-preview npm package versions plus the desktop fallback version",
+            "desktop and native-preview npm package versions",
             "docs/contracts/cli-gui-parity-v1.json Alpha scope",
             "docs/performance/macos-gui-alpha-baseline.json source version",
             "release/alpha-package-contract.json versioned asset names",
@@ -5114,12 +5136,6 @@ fn insert_active_source_version_updates(
             format!("\"version\": \"{from}\""),
             format!("\"version\": \"{to}\""),
             "native-preview package version",
-        ),
-        (
-            "apps/canisend-desktop/src/App.svelte",
-            format!("product?.version ?? \"{from}\""),
-            format!("product?.version ?? \"{to}\""),
-            "desktop fallback version",
         ),
         (
             "docs/contracts/cli-gui-parity-v1.json",
@@ -16613,10 +16629,6 @@ mod tests {
                 format!("{{\n  \"version\": \"{version}\"\n}}\n"),
             ),
             (
-                "apps/canisend-desktop/src/App.svelte",
-                format!("<span>{{product?.version ?? \"{version}\"}}</span>\n"),
-            ),
-            (
                 "docs/contracts/cli-gui-parity-v1.json",
                 format!("{{\n  \"version\": \"{version}\"\n}}\n"),
             ),
@@ -17987,7 +17999,7 @@ mod tests {
     }
 
     #[test]
-    fn active_release_truth_rejects_stale_current_surfaces_and_ignores_history() {
+    fn active_release_truth_rejects_stale_or_conflated_current_surfaces_and_ignores_history() {
         let root = std::env::temp_dir().join(format!(
             "canisend-active-release-truth-{}",
             std::process::id()
@@ -18058,13 +18070,14 @@ mod tests {
         .expect("seed stale README fixture");
         assert!(check_active_release_truth_for_version(&root, &version).is_err());
 
-        fs::write(
-            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
-            "# CanISend generic framework 1.0 delivery roadmap\n\n\
+        let beta_roadmap = "# CanISend generic framework 1.0 delivery roadmap\n\n\
              **Status:** Active — authoritative\n\n\
              **Current public checkpoint:** [`v1.0.0-alpha.5`](https://example.invalid)\n\n\
              **Current machine stage:** Beta / `beta-qualifying`\n\n\
-             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n",
+             **Next intended checkpoint:** `v1.0.0-beta.1` is the next checkpoint.\n";
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            beta_roadmap,
         )
         .expect("write Beta roadmap fixture");
         fs::write(
@@ -18075,14 +18088,11 @@ mod tests {
             ),
         )
         .expect("write Beta README fixture");
-        fs::write(
-            root.join("RELEASE.md"),
-            "Checked-in source: `1.0.0-beta.1`\n\
+        let beta_release = "Checked-in source: `1.0.0-beta.1`\n\
              Latest public checkpoint: [`v1.0.0-alpha.5`]\n\
              GPL-3.0-only Community signing is not a publicly trusted publisher identity.\n\
-             Verify GitHub build provenance.\n",
-        )
-        .expect("write Beta release fixture");
+             Verify GitHub build provenance.\n";
+        fs::write(root.join("RELEASE.md"), beta_release).expect("write Beta release fixture");
         fs::write(
             root.join(".github/ISSUE_TEMPLATE/bug.yml"),
             "placeholder: 1.0.0-beta.1\n",
@@ -18093,6 +18103,37 @@ mod tests {
             &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
         )
         .expect("Beta source truth");
+
+        fs::write(
+            root.join("RELEASE.md"),
+            beta_release.replace(
+                "Checked-in source: `1.0.0-beta.1`",
+                "Checked-in source: `1.0.0-beta.1`, matching the public checkpoint",
+            ),
+        )
+        .expect("write conflated Beta release fixture");
+        let error = check_active_release_truth_for_version(
+            &root,
+            &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
+        )
+        .expect_err("source-ahead release guide must separate source and public truth");
+        assert!(error.contains("conflates checked-in source with the public checkpoint"));
+
+        fs::write(root.join("RELEASE.md"), beta_release).expect("restore Beta release fixture");
+        fs::write(
+            root.join("docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md"),
+            beta_roadmap.replace(
+                "is the next checkpoint",
+                "is the qualified public checkpoint",
+            ),
+        )
+        .expect("write conflated Beta roadmap fixture");
+        let error = check_active_release_truth_for_version(
+            &root,
+            &Version::parse("1.0.0-beta.1").expect("Beta fixture version"),
+        )
+        .expect_err("source-ahead roadmap must separate source and public truth");
+        assert!(error.contains("conflates the next source checkpoint with public qualification"));
         fs::remove_dir_all(root).expect("remove active-truth fixture");
     }
 
@@ -18636,7 +18677,6 @@ mod tests {
         }
         for relative in [
             "tools/native-preview",
-            "apps/canisend-desktop/src",
             "docs/contracts",
             "docs/guides",
             "docs/performance",
@@ -18651,11 +18691,6 @@ mod tests {
             "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
         )
         .expect("write native-preview package fixture");
-        fs::write(
-            root.join("apps/canisend-desktop/src/App.svelte"),
-            "<span>{product?.version ?? \"1.0.0-alpha.5\"}</span>\n",
-        )
-        .expect("write desktop fallback fixture");
         fs::write(
             root.join("docs/contracts/cli-gui-parity-v1.json"),
             "{\n  \"version\": \"1.0.0-alpha.5\"\n}\n",
@@ -18713,10 +18748,9 @@ mod tests {
         let mut cross_stage = BTreeMap::new();
         insert_active_source_version_updates(&root, &mut cross_stage, &from, &beta)
             .expect("render cross-stage source updates");
-        assert_eq!(cross_stage.len(), 10);
+        assert_eq!(cross_stage.len(), 9);
         for relative in [
             "tools/native-preview/package.json",
-            "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
             "docs/performance/macos-gui-alpha-baseline.json",
             ".github/workflows/release.yml",
@@ -18749,10 +18783,9 @@ mod tests {
             .expect("render Alpha source updates");
         insert_sequential_alpha_evidence_resets(&mut files, &to)
             .expect("render sequential Alpha evidence resets");
-        assert_eq!(files.len(), 13);
+        assert_eq!(files.len(), 12);
         for relative in [
             "tools/native-preview/package.json",
-            "apps/canisend-desktop/src/App.svelte",
             "docs/contracts/cli-gui-parity-v1.json",
             "docs/performance/macos-gui-alpha-baseline.json",
             ".github/workflows/release.yml",
@@ -19193,7 +19226,7 @@ mod tests {
             fs::read(root.join("Cargo.toml")).expect("read workspace after dry run"),
             workspace_before
         );
-        assert_eq!(transition.files.len(), 16);
+        assert_eq!(transition.files.len(), 15);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply rendered transition fixture");
         }
@@ -19328,7 +19361,7 @@ mod tests {
         expected_ledger["release_notes"]["review"] = Value::Null;
         let transition =
             render_stage_transition(&root, "v0.7.0-rc.2").expect("render sequential RC iteration");
-        assert_eq!(transition.files.len(), 18);
+        assert_eq!(transition.files.len(), 17);
         for (relative, body) in &transition.files {
             fs::write(root.join(relative), body).expect("apply RC iteration fixture");
         }
