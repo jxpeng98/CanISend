@@ -77,6 +77,26 @@ canisend --workspace /absolute/path/to/workspace host remove --host codex --json
 
 ## Connect the MCP adapter
 
+The CLI-first source requires MCP form elicitation for guarded commits and requested private
+reads/exports. The Host must present each server request to the user and forward that user's
+response; a model argument, tool allowlist, automatic approver or advertised capability alone is
+not user approval. Use a Host whose exact version and interactive behavior have been verified.
+An unsupported Host can still use non-private orientation and previews, but cannot authorize a
+guarded operation. Real Codex/other Host acceptance remains a separate LF-C05 gate.
+
+At commit, CanISend retrieves the exact preview from its current process-local Broker, checks the
+Application/Pack/revision/digest binding, and asks for confirmation through `elicitation/create`.
+Private-read/provider exposure, local private export, and content-change approval use separate
+requests. The form defaults to false and only an `accept` response with exactly
+`{"confirm": true}` grants the current request. Decline, cancel, malformed response, transport
+failure, a two-minute response timeout or missing form capability refuses it. A refused commit
+uses the existing token cancellation path. Commit rechecks canonical state after confirmation;
+concurrent edits, expiry, replay and process restart never turn a previous preview into authority.
+Tokens must not be handed to another Host session. Resume canonical records and preview again.
+
+The protocol and packaged smokes use explicitly synthetic confirmation peers. Their passing
+results do not establish human approval, actual Host behavior or a qualified release artifact.
+
 The native binary serves MCP `2025-11-25` over stdio and does not require the App to be open:
 
 ```console
