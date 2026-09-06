@@ -355,3 +355,9 @@ Integration source gate at `2a0500b7` passed with 24 exact freeze exceptions; 5 
 composition violation (96/97 frontend tests passed). Fix `b3794a8` reuses the existing Alert;
 the full 97-test frontend suite, Svelte check and changed-file formatting pass locally. Its exact
 exception is recorded; the final head must pass the source gate and fresh protected CI.
+
+The second integration CI run `34003247185` passed desktop UI, browser accessibility and Linux
+checks, then macOS quality rejected the retained Python probe under its unchanged Rust-only guard.
+Commit `3085ff9` retires that deferred App probe; its full source and prior observations remain linked
+from R2 evidence. No probe was reimplemented or executed during closeout. The exact tracked-file
+guard passes locally. Fresh final-head source validation and protected CI remain required.

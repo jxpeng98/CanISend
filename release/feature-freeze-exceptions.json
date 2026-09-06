@@ -697,6 +697,15 @@
         "apps/canisend-desktop/src/lib/views/AgentView.svelte"
       ],
       "reason": "Resolve the integration CI shared-status-composition failure by reusing Alert for provider sign-in status while retaining polite status announcements."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "3085ff92419775a0b49815600186f8df337233aa",
+      "paths": [
+        ".trellis/spec/backend/directory-structure.md",
+        "scripts/probe_codex_app_server.py"
+      ],
+      "reason": "Remove the deferred Python provider probe from active scripts to restore the unchanged Rust-only CI boundary; retain historical source and observations through an immutable commit reference."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
