@@ -1,6 +1,11 @@
 # Embedded Agent App Roadmap
 
-Status: Approved product roadmap; R0 and R1 complete; R2 not started
+> 2026-09-06 closeout: App-first execution is superseded by CLI-first delivery under
+> [ADR-RN-0023](../../../docs/architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md). R0/R1 source completion is retained; R2 is partial
+> and unaccepted; unfinished R2-R6 scope is deferred. Historical checklists below are not the
+> active queue. The master roadmap owns the next CLI-first slice.
+
+Status: In progress — supporting; R0/R1 source complete; R2a bound-server source implemented, provider/consent gate pending
 Date: 2026-09-04
 
 ## Goal
@@ -10,16 +15,17 @@ streaming Codex client, while keeping the Rust core as the local system of recor
 evidence, consent, review, export, recovery, and audit invariants. A user must also be able to compare
 the exact files produced by the current and a retained earlier build.
 
-The first release must also remove the clean Workspace v4 failure:
+R0 removed the clean Workspace v4 failure in source; its original acceptance target was:
 `Legacy Agent, Job, Task, and Workflow compatibility is not supported in Workspace v4`.
 
 ## Problem
 
-The current App does not provide a durable conversation with an agent. Its in-App path starts a
-provider process for one turn and waits for a final result, while the primary path hands work to an
-external Codex or Claude host. The user therefore has to move between products, cannot reliably see
-streamed progress or permissions in context, and encounters legacy Workspace v2 capability lookup
-while preparing a clean Workspace v4 agent environment.
+At the original planning baseline the App started a provider process per turn or handed work to an
+external Codex/Claude host. R1 now implements persistent App Server transport with recorded local
+stream/resume/cancel evidence. It does not yet prove private-tool isolation, safe MCP consent, or
+rehydration of prior conversation items in the UI. The remaining product journey still needs the guarded tool loop and composed Workbench before
+users can complete their work inside the App. R0's clean-v4 source correction and R1 transport must
+not be treated as qualification of a new released App.
 
 The frontend also exposes product subsystems as separate large pages. This makes the user navigate
 between Agent, Applications, Workflow, Delivery, Workspaces, and supporting records when the actual
@@ -62,6 +68,9 @@ of the revised requirement.
 
 ## Requirements
 
+Requirement labels R1-R10 below are product requirements, not implementation phases R0-R6. The
+[execution checklist](implement.md) maps them to the master roadmap's M4-APP-001–005 units.
+
 ### R1 — Clean Workspace v4
 
 - Preparing an AI Workspace from a clean Workspace v4 must use only Workspace v4 Application and
@@ -76,8 +85,8 @@ of the revised requirement.
   initialization handshake, start or resume a thread, start a turn, stream notifications and server
   requests, interrupt an active turn, and shut down cleanly.
 - The Codex executable path, version, App Server capability, and authentication readiness are
-  explicit and diagnosable. The App reuses Codex's existing sign-in state and never collects or
-  stores provider tokens.
+  explicit and diagnosable. The embedded App uses a dedicated Codex configuration and separate
+  provider-owned login; it never collects or stores provider tokens.
 - A deterministic fake App Server owns protocol tests; CI must not require a provider login or
   network access.
 - Experimental WebSocket transport is out of scope.
@@ -87,8 +96,14 @@ of the revised requirement.
 - The Codex session receives the existing CanISend MCP server configuration bound to the selected
   Workspace and Application.
 - The agent process runs from a controlled session directory, not the raw Workspace directory.
-- Direct file, command, and network requests are denied by default in the MVP and surfaced as host
-  permission requests when supported.
+- Effective host isolation is proven before initialization and on start/resume/turn: unrelated
+  MCP/plugins/hooks/configuration and direct model reads/commands cannot gain authority. A working
+  directory or read-only sandbox alone is insufficient; missing capabilities keep private tools off.
+- Every tool ID path and no-ID/list response respects the selected Application. Read-only labels
+  cannot classify private bodies as safe metadata.
+- Private-read/provider-send consent, mutation approval, and private-export consent are separately
+  bound to user-selected scope. A model boolean, arbitrary user-input question, or inherited automatic
+  approver does not establish consent. Direct host-permission requests are labelled and denied.
 - Product mutations retain the existing preview, approve, commit, and verify lifecycle.
 - Codex host permissions and CanISend mutation approval are visually and semantically distinct.
 
@@ -101,6 +116,11 @@ of the revised requirement.
 - Users can start, resume, cancel, retry, reject, approve, and open the external-agent fallback from
   this surface.
 - The primary navigation is reduced to Work, Library, and Settings.
+- Reuse pack-defined stages/readiness/next actions, Requirement-to-Evidence coverage and stale/missing
+  associations, and selectable Deliverables with draft/review/validation/export status.
+- Guided analyze/draft/revise/check/export actions use existing operations and product Skills. Context
+  selection shows the exact private scope and destination before provider transmission.
+- Supported manual inspection, review, and export remain available when the provider is unavailable.
 - The UI preserves keyboard operation, visible focus, reduced motion, text scaling, English/Chinese,
   light/dark themes, and compact/comfortable density.
 
@@ -119,6 +139,9 @@ of the revised requirement.
   receipt references. Transcript bodies stay Codex-owned in the MVP.
 - Process exit, malformed output, unsupported protocol versions, oversized messages, stale sessions,
   and App restart must lead to bounded recovery or a clear actionable error.
+- Reopen/resume retrieves bounded known-thread provider history into memory with stable ordering and
+  deduplication. If provider history is unavailable, show that gap and keep product state usable;
+  do not imply empty local messages prove there was no earlier conversation.
 - Logs must exclude prompt, evidence, credential, and generated-content bodies by default.
 
 ### R7 — Migration safety
@@ -146,10 +169,12 @@ of the revised requirement.
   document, or MCP argument body is copied into diagnostics or correlation metadata.
 - The implementation must reuse the accepted dependency graph, operation registry, ActionReceipt,
   Agent v4 receipt, revision/digest, and audit contracts instead of creating a second event store.
-- Each implementation phase must record its Trellis task/evidence and exact Git commit or PR head;
-  source provenance must never imply that private Workspace content belongs in Git.
-- Each roadmap phase must have explicit Trellis dependencies, requirement-to-test mapping, rollback
-  point, and completion evidence before the next phase starts.
+- Committed origins are durable product-audit metadata, independent of bounded session-cache
+  retention. They survive eviction, explicit session deletion, and backup/restore. An attachment
+  failure reports a trace gap without retrying the committed mutation.
+- Reuse one existing checklist with dependencies, primary test/evidence owner, rollback, and exact
+  source identity. Trellis task/phase/journal mechanics are not execution gates. Keep source checks,
+  protected CI, artifact qualification, and user validation distinct.
 
 ### R9 — Exact file-version comparison
 
@@ -167,13 +192,18 @@ of the revised requirement.
 - The text view uses exact whitespace and line endings, Git-style old/new line numbers and `-`/`+`
   markers, and three unchanged context lines. It reports a clear limited state when input, compute,
   or response bounds prevent a complete rendered view.
-- The default comparison is the current snapshot against its immediate predecessor, with an explicit
-  selector for any two retained snapshots.
+- Snapshot paths are logical outputs relative to the generation root, independent of export
+  destination. Record actual generator/build provenance and link predecessors within the same kind.
+- Reuse only an identical current head with the same full generation binding. A -> B -> A and a
+  changed generator preserve history; equal bytes still deduplicate in BlobStore.
+- The default comparison is the current snapshot against its same-kind immediate predecessor, with
+  an explicit selector for retained snapshots of that kind.
 - Comparison is read-only, supports at most 256 managed entries per snapshot, loads at most 4 MiB per
   selected text side and 20,000 lines per side, verifies both Blob digests before use, and never
   writes temporary comparison files into the Workspace.
-- Historical comparison must use stored bytes, not regenerate an old version with the currently
-  installed serializer, template, font, renderer, or Pack.
+- Historical comparison and repair/restore of newly snapshotted outputs use stored verified bytes,
+  not the current serializer, template, font, renderer, or Pack. Existing unsnapshotted recovery is
+  labelled separately and cannot claim exact historical output.
 
 ### R10 — Post-MVP generic ACP channel
 
@@ -217,9 +247,9 @@ of the revised requirement.
 
 ## Acceptance Criteria
 
-- [ ] A clean Workspace v4 completes **Prepare AI Workspace** without the legacy compatibility error
+- [x] R0 source: a clean Workspace v4 completes **Prepare AI Workspace** without the legacy compatibility error
       and without a Workspace v2 scope-catalog call.
-- [ ] From the App, a user can start a Codex App Server session, send a prompt, see incremental updates,
+- [x] R1 source: from the App, a user can start a Codex App Server session, send a prompt, see incremental updates,
       cancel a turn, and resume the known session after restarting the App.
 - [ ] The agent can discover and call the existing CanISend MCP operations for the selected
       Workspace/Application without direct access to product storage.
@@ -248,8 +278,13 @@ of the revised requirement.
       preview access; the App never presents binary bytes as a text diff.
 - [ ] Reopening the App or upgrading its renderer does not change the bytes or reported diff of a
       previously retained file snapshot.
-- [ ] Each completed roadmap phase records its exact source Git commit or PR head alongside Trellis
-      test/evidence references, without staging or publishing private Workspace content.
+- [ ] Each completed phase records its exact source identity and primary test/evidence reference in
+      the existing checklist, without staging or publishing private Workspace content.
+- [ ] R2 isolation/private-read consent, durable origin/cache loss, logical file identity/Blob repair,
+      and R3 bounded provider-history display pass their dedicated acceptance criteria.
+- [ ] R4 qualifies the exact embedded Beta; M4-APP-005 updates the existing cohort validator before
+      one formal user cohort runs on that build with unchanged thresholds. Preserve Beta.1 history;
+      do not require a second complete cohort or count historical UI flows as new Workbench evidence.
 - [ ] A session-registry migration, Codex CLI upgrade, and embedded-client rollback each have a focused
       regression that preserves existing Workspace/Application data.
 
@@ -289,7 +324,7 @@ of the revised requirement.
 | Codex App Server schemas change | Test a supported Codex CLI range, probe initialization capabilities, and use generated schemas plus a fake App Server fixture. |
 | ACP implementations vary or Registry metadata drifts | Require the ACP v1 baseline plus per-agent qualification; use a fake ACP fixture and do not auto-install in the first slice. |
 | Two approval systems confuse users | Label host permission separately from CanISend record approval and never combine their actions. |
-| The agent gains direct product-data access | Run it in a controlled directory and expose CanISend only through MCP. |
+| The agent gains direct product-data access | Prove effective policy, inherited configuration, every tool path, and explicit private-read/provider-send consent before enabling private tools. |
 | Frontend rewrite stalls product work | Add one Workbench vertical slice, reuse existing views/operations, then retire old routes after parity. |
 | Tauri preview proves inconsistent for a richer need | Define a measurable preview gap, try PDF.js in Tauri, and evaluate Electron only if that bounded prototype fails. |
 | Provider content leaks into local diagnostics | Persist metadata only and redact message/tool bodies by default. |
@@ -302,13 +337,14 @@ of the revised requirement.
 
 ## Authority boundary
 
-This task is a proposal. Approval authorizes R0 to amend or supersede the relevant architecture
-decision and reconcile the authoritative 1.0 roadmap. It does not itself change current release or
-platform claims.
+ADR-RN-0022 and the master roadmap approve the direction; R0/R1 source evidence is retained in their
+archived checklists. The owner requested the 2026-09-04 roadmap/process revision. R2 product
+implementation is not claimed by this edit. The master roadmap owns ordering and exact freeze,
+artifact, and user gates; this supporting plan changes no release or platform claim.
 
 ## Notes
 
-- `design.md` contains the proposed architecture and Electron gate.
+- `design.md` contains the architecture contracts and measured Electron gate.
 - `implement.md` contains the roadmap and MVP implementation checklist.
 - Research snapshots under `research/` record the local and upstream evidence used for these
   decisions.

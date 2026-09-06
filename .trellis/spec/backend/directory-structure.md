@@ -244,24 +244,31 @@ tools.
 - `run_agent_turn(window, state, AgentTurnRequest, Channel<AgentStreamEvent>) -> AgentTurnResult`
 - `agent_runtime_catalog(window, state, AgentRuntimeCatalogRequest) -> AgentRuntimeCatalog`
 - `cancel_agent_turn(window, state, AgentTurnCancelRequest) -> AgentTurnCancelResult`
-- The App-local registry is `canisend.agent-session-registry/v2`; v1 loads migrate in memory and
-  the next successful mutation writes canonical v2.
+- The App-local registry is `canisend.agent-session-registry/v3`; v1/v2 loads migrate in memory
+  and the next successful mutation writes v3. Legacy Job IDs never become Application IDs.
 
 ### 3. Contracts
 
 - Reuse executable/version discovery, then spawn exactly
-  `codex app-server --listen stdio://` without a shell, with piped stdio and an App-owned private
+  `codex app-server --listen stdio://` with process-level policy overrides, without a shell,
+  with piped stdio and an App-owned private
   working directory outside the Workspace. One exact child is owned per desktop window.
 - Speak bounded newline-delimited App Server JSON-RPC: `initialize`, `initialized`, `account/read`,
   `thread/start` or `thread/resume`, `turn/start`, and `turn/interrupt`.
-- Thread setup always uses `sandbox: "read-only"` and `approvalPolicy: "never"`. R1 supplies no
-  CanISend MCP server and tells the model that Workspace tools are not connected.
+- Thread start/resume/turn select the pre-initialization named permission profile,
+  `approvalPolicy: "never"` and `approvalsReviewer: "user"`. The versioned policy and its remaining
+  inherited-configuration gates are described below. No CanISend MCP is injected.
 - `AgentStreamEvent` carries only a monotonic sequence, desktop session/turn IDs, finite status,
   assistant delta, body-free method name, and bounded provider event ID. Raw provider payloads,
   approval arguments, stderr bodies, prompts, and transcripts do not cross the IPC boundary.
-- Registry v2 stores only runtime/version, Workspace scope, desktop/provider session and turn IDs,
+- Runtime requests carry separate optional `selected_application_id` and legacy `selected_job_id`.
+  The shared resolver requires an existing Application in Workspace v4 and rejects mixed identities.
+  Catalog filtering, active leases, start/resume, persistence and cancellation use the same scope.
+- Registry v3 stores only runtime/version, Workspace/Application or legacy Job scope, desktop/provider session and turn IDs,
   finite last status, and timestamps. The Svelte reducer keeps conversation bodies in memory and
-  reconciles the final response into the same streamed assistant message.
+  reconciles the final response into the same streamed assistant message. Switching Workspace,
+  Application or provider clears send confirmation; a conversation epoch drops stale catalog,
+  start, result and stream updates even when the user returns to the original Application.
 - Keep Claude on the existing bounded one-shot fallback until it has a separately qualified
   embedded-session protocol.
 
@@ -319,3 +326,32 @@ Command::new(executable)
 - `crates/canisend-store/src/database.rs` owns schema configuration and append-only migrations.
 - `crates/canisend-mcp/src/lib.rs` exposes guarded tools through the shared application facade.
 - `apps/canisend-desktop/src/lib/bridge.ts` keeps the Svelte side at the typed IPC boundary.
+
+
+### R2a optional MCP Application binding
+
+`canisend mcp serve --application APPLICATION_ID` reuses `canisend-mcp`'s server and the existing App
+facade. `open_with_application` validates the existing Application before startup. Every handler
+with an Application ID uses the instance parser before facade/broker work. The four no-ID tools
+and two association-list tools require unbound Workspace scope; the catalog remains unchanged.
+Mismatched IDs return `application.binding-mismatch`; Workspace-wide results return
+`application.workspace-scope-required` as JSON-RPC invalid-params errors. Existing `open` and
+`serve_stdio` remain unbound compatibility entry points. Binding confers no consent authority.
+
+The primary cross-Pack boundary check is
+`canisend-cli/tests/mcp_protocol.rs::application_binding_covers_every_tool_and_preserves_unbound_discovery`.
+The existing desktop runtime owns process-level named permissions before initialize and on
+start/resume/turn, literal canonical session/installation read roots, no command networking, and
+execution/hooks/plugins/apps feature overrides. The experimental policy is version-gated to
+`codex-cli 0.152.0`; rejection must never fall back to legacy read-only permissions. The existing
+fake protocol fixture owns bootstrap arguments, alias paths, policy rejection and unexpected
+provider-request rejection. Positive real-provider consent and effective isolation remain R2a enablement gates.
+
+The opt-in `scripts/probe_codex_app_server.py --codex /absolute/path/to/codex` owns exact provider
+capability observations. It requires Python 3.11+, uses a disposable child configuration home and
+loopback model plus stdio MCP with synthetic data, and emits only a body-free report. Do not add it
+to Fast CI or treat it as authenticated/native release qualification. The 0.152.0 named-permission
+probe requires the canonical executable path for both launch and filesystem rules; its observed
+MCP elicitation metadata has no item ID, so production correlation must reject ambiguous matches.
+Its explicit `--installed-account` mode only checks existing account availability with process-level
+restrictions and no model turn; account recognition is separate from full signed-in flow qualification.

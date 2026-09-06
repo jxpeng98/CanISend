@@ -7,7 +7,7 @@
 ## Overview
 
 Use the smallest verification tier that proves the changed invariant. `AGENTS.md` and
-`CONTRIBUTING.md` own the full matrix; Trellis checks must not automatically escalate to the full
+`CONTRIBUTING.md` own the full matrix; local checks must not automatically escalate to the full
 workspace, native matrix, or extended assurance suite.
 
 ## Forbidden Patterns
@@ -28,7 +28,9 @@ workspace, native matrix, or extended assurance suite.
 
 ## Testing Requirements
 
-1. Documentation-only: `git diff --check`; no Rust tests.
+1. Documentation-only: `git diff --check` and relevant link/config inspection; no Rust tests.
+   Active release truth also runs its documentation/source check. Removing development adapters
+   needs an inventory/reference check, not a new product test framework.
 2. Rust leaf: focused test, `cargo fmt --all -- --check`, affected-package Clippy.
 3. Shared contract/resource/CI/release metadata: smallest affected test plus one final
    `cargo run -p xtask --locked -- release check`.

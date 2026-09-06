@@ -1,0 +1,261 @@
+{
+  "version": "codex-cli 0.152.0",
+  "binary_sha256": "166e0593c333c1c6412cc9cea72b6e1dfc4fc79b4813da02c511a3339c9b9593",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "checks": {
+    "never-decline-0": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "on-request-decline-0": {
+      "approvals": 1,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "on-request-accept-1": {
+      "approvals": 1,
+      "calls": 1,
+      "private_received": true,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "on-request-decline-1": {
+      "approvals": 1,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "shell_and_agent_tools_removed": true,
+    "legacy_read_only_outside_image": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": true,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "resume_decline": {
+      "approvals": 1,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "inherited_mcp_explicit_disable_false": true,
+    "inherited_mcp_explicit_disable_true": true,
+    "thread/start_required_failure_empty_override": true,
+    "thread/resume_required_failure_empty_override": true,
+    "inherited_mcp_reloaded_after_inventory": true,
+    "restricted_profile_started": true,
+    "restricted_image_inside": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": true,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "restricted_image_outside": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "restricted_consented_mcp": {
+      "approvals": 1,
+      "calls": 1,
+      "private_received": true,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "restricted_command_rejected": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "restricted_resume_outside_denied": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "host_skill_skip_False_read_True": {
+      "skip_flag": false,
+      "read_allowed": true,
+      "model_received_fixture_metadata": true
+    },
+    "host_skill_skip_True_read_True": {
+      "skip_flag": true,
+      "read_allowed": true,
+      "model_received_fixture_metadata": true
+    },
+    "host_skill_skip_True_read_False": {
+      "skip_flag": true,
+      "read_allowed": false,
+      "model_received_fixture_metadata": true
+    },
+    "external_home_skill_visible": {
+      "model_received_fixture_metadata": true,
+      "external_required_mcp_ignored": true
+    },
+    "dedicated_home_excludes_external_skill_and_mcp": {
+      "model_received_fixture_metadata": false,
+      "external_required_mcp_ignored": true
+    },
+    "dedicated_home_inside_read": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": true,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    },
+    "dedicated_home_provider_image_denied": {
+      "approvals": 0,
+      "calls": 0,
+      "private_received": false,
+      "image_received": false,
+      "tool_names": [
+        "list_mcp_resources",
+        "list_mcp_resource_templates",
+        "read_mcp_resource",
+        "request_user_input",
+        "view_image",
+        "mcp__fixture",
+        "get_goal",
+        "create_goal",
+        "update_goal"
+      ]
+    }
+  },
+  "embedded_enablement": false,
+  "authentication_reuse": "not tested"
+}

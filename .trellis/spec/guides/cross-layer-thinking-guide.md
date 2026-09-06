@@ -1,3 +1,6 @@
+> Workflow note (2026-09-04): Trellis-specific examples below are historical engineering
+> examples, not active commands or process gates. Follow [Project Control](project-control.md).
+
 # Cross-Layer Thinking Guide
 
 > **Purpose**: Think through data flow across layers before implementing.

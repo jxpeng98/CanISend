@@ -1,10 +1,12 @@
 # ADR-RN-0022: Make the desktop an App-first Agent client
 
-**Status:** Accepted
+**Status:** Superseded in delivery priority by [ADR-RN-0023](0023-prioritize-cli-first-local-agent-workflows.md) on 2026-09-06; retained historical decisions and defensive constraints
 
 **Date:** 2026-09-04
 
 **Decision owner:** CanISend maintainer
+
+**Clarified after R0/R1 review:** 2026-09-04; direction retained, execution and acceptance tightened.
 
 ## Context
 
@@ -49,11 +51,32 @@ initialize/thread/turn/interrupt capability suite. Unknown or incompatible versi
 actionable diagnostic and retain external handoff as rollback. CanISend does not download Codex or
 infer support from executable presence alone.
 
-The App reuses the installed Codex client's existing sign-in state. It never asks for, receives, or
-persists a provider API key or ChatGPT credential. Authentication-required state is reported by the
-client boundary and resolved through the supported Codex sign-in flow. Protocol stdout is parsed as
+**Authentication amendment approved by the owner: 2026-09-05.** The embedded App uses a dedicated
+Codex configuration directory and a separate sign-in through Codex's supported ChatGPT login flow.
+It does not reuse, copy or link the installed client's credentials or configuration. Codex owns
+credential storage and refresh; CanISend never asks for, receives or persists an API key or ChatGPT
+credential. Authentication-required state identifies this separate login. External handoff retains
+the external client's existing configuration and sign-in. Separate configuration is necessary but
+not sufficient for effective isolation: inherited host Skills and managed configuration still require
+qualification before private tools are enabled. Protocol stdout is parsed as
 bounded newline-delimited JSON-RPC; stderr is bounded and redacted before diagnostics. The
 experimental WebSocket transport is outside the MVP.
+
+### Effective tool and consent boundary
+
+Before private embedded tools are enabled, R2 proves the actual provider process policy, including
+inherited configuration/MCP/plugins/hooks and start/resume/turn consistency on the exact supported
+version. A controlled working directory, read-only sandbox, or denial of approval requests alone
+does not prevent already-permitted reads/commands. Missing isolation capabilities keep private
+context and mutations disabled; authentication remains provider-owned without global config edits.
+
+The selected Application is enforced across every tool handler, including no-ID enumeration and
+Workspace-wide list results. Tool annotations do not classify data privacy. Allowlisted non-private
+metadata may be automatic; private-read/provider-send consent, product preview/commit approval, and
+private-export consent remain distinct. A model-supplied boolean or inherited automatic approver is
+not the user's consent. The actual MCP approval request must be version-qualified and correlated to
+its tool/item, Application, revision/digest, and current provider thread/turn. Reuse existing consent
+and broker types; deny direct host permissions and revoke stale or scope-switched pending authority.
 
 ### Product experience
 
@@ -66,12 +89,21 @@ The primary desktop becomes a conversation-led Workbench:
 - **Library** contains reusable sources, Profile/Evidence, opportunities, and completed
   Applications. **Settings** contains Workspaces, Agent readiness, privacy, appearance, and
   diagnostics.
+- Work also exposes the existing Pack stages, readiness blockers, and next actions; Requirement-to-
+  Evidence coverage and missing/stale associations; and selectable Deliverables with draft, review,
+  validation, and export status. Explicit context selection shows private scope/provider destination.
+- Guided analyze/draft/revise/check/export actions reuse existing facade/Skills operations. Supported
+  manual inspection, review, and export remain usable without an available provider.
 - Agent, Workflow, and Delivery stop being separate primary destinations after measured parity;
   their existing domain behavior is composed behind the Workbench rather than rewritten.
 
 Conversation and reasoning stay provider-owned. CanISend persists only versioned resumable session
 metadata and body-free correlation references in the MVP. It does not persist prompt, response,
-tool-argument, evidence, generated-content, credential, or raw approval-token bodies.
+tool-argument, evidence, generated-content, credential, or raw approval-token bodies in the session
+registry or diagnostics. R3 loads bounded provider-owned history for the registered thread into
+memory with stable ordering, deduplication, and Application scope checks. Unavailable/deleted provider
+history is explicit; a cold restart cannot promise history without a working provider, and it does
+not justify adding a local transcript database.
 
 ### Traceability and file history
 
@@ -85,7 +117,11 @@ but only for outputs written and registered by CanISend's managed projection/exp
 snapshot writer consumes the pipeline's successful output batch; it never recursively scans or
 watches arbitrary Workspace files. Each entry binds path, type, byte size, SHA-256, and an existing
 verified Blob. Comparison first reads manifests by path/digest and then loads only one selected
-old/new Blob pair.
+old/new Blob pair. Paths are logical outputs relative to their generation root; physical export
+destinations remain in export records. Snapshots retain actual generator/build identity and same-kind
+predecessors. Reuse only an identical current head with the full binding; A -> B -> A and a changed
+generator retain provenance even when Blob bytes deduplicate. Repair/restore of newly snapshotted
+outputs reads their verified retained Blobs, with older unsnapshotted recovery explicitly separate.
 
 R2 may add `similar` 3.2.0 to `canisend-app` for bounded Myers line hunks after its lockfile source,
 license, advisory, and maximum-input check is rerun. R0 records the candidate only; it adds no
@@ -99,6 +135,12 @@ desktop session/turn -> provider thread/turn -> CanISend operation/receipt
                      -> preview digest + approval outcome
                      -> Application revision + audit event + output digest
 ```
+
+The minimum committed origin is attached to canonical product audit identity through the existing
+facade/Store, derived only from observed MCP items and verified typed receipts. It survives session
+cache eviction/deletion and Workspace backup/restore. Transient read/denial correlation may remain
+bounded session metadata. A post-commit origin-attachment failure reports the committed state and an
+explicit trace gap without retrying the mutation. This adds no second product event stream.
 
 ### Shell and preview decision
 
@@ -126,7 +168,16 @@ integrations.
 The clean Workspace v4 primary path never invokes legacy Agent, Job, Task, or Workflow operations.
 Pre-v4 repositories continue to receive explicit fail-closed compatibility results and are never
 silently reinterpreted or migrated. External handoff and the App-closed CLI/MCP journey remain
-available throughout R0-R4 and are the rollback path if App Server readiness fails.
+available throughout R0-R4 and are the rollback path if App Server readiness fails. Supported manual product
+operations remain available. R2's additive Store migration keeps the existing future-schema refusal;
+rolling back to an older binary requires a compatible backup rather than an unsafe database downgrade.
+
+R0/R1 source completion does not qualify new App bytes. R2 is split into effective isolation/consent
+(R2a) and durable history (R2b), followed by the complete R3 Workbench. R4 and M4-APP-005 qualify an
+exact embedded Beta and its changed-journey user evidence before RC. Preserve public Beta.1 and its
+historical observations. Prospectively update the existing machine cohort gate before its unchanged
+thresholds can bind the embedded build; do not require two complete cohorts or silently pool builds. R5 remains post-MVP. R6 cleanup depends on R4, parity, and the rollback window, independently
+of R5. The master roadmap owns execution and exact release authorization.
 
 This ADR supersedes only the external-host-first product default and the former statement that the
 desktop does not own an Agent client surface. ADR-RN-0015 remains authoritative for Tauri/Svelte,

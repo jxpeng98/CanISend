@@ -1,6 +1,11 @@
 # Embedded Agent App Technical Design
 
-Status: Approved architecture; R0 and R1 complete; R2 not started
+> 2026-09-06 closeout: App-first execution is superseded by CLI-first delivery under
+> [ADR-RN-0023](../../../docs/architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md). R0/R1 source completion is retained; R2 is partial
+> and unaccepted; unfinished R2-R6 scope is deferred. Historical checklists below are not the
+> active queue. The master roadmap owns the next CLI-first slice.
+
+Status: Approved architecture, revised supporting design; R0/R1 source complete; R2a bound-server foundation implemented; R2 acceptance pending
 Date: 2026-09-04
 
 UX decision: conversation-led Workbench approved by the product owner on 2026-09-04.
@@ -102,6 +107,7 @@ Implement only the operations needed for the vertical slice:
 - `initialize` followed by the `initialized` notification;
 - authentication/readiness reporting from the installed Codex client;
 - `thread/start` and `thread/resume`;
+- a qualified bounded history read for the registered provider thread in R3;
 - `turn/start`;
 - streamed notifications and bounded server requests, including approval requests;
 - `turn/interrupt`; and
@@ -121,8 +127,10 @@ The desktop backend owns one session manager per App window:
 1. Resolve an explicitly configured `codex` executable or a supported candidate already used by the
    desktop runtime.
 2. Create a controlled session directory outside the selected Workspace's product storage.
-3. Run `codex --version`, then spawn `codex app-server --listen stdio://` with piped
-   stdin/stdout/stderr and no shell interpolation.
+3. Run `codex --version`, establish the schema-qualified effective process policy before
+   initialization, then spawn the stdio App Server with no shell interpolation. R2 must prove
+   inherited configuration, plugins/hooks/MCP, and model read/command tools cannot expand authority;
+   R1's working directory and read-only sandbox alone do not establish this boundary.
 4. Initialize App Server and validate the required methods/capabilities against the supported Codex
    range.
 5. Start a new thread or resume the stored Codex thread.
@@ -143,23 +151,32 @@ The agent session receives an MCP server definition that launches the current `c
 the selected Workspace and `mcp serve`. The MCP server continues to route through `canisend-app` and
 the registered domain operations.
 
-The selected Application is explicit session context, not inferred from a legacy Agent/Job/Task
-scope. Clean Workspace v4 setup must not call the old scope catalog.
+The selected Application is an enforced server-instance binding, not just prompt context. All
+Application-ID handlers use one guard, including handlers that currently bypass the shared parser.
+No-ID/Workspace-wide lists must be constrained to permitted selected-Application fields or disabled.
+Clean Workspace v4 setup must not call the old scope catalog. Prove the same policy on start,
+resume, and turn dispatch; required MCP startup failure leaves product tools unavailable.
 
 App Server and MCP run as separate protocol streams. The desktop App must not proxy arbitrary MCP
 payloads through frontend JavaScript.
 
 ### 3.5 Permission and mutation model
 
-Two controls remain separate:
+Separate actual content access from mutation:
 
-- **Host permission** — a provider asks to read a file, execute a command, or use the network. The
-  MVP defaults to deny because CanISend operations are available through MCP.
-- **Product approval** — CanISend presents a deterministic proposed mutation or export and requires
-  explicit user approval before commit.
+- **Private context consent** binds user-selected content/revision, operation, destination provider,
+  and thread/turn. Private-read and provider-send consent are required before private bodies cross
+  the boundary; a read-only tool annotation or model-supplied boolean is not user authorization.
+- **Product approval** uses the existing deterministic preview, single-use token, digest/revision,
+  and explicit in-App response. Export retains its separate consent/readiness boundary.
+- **Host permission** is labelled and denied. It never supplies CanISend authority.
 
-Approving one never approves the other. Existing stale-preview, replay, consent, commit, verification,
-recovery, and audit invariants remain authoritative.
+The exact supported CLI must prove per-tool prompting, a user reviewer, and correlation of the real
+MCP approval request with the originating item. Do not reinterpret arbitrary model questions or
+inherit automatic approval. Missing protocol/isolation capability keeps private tools and commits
+disabled. Reuse existing consent and broker types; no blanket session grant or second approval
+system. See the [R2 design](../09-04-embedded-agent-app-r2/design.md) for binding, expiry, and failure
+contracts.
 
 ### 3.6 Body-free trace chain
 
@@ -183,7 +200,8 @@ proposal ends with the denial and creates no revision.
 | Data | Owner and retention |
 | --- | --- |
 | Codex/thread/version, Workspace/Application binding, last status | Existing App-local session registry, with an explicit schema version |
-| Session/turn/tool-call correlation to body-free CanISend receipt references | Session registry metadata, removed only by explicit session deletion |
+| Transient read/denial/tool correlation | Bounded session-registry cache; explicit eviction/deletion policy |
+| Committed session/turn/tool origin | Minimum append-only relation to canonical product audit; survives session-cache eviction/deletion and backup/restore |
 | Streamed prompt, response, tool arguments, and private evidence bodies | Memory/provider session only in the MVP |
 | Operation, task, preview digest, approval outcome, revision, artifacts, and audit event | Existing CanISend receipts and Rust store; product audit survives session deletion |
 | Error code, timing, Codex version, and correlation IDs | Bounded redacted diagnostics |
@@ -195,7 +213,7 @@ exposes the body-free IDs needed for support.
 
 ### 3.7 Git and product-history boundary
 
-Git already tracks CanISend source, architecture records, Trellis plans, tests, and release inputs;
+Git already tracks CanISend source, architecture records, implementation plans, tests, and release inputs;
 the packaged build already records its source Git revision. Keep that development provenance.
 
 Do not initialize Git inside a user Workspace or make Git a runtime dependency. A Workspace contains
@@ -206,8 +224,10 @@ capturing its transactional invariants.
 For user-visible content history, expose the existing Application revision metadata through the
 `canisend-app` facade as one read-only Workspace v4 operation. The Inspector can show revision,
 actor, reason, timestamp, snapshot digest, and body-free session/turn receipt references. This reuses
-the existing revision tables and session correlation metadata; it does not add a Git wrapper or a
-second history store.
+the existing revision/audit tables and durable body-free origin references. A narrow verified-receipt
+reconciliation attaches an origin to the canonical audit ID; cache loss cannot erase it. An attachment
+failure reports a trace gap without retrying the product commit. No Git wrapper or second event store
+is introduced.
 
 A future user-requested export to a private Git repository may be designed as an opt-in projection,
 never as Workspace authority. It is outside the MVP because privacy, ignore rules, binary handling,
@@ -235,10 +255,18 @@ file snapshot entry
   content SHA-256, existing BlobStore reference
 ```
 
-After a successful managed generation, the pipeline stores every exact file byte sequence in the
-existing content-addressed BlobStore, then atomically commits the snapshot, at most 256 manifest
-entries, and their Blob references before publishing the batch. Identical bytes deduplicate
-naturally. Managed files on disk remain repairable projections of the snapshot authority. Imported
+Store exact bytes through the existing BlobStore and register at most 256 logical paths relative to
+the generation root. The physical export destination stays in the export record. Bind actual
+build/source provenance and same-kind predecessors; reuse only a fully identical current head.
+A -> B -> A and identical bytes from a different generator retain their history; Blob deduplication
+is separate from snapshot identity.
+
+Projection snapshots commit with pending publication state before repairable filesystem writes.
+Exports use the existing create-new batch first, followed by one snapshot/audit transaction; a
+transaction failure cleans only the new batch and surfaces any cleanup failure. Repair/restore of
+newly snapshotted outputs reads verified retained Blobs instead of the current serializer. Existing
+unsnapshotted recovery remains explicitly separate. The [R2 design](../09-04-embedded-agent-app-r2/design.md)
+owns exact ordering and constraints. Managed files remain projections of that authority. Imported
 source files and arbitrary files a user places elsewhere in the Workspace are not part of this file
 snapshot; their existing content/evidence records remain authoritative.
 
@@ -365,8 +393,15 @@ owns:
 - current Codex thread/session metadata;
 - normalized timeline events;
 - active turn/cancellation state;
-- pending host permission; and
+- pending scoped private-context consent or product approval, plus denied host-permission notices; and
 - the currently inspected product proposal, history entry, or preview.
+
+On reopen/resume, fetch bounded history only for the registered provider thread and selected
+Application. Normalize stable item order/IDs and deduplicate overlapping live events in memory.
+Qualify the actual history API, limits, and pagination against the supported version; experimental
+methods are not assumed present. If history was deleted or cannot be loaded, show that gap. Already
+loaded conversation can remain readable while offline; a cold restart cannot promise provider history
+without the provider. Do not add a local transcript database.
 
 Product records continue to load and mutate through the existing typed bridge. Protocol events carry
 stable identifiers and bounded display data; they do not become a parallel product store.
@@ -382,7 +417,12 @@ The App opens directly into useful work, not a metric dashboard:
 - The left navigation contains only Work, Library, and Settings. It may show the current Application
   summary, but it does not duplicate the workflow as a second navigation tree.
 - Work is conversation-led: the center timeline holds user intent, agent responses, and concise tool
-  progress. The composer remains at the bottom.
+  progress. The composer remains at the bottom. A compact stage/readiness area shows blockers and
+  next actions from the existing Pack/Application model.
+- The user can select a Deliverable and see draft/review/validation/export state. Requirement-to-
+  Evidence coverage identifies missing or stale associations using existing references.
+- Context selection makes private scope and provider destination explicit. Guided analyze, draft,
+  revise, check, and export actions call existing facade/Skills operations; they add no new engine.
 - The right Inspector follows the selected event and shows Context, Changes, Consent, History, or
   Preview. History includes both provenance metadata and exact retained file-snapshot comparison.
   It is closed when there is nothing material to inspect.
@@ -399,17 +439,19 @@ Application, not another place the user must manage.
 | --- | --- | --- | --- |
 | Ready | Existing conversation and a clear prompt field | Current Application context on demand | Describe the outcome in natural language |
 | Working | Streamed answer plus compact plan/tool progress | Evidence or tool detail only when selected | Continue, steer, or cancel |
-| Host permission | Explanation of what Codex requested | Exact file/command/network request | Allow once or deny; default is deny |
+| Host permission | Bounded explanation of the denied host request | Safe request metadata | Dismiss; direct host authority remains denied |
+| Private context | Selected content scope and provider destination | Revision/content identity and consent | Allow this bound transfer or reject |
 | Product review | Agent summary says what will change and that nothing is written yet | Structured diff, evidence links, validation, and consent | Approve this bound preview or reject it |
 | Verified | Commit/verify result appears beside the originating turn | Updated record, revision history, or exact output preview | Continue editing or export |
-| Offline/error | Conversation remains readable with a precise recovery message | Readiness diagnostic | Retry, reconnect, or use external handoff |
+| Offline/error | Already loaded conversation remains readable; unavailable provider history is explicit | Product state and readiness diagnostic | Continue supported manual inspection/review/export, retry, or use external handoff |
 
 A normal interaction therefore reads as one continuous exchange:
 
 1. The user selects an Application and asks for an outcome in plain language.
 2. Codex receives only the bound Application context and CanISend MCP tools.
 3. Codex App Server streams narrative, progress, and any host permission request into the timeline.
-4. Read-only tool results appear without blocking; a material mutation opens the Inspector.
+4. Allowlisted metadata reads proceed; private bodies require bound context/provider consent, and a
+   material mutation opens the Inspector for its separate approval.
 5. The user reviews evidence, diff, validation, and consent, then approves or rejects the exact
    proposal.
 6. CanISend commits and verifies through its existing facade; the Agent cannot mark its own proposal
@@ -463,7 +505,12 @@ incompatible.
   and exact-preview continuity.
 - One native macOS smoke owns the first vertical slice. Existing scheduled/native gates retain their
   target ownership; Windows/Linux claims are not inferred from macOS.
-- The final implementation head runs the repository's required focused checks and source gate.
+- One primary owner proves each invariant; adapter tests prove wiring rather than repeat the same
+  business assertion. The applicable final integration head runs the source gate once; protected
+  Fast CI owns the workspace suite.
+- R4 qualifies changed runtime/App bytes and consented user journeys on an exact embedded Beta.
+  Beta.1 observations remain immutable; the master roadmap owns the prospective validator transition
+  and one formal exact-build cohort with unchanged thresholds.
 
 ## 8. Rollout and rollback
 
@@ -486,11 +533,12 @@ old Agent page only in the post-parity cleanup milestone.
   Schema fixtures from the tested CLI during development, not on every App start.
 - Use the fake App Server process as the durable compatibility fixture. Real-provider smoke is evidence for
   integration, not the only regression.
-- Version persisted session metadata and test its migration. Workspace data requires no migration for
-  embedded-client rollback.
-- Map every PRD requirement to a focused test/evidence item in its just-in-time Trellis phase task.
-- Record the exact source Git commit or PR head with each phase's Trellis completion evidence, while
-  keeping Workspace paths and content out of source-control evidence.
+- Version persisted session metadata and test its migration. R2's additive Store migration retains
+  the existing future-schema refusal; an older binary requires a compatible backup, not an unsafe
+  downgrade. Disabling the embedded UI preserves current Workspace authority.
+- Map each requirement to its primary focused check in the existing execution checklist. Record
+  source identity, actual evidence, and next action once; Trellis phase/task/journal mechanics are
+  not required. Keep private Workspace paths and content out of source-control evidence.
 - Retain external handoff until the embedded path completes parity and a rollback window.
 - Keep Electron, PDF.js, provider SDKs, ACP, transcript storage, and a new protocol crate outside the MVP
   until a measured requirement crosses their documented gate.

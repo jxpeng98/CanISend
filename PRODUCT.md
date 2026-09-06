@@ -1,120 +1,69 @@
 # CanISend Product
 
-Status: Approved product direction; R0 and R1 complete; R2 not started
-Date: 2026-09-04
+Status: Approved CLI-first direction; previous App-first execution superseded
+Date: 2026-09-06
 
 ## Purpose
 
-CanISend is a local-first application for preparing evidence-bound applications and submissions.
-It helps a user move from an opportunity to a reviewed, consented, reproducible deliverable without
-letting an AI provider become the system of record.
+CanISend is a local-first Rust framework for preparing evidence-bound applications and submissions.
+A domain-neutral Workspace holds independent Applications bound to exact declarative workflow
+Packs. Academic jobs are the first reference Pack; the generic application Pack remains supported.
 
-The product is domain-neutral. Academic jobs are the first built-in workflow pack, not the kernel's
-ontology.
+## Primary experience
 
-## Primary user
+The user installs the native CLI and verified product resources, then works through a selected
+external Agent using the existing CLI/MCP tools and Skills. Core installation, configuration,
+application preparation, approval, export, and recovery must work without a CanISend App window.
+The Host owns its model, account, and conversation. CanISend owns product records and policy.
 
-A person preparing a consequential application who needs to:
+1. Create or select a Workspace and Application.
+2. Import bounded sources and explicitly associate confirmed Evidence.
+3. Inspect Requirements, missing facts, and Pack-defined Deliverables.
+4. Generate a candidate with source references and exact input versions.
+5. Review the candidate and explicitly approve the final bound preview through a verified path.
+6. Commit through the shared facade, verify the receipt, and render/export reviewed output.
+7. Resume from canonical product state in another local session; back up and restore independently.
 
-- reuse verified profile and evidence material;
-- understand what the agent proposes and why;
-- review every material mutation before it is committed;
-- preview the exact output that will be exported; and
-- recover and audit the work locally.
+First prove one complete Host journey. Then add same-device task claims, isolated candidates,
+exact-candidate reviews, reliable final submission to the local store, and conflict/crash recovery.
+At least two real running sessions must demonstrate collaboration before it is advertised.
+A second Agent's agreement does not confirm a user's experience or authorize a product mutation.
 
-## Product direction
+## Product invariants
 
-The desktop App is the primary working surface. A normal user should not need to leave the App to
-operate Codex or another supported agent. The provider remains the reasoning engine underneath the
-App; CanISend remains the local system of record and policy boundary.
+- Keep the existing Rust CLI, MCP server, `canisend-app` domain facade, and Store/Blob authority.
+- Preserve Workspace v4, Application-level Pack binding, both Packs, and verified resources.
+- Facts require user-confirmed Evidence; missing information remains unknown.
+- Private read/provider-send, product commit, and export have separate authority. A role prompt,
+  model boolean, broad Host auto-allow, or preview token alone cannot establish human consent.
+- Active approval belongs to its Broker instance. Prefer final preview/confirmation/commit in one
+  instance; restart invalidates active grants. Other sessions read persisted results and receipts.
+- Bind candidates and reviews to their exact scope, inputs, revisions, and digests. Revalidate at
+  commit, reject stale/conflicting results, and recover from actual receipts without duplicate writes.
+- Model execution does not hold a database write transaction. Coordination does not become a
+  second product database, workflow engine, or approval system.
+- Agents never write `.canisend` directly. Diagnostics and retained test evidence remain body-free.
+- Git owns source and release provenance; private product content does not require Git.
+- Uninstall and repair preserve user Workspaces. Restore and schema rollback follow existing policy.
+- CanISend prepares and exports; it never uploads or submits to a third-party portal for the user.
 
-For the MVP, Codex App Server carries agent sessions, streamed messages, cancellation, and host
-permission requests over its official stdio JSON-RPC interface. MCP exposes CanISend's
-evidence-bound product operations to Codex. These are separate boundaries.
+## Existing App and deferred scope
 
-After the Codex MVP is proven, the App may add one generic ACP v1 stdio channel for qualified
-ACP-compatible agents. Claude Agent is the first planned qualification target. Products that expose
-MCP tools but no supported embedded-session protocol remain external integrations rather than being
-presented as native Agent providers.
+R0/R1 source completion and partial R2 evidence remain available. The App-first execution path is
+closed as superseded, with unfinished R2-R6 work deferred rather than accepted. Keep the existing
+GUI and supported maintenance/retention/accessibility behavior. Private embedded tools remain off
+until their original boundary is proven; the CLI direction does not relax that control.
 
-The product owner confirmed the conversation-led Workbench on 2026-09-04: conversation remains in
-the center, while a contextual Inspector on the right owns evidence, changes, consent, and preview.
+Defer custom chat/Workbench expansion, ACP, React/Electron migration, automatic model workers,
+provider credential management, and cross-device synchronization. A local coordinator is optional
+only if a proven cross-connection need cannot use the existing process/facade. Extra Host support
+requires per-Host evidence; same-device operation does not automatically cover WSL, VMs, or containers.
 
-## Core experience
+## Delivery and qualification
 
-1. Open or create a Workspace and select an Application.
-2. Ask the embedded agent to research, draft, revise, or prepare a deliverable.
-3. Watch the response and tool progress stream in the App.
-4. Inspect sources, proposed changes, validation results, and consent requirements beside the
-   conversation.
-5. Approve or reject material changes.
-6. Compare the exact files produced by the current and a retained earlier build.
-7. Inspect the local revision history and provenance of committed changes when needed.
-8. Preview the exact export bytes and export only after final review.
-
-## Information architecture
-
-The desktop shell has three primary destinations:
-
-- **Work** — the active Application, conversation, progress, review, history, and preview;
-- **Library** — opportunities, reusable profile material, evidence, and completed Applications; and
-- **Settings** — Workspaces, agent connection, privacy, appearance, and diagnostics.
-
-The agent is part of Work, not a separate product area. Workflow and delivery are states of the
-active Application, not permanent top-level destinations.
-
-## Product principles
-
-- Local product records, consent, audit, recovery, and export truth stay in the Rust core.
-- Git tracks source code, ADRs, Trellis plans, tests, and release provenance; it is not the authority
-  for private Workspace content.
-- An agent may propose work; it may not silently commit or submit it.
-- The UI progressively reveals evidence and controls instead of presenting every subsystem at once.
-- Exact-output preview is more important than editing inside a preview surface.
-- Codex-specific event shapes stop at the Rust session boundary; add a provider abstraction only
-  when a second provider is implemented.
-- Every committed Agent action remains traceable to its session/turn, CanISend operation, bound
-  preview, approval outcome, revision, digest, and audit receipt without persisting private
-  conversation bodies or raw single-use approval tokens.
-- Framework and provider upgrades are versioned, tested, and reversible; product records never
-  depend on a provider-specific transcript format.
-- User content remains traceable through local revisions, digests, receipts, dependencies, and audit
-  events without requiring Git or a remote repository.
-- File-level history covers only files written and registered by CanISend's managed
-  projection/export pipeline. It preserves an immutable path/digest/size manifest and the exact
-  historical bytes; comparisons must not scan arbitrary Workspace files or regenerate an old
-  version with newer rendering code and call it historical.
-- Accessibility, English/Chinese support, light/dark themes, and compact/comfortable density remain
-  baseline capabilities.
-- Existing shadcn-svelte primitives and semantic tokens are reused; this is a structural redesign,
-  not a visual rebrand.
-
-## MVP
-
-The first releasable slice supports one Codex App Server session per desktop window, streamed
-conversation, cancellation and resume, CanISend MCP tools, explicit permission and mutation review,
-and exact PDF preview inside a simplified Workbench.
-
-The MVP fixes clean Workspace v4 preparation so it never attempts legacy Agent, Job, Task, or
-Workflow compatibility paths.
-
-The MVP also includes a Git-like line comparison of retained CanISend-managed file snapshots. It
-uses the existing content-addressed BlobStore and a bounded in-process diff engine; it does not
-initialize a repository or require Git to be installed.
-
-## Explicitly deferred
-
-- migrating the desktop shell from Tauri to Electron;
-- the generic ACP channel, Claude Agent qualification, and other provider parity;
-- automatic installation from the ACP Registry or unqualified third-party Agent adapters;
-- multiple simultaneous agent sessions;
-- arbitrary repository editing or a general-purpose IDE;
-- App-owned provider credentials or billing;
-- persisted transcript bodies;
-- a Git-backed Workspace, automatic Git commits/pushes, or remote repository sync;
-- scanning, watching, or versioning arbitrary user-managed files elsewhere in a Workspace;
-- rich DOCX/HTML editing or annotations inside the preview; and
-- automatic submission to third-party systems.
-
-These capabilities are added only after a measured user need or a failed MVP acceptance criterion
-justifies them.
+[ADR-RN-0023](docs/architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md)
+owns this decision. The [master roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md)
+owns ordering: audit, independent CLI delivery, trusted approval, one Host and resumption, then local
+collaboration. Qualify the standalone baseline separately from collaboration. Build isolation,
+clean-machine runtime, business acceptance, protected CI, and exact release qualification are
+separate claims. Historical release identities, freeze rules, and user-evidence thresholds remain.

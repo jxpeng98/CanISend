@@ -12,7 +12,7 @@
   "assignee": "pengjiaxin",
   "createdAt": "2026-08-10",
   "completedAt": null,
-  "branch": null,
+  "branch": "plan/beta1-cohort-execution",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,

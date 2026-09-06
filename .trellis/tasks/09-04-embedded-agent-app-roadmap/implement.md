@@ -1,39 +1,42 @@
 # Embedded Agent App Roadmap and MVP Checklist
 
-Status: Approved roadmap; R0 and R1 complete; R2 not started
+> 2026-09-06 closeout: App-first execution is superseded by CLI-first delivery under
+> [ADR-RN-0023](../../../docs/architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md). R0/R1 source completion is retained; R2 is partial
+> and unaccepted; unfinished R2-R6 scope is deferred. Historical checklists below are not the
+> active queue. The master roadmap owns the next CLI-first slice.
+
+Status: App-first stage closed as superseded; CLI-first closeout and baseline reconciliation in progress
 Date: 2026-09-04
 
 ## Roadmap at a glance
 
 ```text
-R0 architecture/UX gate
-  -> R1 Codex App Server vertical slice
-     -> R2 MCP + approvals
-        -> R3 simplified Workbench
-           -> R4 MVP hardening and release gate
-              |---- MVP cut ----|
-              -> R5 generic ACP + Claude qualification (post-MVP)
-              -> R6 legacy removal (after parity)
+R0 authority/clean-v4 [source complete] -> R1 App Server [source complete]
+  -> R2a effective isolation, bound MCP, explicit consent/approval
+  -> R2b durable audit origin, exact managed-file history
+  -> R3 complete Workbench and bounded provider-history display
+  -> R4 exact embedded Beta, recovery/accessibility, changed-journey user qualification
+     +-> R5 ACP/Claude after MVP
+     +-> R6 cleanup after parity and rollback window (independent of R5)
 ```
 
-This sequence proves the protocol and safety loop before paying for a broad frontend rewrite. No
-calendar dates are assigned until R0 is approved and the first vertical slice exposes real effort.
+The [master roadmap](../../../docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md#33-approved-app-first-delivery-sequence)
+owns ordering, M4-APP-001–005, and release gates. R2a proves the provider boundary before broad UI
+work. R2b preparation can overlap only once receipt/binding contracts are stable. Re-estimate effort
+from that proof; the old short Beta-only estimate does not cover the expanded App scope.
 
-## Phase controls
+## Execution and evidence
 
-| Phase | Depends on | PRD coverage | Minimum completion evidence | Rollback point |
-| --- | --- | --- | --- | --- |
-| R0 | Approved final plan | R1, R5, R7-R9 authority | ADR/roadmap reconciliation, clean-v4 positive/legacy negative regressions, qualified dependency record | Revert authority docs and blocker patch; current external handoff remains |
-| R1 | R0 complete | R2, R6, R8 session metadata | Fake-App-Server protocol suite, desktop command tests, one native Codex smoke | Disable embedded capability and retain one-shot/external paths |
-| R2 | R1 complete | R3, R8, R9 | Store/App comparison tests, approval failure matrix, one committed and denied trace | Stop exposing MCP/file-history additions; append-only Workspace data remains readable |
-| R3 | R2 complete | R4, R5, R8, R9 UI | Frontend tests/build plus keyboard, 200% text, locale, theme, and density evidence | Restore old routes as primary while keeping additive backend work |
-| R4 | R3 complete | All MVP requirements | Recovery matrix, exact-output checks, native smoke, final source gate, evidence map | Disable embedded entry point; preserve Workspaces and external handoff |
-| R5 | R4 complete | R10 post-MVP ACP/provider parity | Fake-ACP lifecycle suite plus separately qualified Claude Agent smoke | Disable the ACP channel only; Codex and external handoff remain |
-| R6 | Measured parity and rollback window | R7 cleanup | Saved-link/recovery regressions and operation/architecture reconciliation | Restore old route/runtime from the last parity head |
+Use this checklist and the existing [R2 checklist](../09-04-embedded-agent-app-r2/implement.md).
+Do not create another Trellis task/phase/journal hierarchy. Each reviewable outcome records its owner,
+dependencies, primary acceptance evidence, rollback, and exact source when available. Product
+implementation, protected CI, artifact qualification, and user evidence are separate facts.
 
-Every phase is implemented as a just-in-time Trellis child task that records the exact Git commit or
-PR head and links each listed requirement to its focused checks. A phase does not begin while its
-dependency or exit evidence is incomplete.
+R0/R1 checked items below describe recorded source work, not new public qualification:
+[R0 evidence](../archive/2026-09/09-04-embedded-agent-app-r0/implement.md) and
+[R1 evidence](../archive/2026-09/09-04-embedded-agent-app-r1/research/app-server-evidence.md).
+R1 source is `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3`; the review baseline is
+`d7c0abfea46aa8d7b9f63d9b1ac7bd7fac93abea`.
 
 ## R0 — Architecture, authority, and Workspace v4 blocker
 
@@ -46,7 +49,8 @@ Outcome: the product direction is authoritative and clean Workspace v4 preparati
       of the existing desktop/agent decisions.
 - [x] Reconcile the authoritative 1.0 roadmap and feature-freeze boundary before product code lands.
 - [x] Define the supported installed `codex` discovery/version/App Server capability policy and MVP
-      authentication statement. Reuse Codex sign-in state; never collect or persist provider tokens.
+      authentication statement. Use a dedicated Codex configuration and separate provider-owned login
+      (owner amendment 2026-09-05); never collect or persist provider tokens.
 - [x] Remove the clean Workspace v4 dependency on legacy Agent/Job/Task/Workflow scope lookup.
 - [x] Keep the existing v4 handoff-method regression and add one cross-layer clean-v4 screen
       regression plus one explicit legacy-repository behavior regression.
@@ -86,47 +90,44 @@ Outcome: a user can hold one streamed Codex conversation inside the App.
 Exit: fake-App-Server tests pass and a local Codex session streams in the App without invoking the old
 process-per-turn path.
 
-## R2 — CanISend MCP and safe review loop
+## R2 — Bound tools, consent, and exact history
 
-Outcome: the embedded agent can do useful product work without bypassing CanISend invariants.
+Owner: desktop/application maintainer for R2a; Store/application maintainer for R2b.
+Detailed acceptance and steps live only in the [R2 plan](../09-04-embedded-agent-app-r2/implement.md).
 
-- [ ] Start the agent in a controlled session directory outside raw Workspace product storage.
-- [ ] Inject the existing CanISend MCP server configuration bound to the selected Workspace and
-      Application.
-- [ ] Default-deny direct Codex file, command, and network permissions in the MVP.
-- [ ] Render host permission requests separately from CanISend mutation approvals.
-- [ ] Route proposals through the current preview, approve, commit, verify, audit, and recovery path.
-- [ ] Correlate each MCP tool call to its CanISend operation/receipt and, for commits, to the bound
-      preview digest, approval outcome, revision, audit event, and output digest where applicable;
-      never persist the raw single-use approval token.
-- [ ] Verify deny, timeout, cancellation, stale preview, replay, verification failure, and agent crash
-      all fail closed.
-- [ ] Redact prompt, tool, evidence, credential, and generated bodies from default diagnostics.
-- [ ] Expose one read-only Workspace v4 Application history operation through `canisend-app`, reusing
-      existing revision metadata rather than adding a Git or event-store dependency.
-- [ ] Add append-only file-snapshot and file-snapshot-entry migrations; populate them only from the
-      successful managed projection/export output batch and bind every exact byte sequence to the
-      existing content-addressed BlobStore.
-- [ ] Add one read-only manifest-comparison operation that returns snapshot metadata and A/M/D/U
-      paths without loading file bodies.
-- [ ] Add one read-only selected-file operation that verifies only the requested old/new Blobs and
-      returns typed text hunks or binary metadata/preview handles.
-- [ ] Implement the selected-file text path in `canisend-app` with `similar`'s Myers algorithm, exact
-      whitespace and line endings, three context lines, a 250 ms computation budget, and explicit
-      256-file, 4-MiB-per-side, 20,000-line-per-side, and 2,000-row bounds.
-- [ ] Keep the file-diff operations desktop-only in the MVP; do not expose historical private bodies
-      as agent/MCP tools.
+- [ ] R2a / M4-APP-001 proves effective provider isolation, inherited configuration handling,
+      start/resume/turn policy, and required MCP readiness on the exact supported CLI.
+- [ ] Every Application-ID path and no-ID/list output respects the selected scope. Private reads and
+      provider sends require explicit consent; model flags and automatic approvers grant nothing.
+- [ ] One representative MCP preview/approve/commit/verify flow and its denial/stale/replay/cancel/
+      crash cases pass through the existing facade and broker for both Packs.
+- [ ] R2b / M4-APP-002 retains body-free committed origins in product audit beyond registry deletion,
+      with an explicit post-commit trace-gap result rather than a mutation retry.
+- [ ] Exact snapshots use logical paths, actual generator identity, same-kind predecessors, and
+      current-head-only reuse; projection repair/restore uses verified retained Blobs.
+- [ ] Bounded desktop-only manifest and selected-file comparisons pass their owning tests; no
+      Workspace scan, Git, transcript store, or persisted patch is introduced.
 
-Exit: a Codex session can propose and complete one representative Application mutation through MCP,
-but cannot commit it without explicit in-App approval or access product storage directly.
+Exit: both R2 units pass. Disable private tool/history entry points to roll back; preserve committed
+product data and use compatible backups when an older binary cannot open the additive schema.
 
 ## R3 — Simplified Workbench
+
+Owner: desktop/product maintainer. Entry: accepted R2 contracts.
 
 Outcome: the full MVP journey is understandable from one surface.
 
 - [ ] Add Work, Library, and Settings as the only primary destinations.
 - [ ] Add the Workspace/Application switcher and provider state to the Workbench header.
 - [ ] Build the conversation timeline, composer, session actions, and progress states.
+- [ ] Load bounded provider-owned history for a registered thread after reopen/resume, with stable
+      ordering, deduplication, scope checks, and explicit unavailable-history state; no local transcript.
+- [ ] Compose pack stages, readiness blockers, and next actions from existing Application models.
+- [ ] Show Requirement-to-Evidence coverage, missing/stale associations, and selectable Deliverables
+      with draft/review/validation/export state.
+- [ ] Add explicit context selection and provider-send consent; guided analyze/draft/revise/check/
+      export actions reuse existing facade/Skills operations.
+- [ ] Keep supported manual inspection, review, and export usable without an available provider.
 - [ ] Add a quiet details disclosure for body-free session, turn, operation, receipt, and audit IDs.
 - [ ] Build the collapsible Inspector for Context, Evidence, Changes, Consent, History, and Preview.
 - [ ] Add History inside the Inspector with revision, actor, reason, timestamp, snapshot digest, and
@@ -145,36 +146,38 @@ Outcome: the full MVP journey is understandable from one surface.
 - [ ] Verify keyboard-only use, visible focus, reduced motion, 200% text scale, English/Chinese,
       light/dark, and both density modes on the critical path.
 
-Exit: a user can ask, inspect, approve/reject, inspect revision history, preview, and export without
-navigating to an external agent or a separate Agent page.
+Exit: both Packs complete context -> evidence -> Deliverable -> review -> exact preview/export in
+one Workbench. Resume shows provider history or an explicit gap; provider absence preserves supported
+manual work. Old routes remain the rollback until measured parity.
 
-## R4 — MVP hardening and release gate
+## R4 — Exact embedded candidate and user qualification
 
-Outcome: the vertical slice is bounded, recoverable, diagnosable, and eligible for controlled use.
+Owner: release/validation maintainer. Entry: R3 source and inspected protected integration evidence.
+The [master M4 gate](../../../docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md#embedded-validation-before-rc)
+owns artifact and user thresholds; this checklist does not duplicate or weaken them.
 
-- [ ] Cover missing executable, auth required, incompatible version, malformed/oversized message,
-      App Server exit, hung request, cancel race, restart, and stale-session recovery.
-- [ ] Bound message size, stderr, pending requests, in-memory event history, startup, request, and
-      shutdown time.
-- [ ] Show an actionable readiness diagnostic without exposing sensitive content.
-- [ ] Prove reconstruction of one committed and one denied body-free trace chain across App restart.
-- [ ] Prove session-registry migration and embedded-client rollback preserve Workspace data.
-- [ ] Prove the history view works without Git installed and never creates or modifies a Workspace
-      `.git` directory.
-- [ ] Prove retained file comparisons remain byte-identical after restart and a simulated generator
-      upgrade, and that failed snapshot commits leave no manifest or referenced-Blob inconsistency.
-- [ ] Prove unchanged digests never read Blob bodies, only the selected changed path is loaded, all
-      file/byte/line/row limits fail visibly, and a bounded pathological fixture cannot freeze the UI.
-- [ ] Confirm the exact PDF preview digest matches exported bytes and the system-viewer fallback.
-- [ ] Keep the installed Codex CLI as an explicit internal-MVP prerequisite. Any future bundled CLI
-      requires a separate distribution, license, signature, provenance, and update decision.
-- [ ] Run focused Rust tests, frontend checks/tests/build, the clean-v4 smoke, one native macOS App Server
-      smoke, and the final repository source gate.
-- [ ] Update user documentation, privacy/authentication wording, capability inventory, and rollback
-      instructions.
+- [ ] Close remaining recovery integration gaps for auth/version readiness, bounded process failure,
+      cancel/restart, scope changes, and unavailable history. Reuse passing R1/R2 owner regressions.
+- [ ] Prove committed origin survives registry deletion and fresh-path restore; retained bytes and
+      comparisons remain unchanged across generator upgrades. Denials retain only bounded cache
+      history and are not promised indefinite product-audit retention.
+- [ ] Confirm exact PDF preview/export identity, no-Git operation, and manual provider-unavailable
+      behavior in the integrated Workbench.
+- [ ] Qualify the authorized exact embedded Beta candidate with recorded source/manifest, Codex
+      version/capabilities, migrations, Packs, and operation identities. Run affected native/runtime,
+      keyboard/VoiceOver/200%-scale and recovery gates on their owned targets; macOS proves no other OS.
+- [ ] Prepare the existing evidence-contract/scenario update during R2/R3. Under M4-APP-005, test
+      exact build/journey linkage and missing/stale/wrong-build/mixed-denominator rejection before
+      the new target is accepted for RC.
+- [ ] Run the single formal Issue #70 cohort on the qualified embedded Beta with unchanged user/flow/
+      quality thresholds. Reuse consented participants/fixtures; preserve Beta.1 history, do not pool
+      incompatible UI results, and do not require two complete cohorts.
+- [ ] Update user/privacy/authentication guidance, capability inventory, and rollback instructions.
+      Keep Codex installed/version-qualified; bundling remains a separate decision.
 
-Exit: every PRD acceptance criterion is evidenced on the final implementation head, or the embedded
-entry point remains disabled while external handoff continues to work.
+Exit: M4-APP-004/005 evidence and machine linkage pass on the exact embedded build. Source checks
+alone do not qualify the MVP. Disable embedded entry if its qualification fails; retain external
+handoff and manual product operations. Release/publication still requires its own authorization.
 
 ## MVP cut line
 
@@ -189,48 +192,18 @@ The MVP includes R0 through R4 and no more. It supports:
   preview; and
 - bounded recovery and diagnostics.
 
-## Sustainability and traceability checklist
+## Verification flow
 
-- [ ] Keep Rust/Tauri/Svelte and the accepted crate dependency directions; do not add Electron,
-      React, a Node runtime, or a second product store.
-- [ ] Keep Codex-specific translation inside the Rust App Server/session boundary; do not add a
-      generic provider trait until a second provider is implemented.
-- [ ] Reuse existing ActionReceipt, Agent v4 receipt, revision, digest, approval, audit, and operation
-      registry contracts.
-- [ ] Give persisted session metadata an explicit format version and forward-migration test.
-- [ ] Record the supported Codex CLI range and required App Server capabilities in diagnostics.
-- [ ] Redact all prompt, response, tool-argument, evidence, credential, and generated-content bodies
-      from correlation metadata and default logs.
-- [ ] Maintain one requirement-to-test/evidence map per R0-R4 Trellis phase task.
-- [ ] Record the exact Git commit or PR head for each completed phase without staging private
-      Workspace files.
-- [ ] Keep file snapshots append-only, content-addressed, and inside the existing Store/Blob authority;
-      do not introduce a Git wrapper or second object database.
-- [ ] Keep comparison two-stage and on demand: manifest hashes first, one selected verified Blob pair
-      second; never scan the Workspace or persist derived patches.
-- [ ] Keep the external handoff rollback path until the replacement reaches measured parity.
+Follow [AGENTS.md](../../../AGENTS.md) and the
+[quality guidelines](../../spec/backend/quality-guidelines.md). During an edit run one focused
+positive/negative check at the owner of each changed invariant, plus only necessary adapter wiring
+and changed-language formatting/static analysis. Reuse existing dual-Pack, fake-provider, and recovery
+fixtures. Do not copy the same assertion into every adapter or run full Rust suites for prose changes.
 
-## Validation commands
-
-Run the smallest affected checks during each phase, then the full listed source checks once on the
-final implementation head:
-
-```text
-cargo fmt --all -- --check
-cargo test -p canisend-store
-cargo test -p canisend-app
-cargo test -p canisend-gui
-cargo clippy -p canisend-store -p canisend-app --all-targets -- -D warnings
-cargo clippy -p canisend-gui --all-targets -- -D warnings
-pnpm --dir apps/canisend-desktop format:check
-pnpm --dir apps/canisend-desktop check
-pnpm --dir apps/canisend-desktop test
-pnpm --dir apps/canisend-desktop build
-cargo run -p xtask --locked -- release check
-```
-
-The native macOS App Server smoke and any packaging qualification remain separately named evidence; they
-are not inferred from these source checks.
+Run `cargo run -p xtask --locked -- release check` once on each final applicable integration head.
+Protected Fast CI owns the complete workspace suite. Native packages and extended assurance run
+only for their affected scope or exact candidate. Record actual checks and evidence once; a source
+commit, green local command, or checked checklist is not user or artifact qualification.
 
 ## R5 — Generic ACP channel and Claude qualification, after MVP
 
@@ -258,7 +231,7 @@ CanISend MCP review loop as Codex, and rejects incompatible agents without mutat
 
 ## R6 — Legacy removal, after parity
 
-Start only after the Workbench has measured parity and a rollback window.
+Start only after R4, measured Workbench parity, and a rollback window. R5 completion is not a dependency.
 
 - Delete the one-shot in-App provider runtime.
 - Remove obsolete legacy Agent/Job/Task/Workflow panels and callbacks from the primary UI.
@@ -288,6 +261,74 @@ Start only after the Workbench has measured parity and a rollback window.
 
 ## Implementation handoff
 
-After approval, begin with R0 only. Create just-in-time Trellis child tasks for the current phase;
-do not scaffold R1–R6 in advance. Each implementation phase must retain its smallest positive and
-negative regression and stop at its exit criterion.
+R2a is in progress in the existing [R2 checklist](../09-04-embedded-agent-app-r2/implement.md).
+Optional Application binding and fail-closed protocol regressions are implemented locally. Continue
+with effective provider isolation and a correlated positive consent proof before embedded MCP
+enablement; retain active-freeze controls. R2b and overall R2 acceptance remain pending. No additional
+Trellis activation or repeated phase-approval ceremony is required.
+
+## CLI-first closeout and LF-C01
+
+Updated: 2026-09-06. Owner: maintainer. This section is the current bounded checklist; R0-R6 above
+is retained history. The owner confirmed the latest working branch and main as the integration
+scope. The downloaded 2026-09-05 package supplies LF-C01–12 design input; it does not execute
+LF-C02–12, change release authority, or create a second task ledger.
+
+### Scope and acceptance
+
+- [x] Adopt ADR-RN-0023 and map the CLI-first sequence into the existing master roadmap.
+- [x] Close App-first execution as superseded; retain R0/R1 completion and defer partial R2 without
+      claiming isolation, consent, history, signed-in flow, or artifact acceptance.
+- [x] Inspect current branch/main, user changes, manifests, entry points and existing test owners.
+- [ ] Preserve and review existing source/process changes in independently reviewable commits.
+- [ ] Integrate latest main/Beta.2 and the prior intake fix, resolve conflicts, record exact freeze
+      dispositions, and run focused checks plus the final source gate.
+- [ ] Inspect protected Fast CI and merge the integration PR; close superseded PR work accurately.
+- [ ] Confirm clean local main and record exact integration evidence. Next implementation: LF-C02.
+
+### Audited baseline and boundaries
+
+Closeout began at `d7c0abfea46aa8d7b9f63d9b1ac7bd7fac93abea` on
+`feat/beta2-cli-skills-readiness`, 16 commits ahead of its remote with existing R2/process edits.
+Remote main `095236c5a5a1d536f3f596abc9ea436bc38567a2` already carries Beta.2 source and private
+candidate records; this older checkout reports Beta.1. Keep main's version and release facts during
+integration. PR #225 contains earlier intake work; its macOS quality log reports missing exact
+feature-freeze exception coverage, while its other five Fast CI jobs passed. That run does not
+qualify the forthcoming integration head.
+
+| Entry / owner | Existing implementation | Coupling or unproven boundary | Existing primary check |
+|---|---|---|---|
+| `canisend` / `canisend-cli/src/lib.rs` | CLI dispatch through `canisend-app`; stdio MCP bypasses command rendering | Root defaults select all 10 members; no GUI in the audited host CLI normal/build/dev tree | CLI `binary_contract`: help/errors, resource doctor, no-App Host setup and mixed-Pack recovery |
+| `canisend-cli/build.rs` | Records Git, target and compiler identity | Builder tools, not consumer runtime requirements; no frontend build invocation | CLI source/version contract |
+| `canisend-app` | Shared facade over contracts/core/io/store/resources | Domain owner, not desktop UI; keep it intact | Existing facade/dual-Pack regressions |
+| `canisend-resources` | Build-generated embedded resource manifest | Verify exact standalone package resources/cwd/uninstall behavior separately | CLI resource doctor and Host setup; existing package smoke |
+| MCP `serve_stdio_with_application` | Existing persistent server and optional Application guard | Independent MCP processes own separate approval Brokers; private reads and writes still require their own authority | `mcp_protocol`: guarded lifecycle, scope mismatch and unbound discovery |
+| `canisend-app/src/approval.rs` | `Arc<Mutex<ApprovalState>>` within each Broker instance | Not interprocess storage; cross-connection confirmation is unproven | Existing Broker stale/scope/replay and protocol lifecycle regressions |
+| CLI prepare/import/export/recovery | Existing v4 facade operations and dual-Pack fixtures | A complete new exact-Host windowless journey is not proven by source reading | CLI binary/MCP tests; exact native and real-Host gates later |
+| `.github/workflows/fast-ci.yml` | Linux core/CLI selection already independent; macOS full-workspace lanes depend on desktop frontend | Separate selected CLI proof from retained full-workspace gates | Protected Fast CI |
+| `.github/workflows/release.yml` | Existing explicit `-p canisend-cli` build and standalone archive smoke | Shared source preflight includes frontend; changes need a bounded pipeline review and exact-package evidence | Existing native release matrix, not run for this audit |
+
+### Actual audit checks
+
+- Download manifest: all 10 listed file SHA-256 digests match. Static package validation is not
+  product evidence.
+- `cargo metadata --format-version 1 --no-deps --locked --offline`: passed; 10 default members.
+- `cargo tree -p canisend-cli -e normal,build,dev --locked --offline`: passed; no Tauri, Wry,
+  WebKit, GTK or `canisend-gui` entry on the local host. Other target trees and packaged runtime
+  qualification remain separate checks.
+- No real provider login/model work, package build, publication, or cross-device implementation
+  is part of LF-C01. Historical R2 probe results remain historical.
+
+### Next small implementation: LF-C02
+
+Start with `Cargo.toml` default-member selection for the existing CLI and `CONTRIBUTING.md` build
+instructions. Inspect `.github/workflows/fast-ci.yml` for the smallest independent CLI check using
+existing core lanes; retain full-workspace/desktop gates. Do not modify release packaging in this
+first slice unless a demonstrated dependency requires a separate reviewed change. No crate
+rename, storage/schema mutation, approval change, new dependency or GUI deletion is needed.
+
+Prove default selection with Cargo metadata, inspect CLI normal/build/dev dependency trees for
+supported targets, build the selected CLI without frontend steps, and reuse the binary resource/
+help and MCP negotiation checks. Run the source gate once for a final CI/config integration head.
+Rollback restores manifest/default selection and CI/docs only; product data is unchanged. LF-C03
+then addresses exact standalone resources/install evidence; LF-C04 owns trusted approval gaps.
