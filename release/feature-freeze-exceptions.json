@@ -749,6 +749,14 @@
         "scripts/smoke_agent_v4_mcp.sh"
       ],
       "reason": "Close the LF-C04 consent gap by requiring a separate Host form response for exact Broker-owned commits and private read/export requests; preserve canonical revalidation, process-local grants and real-Host qualification as a separate gate."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "8bf747b420d44ea640ff958e1db1f32cffe3f9ca",
+      "paths": [
+        "release/dependency-advisory-exceptions.json"
+      ],
+      "reason": "Bind the current 751-package fingerprint and fresh dependency review to the sole RMCP-to-url feature edge; preserve advisory reachability restrictions and the existing 2026-09-07 review and expiry deadlines."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
