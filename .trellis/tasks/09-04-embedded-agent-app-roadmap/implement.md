@@ -361,3 +361,10 @@ checks, then macOS quality rejected the retained Python probe under its unchange
 Commit `3085ff9` retires that deferred App probe; its full source and prior observations remain linked
 from R2 evidence. No probe was reimplemented or executed during closeout. The exact tracked-file
 guard passes locally. Fresh final-head source validation and protected CI remain required.
+
+The same run's macOS suite found the exact Tauri inventory assertion still expected 129 leaves;
+`login_codex` and `start_agent_session` are both exported and registered, making 131. Commit
+`25fc2f0` synchronizes that assertion and its contract table. All 45 Contracts library tests,
+Contracts all-target Clippy, Rust format and diff checks pass. The exact CI workspace/all-target/
+all-feature Clippy command also passed locally; the initially uncached feature dependencies were
+fetched from the unchanged lockfile. Protected CI owns the remaining full-workspace tests.

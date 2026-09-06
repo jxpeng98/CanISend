@@ -706,6 +706,14 @@
         "scripts/probe_codex_app_server.py"
       ],
       "reason": "Remove the deferred Python provider probe from active scripts to restore the unchanged Rust-only CI boundary; retain historical source and observations through an immutable commit reference."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "25fc2f0b8e93c5ea4ec091b5dd964562192fbc50",
+      "paths": [
+        "crates/canisend-contracts/src/operation.rs"
+      ],
+      "reason": "Align the exact Tauri inventory regression with the two retained login/session commands already exported and registered; preserve all CLI/MCP inventory and registry rejection assertions."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
