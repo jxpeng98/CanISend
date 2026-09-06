@@ -17,8 +17,134 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    if env::args().skip(1).collect::<Vec<_>>() != ["app-server", "--listen", "stdio://"] {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    let home = std::path::PathBuf::from(env::var_os("HOME").ok_or("missing dedicated HOME")?);
+    let provider = home.join("provider");
+    for (key, expected) in [
+        ("USERPROFILE", home.clone()),
+        ("CODEX_HOME", provider.clone()),
+        ("XDG_CONFIG_HOME", home.join("config")),
+        ("XDG_DATA_HOME", home.join("data")),
+        ("APPDATA", home.join("data")),
+        ("LOCALAPPDATA", home.join("local")),
+    ] {
+        if env::var_os(key).map(std::path::PathBuf::from) != Some(expected) {
+            return Err(format!("incorrect dedicated directory for {key}"));
+        }
+    }
+    if home.file_name().and_then(|name| name.to_str()) != Some("codex-isolated-v1") {
+        return Err("unexpected provider namespace".to_owned());
+    }
+    for (key, _) in env::vars_os() {
+        if ![
+            "HOME",
+            "USERPROFILE",
+            "CODEX_HOME",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "PATH",
+            "SystemRoot",
+            "WINDIR",
+            "TMP",
+            "TEMP",
+            "TMPDIR",
+            "LANG",
+            "LC_ALL",
+            "DISPLAY",
+            "WAYLAND_DISPLAY",
+            "XDG_RUNTIME_DIR",
+            "DBUS_SESSION_BUS_ADDRESS",
+        ]
+        .iter()
+        .any(|allowed| key == *allowed)
+        {
+            return Err("unexpected inherited environment".to_owned());
+        }
+    }
+    if args.first().map(String::as_str) == Some("login") {
+        if args
+            != [
+                "login",
+                "-c",
+                "cli_auth_credentials_store=\"file\"",
+                "-c",
+                "forced_login_method=\"chatgpt\"",
+            ]
+        {
+            return Err("unexpected login arguments".to_owned());
+        }
+        if env::current_dir().map_err(|error| error.to_string())? != home {
+            return Err("login did not use dedicated working directory".to_owned());
+        }
+        println!("PRIVATE-LOGIN-URL");
+        eprintln!("PRIVATE-LOGIN-DIAGNOSTIC");
+        if provider.join("fail-fixture").exists() {
+            return Err("PRIVATE-LOGIN-FAILURE".to_owned());
+        }
+        if provider.join("timeout-fixture").exists() {
+            thread::sleep(Duration::from_secs(2));
+        }
+        std::fs::write(provider.join("login-fixture.marker"), "provider-owned")
+            .map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+    if args.get(..3)
+        != Some(&[
+            "app-server".to_owned(),
+            "--listen".to_owned(),
+            "stdio://".to_owned(),
+        ])
+    {
         return Err("unexpected arguments".to_owned());
+    }
+    let mut settings = std::collections::BTreeMap::new();
+    for pair in args[3..].chunks(2) {
+        if pair.len() != 2 || pair[0] != "-c" {
+            return Err("unexpected bootstrap override".to_owned());
+        }
+        let (key, value) = pair[1].split_once('=').ok_or("missing override value")?;
+        if settings.insert(key, value).is_some() {
+            return Err("duplicate bootstrap override".to_owned());
+        }
+    }
+    let profile = "\"fixture-session\"";
+    let cwd = env::current_dir().map_err(|error| error.to_string())?;
+    let executable = env::current_exe().map_err(|error| error.to_string())?;
+    let installation = executable.parent().ok_or("missing installation")?;
+    let filesystem = format!(
+        "{{ \":minimal\" = \"read\", {} = \"read\", {} = \"read\" }}",
+        json!(cwd),
+        json!(installation)
+    );
+    for (key, value) in [
+        ("default_permissions", profile),
+        (
+            "permissions.fixture-session.filesystem",
+            filesystem.as_str(),
+        ),
+        ("permissions.fixture-session.network.enabled", "false"),
+        ("approval_policy", "\"never\""),
+        ("approvals_reviewer", "\"user\""),
+        ("web_search", "\"disabled\""),
+        ("cli_auth_credentials_store", "\"file\""),
+        ("forced_login_method", "\"chatgpt\""),
+        ("features.shell_tool", "false"),
+        ("features.unified_exec", "false"),
+        ("features.multi_agent", "false"),
+        ("features.shell_snapshot", "false"),
+        ("features.plugins", "false"),
+        ("features.apps", "false"),
+        ("features.hooks", "false"),
+        ("features.skill_mcp_dependency_install", "false"),
+    ] {
+        if settings.remove(key) != Some(value) {
+            return Err(format!("missing restricted bootstrap setting: {key}"));
+        }
+    }
+    if !settings.is_empty() {
+        return Err("unexpected bootstrap settings".to_owned());
     }
     let scenario = env::current_dir()
         .map_err(|error| error.to_string())?
@@ -40,8 +166,38 @@ fn run() -> Result<(), String> {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let id = message.get("id").cloned();
+        if matches!(method, "thread/start" | "thread/resume" | "turn/start") {
+            if message["params"]["approvalPolicy"] != "never"
+                || message["params"]["approvalsReviewer"] != "user"
+            {
+                return Err("client did not reassert the explicit user/deny policy".to_owned());
+            }
+            if message["params"]["permissions"] != "fixture-session"
+                || message["params"].get("sandbox").is_some()
+                || message["params"].get("sandboxPolicy").is_some()
+            {
+                return Err("named policy was not reasserted exclusively".to_owned());
+            }
+            if scenario == "policy-rejected" {
+                write_value(
+                    &mut output,
+                    &json!({
+                        "id": id,
+                        "error": { "code": -32602, "message": "PRIVATE-POLICY-DETAIL" }
+                    }),
+                )?;
+                // Any fallback request after rejection is a fixture failure.
+                if read_message(&mut input)?.is_some() {
+                    return Err("client retried after the named policy was rejected".to_owned());
+                }
+                return Ok(());
+            }
+        }
         match method {
             "initialize" => {
+                if message["params"]["capabilities"]["experimentalApi"] != true {
+                    return Err("named policies require the experimental API".to_owned());
+                }
                 if scenario == "timeout" {
                     thread::sleep(Duration::from_secs(1));
                     return Ok(());
@@ -63,7 +219,7 @@ fn run() -> Result<(), String> {
                     &mut output,
                     id,
                     json!({
-                        "codexHome": "/fixture/codex",
+                        "codexHome": if scenario == "wrong-config-home" { json!("/fixture/host-codex") } else { json!(provider) },
                         "platformFamily": "fixture",
                         "platformOs": "fixture",
                         "userAgent": "canisend-fake-app-server"
@@ -124,6 +280,83 @@ fn run() -> Result<(), String> {
                             .display()
                     );
                     return Ok(());
+                }
+                if matches!(
+                    scenario.as_str(),
+                    "mcp-item" | "mcp-user-input" | "mcp-elicitation" | "host-permissions"
+                ) {
+                    let item = json!({
+                        "id": "mcp-item-1", "type": "mcpToolCall", "server": "canisend",
+                        "tool": "canisend_review_inspect", "status": "inProgress",
+                        "arguments": { "confirmed_private_read": true, "private": "PRIVATE-MCP-BODY" },
+                        "result": null, "error": null, "durationMs": null
+                    });
+                    notify(
+                        &mut output,
+                        "item/started",
+                        json!({
+                            "threadId": active_thread, "turnId": active_turn, "item": item
+                        }),
+                    )?;
+                    if scenario == "mcp-item" {
+                        let mut completed = item;
+                        completed["status"] = json!("completed");
+                        completed["result"] = json!({"content": [{"type": "text", "text": "PRIVATE-MCP-BODY"}], "structuredContent": {"private": "PRIVATE-MCP-BODY"}});
+                        notify(
+                            &mut output,
+                            "item/completed",
+                            json!({
+                                "threadId": active_thread, "turnId": active_turn, "item": completed
+                            }),
+                        )?;
+                    } else {
+                        let (method, params) = match scenario.as_str() {
+                            "mcp-user-input" => (
+                                "item/tool/requestUserInput",
+                                json!({
+                                    "threadId": active_thread, "turnId": active_turn, "itemId": "mcp-item-1",
+                                    "isBlocking": true, "questions": [{"id": "approval", "header": "Approve",
+                                    "question": "PRIVATE-MCP-BODY", "options": [{"label": "Approve", "description": "fixture"}]}]
+                                }),
+                            ),
+                            "mcp-elicitation" => (
+                                "mcpServer/elicitation/request",
+                                json!({
+                                    "serverName": "canisend", "threadId": active_thread, "turnId": active_turn,
+                                    "mode": "form", "message": "PRIVATE-MCP-BODY",
+                                    "_meta": {
+                                        "codex_approval_kind": "mcp_tool_call",
+                                        "tool_description": "PRIVATE-MCP-BODY",
+                                        "tool_params": {"confirmed_private_read": true, "private": "PRIVATE-MCP-BODY"},
+                                        "tool_params_display": [{"name": "private", "value": "PRIVATE-MCP-BODY"}]
+                                    },
+                                    "requestedSchema": {"type": "object", "properties": {}}
+                                }),
+                            ),
+                            _ => (
+                                "item/permissions/requestApproval",
+                                json!({
+                                    "threadId": active_thread, "turnId": active_turn, "itemId": "mcp-item-1",
+                                    "permissions": {}, "reason": "PRIVATE-MCP-BODY"
+                                }),
+                            ),
+                        };
+                        write_value(
+                            &mut output,
+                            &json!({"id": "unqualified-approval", "method": method, "params": params}),
+                        )?;
+                        let reply = read_message(&mut input)?
+                            .ok_or_else(|| "missing rejection".to_owned())?;
+                        if reply["id"] != "unqualified-approval"
+                            || reply["error"]["code"] != -32601
+                            || reply.get("result").is_some()
+                        {
+                            return Err(
+                                "unqualified permission request was not rejected".to_owned()
+                            );
+                        }
+                        return Ok(());
+                    }
                 }
                 if matches!(scenario.as_str(), "approval" | "unsupported-request") {
                     let request_method = if scenario == "approval" {

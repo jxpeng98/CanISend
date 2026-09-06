@@ -75,6 +75,7 @@ pub enum McpServerError {
 #[derive(Debug, Clone)]
 pub struct CanISendMcpServer {
     workspace: Arc<PathBuf>,
+    application_id: Option<ApplicationId>,
     association_approvals: AssociationApprovalBrokerV4,
     mutation_approvals: ApplicationMutationApprovalBrokerV4,
 }
@@ -343,9 +344,27 @@ pub struct ExportPrepareCommitParameters {
 
 impl CanISendMcpServer {
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
+        Self::open_with_application(workspace, None)
+    }
+
+    /// Bind all Application tools to one existing Application. This does not grant consent.
+    pub fn open_with_application(
+        workspace: &Path,
+        application_id: Option<&str>,
+    ) -> Result<Self, ApplicationError> {
         let workspace = Application::resolve_workspace_root_v4(Some(workspace))?;
+        let application_id = application_id
+            .map(|id| {
+                Self::validate_application_id(id).map_err(|_| {
+                    ApplicationError::InvalidInput("Invalid MCP Application binding".to_owned())
+                })?;
+                Application::application_model_v4(&workspace, id)
+                    .map(|receipt| receipt.data.snapshot.application.id)
+            })
+            .transpose()?;
         Ok(Self {
             workspace: Arc::new(workspace),
+            application_id,
             association_approvals: AssociationApprovalBrokerV4::default(),
             mutation_approvals: ApplicationMutationApprovalBrokerV4::default(),
         })
@@ -401,10 +420,30 @@ impl CanISendMcpServer {
         Ok(())
     }
 
-    fn parse_application_id(application_id: &str) -> Result<ApplicationId, McpError> {
+    fn parse_application_id(&self, application_id: &str) -> Result<ApplicationId, McpError> {
         Self::validate_application_id(application_id)?;
+        if self
+            .application_id
+            .as_ref()
+            .is_some_and(|bound| bound.as_str() != application_id)
+        {
+            return Err(McpError::invalid_params(
+                "Tool request does not match the bound Application",
+                Some(serde_json::json!({"code": "application.binding-mismatch"})),
+            ));
+        }
         ApplicationId::try_new(application_id)
             .map_err(|error| McpError::invalid_params(error.to_string(), None))
+    }
+
+    fn require_workspace_scope(&self) -> Result<(), McpError> {
+        if self.application_id.is_some() {
+            return Err(McpError::invalid_params(
+                "Workspace-wide results are unavailable in Application-bound MCP sessions",
+                Some(serde_json::json!({"code": "application.workspace-scope-required"})),
+            ));
+        }
+        Ok(())
     }
 
     fn validate_requirement_id(requirement_id: &str) -> Result<(), McpError> {
@@ -497,8 +536,15 @@ fn approval_error_code(error: &ApprovalBrokerError) -> &'static str {
 }
 
 pub fn serve_stdio(workspace: Option<&Path>) -> Result<(), McpServerError> {
+    serve_stdio_with_application(workspace, None)
+}
+
+pub fn serve_stdio_with_application(
+    workspace: Option<&Path>,
+    application_id: Option<&str>,
+) -> Result<(), McpServerError> {
     let workspace = Application::resolve_workspace_root_v4(workspace)?;
-    let server = CanISendMcpServer::open(&workspace)?;
+    let server = CanISendMcpServer::open_with_application(&workspace, application_id)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
@@ -531,6 +577,7 @@ impl CanISendMcpServer {
         )
     )]
     fn canisend_workspace_status(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        self.require_workspace_scope()?;
         Self::application_result(Application::workspace_status_v4(self.workspace()))
     }
 
@@ -545,6 +592,7 @@ impl CanISendMcpServer {
         )
     )]
     fn canisend_workspace_check(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        self.require_workspace_scope()?;
         Self::application_result(Application::check_workspace_v4(self.workspace()))
     }
 
@@ -559,6 +607,7 @@ impl CanISendMcpServer {
         )
     )]
     fn canisend_application_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        self.require_workspace_scope()?;
         Self::application_result(Application::list_application_models_v4(self.workspace()))
     }
 
@@ -576,7 +625,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::validate_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::application_model_v4(
             self.workspace(),
             &parameters.application_id,
@@ -597,7 +646,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::list_requirements_v4(
             self.workspace(),
             &parameters.application_id,
@@ -618,7 +667,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationRequirementParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::validate_requirement_id(&parameters.requirement_id)?;
         Self::application_result(Application::show_requirement_v4(
             self.workspace(),
@@ -641,7 +690,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<RequirementExtractPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let requirements = parameters
             .requirements
             .into_iter()
@@ -685,7 +734,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<RequirementExtractCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(
             self.mutation_approvals.commit_requirement_extraction(
                 self.workspace(),
@@ -714,7 +763,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<RequirementConfirmPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let mut decisions = BTreeMap::new();
         for decision in parameters.decisions {
             let requirement_id = RequirementId::try_new(decision.requirement_id)
@@ -754,7 +803,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.commit_requirement_confirmation(
             self.workspace(),
             &application_id,
@@ -778,7 +827,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::show_plan_v4(
             self.workspace(),
             &parameters.application_id,
@@ -799,7 +848,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<PlanProposePreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let deliverables = parameters
             .deliverables
             .into_iter()
@@ -838,7 +887,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.commit_plan_proposal(
             self.workspace(),
             &application_id,
@@ -862,7 +911,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<RevisionPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.preview_plan_confirmation(
             self.workspace(),
             &application_id,
@@ -886,7 +935,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.commit_plan_confirmation(
             self.workspace(),
             &application_id,
@@ -910,7 +959,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::list_deliverables_v4(
             self.workspace(),
             &parameters.application_id,
@@ -931,7 +980,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationDeliverableParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::validate_deliverable_id(&parameters.deliverable_id)?;
         Self::application_result(Application::show_deliverable_v4(
             self.workspace(),
@@ -954,7 +1003,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<DeliverableDraftPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let deliverables = parameters
             .deliverables
             .into_iter()
@@ -991,7 +1040,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.commit_deliverable_draft(
             self.workspace(),
             &application_id,
@@ -1015,7 +1064,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<DeliverableRevisePreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let deliverable_id = DeliverableId::try_new(parameters.deliverable_id)
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         Self::mutation_result(self.mutation_approvals.preview_deliverable_revision(
@@ -1045,7 +1094,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(self.mutation_approvals.commit_deliverable_revision(
             self.workspace(),
             &application_id,
@@ -1069,7 +1118,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<DeliverableAuditParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::audit_deliverables_v4(
             self.workspace(),
             &application_id,
@@ -1093,7 +1142,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ReviewInspectParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::inspect_review_v4(
             self.workspace(),
             &application_id,
@@ -1117,7 +1166,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ReviewDispositionPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(
             self.mutation_approvals.preview_review_disposition(
                 self.workspace(),
@@ -1146,7 +1195,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ReviewDispositionCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(
             self.mutation_approvals.commit_review_disposition(
                 self.workspace(),
@@ -1175,7 +1224,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ExportPreparePreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         let request = ApplicationFlowExportRequestV3::try_new(
             &parameters.application_id,
             parameters.expected_revision,
@@ -1208,7 +1257,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::list_exports_v4(
             self.workspace(),
             &parameters.application_id,
@@ -1229,7 +1278,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ExportShowParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::parse_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
         Self::application_result(Application::show_export_v4(
             self.workspace(),
             &parameters.application_id,
@@ -1251,7 +1300,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ExportPrepareCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(
             self.mutation_approvals.commit_export_prepare(
                 self.workspace(),
@@ -1277,6 +1326,7 @@ impl CanISendMcpServer {
         )
     )]
     fn canisend_profile_source_list(&self) -> Result<Json<McpStructuredOutput>, McpError> {
+        self.require_workspace_scope()?;
         Self::application_result(Application::list_profile_sources_v4(self.workspace()))
     }
 
@@ -1294,7 +1344,8 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::validate_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
+        self.require_workspace_scope()?;
         Self::application_result(Application::list_profile_associations_v4(
             self.workspace(),
             &parameters.application_id,
@@ -1315,7 +1366,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ProfileAssociationPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::association_result(self.association_approvals.preview_profile(
             self.workspace(),
             ProfileAssociationPreviewRequestV4 {
@@ -1340,7 +1391,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<AssociationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::association_result(
             self.association_approvals.commit_profile(
                 self.workspace(),
@@ -1369,7 +1420,8 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<ApplicationParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        Self::validate_application_id(&parameters.application_id)?;
+        self.parse_application_id(&parameters.application_id)?;
+        self.require_workspace_scope()?;
         Self::application_result(Application::list_evidence_associations_v4(
             self.workspace(),
             &parameters.application_id,
@@ -1390,7 +1442,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<EvidenceAssociationPreviewParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::association_result(self.association_approvals.preview_evidence(
             self.workspace(),
             EvidenceAssociationPreviewRequestV4 {
@@ -1415,7 +1467,7 @@ impl CanISendMcpServer {
         &self,
         Parameters(parameters): Parameters<AssociationCommitParameters>,
     ) -> Result<Json<McpStructuredOutput>, McpError> {
-        let application_id = Self::parse_application_id(&parameters.application_id)?;
+        let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::association_result(
             self.association_approvals.commit_evidence(
                 self.workspace(),

@@ -118,7 +118,7 @@
       "default_pack_scope": "any",
       "leaves": [
         "agent_assistance", "agent_skills_status", "copy_agent_mcp_configuration", "copy_agent_handoff", "export_agent_pack", "install_agent_skills", "prepare_agent_handoff", "prepare_agent_mcp_configuration", "uninstall_agent_skills",
-        "agent_runtime_catalog", "cancel_agent_turn", "run_agent_turn", "start_agent_session",
+        "agent_runtime_catalog", "cancel_agent_turn", "login_codex", "run_agent_turn", "start_agent_session",
         "application_dossier", "backup_workspace", "check_workspace", "connect_workspace", "content_catalog", "create_workspace", "import_local_job_source", "import_url_job_source", "list_application_dossiers", "list_workspaces", "product_summary", "remove_workspace", "repair_workspace", "restore_workspace", "run_doctor", "select_workspace", "search_content", "workspace_status", "workflow_pack_presentation",
         "build_render", "check_package", "confirm_review", "copy_package_projection", "current_package", "current_package_export", "current_render", "document_workspace", "export_package", "export_render", "export_render_and_open", "preview_render", "reconcile_package", "replace_package_projection", "review_workspace",
         "commit_discovery_preview", "discard_discovery_preview", "discovery_adapters", "list_discovery_leads", "list_discovery_sources", "preview_discovery_file", "preview_discovery_network", "promote_discovery_lead", "show_discovery_lead", "suggest_discovery_duplicates",

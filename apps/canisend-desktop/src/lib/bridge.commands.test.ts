@@ -38,6 +38,7 @@ import {
   exportPackage,
   exportRenderAndOpen,
   getAgentAssistance,
+  getAgentRuntimeCatalog,
   getAgentSkillsStatus,
   getApplicationDossier,
   getContentCatalog,
@@ -65,6 +66,7 @@ import {
   runAgentTurn,
   searchContent,
   startAgentSession,
+  loginCodex,
   uninstallAgentSkills,
 } from "./bridge";
 
@@ -72,6 +74,12 @@ describe("typed Tauri command requests", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
     mocks.invoke.mockResolvedValue({ status: "ok" });
+  });
+
+  it("starts provider-owned Codex login without accepting credentials", async () => {
+    mocks.invoke.mockResolvedValue(true);
+    expect(await loginCodex()).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledWith("login_codex");
   });
 
   it("creates one neutral Workspace without a Workspace-level Pack field", async () => {
@@ -612,10 +620,18 @@ describe("typed Tauri command requests", () => {
   });
 
   it("keeps agent runtime scope, continuity, and provider consent explicit", async () => {
+    await getAgentRuntimeCatalog("/tmp/workspace", "application-id");
+    expect(mocks.invoke).toHaveBeenCalledWith("agent_runtime_catalog", {
+      request: {
+        workspace: "/tmp/workspace",
+        selected_job_id: null,
+        selected_application_id: "application-id",
+      },
+    });
     const onEvent = vi.fn();
     await runAgentTurn({
       workspace: "/tmp/workspace",
-      selectedJobId: "job-id",
+      selectedApplicationId: "application-id",
       runtime: "codex",
       prompt: "Review the next action.",
       startNew: false,
@@ -626,7 +642,8 @@ describe("typed Tauri command requests", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("run_agent_turn", {
       request: {
         workspace: "/tmp/workspace",
-        selected_job_id: "job-id",
+        selected_job_id: null,
+        selected_application_id: "application-id",
         runtime: "codex",
         prompt: "Review the next action.",
         start_new: false,
@@ -639,7 +656,7 @@ describe("typed Tauri command requests", () => {
   it("starts the exact embedded Codex session before its first turn", async () => {
     await startAgentSession({
       workspace: "/tmp/workspace",
-      selectedJobId: "job-id",
+      selectedApplicationId: "application-id",
       runtime: "codex",
       startNew: true,
       confirmedProviderSend: true,
@@ -648,7 +665,8 @@ describe("typed Tauri command requests", () => {
     expect(mocks.invoke).toHaveBeenCalledWith("start_agent_session", {
       request: {
         workspace: "/tmp/workspace",
-        selected_job_id: "job-id",
+        selected_job_id: null,
+        selected_application_id: "application-id",
         runtime: "codex",
         start_new: true,
         confirmed_provider_send: true,
@@ -659,14 +677,15 @@ describe("typed Tauri command requests", () => {
   it("cancels only the exact active agent runtime scope", async () => {
     await cancelAgentTurn({
       workspace: "/tmp/workspace",
-      selectedJobId: "job-id",
+      selectedApplicationId: "application-id",
       runtime: "claude",
     });
 
     expect(mocks.invoke).toHaveBeenCalledWith("cancel_agent_turn", {
       request: {
         workspace: "/tmp/workspace",
-        selected_job_id: "job-id",
+        selected_job_id: null,
+        selected_application_id: "application-id",
         runtime: "claude",
       },
     });

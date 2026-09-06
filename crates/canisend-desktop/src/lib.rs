@@ -42,6 +42,7 @@ pub fn run() {
             agent::prepare_agent_mcp_configuration,
             agent::uninstall_agent_skills,
             agent_runtime::agent_runtime_catalog,
+            agent_runtime::login_codex,
             agent_runtime::cancel_agent_turn,
             agent_runtime::run_agent_turn,
             agent_runtime::start_agent_session,

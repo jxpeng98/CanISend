@@ -151,8 +151,12 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum McpCommand {
-    /// Serve versioned read-only tools over newline-delimited JSON-RPC on stdio.
-    Serve,
+    /// Serve versioned tools with existing consent and approval controls over stdio.
+    Serve {
+        /// Restrict tools to one existing Application; disable Workspace-wide results.
+        #[arg(long, value_name = "APPLICATION_ID")]
+        application: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -488,7 +492,7 @@ impl Cli {
         match &self.command {
             Command::Version(output) | Command::Doctor(output) => output.json,
             Command::Mcp {
-                command: McpCommand::Serve,
+                command: McpCommand::Serve { .. },
             } => false,
             Command::Schema {
                 command: SchemaCommand::List(output),
@@ -665,13 +669,14 @@ pub fn run() -> ExitCode {
         );
     }
     let cli = Cli::parse_from(arguments);
-    if matches!(
-        &cli.command,
-        Command::Mcp {
-            command: McpCommand::Serve
-        }
-    ) {
-        return match canisend_mcp::serve_stdio(cli.workspace.as_deref()) {
+    if let Command::Mcp {
+        command: McpCommand::Serve { application },
+    } = &cli.command
+    {
+        return match canisend_mcp::serve_stdio_with_application(
+            cli.workspace.as_deref(),
+            application.as_deref(),
+        ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
                 eprintln!("canisend mcp serve: {error}");
@@ -790,7 +795,7 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Version(_) => version(),
         Command::Doctor(_) => doctor(),
         Command::Mcp {
-            command: McpCommand::Serve,
+            command: McpCommand::Serve { .. },
         } => unreachable!("MCP server is dispatched before command rendering"),
         Command::Schema {
             command: SchemaCommand::List(_),

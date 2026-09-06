@@ -736,12 +736,19 @@ export const messages = {
     agentTurnCancelled:
       "The local Agent turn was cancelled. Any received partial response remains visible.",
     noActiveAgentTurn: "No matching Agent turn is currently running.",
+    agentHostAccessDenied: "Codex requested additional access. CanISend denied the request.",
     providerConsent:
       "I confirm this local runtime may send my message and only the context CanISend explicitly connects to its configured provider. The host stores its own transcript.",
     embeddedSessionStatus: "Connection",
     sessionNotConfigured: "Not connected",
     sessionConnecting: "Connecting",
     sessionAuthenticationRequired: "Sign-in required",
+    codexSignIn: "Sign in to Codex",
+    codexSignInDescription:
+      "CanISend uses a separate Codex sign-in. Complete it in your browser; Codex manages your credentials.",
+    codexSignInWaiting:
+      "Complete the Codex sign-in in your browser. This request expires after five minutes.",
+    codexSignInComplete: "Signed in. You can start a new conversation.",
     sessionReady: "Ready",
     sessionRunning: "Responding",
     sessionCancelling: "Cancelling",
@@ -1555,12 +1562,18 @@ export const messages = {
     cancellingAgentTurn: "正在取消…",
     agentTurnCancelled: "本地 Agent 回合已取消；已经收到的部分回复会继续保留。",
     noActiveAgentTurn: "当前没有匹配的 Agent 回合在运行。",
+    agentHostAccessDenied: "Codex 请求了额外访问权限，CanISend 已拒绝该请求。",
     providerConsent:
       "我确认允许该本地运行时将我的消息及 CanISend 明确连接的上下文发送给其配置的提供商。宿主会保存自己的对话记录。",
     embeddedSessionStatus: "连接",
     sessionNotConfigured: "未连接",
     sessionConnecting: "正在连接",
     sessionAuthenticationRequired: "需要登录",
+    codexSignIn: "登录 Codex",
+    codexSignInDescription:
+      "CanISend 使用独立的 Codex 登录。请在浏览器中完成登录，凭据由 Codex 管理。",
+    codexSignInWaiting: "请在浏览器中完成 Codex 登录，本次请求将在五分钟后过期。",
+    codexSignInComplete: "已登录，可以开始新对话。",
     sessionReady: "就绪",
     sessionRunning: "正在回复",
     sessionCancelling: "正在取消",

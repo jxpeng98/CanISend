@@ -120,6 +120,7 @@
     selectWorkspace,
     showDiscoveryLead,
     startAgentSession,
+    loginCodex,
     startWorkflow,
     suggestDiscoveryDuplicates,
     uninstallCli,
@@ -936,7 +937,7 @@
       );
       contentCatalog = catalogReceipt.data;
       contentSearchResult = null;
-      if (agentUiState.selectedJobId === jobId) {
+      if (agentUiState.selectedApplicationId === jobId) {
         agentUiState.assistance = null;
         agentUiState.handoff = null;
       }
@@ -1824,14 +1825,22 @@
     return result === true;
   }
 
-  async function handleLoadAgentRuntimes(jobId?: string): Promise<AgentRuntimeCatalog | null> {
-    const result = await runAction(() => getAgentRuntimeCatalog(activeWorkspace?.path, jobId));
+  async function handleLoadAgentRuntimes(
+    applicationId?: string,
+  ): Promise<AgentRuntimeCatalog | null> {
+    const result = await runAction(() =>
+      getAgentRuntimeCatalog(activeWorkspace?.path, applicationId),
+    );
     if (!result) return null;
     return result;
   }
 
+  async function handleCodexSignIn(): Promise<boolean> {
+    return (await runAction(() => loginCodex())) === true;
+  }
+
   async function handleRunAgentTurn(options: {
-    jobId?: string;
+    applicationId?: string;
     runtime: AgentRuntimeKind;
     prompt: string;
     startNew: boolean;
@@ -1839,6 +1848,7 @@
     onEvent: (event: AgentStreamEvent) => void;
   }): Promise<AgentTurnResult | null> {
     if (!activeWorkspace) return null;
+    const epoch = agentUiState.conversationEpoch;
     busy = true;
     agentTurnRunning = true;
     bridgeError = null;
@@ -1849,39 +1859,42 @@
         agentUiState.embeddedSessionState = "connecting";
         const session = await startAgentSession({
           workspace: activeWorkspace.path,
-          selectedJobId: options.jobId,
+          selectedApplicationId: options.applicationId,
           runtime: options.runtime,
           startNew: options.startNew,
           confirmedProviderSend: options.confirmedProviderSend,
         });
+        if (epoch !== agentUiState.conversationEpoch) return null;
         agentUiState.embeddedSessionState = session.state;
         agentUiState.streamSessionId = session.desktop_session_id;
         agentUiState.lastStreamSequence = 0;
       }
       const result = await runAgentTurn({
         workspace: activeWorkspace.path,
-        selectedJobId: options.jobId,
+        selectedApplicationId: options.applicationId,
         runtime: options.runtime,
         prompt: options.prompt,
         startNew: options.startNew,
         confirmedProviderSend: options.confirmedProviderSend,
         onEvent: options.onEvent,
       });
+      if (epoch !== agentUiState.conversationEpoch) return null;
       recordSuccessfulAction(
         {
           operation: "agent.turn",
           route: {
             view: "agent",
             detail: "agent-task",
-            jobId: options.jobId,
+            jobId: options.applicationId,
           },
-          jobId: options.jobId ?? null,
+          jobId: options.applicationId ?? null,
         },
         result,
       );
       notice = result.resumed ? copy.agentSessionResumed : copy.agentSessionStarted;
       return result;
     } catch (error) {
+      if (epoch !== agentUiState.conversationEpoch) return null;
       const code = commandErrorCode(error);
       if (code === "agent-runtime-cancelled") {
         agentUiState.embeddedSessionState = "ready";
@@ -1907,14 +1920,14 @@
   }
 
   async function handleCancelAgentTurn(options: {
-    jobId?: string;
+    applicationId?: string;
     runtime: AgentRuntimeKind;
   }): Promise<boolean> {
     if (!activeWorkspace) return false;
     try {
       const result = await cancelAgentTurn({
         workspace: activeWorkspace.path,
-        selectedJobId: options.jobId,
+        selectedApplicationId: options.applicationId,
         runtime: options.runtime,
       });
       notice = result.cancellation_requested ? copy.agentTurnCancelled : copy.noActiveAgentTurn;
@@ -2854,11 +2867,11 @@
             {desktopRuntime}
             {activeWorkspace}
             {jobs}
-            {selectedJobId}
+            selectedApplicationId={selectedJobId}
             focus={activeView === "agent" ? activeDetail : null}
             {busy}
             turnRunning={agentTurnRunning}
-            onSelectJob={handleSelectJob}
+            onSelectApplication={handleSelectJob}
             onNavigate={navigateTo}
             onLoadCapabilities={handleLoadAgentCapabilities}
             onLoadContext={handleLoadAgentContext}
@@ -2871,6 +2884,7 @@
             onPrepareMcpConfiguration={handlePrepareAgentMcpConfiguration}
             onCopyMcpConfiguration={handleCopyAgentMcpConfiguration}
             onLoadRuntimes={handleLoadAgentRuntimes}
+            onCodexSignIn={handleCodexSignIn}
             onRunTurn={handleRunAgentTurn}
             onCancelTurn={handleCancelAgentTurn}
             onExport={handleExportAgentPack}

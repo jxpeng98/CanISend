@@ -1401,6 +1401,7 @@ export interface AgentSessionEntry {
   workspace: string;
   runtime: AgentRuntimeKind;
   job_id: string | null;
+  application_id: string | null;
   external_session_id: string;
   desktop_session_id: string | null;
   desktop_turn_id: string | null;
@@ -1483,6 +1484,7 @@ export interface AgentTurnResult {
 }
 
 export interface AgentTurnCancelResult {
+  selected_application_id: string | null;
   runtime: AgentRuntimeKind;
   workspace: string;
   selected_job_id: string | null;
@@ -2969,19 +2971,24 @@ export async function copyAgentMcpConfiguration(
 
 export async function getAgentRuntimeCatalog(
   workspace?: string,
-  selectedJobId?: string,
+  selectedApplicationId?: string,
 ): Promise<AgentRuntimeCatalog> {
   return invoke("agent_runtime_catalog", {
     request: {
       workspace: workspace || null,
-      selected_job_id: selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: selectedApplicationId || null,
     },
   });
 }
 
+export async function loginCodex(): Promise<boolean> {
+  return invoke("login_codex");
+}
+
 export async function startAgentSession(options: {
   workspace: string;
-  selectedJobId?: string;
+  selectedApplicationId?: string;
   runtime: AgentRuntimeKind;
   startNew: boolean;
   confirmedProviderSend: boolean;
@@ -2989,7 +2996,8 @@ export async function startAgentSession(options: {
   return invoke("start_agent_session", {
     request: {
       workspace: options.workspace,
-      selected_job_id: options.selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
       runtime: options.runtime,
       start_new: options.startNew,
       confirmed_provider_send: options.confirmedProviderSend,
@@ -2999,7 +3007,7 @@ export async function startAgentSession(options: {
 
 export async function runAgentTurn(options: {
   workspace: string;
-  selectedJobId?: string;
+  selectedApplicationId?: string;
   runtime: AgentRuntimeKind;
   prompt: string;
   startNew: boolean;
@@ -3011,7 +3019,8 @@ export async function runAgentTurn(options: {
   return invoke("run_agent_turn", {
     request: {
       workspace: options.workspace,
-      selected_job_id: options.selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
       runtime: options.runtime,
       prompt: options.prompt,
       start_new: options.startNew,
@@ -3023,13 +3032,14 @@ export async function runAgentTurn(options: {
 
 export async function cancelAgentTurn(options: {
   workspace: string;
-  selectedJobId?: string;
+  selectedApplicationId?: string;
   runtime: AgentRuntimeKind;
 }): Promise<AgentTurnCancelResult> {
   return invoke("cancel_agent_turn", {
     request: {
       workspace: options.workspace,
-      selected_job_id: options.selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
       runtime: options.runtime,
     },
   });

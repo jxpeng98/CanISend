@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, ExitStatus, Stdio},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError},
     },
@@ -41,6 +41,7 @@ const MAX_APP_SERVER_LINE_BYTES: usize = 1024 * 1024;
 const MAX_APP_SERVER_MESSAGES: usize = 16;
 const MAX_APP_SERVER_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_PROVIDER_ID_BYTES: usize = 128;
+const CODEX_POLICY_VERSION: &str = "codex-cli 0.152.0";
 
 static NEXT_DESKTOP_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -50,6 +51,7 @@ pub(crate) struct AgentRuntimeState {
     codex_sessions: CodexSessions,
     codex_pending: CodexPendingStates,
     registry_write_lock: Arc<Mutex<()>>,
+    codex_login: Arc<RwLock<()>>,
 }
 
 type ActiveAgentScopes = Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>;
@@ -61,6 +63,7 @@ type CodexPendingStates = Arc<Mutex<BTreeMap<String, (String, AgentEmbeddedSessi
 pub(crate) struct AgentRuntimeCatalogRequest {
     workspace: Option<PathBuf>,
     selected_job_id: Option<String>,
+    selected_application_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -68,6 +71,7 @@ pub(crate) struct AgentRuntimeCatalogRequest {
 pub(crate) struct AgentTurnRequest {
     workspace: PathBuf,
     selected_job_id: Option<String>,
+    selected_application_id: Option<String>,
     runtime: AgentRuntimeKind,
     prompt: String,
     start_new: bool,
@@ -79,6 +83,7 @@ pub(crate) struct AgentTurnRequest {
 pub(crate) struct AgentSessionStartRequest {
     workspace: PathBuf,
     selected_job_id: Option<String>,
+    selected_application_id: Option<String>,
     runtime: AgentRuntimeKind,
     start_new: bool,
     confirmed_provider_send: bool,
@@ -89,6 +94,7 @@ pub(crate) struct AgentSessionStartRequest {
 pub(crate) struct AgentTurnCancelRequest {
     workspace: PathBuf,
     selected_job_id: Option<String>,
+    selected_application_id: Option<String>,
     runtime: AgentRuntimeKind,
 }
 
@@ -199,6 +205,7 @@ pub(crate) struct AgentTurnCancelResult {
     runtime: AgentRuntimeKind,
     workspace: PathBuf,
     selected_job_id: Option<String>,
+    selected_application_id: Option<String>,
     cancellation_requested: bool,
 }
 
@@ -291,16 +298,41 @@ impl CodexAppServer {
         existing_session_id: Option<&str>,
         startup_timeout: Duration,
     ) -> Result<(Self, bool), DesktopCommandError> {
-        let mut command = Command::new(executable);
+        // Resolve aliases before constructing the read policy: the sandbox helper must be
+        // able to read the same installation that is actually spawned.
+        let bootstrap = (|| {
+            let executable = executable.canonicalize().map_err(|_| {
+                runtime_unavailable_error("Cannot resolve the Codex App Server executable")
+            })?;
+            let directory = session_directory.canonicalize().map_err(|_| {
+                runtime_state_error("Cannot resolve the Codex App Server session directory")
+            })?;
+            let overrides =
+                codex_bootstrap_overrides(&executable, &directory, &desktop_session_id)?;
+            let provider_home =
+                prepare_codex_home(directory.parent().ok_or_else(|| {
+                    runtime_state_error("Codex session directory has no parent")
+                })?)?;
+            Ok::<_, DesktopCommandError>((executable, directory, overrides, provider_home))
+        })();
+        let (executable, session_directory, overrides, provider_home) = match bootstrap {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = fs::remove_dir(&session_directory);
+                return Err(error);
+            }
+        };
+        let mut command = Command::new(&executable);
         command
             .args(["app-server", "--listen", "stdio://"])
             .current_dir(&session_directory)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if let Some(path) = augmented_path() {
-            command.env("PATH", path);
+        for setting in overrides {
+            command.arg("-c").arg(setting);
         }
+        configure_codex_environment(&mut command, &provider_home);
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(error) => {
@@ -358,12 +390,19 @@ impl CodexAppServer {
                     "title": "CanISend",
                     "version": env!("CARGO_PKG_VERSION")
                 },
-                "capabilities": { "experimentalApi": false }
+                "capabilities": { "experimentalApi": true }
             }),
             startup_timeout,
             None,
         )?;
         validate_initialize_response(&initialized)?;
+        if initialized["codexHome"].as_str().map(Path::new)
+            != Some(provider_home.join("provider").as_path())
+        {
+            return Err(runtime_incompatible_error(
+                "Codex did not select its dedicated configuration directory",
+            ));
+        }
         server.send_notification("initialized", None)?;
         let account = server.request(
             "account/read",
@@ -381,7 +420,7 @@ impl CodexAppServer {
             })?;
         if requires_auth && account.get("account").is_none_or(Value::is_null) {
             return Err(runtime_authentication_error(
-                "Codex sign-in is required. Sign in with the installed Codex client, then retry.",
+                "Sign in to Codex for CanISend using the Agent sign-in button, then start a new conversation. The external Codex login is separate.",
             ));
         }
 
@@ -391,8 +430,9 @@ impl CodexAppServer {
                 serde_json::json!({
                     "threadId": thread_id,
                     "cwd": server.session_directory,
-                    "sandbox": "read-only",
+                    "permissions": server.desktop_session_id,
                     "approvalPolicy": "never",
+                    "approvalsReviewer": "user",
                     "excludeTurns": true
                 }),
                 true,
@@ -402,8 +442,9 @@ impl CodexAppServer {
                 "thread/start",
                 serde_json::json!({
                     "cwd": server.session_directory,
-                    "sandbox": "read-only",
+                    "permissions": server.desktop_session_id,
                     "approvalPolicy": "never",
+                    "approvalsReviewer": "user",
                     "ephemeral": false
                 }),
                 false,
@@ -459,6 +500,9 @@ impl CodexAppServer {
             "turn/start",
             serde_json::json!({
                 "threadId": self.external_session_id,
+                "approvalPolicy": "never",
+                "approvalsReviewer": "user",
+                "permissions": self.desktop_session_id,
                 "input": [{
                     "type": "text",
                     "text": app_server_prompt(prompt)
@@ -1064,6 +1108,88 @@ pub(crate) async fn agent_runtime_catalog(
 }
 
 #[tauri::command]
+pub(crate) async fn login_codex(
+    state: tauri::State<'_, AgentRuntimeState>,
+) -> Result<bool, DesktopCommandError> {
+    let login_lock = state.codex_login.clone();
+    let sessions = state.codex_sessions.clone();
+    let pending = state.codex_pending.clone();
+    run_worker(move || {
+        let probe = probe_runtime(AgentRuntimeKind::Codex);
+        let executable = probe
+            .executable
+            .ok_or_else(|| runtime_unavailable_error("Install Codex CLI before signing in"))?;
+        validate_codex_policy_version(probe.version.as_deref().unwrap_or_default())?;
+        let _guard = begin_codex_login(&login_lock, &sessions, &pending)?;
+        login_codex_impl(
+            &executable,
+            &agent_runtime_directory(),
+            Duration::from_secs(300),
+        )
+    })
+    .await
+}
+
+fn begin_codex_login<'a>(
+    login_lock: &'a RwLock<()>,
+    sessions: &CodexSessions,
+    pending: &CodexPendingStates,
+) -> Result<std::sync::RwLockWriteGuard<'a, ()>, DesktopCommandError> {
+    let guard = login_lock.try_write().map_err(|_| {
+        runtime_state_error("Wait for the current Codex request to finish before signing in")
+    })?;
+    // Drop cached credentials/connections even when a replacement login fails.
+    sessions
+        .lock()
+        .map_err(|_| runtime_state_error("Codex session state is unavailable"))?
+        .clear();
+    pending
+        .lock()
+        .map_err(|_| runtime_state_error("Codex pending state is unavailable"))?
+        .clear();
+    Ok(guard)
+}
+
+fn login_codex_impl(
+    executable: &Path,
+    root: &Path,
+    timeout: Duration,
+) -> Result<bool, DesktopCommandError> {
+    let home = prepare_codex_home(root)?;
+    let executable = executable
+        .canonicalize()
+        .map_err(|_| runtime_unavailable_error("Cannot resolve the Codex executable"))?;
+    let mut command = Command::new(executable);
+    command
+        .args([
+            "login",
+            "-c",
+            "cli_auth_credentials_store=\"file\"",
+            "-c",
+            "forced_login_method=\"chatgpt\"",
+        ])
+        .current_dir(&home);
+    configure_codex_environment(&mut command, &home);
+    // Codex opens its own browser flow. Retain no login URL, token, or raw diagnostics.
+    let output = run_command(
+        command,
+        None,
+        ProcessLimits {
+            timeout,
+            stdout: 0,
+            stderr: 0,
+        },
+        None,
+    )?;
+    if !output.status.success() {
+        return Err(runtime_authentication_error(
+            "Codex sign-in did not complete. Retry the sign-in button and finish the browser flow.",
+        ));
+    }
+    Ok(true)
+}
+
+#[tauri::command]
 pub(crate) async fn start_agent_session(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, AgentRuntimeState>,
@@ -1073,7 +1199,16 @@ pub(crate) async fn start_agent_session(
     let pending = state.codex_pending.clone();
     let registry_write_lock = state.registry_write_lock.clone();
     let window_label = window.label().to_owned();
+    let login_lock = state.codex_login.clone();
     run_worker(move || {
+        let _login_guard = if request.runtime == AgentRuntimeKind::Codex {
+            Some(login_lock.try_read().map_err(|_| {
+                runtime_state_error("Finish Codex sign-in before starting a conversation")
+            })?)
+        } else {
+            None
+        };
+
         start_agent_session_impl(
             request,
             sessions,
@@ -1096,7 +1231,16 @@ pub(crate) async fn run_agent_turn(
     let sessions = state.codex_sessions.clone();
     let registry_write_lock = state.registry_write_lock.clone();
     let window_label = window.label().to_owned();
+    let login_lock = state.codex_login.clone();
     run_worker(move || {
+        let _login_guard = if request.runtime == AgentRuntimeKind::Codex {
+            Some(login_lock.try_read().map_err(|_| {
+                runtime_state_error("Finish Codex sign-in before starting a conversation")
+            })?)
+        } else {
+            None
+        };
+
         run_agent_turn_impl(
             request,
             active,
@@ -1127,9 +1271,10 @@ fn runtime_catalog_impl(
     codex_pending: CodexPendingStates,
     window_label: &str,
 ) -> Result<AgentRuntimeCatalog, DesktopCommandError> {
-    let (workspace, selected_job_id) = resolve_scope(
+    let (workspace, selected_job_id, selected_application_id) = resolve_scope(
         request.workspace.as_deref(),
         request.selected_job_id.as_deref(),
+        request.selected_application_id.as_deref(),
     )?;
     let session_storage = default_agent_session_registry_path();
     let registry = AgentSessionRegistry::load(&session_storage).map_err(runtime_registry_error)?;
@@ -1142,6 +1287,7 @@ fn runtime_catalog_impl(
                 .filter(|entry| {
                     entry.workspace == workspace
                         && entry.job_id.as_deref() == selected_job_id.as_deref()
+                        && entry.application_id.as_deref() == selected_application_id.as_deref()
                 })
                 .cloned()
                 .collect()
@@ -1152,6 +1298,7 @@ fn runtime_catalog_impl(
             workspace,
             AgentRuntimeKind::Codex,
             selected_job_id.as_deref(),
+            selected_application_id.as_deref(),
         )
     });
     let live_session = codex_sessions
@@ -1217,13 +1364,17 @@ fn start_agent_session_impl(
         ));
     }
     require_provider_consent(request.confirmed_provider_send)?;
-    let (workspace, selected_job_id) =
-        resolve_scope(Some(&request.workspace), request.selected_job_id.as_deref())?;
+    let (workspace, selected_job_id, selected_application_id) = resolve_scope(
+        Some(&request.workspace),
+        request.selected_job_id.as_deref(),
+        request.selected_application_id.as_deref(),
+    )?;
     let workspace = workspace.ok_or_else(|| runtime_input_error("Select a workspace first"))?;
     let scope_key = agent_scope_key(
         &workspace,
         AgentRuntimeKind::Codex,
         selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
     );
 
     let current = codex_sessions
@@ -1293,6 +1444,10 @@ fn start_agent_session_impl(
             return Err(error);
         }
     };
+    if let Err(error) = validate_codex_policy_version(&provider_version) {
+        update_pending_codex_error(&codex_pending, window_label, &error);
+        return Err(error);
+    }
     let stored = if request.start_new {
         None
     } else {
@@ -1300,6 +1455,7 @@ fn start_agent_session_impl(
             &workspace,
             AgentRuntimeKind::Codex,
             selected_job_id.as_deref(),
+            selected_application_id.as_deref(),
             &registry_write_lock,
         ) {
             Ok(stored) => stored,
@@ -1349,6 +1505,7 @@ fn start_agent_session_impl(
         persist_codex_session(
             &workspace,
             selected_job_id.as_deref(),
+            selected_application_id.as_deref(),
             &snapshot,
             &registry_write_lock,
         )
@@ -1393,13 +1550,17 @@ fn run_codex_agent_turn_impl(
 ) -> Result<AgentTurnResult, DesktopCommandError> {
     require_provider_consent(request.confirmed_provider_send)?;
     let prompt = validate_prompt(&request.prompt)?;
-    let (workspace, selected_job_id) =
-        resolve_scope(Some(&request.workspace), request.selected_job_id.as_deref())?;
+    let (workspace, selected_job_id, selected_application_id) = resolve_scope(
+        Some(&request.workspace),
+        request.selected_job_id.as_deref(),
+        request.selected_application_id.as_deref(),
+    )?;
     let workspace = workspace.ok_or_else(|| runtime_input_error("Select a workspace first"))?;
     let scope_key = agent_scope_key(
         &workspace,
         AgentRuntimeKind::Codex,
         selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
     );
     let lease = ScopeLease::acquire(scope_key.clone(), active)?;
     let managed = codex_sessions
@@ -1423,6 +1584,7 @@ fn run_codex_agent_turn_impl(
         persist_codex_session(
             &workspace,
             selected_job_id.as_deref(),
+            selected_application_id.as_deref(),
             &snapshot,
             &registry_write_lock,
         )?;
@@ -1452,6 +1614,7 @@ fn run_codex_agent_turn_impl(
             let session = persist_codex_session(
                 &workspace,
                 selected_job_id.as_deref(),
+                selected_application_id.as_deref(),
                 &snapshot,
                 &registry_write_lock,
             )?;
@@ -1486,6 +1649,7 @@ fn run_codex_agent_turn_impl(
             let _ = persist_codex_session(
                 &workspace,
                 selected_job_id.as_deref(),
+                selected_application_id.as_deref(),
                 &snapshot,
                 &registry_write_lock,
             );
@@ -1517,6 +1681,66 @@ fn validate_prompt(prompt: &str) -> Result<&str, DesktopCommandError> {
         )));
     }
     Ok(prompt)
+}
+
+fn validate_codex_policy_version(version: &str) -> Result<(), DesktopCommandError> {
+    if version != CODEX_POLICY_VERSION {
+        return Err(runtime_incompatible_error(format!(
+            "The embedded permission policy requires {CODEX_POLICY_VERSION}. This installed version has not been qualified."
+        )));
+    }
+    Ok(())
+}
+
+fn codex_bootstrap_overrides(
+    executable: &Path,
+    session_directory: &Path,
+    profile: &str,
+) -> Result<Vec<String>, DesktopCommandError> {
+    validate_provider_id("Codex permission profile", profile)?;
+    if profile.contains('.') {
+        return Err(runtime_incompatible_error(
+            "Codex permission profile must be one configuration key",
+        ));
+    }
+    let installation = executable.parent().ok_or_else(|| {
+        runtime_state_error("Codex App Server executable has no installation directory")
+    })?;
+    let mut filesystem = vec!["\":minimal\" = \"read\"".to_owned()];
+    for path in [session_directory, installation] {
+        let path = path.to_str().ok_or_else(|| {
+            runtime_incompatible_error("Codex permission paths must be valid Unicode")
+        })?;
+        filesystem.push(format!("{} = \"read\"", serde_json::json!(path)));
+    }
+    let mut overrides = vec![
+        format!("default_permissions={}", serde_json::json!(profile)),
+        format!(
+            "permissions.{profile}.filesystem={{ {} }}",
+            filesystem.join(", ")
+        ),
+        format!("permissions.{profile}.network.enabled=false"),
+        "approval_policy=\"never\"".to_owned(),
+        "approvals_reviewer=\"user\"".to_owned(),
+        "web_search=\"disabled\"".to_owned(),
+        "cli_auth_credentials_store=\"file\"".to_owned(),
+        "forced_login_method=\"chatgpt\"".to_owned(),
+    ];
+    // These are process overrides, never edits to the user's configuration. Inherited
+    // MCP configuration and host skill discovery still need a separate R2 qualification.
+    for feature in [
+        "shell_tool",
+        "unified_exec",
+        "multi_agent",
+        "shell_snapshot",
+        "plugins",
+        "apps",
+        "hooks",
+        "skill_mcp_dependency_install",
+    ] {
+        overrides.push(format!("features.{feature}=false"));
+    }
+    Ok(overrides)
 }
 
 fn validate_initialize_response(value: &Value) -> Result<(), DesktopCommandError> {
@@ -1624,14 +1848,81 @@ fn next_desktop_id(kind: &str) -> String {
     )
 }
 
+fn agent_runtime_directory() -> PathBuf {
+    default_agent_session_registry_path()
+        .parent()
+        .map(|parent| parent.join("agent-runtime"))
+        .unwrap_or_else(|| std::env::temp_dir().join("canisend/agent-runtime"))
+}
+
+fn prepare_codex_home(root: &Path) -> Result<PathBuf, DesktopCommandError> {
+    fs::create_dir_all(root)
+        .map_err(|_| runtime_state_error("Cannot create Agent runtime directory"))?;
+    let root = root
+        .canonicalize()
+        .map_err(|_| runtime_state_error("Cannot resolve Agent runtime directory"))?;
+    let home = root.join("codex-isolated-v1");
+    for path in [&home, &home.join("provider")] {
+        match fs::create_dir(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(_) => {
+                return Err(runtime_state_error(
+                    "Cannot create dedicated Codex directory",
+                ));
+            }
+        }
+        let metadata = fs::symlink_metadata(path)
+            .map_err(|_| runtime_state_error("Cannot inspect dedicated Codex directory"))?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(runtime_state_error(
+                "Dedicated Codex directories must not be links or files",
+            ));
+        }
+        set_private_directory_permissions(path)?;
+    }
+    Ok(home)
+}
+
+fn configure_codex_environment(command: &mut Command, home: &Path) {
+    // Set these only for this child. Never inherit provider keys, launch-context overrides,
+    // user configuration roots, or host Skills. Managed system policy is still provider-owned.
+    command
+        .env_clear()
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("CODEX_HOME", home.join("provider"))
+        .env("XDG_CONFIG_HOME", home.join("config"))
+        .env("XDG_DATA_HOME", home.join("data"))
+        .env("APPDATA", home.join("data"))
+        .env("LOCALAPPDATA", home.join("local"));
+    if let Some(path) = augmented_path() {
+        command.env("PATH", path);
+    }
+    for key in [
+        "SystemRoot",
+        "WINDIR",
+        "TMP",
+        "TEMP",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+    ] {
+        if let Some(value) = env::var_os(key) {
+            command.env(key, value);
+        }
+    }
+}
+
 fn create_app_server_session_directory(
     desktop_session_id: &str,
 ) -> Result<PathBuf, DesktopCommandError> {
     validate_provider_id("Desktop session ID", desktop_session_id)?;
-    let root = default_agent_session_registry_path()
-        .parent()
-        .map(|parent| parent.join("agent-runtime"))
-        .unwrap_or_else(|| std::env::temp_dir().join("canisend/agent-runtime"));
+    let root = agent_runtime_directory();
     fs::create_dir_all(&root).map_err(|error| {
         runtime_registry_error(format!("Cannot create Agent runtime directory: {error}"))
     })?;
@@ -1662,6 +1953,7 @@ fn load_stored_session(
     workspace: &Path,
     runtime: AgentRuntimeKind,
     selected_job_id: Option<&str>,
+    selected_application_id: Option<&str>,
     registry_write_lock: &Arc<Mutex<()>>,
 ) -> Result<Option<AgentSessionEntry>, DesktopCommandError> {
     let _guard = registry_write_lock
@@ -1669,13 +1961,16 @@ fn load_stored_session(
         .map_err(|_| runtime_state_error("Agent session registry lock is unavailable"))?;
     let registry = AgentSessionRegistry::load(&default_agent_session_registry_path())
         .map_err(runtime_registry_error)?;
-    Ok(registry.find(workspace, runtime, selected_job_id).cloned())
+    Ok(registry
+        .find(workspace, runtime, selected_job_id, selected_application_id)
+        .cloned())
 }
 
 fn persist_legacy_session(
     workspace: &Path,
     runtime: AgentRuntimeKind,
     selected_job_id: Option<&str>,
+    selected_application_id: Option<&str>,
     external_session_id: &str,
     registry_write_lock: &Arc<Mutex<()>>,
 ) -> Result<AgentSessionEntry, DesktopCommandError> {
@@ -1685,7 +1980,13 @@ fn persist_legacy_session(
     let path = default_agent_session_registry_path();
     let mut registry = AgentSessionRegistry::load(&path).map_err(runtime_registry_error)?;
     let session = registry
-        .upsert(workspace, runtime, selected_job_id, external_session_id)
+        .upsert(
+            workspace,
+            runtime,
+            selected_job_id,
+            selected_application_id,
+            external_session_id,
+        )
         .map_err(runtime_registry_error)?;
     registry.save(&path).map_err(runtime_registry_error)?;
     Ok(session)
@@ -1694,6 +1995,7 @@ fn persist_legacy_session(
 fn persist_codex_session(
     workspace: &Path,
     selected_job_id: Option<&str>,
+    selected_application_id: Option<&str>,
     snapshot: &AgentEmbeddedSession,
     registry_write_lock: &Arc<Mutex<()>>,
 ) -> Result<AgentSessionEntry, DesktopCommandError> {
@@ -1711,6 +2013,7 @@ fn persist_codex_session(
             workspace,
             AgentRuntimeKind::Codex,
             selected_job_id,
+            selected_application_id,
             external_session_id,
             AgentSessionMetadata {
                 desktop_session_id: snapshot.desktop_session_id.clone(),
@@ -1946,10 +2249,18 @@ fn run_one_shot_agent_turn_impl(
     require_provider_consent(request.confirmed_provider_send)?;
     let prompt = validate_prompt(&request.prompt)?;
 
-    let (workspace, selected_job_id) =
-        resolve_scope(Some(&request.workspace), request.selected_job_id.as_deref())?;
+    let (workspace, selected_job_id, selected_application_id) = resolve_scope(
+        Some(&request.workspace),
+        request.selected_job_id.as_deref(),
+        request.selected_application_id.as_deref(),
+    )?;
     let workspace = workspace.ok_or_else(|| runtime_input_error("Select a workspace first"))?;
-    let scope_key = agent_scope_key(&workspace, request.runtime, selected_job_id.as_deref());
+    let scope_key = agent_scope_key(
+        &workspace,
+        request.runtime,
+        selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
+    );
     let lease = ScopeLease::acquire(scope_key, active)?;
 
     let probe = probe_runtime(request.runtime);
@@ -1966,11 +2277,17 @@ fn run_one_shot_agent_turn_impl(
             &workspace,
             request.runtime,
             selected_job_id.as_deref(),
+            selected_application_id.as_deref(),
             &registry_write_lock,
         )?
     };
     let resumed = existing.is_some();
-    let wrapped_prompt = integration_prompt(prompt, request.runtime, selected_job_id.as_deref());
+    let wrapped_prompt = integration_prompt(
+        prompt,
+        request.runtime,
+        selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
+    );
     let output = run_runtime_process(
         request.runtime,
         &executable,
@@ -1995,6 +2312,7 @@ fn run_one_shot_agent_turn_impl(
         &workspace,
         request.runtime,
         selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
         &parsed.external_session_id,
         &registry_write_lock,
     )?;
@@ -2015,10 +2333,18 @@ fn cancel_agent_turn_impl(
     codex_sessions: CodexSessions,
     window_label: &str,
 ) -> Result<AgentTurnCancelResult, DesktopCommandError> {
-    let (workspace, selected_job_id) =
-        resolve_scope(Some(&request.workspace), request.selected_job_id.as_deref())?;
+    let (workspace, selected_job_id, selected_application_id) = resolve_scope(
+        Some(&request.workspace),
+        request.selected_job_id.as_deref(),
+        request.selected_application_id.as_deref(),
+    )?;
     let workspace = workspace.ok_or_else(|| runtime_input_error("Select a workspace first"))?;
-    let scope_key = agent_scope_key(&workspace, request.runtime, selected_job_id.as_deref());
+    let scope_key = agent_scope_key(
+        &workspace,
+        request.runtime,
+        selected_job_id.as_deref(),
+        selected_application_id.as_deref(),
+    );
     let cancellation = active
         .lock()
         .map_err(|_| runtime_state_error("Agent runtime lease is unavailable"))?
@@ -2040,6 +2366,7 @@ fn cancel_agent_turn_impl(
         runtime: request.runtime,
         workspace,
         selected_job_id,
+        selected_application_id,
         cancellation_requested: cancellation.is_some(),
     })
 }
@@ -2048,26 +2375,31 @@ fn agent_scope_key(
     workspace: &Path,
     runtime: AgentRuntimeKind,
     selected_job_id: Option<&str>,
+    selected_application_id: Option<&str>,
 ) -> String {
     format!(
-        "{}:{}:{}",
+        "{}:{}:job:{}:application:{}",
         workspace.display(),
         runtime.as_str(),
-        selected_job_id.unwrap_or("workspace")
+        selected_job_id.unwrap_or_default(),
+        selected_application_id.unwrap_or_default()
     )
 }
+
+type ResolvedAgentScope = (Option<PathBuf>, Option<String>, Option<String>);
 
 fn resolve_scope(
     workspace: Option<&Path>,
     selected_job_id: Option<&str>,
-) -> Result<(Option<PathBuf>, Option<String>), DesktopCommandError> {
+    selected_application_id: Option<&str>,
+) -> Result<ResolvedAgentScope, DesktopCommandError> {
     let Some(workspace) = workspace else {
-        if selected_job_id.is_some() {
+        if selected_job_id.is_some() || selected_application_id.is_some() {
             return Err(runtime_input_error(
-                "A job-scoped agent session requires a selected workspace",
+                "A scoped agent session requires a selected workspace",
             ));
         }
-        return Ok((None, None));
+        return Ok((None, None, None));
     };
     let (root, workspace_v4) = match Application::workspace_status_v4(workspace) {
         Ok(status) => (status.data.path, true),
@@ -2099,7 +2431,20 @@ fn resolve_scope(
     if let Some(job_id) = selected_job_id {
         Application::job_detail(&canonical, job_id).map_err(DesktopCommandError::application)?;
     }
-    Ok((Some(canonical), selected_job_id.map(ToOwned::to_owned)))
+    if let Some(application_id) = selected_application_id {
+        if !workspace_v4 || selected_job_id.is_some() {
+            return Err(runtime_input_error(
+                "An Application session requires Workspace v4 and no Job binding",
+            ));
+        }
+        Application::application_model_v4(&canonical, application_id)
+            .map_err(DesktopCommandError::application)?;
+    }
+    Ok((
+        Some(canonical),
+        selected_job_id.map(ToOwned::to_owned),
+        selected_application_id.map(ToOwned::to_owned),
+    ))
 }
 
 fn probe_runtime(runtime: AgentRuntimeKind) -> AgentRuntimeProbe {
@@ -2312,8 +2657,23 @@ fn run_process(
     cancellation: Option<&AtomicBool>,
 ) -> Result<ProcessOutput, DesktopCommandError> {
     let mut command = Command::new(executable);
+    command.args(arguments);
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    if let Some(path) = path {
+        command.env("PATH", path);
+    }
+    run_command(command, stdin_bytes, limits, cancellation)
+}
+
+fn run_command(
+    mut command: Command,
+    stdin_bytes: Option<&[u8]>,
+    limits: ProcessLimits,
+    cancellation: Option<&AtomicBool>,
+) -> Result<ProcessOutput, DesktopCommandError> {
     command
-        .args(arguments)
         .stdin(if stdin_bytes.is_some() {
             Stdio::piped()
         } else {
@@ -2321,17 +2681,8 @@ fn run_process(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(cwd) = cwd {
-        command.current_dir(cwd);
-    }
-    if let Some(path) = path {
-        command.env("PATH", path);
-    }
     let mut child = command.spawn().map_err(|error| {
-        runtime_unavailable_error(format!(
-            "Cannot start local agent runtime at {}: {error}",
-            executable.display()
-        ))
+        runtime_unavailable_error(format!("Cannot start local agent runtime: {error}"))
     })?;
     if let Some(bytes) = stdin_bytes {
         let mut stdin = child
@@ -2375,7 +2726,7 @@ fn run_process(
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(runtime_process_error(
-                    "Local agent turn exceeded the 10-minute time limit",
+                    "Local agent process exceeded its time limit",
                     true,
                 ));
             }
@@ -2585,13 +2936,17 @@ fn integration_prompt(
     user_prompt: &str,
     runtime: AgentRuntimeKind,
     selected_job_id: Option<&str>,
+    selected_application_id: Option<&str>,
 ) -> String {
     let guide = match runtime {
         AgentRuntimeKind::Codex => "agent/codex/AGENTS.md",
         AgentRuntimeKind::Claude => "agent/claude/CLAUDE.md",
     };
-    let scope = selected_job_id
-        .map(|job_id| format!("The selected CanISend job ID is {job_id}."))
+    let scope = selected_application_id
+        .map(|id| format!("The selected CanISend Application ID is {id}."))
+        .or_else(|| {
+            selected_job_id.map(|job_id| format!("The selected CanISend job ID is {job_id}."))
+        })
         .unwrap_or_else(|| {
             "This conversation is scoped to the whole CanISend workspace.".to_owned()
         });
@@ -2726,6 +3081,16 @@ fn runtime_cancelled_error() -> DesktopCommandError {
 }
 
 #[cfg(feature = "app-server-test-fixture")]
+pub fn exercise_codex_login_fixture(executable: &Path, root: &Path, timeout: Duration) -> Value {
+    match login_codex_impl(executable, root, timeout) {
+        Ok(value) => serde_json::json!({ "ok": value }),
+        Err(error) => {
+            serde_json::json!({ "ok": false, "error_code": error.code, "error_message": error.message })
+        }
+    }
+}
+
+#[cfg(feature = "app-server-test-fixture")]
 pub fn exercise_app_server_fixture(
     executable: &Path,
     session_directory: PathBuf,
@@ -2840,6 +3205,97 @@ mod tests {
     }
 
     #[test]
+    fn codex_login_excludes_turns_and_revokes_pending_session_state() {
+        let state = super::AgentRuntimeState::default();
+        state.codex_pending.lock().expect("pending").insert(
+            "window".to_owned(),
+            ("scope".to_owned(), super::AgentEmbeddedSession::default()),
+        );
+        let turn = state.codex_login.read().expect("turn lease");
+        assert!(
+            super::begin_codex_login(
+                &state.codex_login,
+                &state.codex_sessions,
+                &state.codex_pending
+            )
+            .is_err()
+        );
+        assert_eq!(state.codex_pending.lock().expect("pending").len(), 1);
+        drop(turn);
+        let login = super::begin_codex_login(
+            &state.codex_login,
+            &state.codex_sessions,
+            &state.codex_pending,
+        )
+        .expect("login lease");
+        assert!(state.codex_pending.lock().expect("pending").is_empty());
+        assert!(state.codex_login.try_read().is_err());
+        assert!(
+            super::begin_codex_login(
+                &state.codex_login,
+                &state.codex_sessions,
+                &state.codex_pending
+            )
+            .is_err()
+        );
+        drop(login);
+        assert!(state.codex_login.try_read().is_ok());
+    }
+
+    #[test]
+    fn dedicated_codex_directory_reuses_provider_state_and_rejects_links() {
+        let root = temporary_root("codex-home");
+        let home = super::prepare_codex_home(&root).expect("dedicated home");
+        let marker = home.join("provider/fixture-state");
+        fs::write(&marker, "provider-owned").expect("fixture state");
+        assert_eq!(super::prepare_codex_home(&root).expect("reuse home"), home);
+        assert_eq!(
+            fs::read_to_string(marker).expect("retained state"),
+            "provider-owned"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::{PermissionsExt, symlink};
+            assert_eq!(
+                fs::metadata(&home).expect("mode").permissions().mode() & 0o777,
+                0o700
+            );
+            fs::rename(home.join("provider"), home.join("external-fixture")).expect("move fixture");
+            symlink(home.join("external-fixture"), home.join("provider")).expect("link fixture");
+            assert!(super::prepare_codex_home(&root).is_err());
+            fs::remove_file(home.join("provider")).expect("remove link");
+        }
+        #[cfg(not(unix))]
+        fs::remove_dir_all(home.join("provider")).expect("remove provider fixture");
+        fs::write(home.join("provider"), "not a directory").expect("file fixture");
+        assert!(super::prepare_codex_home(&root).is_err());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn codex_named_policy_rejects_unqualified_versions_and_profile_keys() {
+        assert!(super::validate_codex_policy_version("codex-cli 0.152.0").is_ok());
+        for version in [
+            "",
+            "codex-cli 0.151.0",
+            "codex-cli 0.152.1",
+            "codex-cli 0.152.0 extra",
+        ] {
+            assert_eq!(
+                super::validate_codex_policy_version(version)
+                    .expect_err("unqualified version")
+                    .code,
+                "agent-runtime-incompatible"
+            );
+        }
+        let executable = std::env::current_exe().expect("test executable");
+        let session = temporary_root("policy");
+        for profile in ["", "another.filesystem", "bad\"key", "bad\nkey"] {
+            assert!(super::codex_bootstrap_overrides(&executable, &session, profile).is_err());
+        }
+    }
+
+    #[test]
     fn codex_jsonl_preserves_thread_identity_and_final_message() {
         let bytes = br#"{"type":"thread.started","thread_id":"thread-123"}
 {"type":"item.completed","item":{"id":"1","type":"web_search"}}
@@ -2871,6 +3327,7 @@ mod tests {
             "Review the current application.",
             AgentRuntimeKind::Codex,
             Some("019f4876-016d-7b41-b959-f4f2543ffd9f"),
+            None,
         );
         assert!(prompt.contains("read-only"));
         assert!(prompt.contains("Never edit .canisend directly"));
@@ -2971,7 +3428,7 @@ mod tests {
         let active = Arc::new(Mutex::new(BTreeMap::new()));
         let cancellation = Arc::new(AtomicBool::new(false));
         active.lock().expect("active scopes").insert(
-            agent_scope_key(&canonical, AgentRuntimeKind::Codex, None),
+            agent_scope_key(&canonical, AgentRuntimeKind::Codex, None, None),
             cancellation.clone(),
         );
 
@@ -2979,6 +3436,7 @@ mod tests {
             AgentTurnCancelRequest {
                 workspace: root.clone(),
                 selected_job_id: None,
+                selected_application_id: None,
                 runtime: AgentRuntimeKind::Codex,
             },
             active,
@@ -2997,20 +3455,115 @@ mod tests {
         let root = temporary_root("v4-scope");
         Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
 
-        let (workspace, selected_job_id) =
-            resolve_scope(Some(&root), None).expect("resolve Workspace v4 scope");
+        let (workspace, selected_job_id, selected_application_id) =
+            resolve_scope(Some(&root), None, None).expect("resolve Workspace v4 scope");
         assert_eq!(
             workspace,
             Some(root.canonicalize().expect("canonical Workspace"))
         );
         assert_eq!(selected_job_id, None);
+        assert_eq!(selected_application_id, None);
 
-        let error = resolve_scope(Some(&root), Some("legacy-job"))
+        let error = resolve_scope(Some(&root), Some("legacy-job"), None)
             .expect_err("Workspace v4 must refuse a legacy job scope before compatibility lookup");
         assert_eq!(error.code, "input-invalid");
         assert!(!error.message.contains("Legacy Agent"));
 
         fs::remove_dir_all(root).expect("remove Workspace v4");
+    }
+
+    #[test]
+    fn application_runtime_scopes_validate_both_packs_and_cancel_only_the_selected_one() {
+        use canisend_app::{
+            ACADEMIC_JOB_WORKFLOW_PACK_ID, ApplicationFlowCreateRequestV3,
+            ApplicationFlowCreateRequestV4, ApplicationFlowRequirementDraftV3,
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+        };
+        use canisend_contracts::{
+            ApplicationFieldValueV3, RequirementPriorityV3, WorkflowPackId, WorkflowPackItemId,
+        };
+        let root = temporary_root("application-scope");
+        let other = temporary_root("other-workspace");
+        Application::initialize_workspace_v4(&root).expect("Workspace");
+        Application::initialize_workspace_v4(&other).expect("other Workspace");
+        let mut ids = Vec::new();
+        for pack in [
+            GENERIC_APPLICATION_WORKFLOW_PACK_ID,
+            ACADEMIC_JOB_WORKFLOW_PACK_ID,
+        ] {
+            let created = Application::create_application_flow_v4(
+                &root,
+                ApplicationFlowCreateRequestV4 {
+                    pack_id: WorkflowPackId::try_new(pack).expect("Pack"),
+                    application: ApplicationFlowCreateRequestV3 {
+                        title: "Application session fixture".to_owned(),
+                        opportunity_metadata: if pack == ACADEMIC_JOB_WORKFLOW_PACK_ID {
+                            BTreeMap::from([(
+                                WorkflowPackItemId::try_new("institution").expect("field"),
+                                ApplicationFieldValueV3::ShortText("Fixture University".to_owned()),
+                            )])
+                        } else {
+                            BTreeMap::new()
+                        },
+                        application_metadata: BTreeMap::new(),
+                        source_text: "Provide a document.".to_owned(),
+                        requirements: vec![ApplicationFlowRequirementDraftV3 {
+                            category: WorkflowPackItemId::try_new(
+                                if pack == ACADEMIC_JOB_WORKFLOW_PACK_ID {
+                                    "qualification"
+                                } else {
+                                    "format"
+                                },
+                            )
+                            .expect("category"),
+                            statement: "Provide a document.".to_owned(),
+                            priority: RequirementPriorityV3::Mandatory,
+                            start_byte: 0,
+                            end_byte: 19,
+                        }],
+                    },
+                },
+            )
+            .expect("Application");
+            let id = created.data.stored.snapshot.application.id.to_string();
+            let (_, job, application) =
+                resolve_scope(Some(&root), None, Some(&id)).expect("Application scope");
+            assert_eq!(job, None);
+            assert_eq!(application.as_deref(), Some(id.as_str()));
+            assert!(resolve_scope(Some(&other), None, Some(&id)).is_err());
+            assert!(resolve_scope(Some(&root), Some(&id), Some(&id)).is_err());
+            assert!(resolve_scope(None, None, Some(&id)).is_err());
+            ids.push(id);
+        }
+        let canonical = root.canonicalize().expect("canonical");
+        assert_ne!(
+            agent_scope_key(&canonical, AgentRuntimeKind::Codex, Some(&ids[0]), None),
+            agent_scope_key(&canonical, AgentRuntimeKind::Codex, None, Some(&ids[0]))
+        );
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let active = Arc::new(Mutex::new(BTreeMap::from([(
+            agent_scope_key(&canonical, AgentRuntimeKind::Codex, None, Some(&ids[0])),
+            cancellation.clone(),
+        )])));
+        for (id, expected) in [(&ids[1], false), (&ids[0], true)] {
+            let result = cancel_agent_turn_impl(
+                AgentTurnCancelRequest {
+                    workspace: root.clone(),
+                    selected_job_id: None,
+                    selected_application_id: Some(id.clone()),
+                    runtime: AgentRuntimeKind::Codex,
+                },
+                active.clone(),
+                Arc::new(Mutex::new(BTreeMap::new())),
+                "test-window",
+            )
+            .expect("cancel");
+            assert_eq!(result.cancellation_requested, expected);
+            assert_eq!(cancellation.load(Ordering::SeqCst), expected);
+            assert_eq!(result.selected_application_id.as_deref(), Some(id.as_str()));
+        }
+        fs::remove_dir_all(root).expect("cleanup");
+        fs::remove_dir_all(other).expect("cleanup other");
     }
 
     #[test]
@@ -3021,9 +3574,11 @@ mod tests {
             .expect("create legacy Job")
             .data;
 
-        let (_, selected_job_id) = resolve_scope(Some(&root), Some(job.id.as_str()))
-            .expect("resolve explicit legacy Job scope");
+        let (_, selected_job_id, selected_application_id) =
+            resolve_scope(Some(&root), Some(job.id.as_str()), None)
+                .expect("resolve explicit legacy Job scope");
         assert_eq!(selected_job_id.as_deref(), Some(job.id.as_str()));
+        assert_eq!(selected_application_id, None);
 
         fs::remove_dir_all(root).expect("remove legacy Workspace");
     }
