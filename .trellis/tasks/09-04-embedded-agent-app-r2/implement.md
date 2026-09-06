@@ -44,7 +44,7 @@ required. R2a/R2b may be separate reviewable changes without creating another pl
 - [x] Inventory every tool's ID paths and returned fields. Add optional CLI `--application` and one
       server-instance guard; route all handlers through it. Constrain or disable Workspace-wide/no-ID
       enumeration. Preserve the unbound external contract.
-- [x] Bind desktop catalog/start/turn/cancel and session persistence to an existing Application
+- [ ] Complete App-shell selection wiring, then bind desktop catalog/start/turn/cancel and session persistence to an existing Application
       through the shared resolver, bridge and Agent view. Keep legacy Job identities separate;
       invalidate send confirmation and stale UI events on scope changes.
 - [ ] Inject the selected Application's required stdio server on start/resume after the provider
@@ -113,7 +113,7 @@ is stable. Keep one owner of the Store migration and integration; do not enable 
   manual product operations; use existing backup/restore for older-binary schema compatibility.
 
 The first source slice and its actual checks are recorded in [R2a boundary evidence](research/r2a-boundary-evidence.md).
-Next: complete the dedicated browser sign-in and qualify effective managed/system configuration,
+Historical next step (deferred): complete the dedicated browser sign-in and qualify effective managed/system configuration,
 then inject the bound server and integrate uniquely correlated elicitation and approval UI before
 enabling private tools. The separate-login decision is accepted and implemented locally. R2b remains pending. The [dated review](../../../docs/notes/rust-native/2026-09-04-roadmap-execution-review.md)
 preserves the earlier planning baseline. No protected CI, signed-in smoke, or release qualification

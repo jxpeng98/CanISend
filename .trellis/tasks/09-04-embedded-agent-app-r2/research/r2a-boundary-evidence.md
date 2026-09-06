@@ -309,3 +309,20 @@ existing preview/commit/verify owners. Cross-Pack and disposable signed-in produ
 
 No commit, feature-freeze exception, release tag, or package qualification is created by this work.
 A future integration must bind the actual source commit and satisfy the existing freeze/release gates.
+
+## CLI-first closeout review — 2026-09-06
+
+App-first execution is now superseded by ADR-RN-0023. The source was retained in
+`b06a402fcf59e8fae0ba3c8f351016aef39cd8d7`; this is partial source preservation, not R2 acceptance.
+The earlier session-binding description must be read at its actual tested scope: the registry,
+Rust resolver, bridge and standalone AgentView fixture pass selected Application identities.
+The full App shell still supplies `selectedJobId` from its legacy dossier selection to AgentView,
+while the current v4 selector is `selectedV4Application`; `list_application_dossiers` still uses
+JobService. Therefore the full shell-to-v4 selection path is not proven and must be repaired and
+exercised before claiming completed embedded Application binding. Component fixtures alone did
+not establish that reachability. This is retained as an open R2 gate, not additional App work in
+the CLI-first closeout. Embedded CanISend MCP/private tools remain disconnected.
+
+Real dedicated sign-in, effective managed/system policy, correlated consent, cross-Pack embedded
+mutation, durable origin and exact history remain unaccepted. Existing local fixtures do not
+qualify any new native package, provider support, or formal user journey.

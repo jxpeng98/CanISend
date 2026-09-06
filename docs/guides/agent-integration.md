@@ -1,5 +1,9 @@
 # Agent integration
 
+CLI/MCP and external Hosts are the primary direction under [ADR-RN-0023](../architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md).
+The embedded-client section documents retained experimental source; unfinished R2-R6 work is deferred
+and private embedded MCP remains disabled.
+
 CanISend owns validation, Pack identity, revisions, consent, storage, review, rendering, recovery,
 and audit state. Codex, Claude Code, Claude Desktop, or another Agent host owns conversation and
 bounded semantic reasoning. A host must never edit `.canisend`, SQLite, immutable Blobs, or managed

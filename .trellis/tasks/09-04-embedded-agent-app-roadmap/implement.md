@@ -280,7 +280,7 @@ LF-C02–12, change release authority, or create a second task ledger.
 - [x] Close App-first execution as superseded; retain R0/R1 completion and defer partial R2 without
       claiming isolation, consent, history, signed-in flow, or artifact acceptance.
 - [x] Inspect current branch/main, user changes, manifests, entry points and existing test owners.
-- [ ] Preserve and review existing source/process changes in independently reviewable commits.
+- [x] Preserve and review existing source/process changes in independently reviewable commits.
 - [ ] Integrate latest main/Beta.2 and the prior intake fix, resolve conflicts, record exact freeze
       dispositions, and run focused checks plus the final source gate.
 - [ ] Inspect protected Fast CI and merge the integration PR; close superseded PR work accurately.
@@ -332,3 +332,15 @@ supported targets, build the selected CLI without frontend steps, and reuse the 
 help and MCP negotiation checks. Run the source gate once for a final CI/config integration head.
 Rollback restores manifest/default selection and CI/docs only; product data is unchanged. LF-C03
 then addresses exact standalone resources/install evidence; LF-C04 owns trusted approval gaps.
+
+### Closeout review scope
+
+The shared MCP guard and registry checks preserve their existing positive/negative coverage.
+The App shell still feeds legacy dossier selection into AgentView, so complete v4 shell selection
+is an open R2 gate; see the correction in R2 evidence. This closeout does not implement or qualify
+that deferred App journey. The retained runtime does not inject CanISend private MCP tools.
+
+Local frontend verification after combining branches: 65 tests across state, bridge, Agent v4
+component, file drop, navigation and accessibility contracts passed. Svelte/TypeScript reports
+zero errors/warnings and frontend formatting passes. Five registry tests, five MCP protocol tests
+and two local-input tests passed. Remaining Rust protocol/static checks and protected CI are pending.
