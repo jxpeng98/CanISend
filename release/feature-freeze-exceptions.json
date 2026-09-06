@@ -723,6 +723,17 @@
         "Cargo.toml"
       ],
       "reason": "Implement owner-authorized LF-C02 CLI source-build isolation using Cargo default-members and existing core CI; preserve explicit desktop/workspace checks, frozen product contracts and release qualification boundaries."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "ecdec59d6049f141b1538ee472381ed415c12350",
+      "paths": [
+        "crates/canisend-cli/tests/binary_contract.rs",
+        "crates/canisend-resources/tests/manifest.rs",
+        "scripts/qualify_archive_upgrade.sh",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Close LF-C03 source-verification gaps with isolated standalone install/resource regressions and replace obsolete native upgrade commands with the existing v4 dual-Pack and Host workflows; preserve exact release-pair verification and qualification gates."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
