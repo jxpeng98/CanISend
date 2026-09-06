@@ -53,13 +53,21 @@ MCP_NEXT_ID=100
 mcp_request() {
   local request="$1"
   printf '%s\n' "$request" >&3
-  if ! IFS= read -r MCP_RESPONSE <&4; then
-    echo "Agent v4 MCP smoke: server closed before a dynamic response" >&2
-    if [[ -f "$smoke_root/dynamic-mcp.stderr" ]]; then
-      sed -n '1,120p' "$smoke_root/dynamic-mcp.stderr" >&2
+  while IFS= read -r MCP_RESPONSE <&4; do
+    if jq -e '.method == "elicitation/create"' <<< "$MCP_RESPONSE" >/dev/null; then
+      # Synthetic fixture peer only: this does not qualify a real Host or human confirmation.
+      jq -c '{jsonrpc: "2.0", id: .id, result: {
+        action: "accept", content: {confirm: true}
+      }}' <<< "$MCP_RESPONSE" >&3
+      continue
     fi
-    exit 1
+    return
+  done
+  echo "Agent v4 MCP smoke: server closed before a dynamic response" >&2
+  if [[ -f "$smoke_root/dynamic-mcp.stderr" ]]; then
+    sed -n '1,120p' "$smoke_root/dynamic-mcp.stderr" >&2
   fi
+  exit 1
 }
 
 mcp_tool_call() {
@@ -589,7 +597,7 @@ mcp_request "$(
     method: "initialize",
     params: {
       protocolVersion: "2025-11-25",
-      capabilities: {},
+      capabilities: {elicitation: {form: {}}},
       clientInfo: {name: "canisend-packaged-lifecycle", version: "1.0"}
     }
   }'

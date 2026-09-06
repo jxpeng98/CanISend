@@ -13,7 +13,7 @@ publish.workspace = true
 canisend-app = { path = "../canisend-app", version = "=1.0.0-beta.2" }
 canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.2" }
 clap.workspace = true
-rmcp.workspace = true
+rmcp = { workspace = true, features = ["elicitation"] }
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -83,7 +83,7 @@ pub struct AssociationApprovalPreviewReadModelV4<T> {
     pub preview: ActionReceipt<T>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 enum PendingAssociationApprovalV4 {
     Profile {
         workspace: PathBuf,
@@ -113,6 +113,26 @@ pub struct AssociationApprovalBrokerV4 {
 }
 
 impl AssociationApprovalBrokerV4 {
+    /// Return the exact pending link change for a trusted confirmation surface.
+    pub fn confirmation_preview(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        token: &str,
+        digest: &Sha256Digest,
+        kind: ApprovalKind,
+    ) -> Result<impl Serialize, AssociationApprovalErrorV4> {
+        let current = Application::application_model_v4(root, application_id.as_str())?.data;
+        let binding = association_binding(
+            kind,
+            association_approval_scope(root, application_id)?,
+            application_id.as_str(),
+            current.snapshot.application.revision,
+            digest.clone(),
+        );
+        Ok(self.broker.review(token, &binding)?)
+    }
+
     pub fn preview_profile(
         &self,
         root: &Path,

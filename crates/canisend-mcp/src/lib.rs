@@ -4,6 +4,7 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use canisend_app::{
@@ -14,7 +15,7 @@ use canisend_app::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    ApprovalBrokerError, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
+    ApprovalBrokerError, ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
     AssociationChangeV4, EvidenceAssociationPreviewRequestV4, PrivateExportConsent,
     PrivateReadConsent, ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
 };
@@ -24,8 +25,13 @@ use canisend_contracts::{
     WorkflowPackItemId,
 };
 use rmcp::{
-    ErrorData as McpError, ServerHandler, ServiceExt,
-    handler::server::wrapper::{Json, Parameters},
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
+    handler::server::{
+        tool::ToolCallContext,
+        wrapper::{Json, Parameters},
+    },
+    model::{CallToolRequestParams, CallToolResponse, ElicitRequestParams, ElicitationAction},
+    service::{ElicitationMode, RequestContext},
     tool, tool_handler, tool_router,
 };
 use schemars::{JsonSchema, json_schema};
@@ -343,6 +349,162 @@ pub struct ExportPrepareCommitParameters {
 }
 
 impl CanISendMcpServer {
+    async fn confirm_with_host(
+        context: &RequestContext<RoleServer>,
+        message: String,
+    ) -> Result<(), McpError> {
+        let denied = || {
+            McpError::invalid_params(
+                "Explicit user confirmation through this Host is required; no operation was authorized",
+                Some(serde_json::json!({"code": "consent.host-confirmation-required"})),
+            )
+        };
+        if !context
+            .peer
+            .supported_elicitation_modes()
+            .contains(&ElicitationMode::Form)
+        {
+            return Err(denied());
+        }
+        let requested_schema = serde_json::from_value(serde_json::json!({
+            "type": "object",
+            "properties": {"confirm": {"type": "boolean", "title": "I approve this exact request", "default": false}},
+            "required": ["confirm"]
+        })).map_err(|_| McpError::internal_error("Invalid confirmation schema", None))?;
+        let response = tokio::select! {
+            () = context.ct.cancelled() => return Err(denied()),
+            response = context.peer.create_elicitation_with_timeout(
+                ElicitRequestParams::FormElicitationParams { meta: None, message, requested_schema },
+                Some(Duration::from_secs(120)),
+            ) => response.map_err(|_| denied())?,
+        };
+        if context.ct.is_cancelled()
+            || response.action != ElicitationAction::Accept
+            || response.content != Some(serde_json::json!({"confirm": true}))
+        {
+            return Err(denied());
+        }
+        Ok(())
+    }
+
+    async fn confirm_request(
+        &self,
+        request: &CallToolRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let Some(arguments) = request.arguments.as_ref() else {
+            return Ok(());
+        };
+        let Some(tool) = Self::tool_router().get(&request.name).cloned() else {
+            return Ok(()); // The existing router owns unknown-tool errors.
+        };
+        let properties = tool.input_schema.get("properties");
+        let has = |field| properties.and_then(|value| value.get(field)).is_some();
+        let commit = has("approved");
+        if commit && arguments.get("approved") != Some(&Value::Bool(true)) {
+            return Ok(()); // Explicit cancellation still consumes the existing preview.
+        }
+        if let Some(application_id) = arguments.get("application_id").and_then(Value::as_str) {
+            self.parse_application_id(application_id)?;
+        }
+        let preview = if commit {
+            let mut binding = arguments.clone();
+            binding.remove("confirmed_private_read");
+            binding.remove("confirmed_private_export");
+            let parameters: ApplicationMutationCommitParameters =
+                serde_json::from_value(Value::Object(binding))
+                    .map_err(|_| McpError::invalid_params("Invalid commit binding", None))?;
+            let application_id = self.parse_application_id(&parameters.application_id)?;
+            let kind = match request.name.as_ref() {
+                "canisend_requirement_extract_commit" => {
+                    ApprovalKind::ApplicationRequirementExtraction
+                }
+                "canisend_requirement_confirm_commit" => {
+                    ApprovalKind::ApplicationRequirementConfirmation
+                }
+                "canisend_plan_propose_commit" => ApprovalKind::ApplicationPlanProposal,
+                "canisend_plan_confirm_commit" => ApprovalKind::ApplicationPlanConfirmation,
+                "canisend_deliverable_draft_commit" => ApprovalKind::DeliverableDraft,
+                "canisend_deliverable_revise_commit" => ApprovalKind::DeliverableRevision,
+                "canisend_review_disposition_commit" => ApprovalKind::ReviewDisposition,
+                "canisend_export_prepare_commit" => ApprovalKind::ExportPrepare,
+                "canisend_profile_association_commit" => ApprovalKind::ProfileAssociation,
+                "canisend_evidence_association_commit" => ApprovalKind::EvidenceAssociation,
+                _ => {
+                    return Err(McpError::invalid_params(
+                        "Tool has no trusted confirmation binding",
+                        None,
+                    ));
+                }
+            };
+            let Json(preview) = if matches!(
+                kind,
+                ApprovalKind::ProfileAssociation | ApprovalKind::EvidenceAssociation
+            ) {
+                Self::association_result(self.association_approvals.confirmation_preview(
+                    self.workspace(),
+                    &application_id,
+                    &parameters.preview_token,
+                    &parameters.preview_sha256,
+                    kind,
+                ))?
+            } else {
+                Self::mutation_result(self.mutation_approvals.confirmation_preview(
+                    self.workspace(),
+                    &application_id,
+                    &parameters.preview_token,
+                    &parameters.preview_sha256,
+                    kind,
+                ))?
+            };
+            Some(preview.0)
+        } else {
+            None
+        };
+        for (flag, purpose) in [
+            (
+                "confirmed_private_read",
+                "Read the selected private input and return it to this Host/provider",
+            ),
+            (
+                "confirmed_private_export",
+                "Read private content for the selected local export; never upload or submit",
+            ),
+        ] {
+            if has(flag) && arguments.get(flag) == Some(&Value::Bool(true)) {
+                let subjects = arguments
+                    .iter()
+                    .filter(|(name, _)| {
+                        matches!(
+                            name.as_str(),
+                            "application_id"
+                                | "source"
+                                | "profile_source"
+                                | "evidence"
+                                | "deliverable_id"
+                                | "requirement_id"
+                                | "destination"
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let subjects = serde_json::json!(subjects);
+                let selected = preview.as_ref().unwrap_or(&subjects);
+                Self::confirm_with_host(context, format!(
+                    "{purpose}. This consent does not approve a content change.\nWorkspace: {}\nOperation: {}\nSelected inputs: {}",
+                    self.workspace().display(), request.name,
+                    selected,
+                )).await?;
+            }
+        }
+        if let Some(preview) = preview {
+            Self::confirm_with_host(context, format!(
+                "Approve this exact local change? No submission is performed.\nOperation: {}\nExact change: {}",
+                request.name, preview,
+            )).await?;
+        }
+        Ok(())
+    }
+
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
         Self::open_with_application(workspace, None)
     }
@@ -1487,7 +1649,34 @@ impl CanISendMcpServer {
     name = "canisend",
     instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded association changes require preview, exact digest review, explicit approval and consent, and a single-use token. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
-impl ServerHandler for CanISendMcpServer {}
+impl ServerHandler for CanISendMcpServer {
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        if let Err(error) = self.confirm_request(&request, &context).await {
+            // Reuse the owning cancellation path; do not leave a declined commit reusable.
+            if request
+                .arguments
+                .as_ref()
+                .is_some_and(|args| args.contains_key("approved"))
+            {
+                let mut cancelled = request.clone();
+                if let Some(arguments) = cancelled.arguments.as_mut() {
+                    arguments.insert("approved".to_owned(), Value::Bool(false));
+                }
+                let _ = Self::tool_router()
+                    .call(ToolCallContext::new(self, cancelled, context))
+                    .await;
+            }
+            return Err(error);
+        }
+        Self::tool_router()
+            .call(ToolCallContext::new(self, request, context))
+            .await
+    }
+}
 
 #[cfg(test)]
 mod tests {

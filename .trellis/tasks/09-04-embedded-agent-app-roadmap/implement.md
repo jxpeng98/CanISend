@@ -457,3 +457,50 @@ workflows; no historical evidence is relabelled and no qualification ledger stat
 Rollback restores tests, the upgrade script and matching documentation/source-policy checks;
 no product data or runtime API changed. Next bounded slice: LF-C04, audit the actual trusted
 headless preview/confirmation/commit path and implement the smallest complete Broker-owned flow.
+
+### LF-C04 — trusted headless confirmation (2026-09-06)
+
+Owner authorized continuing the remaining LF-C sequence. Implement one shared MCP dispatch
+boundary using the already installed RMCP form-elicitation capability and the existing in-process
+ApprovalBroker. No daemon, persisted approval store, CLI `--yes` grant, new protocol identity or
+Host-specific business rule is introduced. The existing `url` dependency gains an RMCP edge;
+no dependency version is added or upgraded.
+
+- [x] Trace all ten guarded MCP commits and all private-read/export flags.
+- [x] Retrieve exact canonical previews through the owning Broker; review preserves original TTL
+  and checks kind, Workspace, Pack, Application and revision/digest before displaying a change.
+- [x] Require a separate server-request response for private access/export and final change
+  approval; default false, reject unsupported peers and non-exact responses, bound wait to two
+  minutes, observe request cancellation, cancel refused commits through existing handlers.
+- [x] Preserve commit-time canonical revalidation, token consumption and process isolation.
+- [x] Extend owning Broker regression and existing MCP lifecycle protocol fixture with refusal,
+  cancellation, malformed/false confirmations, missing capabilities and restart/replay cases.
+- [x] Existing dual-Pack packaged smoke passes with synthetic elicitation, backup, restore and reopen.
+- [ ] Final source gate and protected CI on the integration head.
+- [ ] Qualify actual user interaction on the selected Host/version under LF-C05; synthetic peers
+  are explicitly excluded from real-session and user evidence.
+
+Local checks passed: exact Broker review regression; all five existing MCP protocol tests,
+including the full Requirement/Plan/Deliverable/review/export lifecycle and new rejection cases;
+affected App/MCP/CLI Clippy; Rust formatting, shell syntax and diff whitespace.
+The packaged smoke passed against the local development binary after preserving the router-owned
+unknown-tool error. It is synthetic lifecycle evidence, not exact native artifact qualification.
+Final source validation and exact freeze disposition belong to this PR.
+The external Host owns reliable human presentation/response. Capability advertisement and client
+name are not identity attestation, and this change does not isolate arbitrary same-user processes.
+Codex CLI 0.152.0 is available locally; current official App Server documentation describes the
+form request/response path, but neither fact qualifies its actual interaction or inherited policy.
+See https://learn.chatgpt.com/docs/app-server (MCP server elicitation requests).
+
+Next: complete LF-C04 integration, then LF-C05 real Host journey and canonical resumption. Keep
+LF-C06–08 source coordination work independently reviewable, LF-C09 optional, LF-C10/11 exact
+qualification separate, and LF-C12 deferred. No public release or historical-evidence relabelling
+is authorized by this implementation scope.
+
+The final source gate detected the expected third-party lock fingerprint change from enabling
+RMCP elicitation. Exact base/head TOML comparison proved the sole change is `rmcp 3.0.1 -> url`:
+all 751 package identities/versions/checksums and other edges are unchanged. CLI reverse dependency
+inspection confirmed `url 2.5.8` already belongs to the IO/HTTP/render graph. Fresh installed
+`cargo-deny 0.19.7` passed advisories, bans, licenses and sources, with existing duplicate, unused
+license-allowance and yanked `chacha20 0.10.1` warnings. Review date and fingerprint are refreshed;
+all reachability restrictions and the 2026-09-07 review/expiry deadlines are preserved.

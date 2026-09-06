@@ -33,6 +33,8 @@ struct McpProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    confirmation: Option<Value>,
+    confirmations: Vec<Value>,
 }
 
 impl McpProcess {
@@ -63,6 +65,9 @@ impl McpProcess {
             child,
             stdin,
             stdout,
+            // Synthetic protocol peer only; this is not real Host/user acceptance evidence.
+            confirmation: Some(json!({"action": "accept", "content": {"confirm": true}})),
+            confirmations: Vec::new(),
         }
     }
 
@@ -94,6 +99,14 @@ impl McpProcess {
             let bytes = self.stdout.read_line(&mut line).expect("read MCP response");
             assert_ne!(bytes, 0, "MCP server closed before response {id}");
             let response: Value = serde_json::from_str(&line).expect("valid JSON-RPC response");
+            if response["method"] == "elicitation/create" {
+                self.confirmations.push(response["params"].clone());
+                self.send(&json!({
+                    "jsonrpc": "2.0", "id": response["id"],
+                    "result": self.confirmation.as_ref().expect("peer advertised confirmation"),
+                }));
+                continue;
+            }
             if response["id"] == json!(id) {
                 return response;
             }
@@ -106,7 +119,7 @@ impl McpProcess {
             "initialize",
             json!({
                 "protocolVersion": CANISEND_MCP_PROTOCOL_VERSION,
-                "capabilities": {},
+                "capabilities": if self.confirmation.is_some() { json!({"elicitation": {"form": {}}}) } else { json!({}) },
                 "clientInfo": {
                     "name": "canisend-protocol-test",
                     "version": "1.0"
@@ -223,6 +236,61 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
     let source = created.snapshot.requirements[0].source_span.content.clone();
     let application_id = created.snapshot.application.id;
     let requirement_id = created.snapshot.requirements[0].id.clone();
+    for response in [
+        None,
+        Some(json!({"action": "decline", "content": null})),
+        Some(json!({"action": "cancel", "content": null})),
+        Some(json!({"action": "accept", "content": {"confirm": false}})),
+        Some(json!({"action": "accept", "content": {"confirm": "true"}})),
+        Some(json!({"action": "accept", "content": {"confirm": true, "unexpected": true}})),
+    ] {
+        let mut peer = McpProcess::start(&root);
+        peer.confirmation = response;
+        peer.initialize();
+        let preview = peer.request(2, "tools/call", json!({
+            "name": "canisend_requirement_confirm_preview",
+            "arguments": {"application_id": application_id.as_str(), "expected_revision": 1,
+                "decisions": [{"requirement_id": requirement_id.as_str(), "decision": "confirm"}]}
+        }));
+        let (token, digest) = mutation_preview_binding(&preview);
+        let request = json!({"name": "canisend_requirement_confirm_commit", "arguments": {
+            "application_id": application_id.as_str(), "preview_token": token,
+            "preview_sha256": digest, "approved": true
+        }});
+        let refused = peer.request(3, "tools/call", request.clone());
+        assert_eq!(
+            refused["error"]["data"]["code"],
+            "consent.host-confirmation-required"
+        );
+        if let Some(confirmation) = peer.confirmations.first() {
+            let message = confirmation["message"].as_str().unwrap();
+            assert!(message.contains(&digest));
+            assert!(message.contains(requirement_id.as_str()));
+            assert!(!message.contains(&token));
+            assert_eq!(
+                confirmation["requestedSchema"]["properties"]["confirm"]["default"],
+                false
+            );
+        }
+        let replay = peer.request(4, "tools/call", request.clone());
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        assert_eq!(
+            Application::application_model_v4(&root, application_id.as_str())
+                .unwrap()
+                .data
+                .snapshot
+                .application
+                .revision
+                .get(),
+            1
+        );
+        drop(peer);
+        let mut restarted = McpProcess::start(&root);
+        restarted.initialize();
+        let replay = restarted.request(2, "tools/call", request);
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        assert!(restarted.confirmations.is_empty());
+    }
     let mut mcp = McpProcess::start(&root);
     mcp.initialize();
 
@@ -467,6 +535,28 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
         refused_audit["error"].is_object() || refused_audit["result"]["isError"] == json!(true)
     );
     assert!(!refused_audit.to_string().contains(draft_body));
+    mcp.confirmation = Some(json!({"action": "decline", "content": null}));
+    let refused = mcp.request(
+        13,
+        "tools/call",
+        json!({
+            "name": "canisend_deliverable_audit",
+            "arguments": {"application_id": application_id.as_str(), "confirmed_private_read": true}
+        }),
+    );
+    assert_eq!(
+        refused["error"]["data"]["code"],
+        "consent.host-confirmation-required"
+    );
+    assert!(!refused.to_string().contains(draft_body));
+    assert!(
+        !mcp.confirmations
+            .last()
+            .unwrap()
+            .to_string()
+            .contains(draft_body)
+    );
+    mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": true}}));
     let audit = mcp.request(
         13,
         "tools/call",
@@ -611,6 +701,23 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
     );
 
     let destination = format!("applications/{application_id}/exports/mcp-lifecycle");
+    mcp.confirmation = Some(json!({"action": "decline", "content": null}));
+    let refused = mcp.request(
+        22,
+        "tools/call",
+        json!({
+            "name": "canisend_export_prepare_preview", "arguments": {
+                "application_id": application_id.as_str(), "expected_revision": 8,
+                "destination": "exports/refused", "confirmed_private_export": true
+            }
+        }),
+    );
+    assert_eq!(
+        refused["error"]["data"]["code"],
+        "consent.host-confirmation-required"
+    );
+    assert!(!root.join("exports/refused").exists());
+    mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": true}}));
     let export_preview = mcp.request(
         22,
         "tools/call",

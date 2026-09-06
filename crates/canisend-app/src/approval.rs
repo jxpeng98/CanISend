@@ -431,6 +431,21 @@ impl<T: Send + 'static> ApprovalBroker<T> {
         })
     }
 
+    /// Read an exact pending preview for a trusted confirmation surface. This grants no write.
+    pub fn review(&self, token: &str, expected: &ApprovalBinding) -> Result<T, ApprovalBrokerError>
+    where
+        T: Clone,
+    {
+        let grant = self.take(token, expected.kind, &expected.scope)?;
+        if grant.binding() != expected {
+            self.resolve(grant, ApprovalDisposition::Consume)?;
+            return Err(ApprovalBrokerError::WrongContext);
+        }
+        let payload = grant.payload().clone();
+        self.resolve(grant, ApprovalDisposition::RestoreSameApproval)?;
+        Ok(payload)
+    }
+
     pub fn resolve(
         &self,
         grant: ApprovalGrant<T>,
@@ -761,6 +776,72 @@ mod tests {
             Arc::new(QueueTokenSource::new(values)),
         )
         .expect("test broker")
+    }
+
+    #[test]
+    fn trusted_review_is_exact_and_preserves_the_original_lease() {
+        let clock = Arc::new(ManualClock::new());
+        let broker = broker(
+            16,
+            Duration::from_secs(10),
+            Duration::from_secs(30),
+            Arc::clone(&clock),
+            (1..=8).map(|value| [value; APPROVAL_TOKEN_BYTES]),
+        );
+        let mut expected = binding("1", ApprovalKind::TaskCompletion);
+        expected.source = ApprovalSourceVersion::RevisionAndSnapshot {
+            revision: Revision::try_new(1).unwrap(),
+            snapshot_sha256: Sha256Digest::try_new("a".repeat(64)).unwrap(),
+        };
+        let lease = broker
+            .insert(expected.clone(), "canonical preview")
+            .unwrap();
+        assert_eq!(
+            broker.review(&lease.token, &expected).unwrap(),
+            "canonical preview"
+        );
+        assert_eq!(broker.len(), 1);
+        for field in [
+            "kind",
+            "workspace",
+            "pack",
+            "application",
+            "revision",
+            "digest",
+        ] {
+            let lease = broker
+                .insert(expected.clone(), "canonical preview")
+                .unwrap();
+            let mut wrong = expected.clone();
+            match field {
+                "kind" => wrong.kind = ApprovalKind::ExportPrepare,
+                "workspace" => wrong.scope.workspace = PathBuf::from("/other"),
+                "pack" => {
+                    wrong.scope.pack.content_digest = Sha256Digest::try_new("b".repeat(64)).unwrap()
+                }
+                "application" => wrong.application_id = Some("other".to_owned()),
+                _ => {
+                    wrong.source = ApprovalSourceVersion::RevisionAndSnapshot {
+                        revision: Revision::try_new(if field == "revision" { 2 } else { 1 })
+                            .unwrap(),
+                        snapshot_sha256: Sha256Digest::try_new(
+                            if field == "digest" { "b" } else { "a" }.repeat(64),
+                        )
+                        .unwrap(),
+                    }
+                }
+            }
+            assert!(broker.review(&lease.token, &wrong).is_err(), "{field}");
+            assert!(matches!(
+                broker.review(&lease.token, &expected),
+                Err(ApprovalBrokerError::Missing)
+            ));
+        }
+        clock.advance_monotonic(Duration::from_secs(10));
+        assert!(matches!(
+            broker.review(&lease.token, &expected),
+            Err(ApprovalBrokerError::Expired)
+        ));
     }
 
     #[test]

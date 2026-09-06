@@ -43,7 +43,7 @@ pub struct ApplicationMutationApprovalPreviewV4<T> {
     pub preview: ActionReceipt<ApplicationMutationPreviewV4<T>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 enum PendingApplicationMutationV4 {
     RequirementExtract {
         workspace: PathBuf,
@@ -97,6 +97,29 @@ pub struct ApplicationMutationApprovalBrokerV4 {
 }
 
 impl ApplicationMutationApprovalBrokerV4 {
+    /// Return the Broker-owned preview, never caller-supplied display text or a new grant.
+    pub fn confirmation_preview(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        token: &str,
+        digest: &Sha256Digest,
+        kind: ApprovalKind,
+    ) -> Result<impl Serialize, ApplicationMutationApprovalErrorV4> {
+        let current = Application::application_model_v4(root, application_id.as_str())?.data;
+        let context = resource_context(&current);
+        let binding = ApprovalBinding::new(
+            kind,
+            mutation_scope(root, application_id, &context)?,
+            Some(application_id.to_string()),
+            ApprovalSourceVersion::RevisionAndSnapshot {
+                revision: context.application_revision,
+                snapshot_sha256: digest.clone(),
+            },
+        );
+        Ok(self.broker.review(token, &binding)?)
+    }
+
     pub fn preview_requirement_extraction(
         &self,
         root: &Path,
