@@ -179,10 +179,9 @@ from_binary="$from_bundle/$executable_name"
 to_binary="$to_bundle/$executable_name"
 chmod +x "$from_binary" "$to_binary"
 install_root="$root/installed"
-workspace="$root/workspace"
+workspace="$root/from-workflow/applications"
 backup="$root/pre-upgrade-backup"
 restored="$root/restored-workspace"
-host_pack="$root/codex-host-pack"
 copy_install_unit "$from_bundle" "$install_root"
 installed="$install_root/$executable_name"
 
@@ -192,11 +191,9 @@ test "$from_observed" = "$from_version"
   .ok == true and .data.python_required == false and
   .data.embedded_typst == "verified" and .data.resource_manifest == "verified"
 ' >/dev/null
-"$installed" --workspace "$workspace" workspace init --json | jq -e '.ok == true' >/dev/null
-"$installed" --workspace "$workspace" job create \
-  --title "Synthetic qualification role" \
-  --institution "CanISend release qualification" \
-  --json | jq -e '.ok == true' >/dev/null
+"$script_dir/smoke_documented_quickstart.sh" "$installed" "$root/from-workflow"
+"$installed" --workspace "$workspace" application list --json \
+  | jq -S '.data' > "$root/before-applications.json"
 "$installed" --workspace "$workspace" workspace check --json | jq -e '.ok == true and .data.ok == true' >/dev/null
 before_schema="$("$installed" --workspace "$workspace" workspace status --json | jq -er 'select(.ok == true) | .data.database_schema_version')"
 "$installed" --workspace "$workspace" workspace backup "$backup" --json | jq -e '.ok == true' >/dev/null
@@ -212,6 +209,9 @@ test "$to_observed" = "$to_version"
 ' >/dev/null
 "$installed" --workspace "$workspace" workspace check --json | jq -e '.ok == true and .data.ok == true' >/dev/null
 after_schema="$("$installed" --workspace "$workspace" workspace status --json | jq -er 'select(.ok == true) | .data.database_schema_version')"
+"$installed" --workspace "$workspace" application list --json \
+  | jq -S '.data' > "$root/after-applications.json"
+cmp "$root/before-applications.json" "$root/after-applications.json"
 
 database="$workspace/.canisend/state.sqlite3"
 test -f "$database"
@@ -234,8 +234,11 @@ fi
 
 "$from_binary" workspace restore "$backup" "$restored" --json | jq -e '.ok == true' >/dev/null
 "$from_binary" --workspace "$restored" workspace check --json | jq -e '.ok == true and .data.ok == true' >/dev/null
-"$installed" agent assets export --host codex --destination "$host_pack" --json | jq -e '.ok == true' >/dev/null
-test -f "$host_pack/canisend-agent-pack.json"
+"$installed" --workspace "$workspace" host setup --host codex --json \
+  | jq -e '.ok == true and .data.skills.state == "installed" and .data.mcp_configuration_mutated == false' >/dev/null
+"$installed" --workspace "$workspace" host status --host codex --json \
+  | jq -e '.ok == true and .data.skills.state == "up-to-date"' >/dev/null
+test -f "$workspace/.agents/canisend-agent-v4.json"
 
 rm -rf "$install_root"
 test ! -e "$install_root"

@@ -405,3 +405,55 @@ Rollback restores Cargo default selection, CI and contributor instructions; prod
 No Rust behavior, dependency, schema, consent, storage, GUI support or release packaging changed.
 Next bounded slice is LF-C03: audit and verify standalone embedded resources and install lifecycle
 using existing doctor/package smokes; exact native artifacts remain separately qualified.
+
+### Completed LF-C02 integration
+
+PR #227 merged as `ce12ad87becea78721210826b136b1bd2b296db9` on 2026-09-06. All six
+required Fast CI jobs passed in `34023762310`; dependency policy passed in `34023762322`.
+The merge tree matches verified head `9f632501`. Source gate passed with 28 exact exceptions;
+local main was clean and synchronized. No package qualification or release was claimed.
+
+## LF-C03 — standalone resources and install lifecycle
+
+Updated: 2026-09-06. Owner authorized the next slice after LF-C02. Baseline: `ce12ad87`.
+
+### Scope and acceptance
+
+- [x] Audit embedded resource ownership and existing archive/Host lifecycle tooling before adding code.
+- [x] Extend the existing CLI doctor regression to run a copied binary in a Unicode/space path,
+      unrelated working directory, empty inherited environment and tool-free PATH. Retain only
+      isolated home/temp paths and the Windows OS directory where needed.
+- [x] Prove embedded rendering and resource integrity, registration of the copied binary's actual
+      path, uninstall without Workspace mutation, and same-build reinstall with usable Skills/data.
+- [x] Extend the owning Skill lifecycle test to restore a missing managed file; preserve its existing
+      idempotence, versioned-update, user-edit refusal and uninstall checks.
+- [x] Replace obsolete `job create`/`agent assets export` in the active native upgrade script with
+      existing v4 quick-start and Host commands. Compare both Application snapshots across replacement.
+- [x] Document pure CLI setup, executable selection, relocation, repair and separate Host removal.
+
+### Evidence and limits
+
+Resources are compiled with `include_bytes!` by `canisend-resources/build.rs`; verification and
+Pack constructors read that embedded catalog. No runtime resource search in a source checkout or
+App bundle was introduced. The existing stage/package scripts already produce a standalone binary
+and notices, so no second installer, resource loader or package layout was added.
+
+Local Apple Silicon checks passed: isolated standalone CLI regression; Skill lifecycle regression
+including missing-file repair and edit-safe refusals; existing upgrade-policy and canonical-evidence
+positive/negative tests. Existing `stage_native_bundle.sh` staged the development binary and notices.
+A temporary driver executed the exact lifecycle section of `qualify_archive_upgrade.sh` with
+the same staged build on both sides, from an unrelated directory. Both Packs, Profile Source,
+Application snapshot preservation, backup/restore, Host regeneration and binary-only uninstall
+passed. Existing Host and guarded dual-Pack MCP smokes also passed against that copied binary.
+The driver did not execute release-pair verification or emit a qualification record. It proves
+same-build replacement, not a Beta-to-RC upgrade. Rust format, affected Clippy and shell syntax
+checks are integration prerequisites; final results belong to the PR record.
+
+The existing Fast CI jobs own the portable Rust regressions on Linux, Windows and macOS. Final
+source validation and exact freeze disposition precede protected integration. Fresh native archive,
+signature, clean-machine and real Beta/RC-pair qualification remain LF-C10 and the existing native
+workflows; no historical evidence is relabelled and no qualification ledger status changes here.
+
+Rollback restores tests, the upgrade script and matching documentation/source-policy checks;
+no product data or runtime API changed. Next bounded slice: LF-C04, audit the actual trusted
+headless preview/confirmation/commit path and implement the smallest complete Broker-owned flow.

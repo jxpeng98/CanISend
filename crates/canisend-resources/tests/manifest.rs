@@ -539,6 +539,15 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     assert_eq!(unchanged.state, AgentSkillsInstallState::UpToDate);
 
     let managed_path = root.join(".agents/skills/canisend-intake/SKILL.md");
+    let expected_bytes = fs::read(&managed_path).expect("embedded skill bytes");
+    fs::remove_file(&managed_path).expect("simulate missing managed skill");
+    let repaired = install_agent_skills(AgentHost::Codex, &root).expect("repair missing skill");
+    assert_eq!(repaired.state, AgentSkillsInstallState::Updated);
+    assert_eq!(
+        fs::read(&managed_path).expect("repaired skill"),
+        expected_bytes
+    );
+
     let old_bytes = b"previous managed skill";
     fs::write(&managed_path, old_bytes).expect("old managed bytes");
     let mut old_manifest: AgentSkillsManifest =

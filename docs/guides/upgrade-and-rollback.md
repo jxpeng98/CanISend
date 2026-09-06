@@ -48,7 +48,7 @@ Workspace may contain both built-in Packs:
 canisend --workspace ./applications application list --json
 ```
 
-Alpha.7 does not migrate Workspace v2/v3. An unsupported Workspace fails before mutation with
+The clean-v4 CLI does not migrate Workspace v2/v3. An unsupported Workspace fails before mutation with
 clean-v4 initialization guidance; preserve it for use with its exact historical release.
 
 ## Upgrade from an archive
@@ -74,14 +74,27 @@ canisend --workspace ./applications workspace check --json
 Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
 binary. It does not import unsupported Workspace v2/v3 state. Migration history, exact
 Application Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
-regenerate any exported host pack or update project Skills from the desktop Agent setup journey.
-Use a new export directory; do not overwrite a pack used by an active host session.
+update the project Skills through the CLI and inspect the returned MCP registration command:
 
-Alpha.7 installs the clean Agent v4 resources under `.agents/skills` for Codex or `.claude/skills`
+```console
+canisend --workspace ./applications host setup --host codex --json
+canisend --workspace ./applications host status --host codex --json
+```
+
+Use `--host claude` for Claude Code. If the executable moved, update the Host registration to the
+new verified path. Setup does not modify the Host's configuration or start a model session.
+
+The CLI installs clean Agent v4 resources under `.agents/skills` for Codex or `.claude/skills`
 for Claude Code. Their ownership manifests are `.agents/canisend-agent-v4.json` and
 `.claude/canisend-agent-v4.json`. Install and update replace only unchanged manifest-owned files;
 uninstall performs a complete digest preflight and refuses user-modified or unmanaged files.
 Pre-v4 layouts are not upgraded in place: remove them explicitly, then perform a clean v4 install.
+
+For missing managed Skill files, run the same `host setup` command to restore the embedded version,
+then check `host status`. User-edited or unmanaged files require review; setup and removal refuse
+to overwrite or delete conflicting files. A broken executable is repaired by reinstalling a verified
+archive, not by changing Workspace data. Use `workspace repair` only for its documented managed
+projections; it does not repair the installed executable or replace user-edited content.
 
 The Application Dossier, Content Catalog, contextual Agent guidance, and metadata/private search
 indexes do not add a migration. They are rebuilt from current SQLite rows and immutable artifact
@@ -141,8 +154,10 @@ Confirm that each retained workspace and backup directory still exists. They con
 not registered with an online CanISend account. Delete them only after an explicit data-retention decision and after
 confirming that no rollback, audit, or application work still depends on them.
 
-Removing an exported Codex/Claude host pack is separate from removing the binary. A host pack contains no private
-workspace bodies by default, but remove it from host configuration before deleting its directory.
+Before removing the executable, optionally remove its owned project Skills with
+`canisend --workspace ./applications host remove --host codex --json` (or `--host claude`). This
+preserves the Workspace and refuses modified or unmanaged Skill files. Remove the corresponding
+MCP registration separately in the Host; `host remove` does not edit that configuration.
 
 ## Release-candidate acceptance
 
