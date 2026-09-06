@@ -1376,13 +1376,15 @@
                 >
                   {copy.codexSignIn}
                 </Button>
-                <p class="text-sm text-muted-foreground" role="status">
-                  {signingIn
-                    ? copy.codexSignInWaiting
-                    : signedIn
-                      ? copy.codexSignInComplete
-                      : copy.codexSignInDescription}
-                </p>
+                <Alert.Root role="status">
+                  <Alert.Description>
+                    {signingIn
+                      ? copy.codexSignInWaiting
+                      : signedIn
+                        ? copy.codexSignInComplete
+                        : copy.codexSignInDescription}
+                  </Alert.Description>
+                </Alert.Root>
               </div>
             {/if}
             <div
