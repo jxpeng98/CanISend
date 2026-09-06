@@ -126,6 +126,11 @@ export const messages = {
     moreActions: "More actions",
     chooseDirectory: "Choose directory",
     chooseFile: "Choose file",
+    dropFileHere: "Drop one file here, or choose it manually.",
+    dropFileActive: "Release to select this file.",
+    dropOneFile: "Drop one file at a time.",
+    unsupportedDroppedFile: "This file type isn't supported for this import.",
+    fileDropUnavailable: "Drag and drop isn't available. Use Choose file instead.",
     noWorkspace: "No workspace selected",
     createWorkspace: "Create workspace",
     connectWorkspace: "Connect existing",
@@ -165,6 +170,9 @@ export const messages = {
       "The requirement must be an exact excerpt of the reviewed source text.",
     applicationIntakeSourceHelp:
       "Each non-empty source line becomes one proposed, exact-span Requirement for review after creation.",
+    applicationImportStorageDescription:
+      "The original stays in place. After confirmation, the Application and a verified source copy are stored in .canisend; exports go to applications/, never the legacy jobs/ folder.",
+    applicationCreatedInWorkspace: "Application created in this Workspace:",
     requirementCategory: "Requirement category",
     priority: "Priority",
     mandatory: "Mandatory",
@@ -231,7 +239,7 @@ export const messages = {
     backupDirectory: "Verified backup directory",
     restoreDestination: "Restore destination",
     repairWorkspace: "Repair projections",
-    workspaceJobs: "Jobs",
+    workspaceApplications: "Applications",
     workspaceArtifacts: "Artifacts",
     workspaceBlobs: "Referenced blobs",
     databaseSchema: "Database schema",
@@ -499,6 +507,9 @@ export const messages = {
     profileMarkdown: "Profile Markdown",
     profileStorageDescription:
       "CanISend saves the original and normalized Markdown locally with revision history. This action does not send it to a provider.",
+    profileImportStorageDescription:
+      "The original stays in place. CanISend stores a verified internal copy in .canisend; no editable duplicate is created.",
+    profileSourceStoredInWorkspace: "Profile source imported into this Workspace:",
     profileInitializationConsent:
       "I confirm CanISend may store this reviewed profile text in the active local workspace.",
     profileInitializationTemplate:
@@ -711,7 +722,7 @@ export const messages = {
     verifyWith: "Verify with",
     optionalRuntimeBridge: "Optional runtime bridge",
     optionalRuntimeBridgeDescription:
-      "Use this read-only view for quick checks. Keep full conversations in Codex or Claude.",
+      "Codex conversations stream here through App Server. Claude remains available as a one-turn fallback.",
     localAgentRuntime: "Local agent runtime",
     localAgentRuntimeDescription:
       "With your consent, CanISend can start an installed CLI. Credentials, settings, and history stay with that host.",
@@ -733,10 +744,28 @@ export const messages = {
     sendMessage: "Send message",
     cancelAgentTurn: "Cancel turn",
     cancellingAgentTurn: "Cancelling…",
-    agentTurnCancelled: "The local Agent turn was cancelled. No partial response was saved.",
+    agentTurnCancelled:
+      "The local Agent turn was cancelled. Any received partial response remains visible.",
     noActiveAgentTurn: "No matching Agent turn is currently running.",
+    agentHostAccessDenied: "Codex requested additional access. CanISend denied the request.",
     providerConsent:
-      "I confirm this local runtime may read the selected workspace and send necessary context to its configured provider. The host stores its own transcript.",
+      "I confirm this local runtime may send my message and only the context CanISend explicitly connects to its configured provider. The host stores its own transcript.",
+    embeddedSessionStatus: "Connection",
+    sessionNotConfigured: "Not connected",
+    sessionConnecting: "Connecting",
+    sessionAuthenticationRequired: "Sign-in required",
+    codexSignIn: "Sign in to Codex",
+    codexSignInDescription:
+      "CanISend uses a separate Codex sign-in. Complete it in your browser; Codex manages your credentials.",
+    codexSignInWaiting:
+      "Complete the Codex sign-in in your browser. This request expires after five minutes.",
+    codexSignInComplete: "Signed in. You can start a new conversation.",
+    sessionReady: "Ready",
+    sessionRunning: "Responding",
+    sessionCancelling: "Cancelling",
+    sessionRecoverableDisconnect: "Reconnect required",
+    sessionIncompatible: "Update required",
+    sessionFailed: "Unavailable",
     startNewConversation: "New conversation",
     newConversationPending: "A new host conversation will start with the next message.",
     session: "Session",
@@ -985,6 +1014,11 @@ export const messages = {
     moreActions: "更多操作",
     chooseDirectory: "选择目录",
     chooseFile: "选择文件",
+    dropFileHere: "将一个文件拖到这里，或手动选择。",
+    dropFileActive: "松开即可选择此文件。",
+    dropOneFile: "每次只能拖入一个文件。",
+    unsupportedDroppedFile: "此导入不支持该文件类型。",
+    fileDropUnavailable: "当前无法使用拖放，请改用“选择文件”。",
     noWorkspace: "尚未选择工作区",
     createWorkspace: "创建工作区",
     connectWorkspace: "连接已有工作区",
@@ -1017,6 +1051,9 @@ export const messages = {
     requirementMustMatchSource: "要求必须是已审查来源文本中的精确片段。",
     applicationIntakeSourceHelp:
       "每个非空来源行会成为一条带精确位置的候选要求，创建后仍需由用户审查。",
+    applicationImportStorageDescription:
+      "原文件会保留在原处。确认后，申请记录和经校验的来源副本会存入 .canisend；导出文件写入 applications/，不会写入旧版 jobs/ 目录。",
+    applicationCreatedInWorkspace: "申请项目已创建于此工作区：",
     requirementCategory: "要求类别",
     priority: "优先级",
     mandatory: "必需",
@@ -1073,7 +1110,7 @@ export const messages = {
     backupDirectory: "已验证的备份目录",
     restoreDestination: "恢复目标目录",
     repairWorkspace: "修复托管投影",
-    workspaceJobs: "职位",
+    workspaceApplications: "申请项目",
     workspaceArtifacts: "工件",
     workspaceBlobs: "已引用数据块",
     databaseSchema: "数据库 Schema",
@@ -1322,6 +1359,9 @@ export const messages = {
     profileMarkdown: "个人资料 Markdown",
     profileStorageDescription:
       "CanISend 会在本地保存原始和整理后的 Markdown 及其版本记录；此操作不会把内容发送给提供商。",
+    profileImportStorageDescription:
+      "原文件会保留在原处。CanISend 会在 .canisend 中保存经校验的内部副本，不会另建可编辑文件。",
+    profileSourceStoredInWorkspace: "个人资料来源已导入此工作区：",
     profileInitializationConsent:
       "我确认允许 CanISend 将这份已审查的个人资料文本保存到当前本地工作区。",
     profileInitializationTemplate:
@@ -1521,7 +1561,8 @@ export const messages = {
     copyConfiguration: "复制配置",
     verifyWith: "验证命令",
     optionalRuntimeBridge: "可选运行时桥接",
-    optionalRuntimeBridgeDescription: "用这个只读视图快速检查；完整对话请留在 Codex 或 Claude。",
+    optionalRuntimeBridgeDescription:
+      "Codex 对话通过 App Server 实时显示在这里；Claude 暂时保留为单回合后备方案。",
     localAgentRuntime: "本地 Agent 运行时",
     localAgentRuntimeDescription:
       "经你同意后，CanISend 可以启动已安装的 CLI；凭据、设置和历史记录仍由该宿主管理。",
@@ -1541,10 +1582,26 @@ export const messages = {
     sendMessage: "发送消息",
     cancelAgentTurn: "取消回合",
     cancellingAgentTurn: "正在取消…",
-    agentTurnCancelled: "本地 Agent 回合已取消，未保存不完整的回复。",
+    agentTurnCancelled: "本地 Agent 回合已取消；已经收到的部分回复会继续保留。",
     noActiveAgentTurn: "当前没有匹配的 Agent 回合在运行。",
+    agentHostAccessDenied: "Codex 请求了额外访问权限，CanISend 已拒绝该请求。",
     providerConsent:
-      "我确认允许该本地运行时读取所选工作区，并向其配置的提供商发送必要上下文。宿主会保存自己的对话记录。",
+      "我确认允许该本地运行时将我的消息及 CanISend 明确连接的上下文发送给其配置的提供商。宿主会保存自己的对话记录。",
+    embeddedSessionStatus: "连接",
+    sessionNotConfigured: "未连接",
+    sessionConnecting: "正在连接",
+    sessionAuthenticationRequired: "需要登录",
+    codexSignIn: "登录 Codex",
+    codexSignInDescription:
+      "CanISend 使用独立的 Codex 登录。请在浏览器中完成登录，凭据由 Codex 管理。",
+    codexSignInWaiting: "请在浏览器中完成 Codex 登录，本次请求将在五分钟后过期。",
+    codexSignInComplete: "已登录，可以开始新对话。",
+    sessionReady: "就绪",
+    sessionRunning: "正在回复",
+    sessionCancelling: "正在取消",
+    sessionRecoverableDisconnect: "需要重新连接",
+    sessionIncompatible: "需要更新",
+    sessionFailed: "不可用",
     startNewConversation: "新建对话",
     newConversationPending: "下一条消息将创建新的宿主对话。",
     session: "会话",

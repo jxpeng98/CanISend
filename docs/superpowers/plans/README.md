@@ -2,21 +2,22 @@
 
 **Status:** Navigational index — not a stage or release authority
 
-**Last reviewed:** 2026-08-05
+**Last reviewed:** 2026-09-06
 
 This registry prevents completed, historical, and supporting plans from competing with the current
 generic framework 1.0 delivery authority. File paths are preserved because release tooling,
 evidence notes, and historical reviews link to them.
 
-Only the [CanISend generic framework 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md) may
-declare top-level stage completion. A child plan may define implementation detail, but its
-unfinished release or validation work is inherited by the parent roadmap.
+Only the [CanISend generic framework 1.0 delivery roadmap](2026-07-25-1.0-release-roadmap.md) owns
+top-level work ordering; machine records and exact artifacts own release-stage completion. A child
+plan may define implementation detail, but its unfinished release or validation work is inherited
+by the parent roadmap.
 
 ## Status vocabulary
 
 | Status | Meaning |
 |---|---|
-| Active — authoritative | Sole top-level work-order and stage authority |
+| Active — authoritative | Sole top-level work-order authority; machine records still own release facts |
 | In progress — supporting | Bounded workstream with an explicit parent and exit |
 | Implemented — qualification tracked by parent | Source work is complete; remaining evidence belongs to the parent |
 | Completed | Delivery and its named evidence are complete |
@@ -33,6 +34,8 @@ unfinished release or validation work is inherited by the parent roadmap.
 
 | Plan | Parent milestone | Remaining boundary |
 |---|---|---|
+| [Stage closeout and CLI-first baseline](../../../.trellis/tasks/09-04-embedded-agent-app-roadmap/implement.md#cli-first-closeout-and-lf-c01) | LF-C01 | Reconcile prior source and main, verify CLI boundaries and select LF-C02 |
+
 | [Cross-platform desktop size optimization](../../performance/cross-platform-desktop-size-optimization-plan.md) | M3 | Native candidate qualification; no support expansion |
 | [Post-template size optimization](../../performance/post-template-upgrade-size-optimization-plan.md) | M3 | Bounded profile and native qualification |
 | [Typst template and final preview](../../architecture/typst-template-preview-execution-plan.md) | M3 | Exact native preview/export evidence |
@@ -50,6 +53,9 @@ unfinished release or validation work is inherited by the parent roadmap.
 
 ## Historical and superseded references
 
+App-first R0/R1 source is retained. [Partial R2](../../../.trellis/tasks/09-04-embedded-agent-app-r2/implement.md)
+is deferred and unaccepted; unfinished R2-R6 no longer governs the active queue (ADR-RN-0023).
+
 | Plan | Successor or current authority |
 |---|---|
 | [Generic framework transition](2026-08-02-generic-framework-transition-plan.md) | Historical Alpha.6 Pack/v3 implementation; ADR-RN-0020 and M3 for Workspace/Agent v4 |
@@ -62,6 +68,9 @@ unfinished release or validation work is inherited by the parent roadmap.
 | [Earlier unified-host measurements](../../performance/unified-host-further-size-reduction-plan.md) | Post-template size plan |
 | [Python-era Agent-native design](../specs/2026-07-10-agent-native-workflow-roadmap.md) | Rust-native 1.0 delivery roadmap |
 | [Python-era CLI-first execution](../specs/2026-07-11-cli-first-workflow-optimization-roadmap.md) | Rust-native 1.0 delivery roadmap |
+
+Retained `.trellis/tasks/` paths are ordinary implementation documents. No Trellis skill, hook, task
+activation, or separate tracking hierarchy is needed to use them.
 
 ## Maintenance rules
 

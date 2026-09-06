@@ -385,6 +385,20 @@ Validated main on Apple Silicon macOS with native Rust, CLI, MCP, host, frontend
 ### Summary
 
 Refined the desktop sidebar and bilingual copy, aligned canonical v4 Skills, added CLI and MCP parity regressions, qualified an unpublished macOS Design Preview, and merged PR #215 after all six required Fast CI checks passed.
+## Session 15: Close Windows multi-platform validation
+
+**Date**: 2026-09-02
+**Task**: Close Windows multi-platform validation
+**Branch**: `main`
+
+### Summary
+
+Recorded protected integration and cross-platform evidence, restored native Windows test state, and archived the completed Windows tasks.
+
+### Main Changes
+
+- Recorded PR #213/#214, final CI, cross-build hashes, package artifact sizes, and native WebView2/PATH/accessibility evidence.
+- Archived the Windows handoff and multi-platform verification tasks after targeted closure passed.
 
 ### Git Commits
 
@@ -434,6 +448,15 @@ Refined the desktop shell and bilingual copy, moved transient feedback into acce
 [OK] **Completed**
 
 
+## Session 17: Fix desktop Agent v4 workspace handoff
+
+**Date**: 2026-09-04
+**Task**: Fix desktop Agent v4 workspace handoff
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Replaced the desktop Prepare AI workspace handoff's retired Agent v2 dependency with a body-free Workspace v4 and Agent v4 binding, updated adapter contracts, and recorded the exact feature-freeze exception.
 ## Session 17: Prepare private Beta.2 CLI and Workspace readiness
 
 **Date**: 2026-09-03
@@ -448,6 +471,14 @@ Merged policy PR #219 and source-transition PR #220; prepared the private untagg
 
 | Hash | Message |
 |------|---------|
+| `8da28b3322ea1774048f870335afe8bbca1cc6b9` | (see git log) |
+| `4d4d17b06852834c4852b2702e537173e245fdf8` | (see git log) |
+
+### Testing
+
+- [OK] Focused App and Stage4M Rust regressions passed
+- [OK] Tauri agent tests, Clippy, Svelte check, Prettier, and all 85 Vitest tests passed
+- [OK] Operation registry and final release check passed
 | `3b46c6ee9d54db94a4c2851747a88d89afe12c10` | (see git log) |
 | `e3d1b04ede01e01ccdd4ef9acf17d08868980ab5` | (see git log) |
 | `58d31c82ae35aba948fbe5bc1d4c37008fb2fa13` | (see git log) |
@@ -478,6 +509,12 @@ Corrected source/public release truth, passed one exact nonpublishing Beta.2 nat
 | `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc` | (see git log) |
 | `d5ec49300661b1ebdc9b9ebcb14c615d317fb369` | (see git log) |
 | `2a928dd3baa642920b5f420d4ba58337c165331a` | (see git log) |
+| `8ee0c11a` | (see git log) |
+
+### Testing
+
+- [OK] Trellis context validation passed for both archived tasks.
+- [OK] git diff --check passed; product suites were not repeated for docs-only closure.
 
 ### Status
 
@@ -485,4 +522,76 @@ Corrected source/public release truth, passed one exact nonpublishing Beta.2 nat
 
 ### Next Steps
 
+- Open and merge the policy/readiness PR after Fast CI before preparing Beta.2 source state
+
+
+## Session 18: Complete App-first Agent R0
+
+**Date**: 2026-09-04
+**Task**: Complete App-first Agent R0
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Approved and recorded the App-first Codex App Server/MCP roadmap, fixed retained legacy Job scope in clean Workspace v4, preserved explicit pre-v4 behavior, and passed focused desktop checks plus the release source gate.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d167cc0a25e0a4e10033b21e89a94f69e07482e2` | (see git log) |
+| `ab12758417d980a6e2a517a98ba69985f20fb8a4` | (see git log) |
+| `b8a412e8b02aba35520191d508df0aaed2e49b81` | (see git log) |
+| `f09373a9e381dc402d1ebd5c2c7652c70b173f00` | (see git log) |
+| `ea8e7b2062727a1771f30e7899a6463c2ca4e147` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 19: Complete R1 Codex App Server vertical slice
+
+**Date**: 2026-09-04
+**Task**: Complete R1 Codex App Server vertical slice
+**Branch**: `feat/beta2-cli-skills-readiness`
+
+### Summary
+
+Implemented and verified the bounded persistent Codex App Server desktop session, body-free registry v2, streamed UI lifecycle, exact freeze evidence, and final source gate; archived the R1 task while leaving R2 unstarted.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3` | (see git log) |
+| `dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5` | (see git log) |
+| `694b407bbd74d04b40fe8a3df4c23b97b61fa9c6` | (see git log) |
+| `89cd331fbd38a7f90aa94c37884c340d00fc51c8` | (see git log) |
+
+### Status
+
+[OK] **Completed**
 - Run the consented body-free invited cohort on qualified public Beta.1 before RC.1 planning.
+
+
+## Session 19: Beta2 import workflow clarity
+
+**Date**: 2026-09-04
+**Task**: Beta2 import workflow clarity
+**Branch**: `fix/beta2-import-workflow`
+
+### Summary
+
+Added native local-file intake for Applications and Profile, clarified Workspace storage, switched summary surfaces to canonical Application records, and verified Typst creation in an isolated macOS preview.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8091061f` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+- Use the existing desktop size-optimization plan for any further package slimming work.

@@ -1,5 +1,9 @@
 # Agent integration
 
+CLI/MCP and external Hosts are the primary direction under [ADR-RN-0023](../architecture/rust-native/decisions/0023-prioritize-cli-first-local-agent-workflows.md).
+The embedded-client section documents retained experimental source; unfinished R2-R6 work is deferred
+and private embedded MCP remains disabled.
+
 CanISend owns validation, Pack identity, revisions, consent, storage, review, rendering, recovery,
 and audit state. Codex, Claude Code, Claude Desktop, or another Agent host owns conversation and
 bounded semantic reasoning. A host must never edit `.canisend`, SQLite, immutable Blobs, or managed
@@ -79,6 +83,21 @@ The native binary serves MCP `2025-11-25` over stdio and does not require the Ap
 canisend --workspace /absolute/path/to/workspace mcp serve
 ```
 
+The pending R2 source also supports a server bound to one existing Application (not yet a qualified
+released-binary capability):
+
+```console
+canisend --workspace /absolute/path/to/workspace mcp serve --application APPLICATION_ID
+```
+
+An empty or unknown binding fails before MCP startup. Every Application-ID tool rejects a different
+Application. Bound sessions reject Workspace status/check, Application discovery, profile-source
+listing, and profile/evidence association listing because these can expose Workspace-wide results.
+The 36-tool catalog stays stable; unavailable calls return an error. Omitting the flag preserves the
+existing external-host behavior. Binding grants no private-read/provider-send consent or commit
+approval and does not qualify the embedded provider's isolation.
+
+
 Apply the `registration_command` returned by `host setup` in a user-reviewed terminal, or merge its
 `configuration_snippet` into the reported `configuration_target`. Then run the returned
 `verification_command`. This explicit boundary prevents CanISend from overwriting unrelated host
@@ -116,7 +135,7 @@ Configuration**. CanISend does not rewrite this user-global file or unrelated De
 Claude Desktop is an MCP client; the project-local `.claude/skills` resources remain the Claude
 Code workflow surface.
 
-List tools at the start of every session. The current clean-v4 MCP adapter exposes these body-free
+List tools at the start of every session. The current clean-v4 MCP adapter exposes these
 read operations:
 
 - `canisend_workspace_status`;
@@ -133,6 +152,10 @@ read operations:
 - `canisend_profile_source_list`;
 - `canisend_profile_association_list`; and
 - `canisend_evidence_association_list`.
+
+Read-only annotations do not imply public or body-free data: Application models and Requirement
+text can contain private context. An embedded host must establish explicit private-context consent
+before exposing these results to a provider.
 
 Requirement, Plan, and Deliverable responses include the exact Application, Pack, revision, and
 snapshot digest. Deliverable list/show return metadata and content references only; reading a
@@ -209,3 +232,24 @@ upload, portal automation, or submission. Every export receipt confirms that
 
 See [Agent v4](../contracts/agent-v4.md) and
 [Privacy and consent](privacy-and-consent.md).
+
+## Embedded Codex sign-in
+
+The Agent page's in-App mode uses a dedicated Codex configuration and a separate ChatGPT sign-in.
+Select **Sign in to Codex**, complete Codex's browser flow, then confirm provider sending before
+starting a new conversation. The login request expires after five minutes; retry the button if it
+fails. An external Codex login does not sign in this embedded client. Sessions previously created in
+the external configuration require a new conversation; they are not copied into the new directory.
+
+The desktop sets a dedicated user directory and `CODEX_HOME` only for its child processes. Login
+and App Server use the same `agent-runtime/codex-isolated-v1/provider` directory alongside the
+App-local session registry, outside user Workspaces. Codex stores and refreshes credentials there;
+CanISend does not read, copy, export, or include them in Workspace backups. Session cleanup preserves
+provider-owned login/history. Raw login output is discarded. External handoff keeps its existing
+configuration. Managed system policy still applies; the separate directory does not override it.
+
+This local source slice is qualified against Codex CLI 0.152.0 on macOS arm64 fixtures only. The
+real browser sign-in, effective managed configuration, and complete private-tool consent flow still
+require verification. Private embedded MCP remains disabled until those gates pass. The supported
+provider mechanisms are documented in [Codex authentication](https://learn.chatgpt.com/docs/auth)
+and the [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).

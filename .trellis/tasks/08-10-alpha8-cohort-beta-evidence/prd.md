@@ -17,6 +17,13 @@ workflow on exact public Beta.1, using only body-free aggregate evidence, before
 - `release/beta-readiness.json` intentionally retains the pre-Beta zero-user boundary and is not
   rewritten as cohort evidence.
 - Synthetic maintainer and provider dogfood contributes zero users and zero user flows.
+- The shell and migration changes merged by PR #217 are present on protected `main`, but not in
+  exact public Beta.1 source `6e1397b79031cad54e794ccdc9edca2153f23b3e`; the local Design Preview
+  candidate is unpublished, ad-hoc signed, and cannot be counted as Issue #70 evidence.
+- Feature freeze still anchors at `acf25dc483643ca9be0210320775708da116b715`. The earlier PR #217
+  review recorded eight exact post-freeze exceptions; the 2026-09-04 roadmap review source check
+  reports 14 existing exceptions. Its uncommitted process/documentation edits have no new exception
+  identity yet.
 
 ## Requirements
 
@@ -95,3 +102,23 @@ workflow on exact public Beta.1, using only body-free aggregate evidence, before
 Planning is converged. Execution remains gated on explicit participant consent and the validation
 owner's bounded schedule; this plan does not authorize invitations, provider sends, or private-data
 access.
+
+## Blocking planning decision
+
+- Choose the binary identity for the next invited test: exact public Beta.1 advances Issue #70 but
+  excludes PR #217, while the unpublished PR #217 candidate validates the newest behavior but
+  cannot contribute to the Roadmap cohort. Results from the two identities must not be pooled.
+
+## Prospective embedded validation target
+
+The 2026-09-04 [roadmap revision](../../../docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md#embedded-validation-before-rc)
+keeps Issue #70 as the single formal cohort owner and prospectively targets the qualified embedded
+Beta. LF-C10 must first update and test the existing evidence contract/validator with exact
+build/journey identity and unchanged user/flow/quality thresholds. Until then, the Beta.1 acceptance
+contract and binary-choice boundary above remain the current machine-compatible scope; the
+unpublished PR #217 candidate does not count as Beta.1 evidence.
+
+After that explicit transition, reuse consented participants/scenarios for the embedded build without
+requiring a completed Beta.1 cohort first. Preserve old observations by build, do not pool old/new
+UI denominators, and do not count participants twice in a cumulative total. No invitations, changed
+machine records, or release authority result from this planning revision.

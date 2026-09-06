@@ -37,7 +37,6 @@ pub(crate) struct AgentExportRequest {
 pub(crate) struct PrepareAgentHandoffRequest {
     host: AgentHost,
     workspace: PathBuf,
-    selected_job_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -53,7 +52,6 @@ pub(crate) enum AgentHandoffClipboardField {
 pub(crate) struct CopyAgentHandoffRequest {
     host: AgentHost,
     workspace: PathBuf,
-    selected_job_id: Option<String>,
     field: AgentHandoffClipboardField,
 }
 
@@ -105,7 +103,6 @@ pub(crate) async fn prepare_agent_handoff(
         Application::prepare_agent_handoff(&AgentHandoffRequest {
             host: request.host,
             workspace: request.workspace,
-            selected_job_id: request.selected_job_id,
         })
         .map_err(DesktopCommandError::application)
     })
@@ -214,7 +211,6 @@ fn copy_agent_handoff_impl(request: CopyAgentHandoffRequest) -> Result<(), Deskt
     let handoff = Application::prepare_agent_handoff(&AgentHandoffRequest {
         host: request.host,
         workspace: request.workspace,
-        selected_job_id: request.selected_job_id,
     })
     .map_err(DesktopCommandError::application)?
     .data;
@@ -341,7 +337,6 @@ mod tests {
         let request: CopyAgentHandoffRequest = serde_json::from_value(serde_json::json!({
             "host": "codex",
             "workspace": "/tmp/workspace",
-            "selected_job_id": null,
             "field": "bootstrap-prompt"
         }))
         .expect("clipboard request");
@@ -349,7 +344,6 @@ mod tests {
         let start_request: CopyAgentHandoffRequest = serde_json::from_value(serde_json::json!({
             "host": "codex",
             "workspace": "/tmp/workspace",
-            "selected_job_id": "job-id",
             "field": "start-command"
         }))
         .expect("start command request");
@@ -361,7 +355,6 @@ mod tests {
             serde_json::from_value::<CopyAgentHandoffRequest>(serde_json::json!({
                 "host": "codex",
                 "workspace": "/tmp/workspace",
-                "selected_job_id": null,
                 "field": "bootstrap-prompt",
                 "text": "untrusted arbitrary clipboard body"
             }))

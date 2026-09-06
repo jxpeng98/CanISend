@@ -39,7 +39,10 @@ pub fn read_local_text(path: &Path) -> Result<LocalTextDocument, IoAdapterError>
         });
     }
     let (kind, content_type) = match path.extension().and_then(|extension| extension.to_str()) {
-        Some(extension) if extension.eq_ignore_ascii_case("md") => {
+        Some(extension)
+            if extension.eq_ignore_ascii_case("md")
+                || extension.eq_ignore_ascii_case("markdown") =>
+        {
             (LocalTextKind::Markdown, "text/markdown; charset=utf-8")
         }
         Some(extension) if extension.eq_ignore_ascii_case("typ") => {
@@ -148,6 +151,14 @@ mod tests {
                 .expect("supported regular file")
                 .normalized_text,
             "Job advert\n"
+        );
+        let long_markdown = root.join("statement.markdown");
+        fs::write(&long_markdown, b"Application statement\n").expect("Markdown fixture");
+        assert_eq!(
+            read_local_text(&long_markdown)
+                .expect("supported .markdown file")
+                .kind,
+            super::LocalTextKind::Markdown
         );
         let json = root.join("profile.json");
         fs::write(&json, b"{\"teaching\":\"Applied econometrics\"}\n").expect("JSON fixture");

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,20 +19,28 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~488 | Active |
+| `journal-1.md` | ~597 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
 
 ## Session History
 
+Historical session numbers were assigned independently on merged branches; duplicate numbers
+retain their original branch identity. They do not control current execution.
+
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-09-04 | Complete R1 Codex App Server vertical slice | `8240fae7da0eb5ecafc2e3dce7bf7609d05f9cf3`, `dd0ee4ce64bcf3dc714844ddd4e8e728a9ea76a5`, `694b407bbd74d04b40fe8a3df4c23b97b61fa9c6`, `89cd331fbd38a7f90aa94c37884c340d00fc51c8` | `feat/beta2-cli-skills-readiness` |
+| 18 | 2026-09-04 | Complete App-first Agent R0 | `d167cc0a25e0a4e10033b21e89a94f69e07482e2`, `ab12758417d980a6e2a517a98ba69985f20fb8a4`, `b8a412e8b02aba35520191d508df0aaed2e49b81`, `f09373a9e381dc402d1ebd5c2c7652c70b173f00`, `ea8e7b2062727a1771f30e7899a6463c2ca4e147` | `feat/beta2-cli-skills-readiness` |
+| 17 | 2026-09-04 | Fix desktop Agent v4 workspace handoff | `8da28b3322ea1774048f870335afe8bbca1cc6b9`, `4d4d17b06852834c4852b2702e537173e245fdf8` | `feat/beta2-cli-skills-readiness` |
+| 19 | 2026-09-04 | Beta2 import workflow clarity | `8091061f` | `fix/beta2-import-workflow` |
 | 18 | 2026-09-04 | Verify private Beta.2 native candidate | `d7dac49c26409190132fee5d896003bb1afc2a61`, `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc`, `d5ec49300661b1ebdc9b9ebcb14c615d317fb369`, `2a928dd3baa642920b5f420d4ba58337c165331a` | `chore/beta2-private-candidate-closeout` |
 | 17 | 2026-09-03 | Prepare private Beta.2 CLI and Workspace readiness | `3b46c6ee9d54db94a4c2851747a88d89afe12c10`, `e3d1b04ede01e01ccdd4ef9acf17d08868980ab5`, `58d31c82ae35aba948fbe5bc1d4c37008fb2fa13`, `29ff5a58d071a67c240dad553fcb782f44c0118a`, `dcbeadf6e3f62943ffd072ceb1b409a30e9338b1`, `fba36525fa865d4ecc45b3b6ce9b5919111412d0` | `chore/beta2-readiness-closeout` |
 | 16 | 2026-09-03 | Merge desktop shell and Workspace migration hardening | `a20b3d8ac888969db7cfc277279024ad8095a259`, `5734ffac8138b8f1690db4161c3af4959cde8669`, `ff64b6ebbdda3c660addf1d7e9fb6100a1ad9068`, `ee617c08ff24fbb5567afda8a42cbefd197a3b9c`, `23d884b8a6aa4e559a8d8995d74acf47721d3f55`, `e296a74e4af698fa3f4540f1c1603a7b08d63722`, `d8f017fe3b79ee3c7ef2639267790d354b9ad24d`, `4d90be6ae2651afe61d4acec9a7d4363cdd0e5ca` | `chore/archive-desktop-shell-workspace-migration` |
 | 15 | 2026-09-02 | Merge unpublished App and CLI parity candidate | `3ac3bdbf0173a1c9ea6f0abeb33a8f50d96d8d53`, `f03cb412b20f37f3a0ff5ad3af14c39a3ab66845`, `f32afb55efcb642672f4820e012dd77d01550ccb`, `988ca16fe9c004f1269bf6e501cedf8d5355b0e4`, `1fa42081f17705de9b309297f485932672a410be`, `8959cc16e23c3a28b7026500a89adad84702ab46`, `0f88a1f15a620b00c1d6ae4c4b8f03b6b08faeba`, `054d2b1c7eefe3f8d1411a4089da8421776a93f4`, `c96e3e16c0dba761c54340c002ce4622f0ec13ea`, `38f06cf13a6e77809d7160e4838ef096330d7956` | `chore/archive-app-cli-parity` |
+| 15 | 2026-09-02 | Close Windows multi-platform validation | `8ee0c11a` | `main` |
 | 14 | 2026-09-01 | Validate macOS feature completeness | - | `main` |
 | 13 | 2026-08-30 | Activate Beta.1 feature freeze | `5448957ad6a74bd34aacd23cdf61e1cd7e351e55`, `86d33fd4c884d0827be861edbb9d61da17f539ac`, `f0894235c3d56e88f402ef385f5b2ecd46e9c193`, `1a9493860cefdede422afa04bdd5d198c8121600`, `f62f8170ac6ed3fcfc9a975b4fe4bb275c97599b` | `chore/beta1-feature-freeze-closeout` |
 | 12 | 2026-08-30 | Beta.1 package-channel candidates | `bb3e3d5e4e8d1c4c9e5759b10776b8fab788ffe0` | `main` |

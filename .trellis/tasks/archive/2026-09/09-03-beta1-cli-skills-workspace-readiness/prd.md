@@ -44,6 +44,9 @@ manual checklist.
 - The planning baseline passed on 2026-09-03: operation registry check; 12 CLI binary contract
   tests; 4 MCP protocol tests; 16 embedded-resource/Skill tests; the typed Agent facade test; and
   the dual-Pack Agent v4 MCP smoke.
+- A user reproduced the desktop **Prepare AI workspace** action failing on a clean Workspace v4
+  with `workspace-v4-legacy-surface-retired`. The action installed v4 Skills, then called the
+  retired Agent v2 context/assistance path while generating its handoff.
 
 ## Requirements
 
@@ -118,6 +121,12 @@ This task may prepare and merge the private Beta.2 source state. It must not cre
 push a release ref, dispatch a release workflow, publish a GitHub release or package, or record
 Beta.2 as qualified. Those actions require a later, separately authorized release operation.
 
+### R10 — Keep the desktop handoff on Agent v4
+
+The desktop **Prepare AI workspace** action must validate clean Workspace v4 authority and produce
+a body-free Agent v4 handoff through the canonical `canisend-workspace` Skill and persistent MCP
+orientation tools. It must not call or advertise retired Agent, Job, Task, or Workflow operations.
+
 ## Acceptance criteria
 
 - [ ] `cargo run -p xtask --locked -- operations check` reports the exact compiled CLI, Tauri, and
@@ -149,6 +158,9 @@ Beta.2 as qualified. Those actions require a later, separately authorized releas
       active.
 - [ ] RC.1 is neither prepared nor created, and no tag, workflow dispatch, public release,
       package publication, or Beta.2 qualification record is produced by this task.
+- [ ] The desktop handoff succeeds for a clean Workspace v4, identifies
+      `canisend.agent/v4`, starts from `canisend_workspace_status` and
+      `canisend_application_list`, and retains pre-v4 Workspace refusal without mutation.
 
 ## Out of scope
 

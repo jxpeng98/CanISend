@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Verify the embedded session remains in the desktop adapter and clean Workspace v4 avoids legacy scope."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify the smallest owning regressions and final source gate are sufficient and actually run."}
+{"file":".trellis/tasks/09-04-embedded-agent-app-r1/research/app-server-evidence.md","reason":"Check implemented methods and framing against the verified App Server subset."}

@@ -49,7 +49,6 @@
     copyAgentHandoff,
     copyAgentMcpConfiguration,
     copyPackageProjection,
-    createJob,
     createWorkspace,
     discardDiscoveryPreview,
     discardJobSourcePreview,
@@ -93,6 +92,7 @@
     installCli,
     isDesktopRuntime,
     listApplicationDossiers,
+    listGenericApplications,
     listProfileSources,
     listDiscoveryLeads,
     listDiscoverySources,
@@ -119,6 +119,8 @@
     searchContent,
     selectWorkspace,
     showDiscoveryLead,
+    startAgentSession,
+    loginCodex,
     startWorkflow,
     suggestDiscoveryDuplicates,
     uninstallCli,
@@ -137,6 +139,7 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentStreamEvent,
     type AgentSkillsInstallReadModel,
     type AgentSkillsStatusReadModel,
     type AgentSkillsUninstallReadModel,
@@ -314,6 +317,8 @@
   const recommendation = $derived(
     recommendWorkflowRoute({
       workspacePath: activeWorkspace?.path ?? null,
+      applicationCount: v4Applications.length,
+      hasSelectedApplication: selectedV4Application !== null,
       jobs,
       selectedJob,
     }),
@@ -719,14 +724,50 @@
     selected: StoredApplicationModelV3 | null;
     stages: ApplicationFlowStageV3[];
   }): void {
-    if (context.workspacePath !== activeWorkspace?.path || context.packId !== activePackId) return;
-    v4Applications = context.applications;
+    if (
+      !activeWorkspace ||
+      context.workspacePath !== activeWorkspace.path ||
+      context.packId !== activePackId
+    )
+      return;
+    const nextApplications = [
+      ...v4Applications.filter((application) => application.snapshot.pack.id !== context.packId),
+      ...context.applications,
+    ];
+    v4Applications = nextApplications;
+    if (activeWorkspace.status.application_count !== nextApplications.length) {
+      activeWorkspace = {
+        ...activeWorkspace,
+        status: { ...activeWorkspace.status, application_count: nextApplications.length },
+      };
+    }
     selectedV4Application = context.selected;
     v4Stages = context.stages;
     requestedV4ApplicationId = context.selected?.snapshot.application.id ?? "";
   }
 
+  function handleV4ApplicationCreated(application: StoredApplicationModelV3): void {
+    if (!activeWorkspace) return;
+    requestedV4ApplicationId = application.snapshot.application.id;
+    notice = `${copy.applicationCreatedInWorkspace} ${activeWorkspace.path}`;
+    noticeRoute = { view: "applications" };
+  }
+
   function handleSelectV4Application(applicationId: string): void {
+    const application = v4Applications.find(
+      (item) => item.snapshot.application.id === applicationId,
+    );
+    if (application) {
+      const packId = application.snapshot.pack.id;
+      if (
+        packId === GENERIC_APPLICATION_WORKFLOW_PACK_ID ||
+        packId === ACADEMIC_JOB_WORKFLOW_PACK_ID
+      ) {
+        selectApplicationPack(packId);
+      }
+      selectedV4Application = application;
+      v4Stages = [];
+    }
     requestedV4ApplicationId = applicationId;
   }
 
@@ -934,7 +975,7 @@
       );
       contentCatalog = catalogReceipt.data;
       contentSearchResult = null;
-      if (agentUiState.selectedJobId === jobId) {
+      if (agentUiState.selectedApplicationId === jobId) {
         agentUiState.assistance = null;
         agentUiState.handoff = null;
       }
@@ -1018,8 +1059,40 @@
     }
   }
 
+  async function loadApplicationsForActive(): Promise<void> {
+    if (!activeWorkspace) {
+      resetV4ApplicationContext();
+      return;
+    }
+    try {
+      const receipt = await listGenericApplications(activeWorkspace.path);
+      v4Applications = receipt.data;
+      const next =
+        receipt.data.find(
+          (application) => application.snapshot.application.id === requestedV4ApplicationId,
+        ) ?? receipt.data[0];
+      if (next) handleSelectV4Application(next.snapshot.application.id);
+      else {
+        selectedV4Application = null;
+        requestedV4ApplicationId = "";
+        v4Stages = [];
+      }
+      activeWorkspace = {
+        ...activeWorkspace,
+        status: { ...activeWorkspace.status, application_count: receipt.data.length },
+      };
+    } catch (error) {
+      captureBridgeError(error);
+    }
+  }
+
   async function loadWorkspaceCollections(): Promise<void> {
-    await Promise.all([loadJobsForActive(), loadDiscoveryForActive(), loadProfileForActive()]);
+    await Promise.all([
+      loadApplicationsForActive(),
+      loadJobsForActive(),
+      loadDiscoveryForActive(),
+      loadProfileForActive(),
+    ]);
   }
 
   async function openWorkspace(path: string): Promise<void> {
@@ -1303,10 +1376,11 @@
     confirmedPrivateRead: boolean;
   }): Promise<boolean> {
     if (!activeWorkspace) return false;
+    const workspacePath = activeWorkspace.path;
     const result = await runAction(
       () =>
         importProfileSource({
-          workspace: activeWorkspace!.path,
+          workspace: workspacePath,
           ...options,
         }),
       {
@@ -1318,7 +1392,7 @@
     if (!result) return false;
     await loadProfileForActive();
     await loadJobsForActive();
-    notice = result.summary;
+    notice = `${copy.profileSourceStoredInWorkspace} ${workspacePath}`;
     return true;
   }
 
@@ -1744,17 +1818,15 @@
 
   async function handlePrepareAgentHandoff(
     host: "codex" | "claude" | "generic",
-    jobId?: string,
   ): Promise<AgentHandoffReadModel | null> {
     if (!activeWorkspace) return null;
-    const result = await runAction(() => prepareAgentHandoff(host, activeWorkspace!.path, jobId), {
+    const result = await runAction(() => prepareAgentHandoff(host, activeWorkspace!.path), {
       operation: "agent.handoff.prepare",
       route: {
         view: "agent",
         detail: "agent-handoff",
-        jobId,
       },
-      jobId: jobId ?? null,
+      jobId: null,
     });
     if (!result) return null;
     notice = result.summary;
@@ -1792,12 +1864,11 @@
 
   async function handleCopyAgentHandoff(
     host: "codex" | "claude" | "generic",
-    jobId: string | undefined,
     field: "launch-command" | "start-command" | "bootstrap-prompt",
   ): Promise<boolean> {
     if (!activeWorkspace) return false;
     const result = await runAction(async () => {
-      await copyAgentHandoff(host, activeWorkspace!.path, jobId, field);
+      await copyAgentHandoff(host, activeWorkspace!.path, field);
       return true;
     });
     return result === true;
@@ -1825,52 +1896,91 @@
     return result === true;
   }
 
-  async function handleLoadAgentRuntimes(jobId?: string): Promise<AgentRuntimeCatalog | null> {
-    const result = await runAction(() => getAgentRuntimeCatalog(activeWorkspace?.path, jobId));
+  async function handleLoadAgentRuntimes(
+    applicationId?: string,
+  ): Promise<AgentRuntimeCatalog | null> {
+    const result = await runAction(() =>
+      getAgentRuntimeCatalog(activeWorkspace?.path, applicationId),
+    );
     if (!result) return null;
     return result;
   }
 
+  async function handleCodexSignIn(): Promise<boolean> {
+    return (await runAction(() => loginCodex())) === true;
+  }
+
   async function handleRunAgentTurn(options: {
-    jobId?: string;
+    applicationId?: string;
     runtime: AgentRuntimeKind;
     prompt: string;
     startNew: boolean;
     confirmedProviderSend: boolean;
+    onEvent: (event: AgentStreamEvent) => void;
   }): Promise<AgentTurnResult | null> {
     if (!activeWorkspace) return null;
+    const epoch = agentUiState.conversationEpoch;
     busy = true;
     agentTurnRunning = true;
     bridgeError = null;
     bridgeErrorCanRetry = false;
     notice = null;
     try {
+      if (options.runtime === "codex") {
+        agentUiState.embeddedSessionState = "connecting";
+        const session = await startAgentSession({
+          workspace: activeWorkspace.path,
+          selectedApplicationId: options.applicationId,
+          runtime: options.runtime,
+          startNew: options.startNew,
+          confirmedProviderSend: options.confirmedProviderSend,
+        });
+        if (epoch !== agentUiState.conversationEpoch) return null;
+        agentUiState.embeddedSessionState = session.state;
+        agentUiState.streamSessionId = session.desktop_session_id;
+        agentUiState.lastStreamSequence = 0;
+      }
       const result = await runAgentTurn({
         workspace: activeWorkspace.path,
-        selectedJobId: options.jobId,
+        selectedApplicationId: options.applicationId,
         runtime: options.runtime,
         prompt: options.prompt,
         startNew: options.startNew,
         confirmedProviderSend: options.confirmedProviderSend,
+        onEvent: options.onEvent,
       });
+      if (epoch !== agentUiState.conversationEpoch) return null;
       recordSuccessfulAction(
         {
           operation: "agent.turn",
           route: {
             view: "agent",
             detail: "agent-task",
-            jobId: options.jobId,
+            jobId: options.applicationId,
           },
-          jobId: options.jobId ?? null,
+          jobId: options.applicationId ?? null,
         },
         result,
       );
       notice = result.resumed ? copy.agentSessionResumed : copy.agentSessionStarted;
       return result;
     } catch (error) {
-      if (commandErrorCode(error) === "agent-runtime-cancelled") {
+      if (epoch !== agentUiState.conversationEpoch) return null;
+      const code = commandErrorCode(error);
+      if (code === "agent-runtime-cancelled") {
+        agentUiState.embeddedSessionState = "ready";
         notice = copy.agentTurnCancelled;
         return null;
+      }
+      if (options.runtime === "codex") {
+        agentUiState.embeddedSessionState =
+          code === "agent-runtime-authentication-required"
+            ? "authentication-required"
+            : code === "agent-runtime-incompatible"
+              ? "incompatible"
+              : code === "agent-runtime-unavailable"
+                ? "failed"
+                : "recoverable-disconnect";
       }
       captureBridgeError(error);
       return null;
@@ -1881,14 +1991,14 @@
   }
 
   async function handleCancelAgentTurn(options: {
-    jobId?: string;
+    applicationId?: string;
     runtime: AgentRuntimeKind;
   }): Promise<boolean> {
     if (!activeWorkspace) return false;
     try {
       const result = await cancelAgentTurn({
         workspace: activeWorkspace.path,
-        selectedJobId: options.jobId,
+        selectedApplicationId: options.applicationId,
         runtime: options.runtime,
       });
       notice = result.cancellation_requested ? copy.agentTurnCancelled : copy.noActiveAgentTurn;
@@ -2253,28 +2363,6 @@
     bridgeError = null;
     await loadJobsForActive();
     return bridgeError === null;
-  }
-
-  async function handleCreateJob(title: string, institution: string): Promise<boolean> {
-    if (!activeWorkspace) return false;
-    const result = await runAction(() => createJob(activeWorkspace!.path, title, institution));
-    if (!result) return false;
-    await loadJobsForActive();
-    await handleSelectJob(result.data.id);
-    recordSuccessfulAction(
-      {
-        operation: "job.create",
-        route: {
-          view: "applications",
-          detail: "source-intake",
-          jobId: result.data.id,
-        },
-        jobId: result.data.id,
-      },
-      result,
-    );
-    notice = result.summary;
-    return true;
   }
 
   async function handleSelectJob(jobId: string): Promise<boolean> {
@@ -2717,6 +2805,7 @@
             presentation={workflowPackPresentation}
             requestedApplicationId={requestedV4ApplicationId}
             onContextChange={handleV4ApplicationContext}
+            onApplicationCreated={handleV4ApplicationCreated}
           />
         {:else if applicationsViewFailed}
           <Alert.Root variant="destructive" class="min-h-12">
@@ -2828,11 +2917,11 @@
             {desktopRuntime}
             {activeWorkspace}
             {jobs}
-            {selectedJobId}
+            selectedApplicationId={selectedJobId}
             focus={activeView === "agent" ? activeDetail : null}
             {busy}
             turnRunning={agentTurnRunning}
-            onSelectJob={handleSelectJob}
+            onSelectApplication={handleSelectJob}
             onNavigate={navigateTo}
             onLoadCapabilities={handleLoadAgentCapabilities}
             onLoadContext={handleLoadAgentContext}
@@ -2845,6 +2934,7 @@
             onPrepareMcpConfiguration={handlePrepareAgentMcpConfiguration}
             onCopyMcpConfiguration={handleCopyAgentMcpConfiguration}
             onLoadRuntimes={handleLoadAgentRuntimes}
+            onCodexSignIn={handleCodexSignIn}
             onRunTurn={handleRunAgentTurn}
             onCancelTurn={handleCancelAgentTurn}
             onExport={handleExportAgentPack}
@@ -2898,7 +2988,7 @@
             {copy}
             {desktopRuntime}
             {activeWorkspace}
-            jobCount={jobs.length}
+            applicationCount={v4Applications.length}
             upcomingDeadlineCount={upcomingDeadlineItems.length}
             {nearestDeadlineItem}
             {workspaceHealth}

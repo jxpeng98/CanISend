@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
 export interface ProductSummary {
@@ -1307,19 +1307,26 @@ export interface AgentPackExportReadModel {
 export interface AgentHandoffReadModel {
   host: "codex" | "claude" | "generic";
   workspace: string;
-  selected_job_id: string | null;
+  protocol: "canisend.agent/v4";
   launch_command: string;
   start_command: string;
-  capabilities_command: string;
   context_command: string;
-  assistance_command: string | null;
   bootstrap_prompt: string;
   recommended_skill: string;
-  recommended_integration: "external-host";
+  recommended_integration: "persistent-mcp";
   session_authority: string;
   state_authority: "canisend";
-  context: AgentContextReadModel;
-  assistance: AgentAssistanceReadModel | null;
+  context: {
+    workspace_id: string;
+    workspace_format: "canisend.workspace/v4";
+    application: {
+      id: string;
+      pack: { id: string; version: string; content_digest: string };
+      expected_revision: number;
+      snapshot_sha256: string;
+    } | null;
+  };
+  next_actions: Array<{ action: string; description: string }>;
 }
 
 export interface AgentSkillsInstallReadModel {
@@ -1394,9 +1401,58 @@ export interface AgentSessionEntry {
   workspace: string;
   runtime: AgentRuntimeKind;
   job_id: string | null;
+  application_id: string | null;
   external_session_id: string;
+  desktop_session_id: string | null;
+  desktop_turn_id: string | null;
+  external_turn_id: string | null;
+  provider_version: string | null;
+  last_status:
+    | "disconnected"
+    | "connecting"
+    | "authentication-required"
+    | "ready"
+    | "running"
+    | "cancelling"
+    | "interrupted"
+    | "recoverable-disconnect"
+    | "incompatible"
+    | "failed";
   created_at_unix: number;
   updated_at_unix: number;
+}
+
+export type AgentEmbeddedSessionState =
+  | "not-configured"
+  | "connecting"
+  | "authentication-required"
+  | "ready"
+  | "running"
+  | "cancelling"
+  | "recoverable-disconnect"
+  | "incompatible"
+  | "failed";
+
+export interface AgentEmbeddedSession {
+  runtime: "codex";
+  state: AgentEmbeddedSessionState;
+  desktop_session_id: string | null;
+  desktop_turn_id: string | null;
+  external_session_id: string | null;
+  external_turn_id: string | null;
+  provider_version: string | null;
+  resumed: boolean;
+}
+
+export interface AgentStreamEvent {
+  sequence: number;
+  desktop_session_id: string;
+  desktop_turn_id: string | null;
+  kind: "status" | "assistant-delta" | "server-request" | "completed" | "interrupted" | "failed";
+  state: AgentEmbeddedSessionState | null;
+  text: string | null;
+  method: string | null;
+  provider_event_id: string | null;
 }
 
 export interface AgentRuntimeProbe {
@@ -1415,6 +1471,7 @@ export interface AgentRuntimeCatalog {
   runtimes: AgentRuntimeProbe[];
   sessions: AgentSessionEntry[];
   session_storage: string;
+  embedded_session: AgentEmbeddedSession;
 }
 
 export interface AgentTurnResult {
@@ -1427,6 +1484,7 @@ export interface AgentTurnResult {
 }
 
 export interface AgentTurnCancelResult {
+  selected_application_id: string | null;
   runtime: AgentRuntimeKind;
   workspace: string;
   selected_job_id: string | null;
@@ -2842,13 +2900,11 @@ export async function exportAgentPack(
 export async function prepareAgentHandoff(
   host: "codex" | "claude" | "generic",
   workspace: string,
-  selectedJobId?: string,
 ): Promise<ActionReceipt<AgentHandoffReadModel>> {
   return invoke("prepare_agent_handoff", {
     request: {
       host,
       workspace,
-      selected_job_id: selectedJobId || null,
     },
   });
 }
@@ -2856,14 +2912,12 @@ export async function prepareAgentHandoff(
 export async function copyAgentHandoff(
   host: "codex" | "claude" | "generic",
   workspace: string,
-  selectedJobId: string | undefined,
   field: "launch-command" | "start-command" | "bootstrap-prompt",
 ): Promise<void> {
   return invoke("copy_agent_handoff", {
     request: {
       host,
       workspace,
-      selected_job_id: selectedJobId || null,
       field,
     },
   });
@@ -2917,45 +2971,75 @@ export async function copyAgentMcpConfiguration(
 
 export async function getAgentRuntimeCatalog(
   workspace?: string,
-  selectedJobId?: string,
+  selectedApplicationId?: string,
 ): Promise<AgentRuntimeCatalog> {
   return invoke("agent_runtime_catalog", {
     request: {
       workspace: workspace || null,
-      selected_job_id: selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: selectedApplicationId || null,
     },
   });
 }
 
-export async function runAgentTurn(options: {
+export async function loginCodex(): Promise<boolean> {
+  return invoke("login_codex");
+}
+
+export async function startAgentSession(options: {
   workspace: string;
-  selectedJobId?: string;
+  selectedApplicationId?: string;
   runtime: AgentRuntimeKind;
-  prompt: string;
   startNew: boolean;
   confirmedProviderSend: boolean;
-}): Promise<AgentTurnResult> {
-  return invoke("run_agent_turn", {
+}): Promise<AgentEmbeddedSession> {
+  return invoke("start_agent_session", {
     request: {
       workspace: options.workspace,
-      selected_job_id: options.selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
       runtime: options.runtime,
-      prompt: options.prompt,
       start_new: options.startNew,
       confirmed_provider_send: options.confirmedProviderSend,
     },
   });
 }
 
+export async function runAgentTurn(options: {
+  workspace: string;
+  selectedApplicationId?: string;
+  runtime: AgentRuntimeKind;
+  prompt: string;
+  startNew: boolean;
+  confirmedProviderSend: boolean;
+  onEvent: (event: AgentStreamEvent) => void;
+}): Promise<AgentTurnResult> {
+  const onEvent = new Channel<AgentStreamEvent>();
+  onEvent.onmessage = options.onEvent;
+  return invoke("run_agent_turn", {
+    request: {
+      workspace: options.workspace,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
+      runtime: options.runtime,
+      prompt: options.prompt,
+      start_new: options.startNew,
+      confirmed_provider_send: options.confirmedProviderSend,
+    },
+    onEvent,
+  });
+}
+
 export async function cancelAgentTurn(options: {
   workspace: string;
-  selectedJobId?: string;
+  selectedApplicationId?: string;
   runtime: AgentRuntimeKind;
 }): Promise<AgentTurnCancelResult> {
   return invoke("cancel_agent_turn", {
     request: {
       workspace: options.workspace,
-      selected_job_id: options.selectedJobId || null,
+      selected_job_id: null,
+      selected_application_id: options.selectedApplicationId || null,
       runtime: options.runtime,
     },
   });
@@ -3247,7 +3331,7 @@ export async function chooseApplicationSource(): Promise<string | null> {
     filters: [
       {
         name: "Application source",
-        extensions: ["pdf", "txt", "md", "json"],
+        extensions: ["pdf", "typ", "txt", "md", "markdown", "json"],
       },
     ],
   });

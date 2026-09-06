@@ -98,7 +98,9 @@
       ? Math.round((selectedJob.completed_stages / selectedJob.total_stages) * 100)
       : 0,
   );
-  const usesV4ApplicationContext = $derived(activeView === "applications");
+  const usesV4ApplicationContext = $derived(
+    activeView === "applications" || v4Applications.length > 0,
+  );
   const v4CompletedStages = $derived(v4Stages.filter((stage) => stage.state === "complete").length);
   const v4ProgressPercent = $derived(
     v4Stages.length ? Math.round((v4CompletedStages / v4Stages.length) * 100) : 0,

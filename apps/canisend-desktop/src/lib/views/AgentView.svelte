@@ -17,12 +17,14 @@
     Sparkles,
     Trash2,
   } from "@lucide/svelte";
-  import { onMount } from "svelte";
 
   import {
     agentUiState,
+    applyAgentStreamEvent,
     appendAgentMessage,
     beginNewAgentConversation,
+    reconcileAgentMessage,
+    removeEmptyAgentMessage,
     scopeAgentUiState,
     switchAgentConversationScope,
   } from "$lib/agent-state.svelte";
@@ -56,6 +58,7 @@
     type AgentPackExportReadModel,
     type AgentRuntimeCatalog,
     type AgentRuntimeKind,
+    type AgentStreamEvent,
     type AgentSkillsInstallReadModel,
     type AgentSkillsStatusReadModel,
     type AgentSkillsUninstallReadModel,
@@ -80,22 +83,21 @@
     desktopRuntime: boolean;
     activeWorkspace: WorkspaceReadModel | null;
     jobs: JobRecord[];
-    selectedJobId: string;
+    selectedApplicationId: string;
     focus: WorkflowDetail | null;
     busy: boolean;
     turnRunning: boolean;
-    onSelectJob: (jobId: string) => Promise<boolean>;
+    onSelectApplication: (jobId: string) => Promise<boolean>;
     onNavigate: (route: WorkflowRoute) => Promise<void>;
     onLoadCapabilities: () => Promise<AgentCapabilitiesReadModel | null>;
     onLoadContext: (jobId?: string) => Promise<AgentContextReadModel | null>;
     onLoadAssistance: (jobId: string) => Promise<AgentAssistanceReadModel | null>;
-    onPrepareHandoff: (host: AgentHost, jobId?: string) => Promise<AgentHandoffReadModel | null>;
+    onPrepareHandoff: (host: AgentHost) => Promise<AgentHandoffReadModel | null>;
     onInstallSkills: (host: AgentHost) => Promise<AgentSkillsInstallReadModel | null>;
     onLoadSkills: (host: AgentHost) => Promise<AgentSkillsStatusReadModel | null>;
     onUninstallSkills: (host: AgentHost) => Promise<AgentSkillsUninstallReadModel | null>;
     onCopyHandoff: (
       host: AgentHost,
-      jobId: string | undefined,
       field: "launch-command" | "start-command" | "bootstrap-prompt",
     ) => Promise<boolean>;
     onPrepareMcpConfiguration: (host: AgentHost) => Promise<AgentMcpConfigurationReadModel | null>;
@@ -103,15 +105,20 @@
       host: AgentHost,
       field: "registration-command" | "configuration-snippet",
     ) => Promise<boolean>;
+    onCodexSignIn: () => Promise<boolean>;
     onLoadRuntimes: (jobId?: string) => Promise<AgentRuntimeCatalog | null>;
     onRunTurn: (options: {
-      jobId?: string;
+      applicationId?: string;
       runtime: AgentRuntimeKind;
       prompt: string;
       startNew: boolean;
       confirmedProviderSend: boolean;
+      onEvent: (event: AgentStreamEvent) => void;
     }) => Promise<AgentTurnResult | null>;
-    onCancelTurn: (options: { jobId?: string; runtime: AgentRuntimeKind }) => Promise<boolean>;
+    onCancelTurn: (options: {
+      applicationId?: string;
+      runtime: AgentRuntimeKind;
+    }) => Promise<boolean>;
     onExport: (host: AgentHost, destination: string) => Promise<AgentPackExportReadModel | null>;
   };
 
@@ -120,11 +127,11 @@
     desktopRuntime,
     activeWorkspace,
     jobs,
-    selectedJobId,
+    selectedApplicationId,
     focus,
     busy,
     turnRunning,
-    onSelectJob,
+    onSelectApplication,
     onNavigate,
     onLoadCapabilities,
     onLoadContext,
@@ -137,6 +144,7 @@
     onPrepareMcpConfiguration,
     onCopyMcpConfiguration,
     onLoadRuntimes,
+    onCodexSignIn,
     onRunTurn,
     onCancelTurn,
     onExport,
@@ -161,7 +169,9 @@
       (session) => session.runtime === agentUiState.runtime,
     ) ?? null,
   );
-  const selectedJob = $derived(jobs.find((job) => job.id === agentUiState.selectedJobId) ?? null);
+  const selectedJob = $derived(
+    jobs.find((job) => job.id === agentUiState.selectedApplicationId) ?? null,
+  );
   const skillManagementBlocked = $derived(
     agentUiState.skillsStatus?.state === "user-modified" ||
       agentUiState.skillsStatus?.state === "unmanaged",
@@ -174,20 +184,19 @@
 
   $effect(() => {
     scopeAgentUiState(activeWorkspace?.path ?? null);
-    const globalScope = `${activeWorkspace?.path ?? ""}:${selectedJobId}`;
+    const globalScope = `${activeWorkspace?.path ?? ""}:${selectedApplicationId}`;
     if (globalScope !== observedGlobalScope) {
       observedGlobalScope = globalScope;
-      if (selectedJobId) {
-        switchAgentConversationScope(agentUiState.runtime, selectedJobId);
-      }
+      switchAgentConversationScope(agentUiState.runtime, selectedApplicationId);
+      if (desktopRuntime) void refreshRuntimes();
     }
     if (focus === "agent-handoff" || focus === "agent-task") {
       agentUiState.integrationMode = "handoff";
     }
-    const assistanceScope = `${activeWorkspace?.path ?? ""}:${agentUiState.selectedJobId}`;
+    const assistanceScope = `${activeWorkspace?.path ?? ""}:${agentUiState.selectedApplicationId}`;
     if (assistanceScope !== observedAssistanceScope) {
       observedAssistanceScope = assistanceScope;
-      if (activeWorkspace && agentUiState.selectedJobId) {
+      if (activeWorkspace && agentUiState.selectedApplicationId) {
         void loadAssistance();
       }
     }
@@ -198,18 +207,45 @@
     }
   });
 
-  onMount(() => {
-    if (desktopRuntime) void refreshRuntimes();
-  });
+  let signingIn = $state(false);
+  let signedIn = $state(false);
+
+  async function signInToCodex(): Promise<void> {
+    if (signingIn || busy || turnRunning) return;
+    signingIn = true;
+    signedIn = false;
+    agentUiState.confirmedProviderSend = false;
+    agentUiState.startNew = true;
+    const epoch = agentUiState.conversationEpoch;
+    try {
+      signedIn = await onCodexSignIn();
+      if (signedIn && epoch === agentUiState.conversationEpoch) {
+        beginNewAgentConversation();
+        await refreshRuntimes();
+      }
+    } finally {
+      signingIn = false;
+    }
+  }
 
   async function refreshRuntimes(): Promise<void> {
     agentUiState.formError = null;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
+    const epoch = agentUiState.conversationEpoch;
+    const catalog = await onLoadRuntimes(agentUiState.selectedApplicationId || undefined);
+    if (epoch === agentUiState.conversationEpoch) setRuntimeCatalog(catalog);
+  }
+
+  function setRuntimeCatalog(catalog: AgentRuntimeCatalog | null): void {
+    agentUiState.runtimeCatalog = catalog;
+    agentUiState.embeddedSessionState =
+      agentUiState.runtime === "codex"
+        ? (catalog?.embedded_session.state ?? "not-configured")
+        : "not-configured";
   }
 
   async function changeScope(jobId: string): Promise<void> {
-    if (jobId && jobId !== selectedJobId) {
-      const selected = await onSelectJob(jobId);
+    if (jobId && jobId !== selectedApplicationId) {
+      const selected = await onSelectApplication(jobId);
       if (!selected) return;
     }
     switchAgentConversationScope(agentUiState.runtime, jobId);
@@ -218,7 +254,7 @@
     agentUiState.handoff = null;
     agentUiState.skillsInstallation = null;
     agentUiState.mcpConfiguration = null;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(jobId || undefined);
+    await refreshRuntimes();
     if (jobId) await loadAssistance();
   }
 
@@ -229,13 +265,15 @@
     agentUiState.skillsStatus = null;
     agentUiState.mcpConfiguration = null;
     if (host !== "generic") {
-      switchAgentConversationScope(host, agentUiState.selectedJobId);
+      switchAgentConversationScope(host, agentUiState.selectedApplicationId);
+      if (desktopRuntime) void refreshRuntimes();
     }
   }
 
   function changeRuntime(runtime: AgentRuntimeKind): void {
     agentUiState.host = runtime;
-    switchAgentConversationScope(runtime, agentUiState.selectedJobId);
+    switchAgentConversationScope(runtime, agentUiState.selectedApplicationId);
+    if (desktopRuntime) void refreshRuntimes();
   }
 
   async function prepareHandoff(): Promise<void> {
@@ -248,24 +286,15 @@
     if (!installation) return;
     agentUiState.skillsInstallation = installation;
     agentUiState.skillsStatus = await onLoadSkills(agentUiState.host);
-    const handoff = await onPrepareHandoff(
-      agentUiState.host,
-      agentUiState.selectedJobId || undefined,
-    );
+    const handoff = await onPrepareHandoff(agentUiState.host);
     if (!handoff) return;
     agentUiState.handoff = handoff;
-    agentUiState.context = handoff.context;
-    agentUiState.assistance = handoff.assistance;
   }
 
   async function copyHandoff(target: HandoffCopyTarget): Promise<void> {
     if (!activeWorkspace) return;
     const field = target === "start" ? "start-command" : "bootstrap-prompt";
-    const copiedSuccessfully = await onCopyHandoff(
-      agentUiState.host,
-      agentUiState.selectedJobId || undefined,
-      field,
-    );
+    const copiedSuccessfully = await onCopyHandoff(agentUiState.host, field);
     if (!copiedSuccessfully) {
       agentUiState.formError = copy.copyFailed;
       return;
@@ -351,7 +380,9 @@
   }
 
   async function loadContext(): Promise<void> {
-    agentUiState.context = await onLoadContext(agentUiState.selectedJobId || undefined);
+    const epoch = agentUiState.conversationEpoch;
+    const context = await onLoadContext(agentUiState.selectedApplicationId || undefined);
+    if (epoch === agentUiState.conversationEpoch) agentUiState.context = context;
   }
 
   async function refreshAgentContext(): Promise<void> {
@@ -360,12 +391,13 @@
   }
 
   async function loadAssistance(): Promise<void> {
-    const jobId = agentUiState.selectedJobId;
+    const jobId = agentUiState.selectedApplicationId;
     if (!activeWorkspace || !jobId || assistanceLoading) return;
+    const epoch = agentUiState.conversationEpoch;
     assistanceLoading = true;
     try {
       const assistance = await onLoadAssistance(jobId);
-      if (agentUiState.selectedJobId !== jobId) return;
+      if (epoch !== agentUiState.conversationEpoch) return;
       agentUiState.assistance = assistance;
       if (assistance) agentUiState.context = assistance.context;
     } finally {
@@ -392,27 +424,38 @@
       agentUiState.formError = copy.providerConsent;
       return;
     }
+    const epoch = agentUiState.conversationEpoch;
+    agentUiState.hostAccessDenied = false;
+    appendAgentMessage("user", prompt);
+    const assistantMessageId = appendAgentMessage("assistant", "");
+    agentUiState.prompt = "";
+    if (agentUiState.runtime === "codex") {
+      agentUiState.embeddedSessionState = "connecting";
+    }
     const result = await onRunTurn({
-      jobId: agentUiState.selectedJobId || undefined,
+      applicationId: agentUiState.selectedApplicationId || undefined,
       runtime: agentUiState.runtime,
       prompt,
       startNew: agentUiState.startNew,
       confirmedProviderSend: agentUiState.confirmedProviderSend,
+      onEvent: (event) => applyAgentStreamEvent(event, assistantMessageId, epoch),
     });
-    if (!result) return;
-    appendAgentMessage("user", prompt);
-    appendAgentMessage("assistant", result.response);
+    if (epoch !== agentUiState.conversationEpoch) return;
+    if (!result) {
+      removeEmptyAgentMessage(assistantMessageId);
+      return;
+    }
+    reconcileAgentMessage(assistantMessageId, result.response);
     agentUiState.lastTurn = result;
-    agentUiState.prompt = "";
     agentUiState.startNew = false;
-    agentUiState.runtimeCatalog = await onLoadRuntimes(agentUiState.selectedJobId || undefined);
+    await refreshRuntimes();
   }
 
   async function cancelTurn(): Promise<void> {
     cancellingTurn = true;
     try {
       await onCancelTurn({
-        jobId: agentUiState.selectedJobId || undefined,
+        applicationId: agentUiState.selectedApplicationId || undefined,
         runtime: agentUiState.runtime,
       });
     } finally {
@@ -472,6 +515,29 @@
 
   function shortSessionId(value: string): string {
     return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
+  }
+
+  function embeddedSessionStateLabel(): string {
+    switch (agentUiState.embeddedSessionState) {
+      case "connecting":
+        return copy.sessionConnecting;
+      case "authentication-required":
+        return copy.sessionAuthenticationRequired;
+      case "ready":
+        return copy.sessionReady;
+      case "running":
+        return copy.sessionRunning;
+      case "cancelling":
+        return copy.sessionCancelling;
+      case "recoverable-disconnect":
+        return copy.sessionRecoverableDisconnect;
+      case "incompatible":
+        return copy.sessionIncompatible;
+      case "failed":
+        return copy.sessionFailed;
+      default:
+        return copy.sessionNotConfigured;
+    }
   }
 
   function proposalLabel(
@@ -552,7 +618,7 @@
             <ContextHelp content={copy.contextualAssistanceDescription} />
           </div>
         </div>
-        {#if activeWorkspace && agentUiState.selectedJobId}
+        {#if activeWorkspace && agentUiState.selectedApplicationId}
           <Button
             variant="outline"
             class="min-h-9"
@@ -572,7 +638,7 @@
       </div>
     </Card.Header>
     <Card.Content class="space-y-[var(--density-section-gap)]">
-      {#if !agentUiState.selectedJobId}
+      {#if !agentUiState.selectedApplicationId}
         <Empty.Root class="min-h-20 border bg-muted/10">
           <Empty.Header
             ><Empty.Description>{copy.selectApplicationForGuidance}</Empty.Description
@@ -655,7 +721,7 @@
                   ...routeForAgentAction(
                     agentUiState.assistance?.recommendation.next_action?.action ?? "",
                   ),
-                  jobId: agentUiState.selectedJobId,
+                  jobId: agentUiState.selectedApplicationId,
                 })}
             >
               {copy.openRelatedStep}
@@ -710,7 +776,10 @@
                   class="mt-auto min-h-9 justify-start px-0 pt-[var(--density-section-gap)]"
                   onclick={() =>
                     void onNavigate(
-                      routeForApplicationSection(target.section, agentUiState.selectedJobId),
+                      routeForApplicationSection(
+                        target.section,
+                        agentUiState.selectedApplicationId,
+                      ),
                     )}
                 >
                   {copy.openRelatedStep}
@@ -845,7 +914,7 @@
                 id="handoff-job"
                 size="desktop"
                 class="w-full"
-                value={agentUiState.selectedJobId}
+                value={agentUiState.selectedApplicationId}
                 disabled={!activeWorkspace || busy}
                 onchange={(event) => void changeScope(event.currentTarget.value)}
               >
@@ -1097,16 +1166,16 @@
               </div>
             </div>
 
-            {#if agentUiState.handoff.context.next_actions[0]}
+            {#if agentUiState.handoff.next_actions[0]}
               <div class="rounded-lg border bg-primary/5 p-[var(--density-panel-padding)]">
                 <p class="text-xs font-medium text-muted-foreground">
                   {copy.currentNextAction}
                 </p>
                 <p class="mt-2 text-sm font-semibold">
-                  {agentUiState.handoff.context.next_actions[0].description}
+                  {agentUiState.handoff.next_actions[0].description}
                 </p>
                 <p class="mt-2 overflow-x-auto font-mono text-xs text-muted-foreground">
-                  {agentUiState.handoff.context.next_actions[0].action}
+                  {agentUiState.handoff.next_actions[0].action}
                 </p>
               </div>
             {/if}
@@ -1115,14 +1184,12 @@
             <div class="grid gap-[var(--density-section-gap)] xl:grid-cols-2">
               <div class="space-y-3">
                 <Label>
-                  {agentUiState.handoff.assistance_command
-                    ? copy.assistanceCommand
-                    : copy.contextCommand}
+                  {copy.contextCommand}
                 </Label>
                 <div
                   class="overflow-x-auto rounded-lg border bg-muted/30 p-[var(--density-panel-padding)] font-mono text-xs leading-5"
                 >
-                  {agentUiState.handoff.assistance_command ?? agentUiState.handoff.context_command}
+                  {agentUiState.handoff.context_command}
                 </div>
               </div>
               <div class="space-y-3">
@@ -1284,6 +1351,13 @@
               </div>
               <div class="flex flex-wrap gap-2">
                 <Badge variant="outline">{copy.readOnlyMode}</Badge>
+                {#if agentUiState.runtime === "codex"}
+                  <span aria-live="polite">
+                    <Badge variant="secondary">
+                      {copy.embeddedSessionStatus}: {embeddedSessionStateLabel()}
+                    </Badge>
+                  </span>
+                {/if}
                 {#if currentSession}
                   <Badge variant="secondary">
                     {shortSessionId(currentSession.external_session_id)}
@@ -1293,6 +1367,26 @@
             </div>
           </Card.Header>
           <Card.Content class="space-y-[var(--density-section-gap)]">
+            {#if agentUiState.runtime === "codex"}
+              <div class="space-y-2">
+                <Button
+                  variant="outline"
+                  onclick={signInToCodex}
+                  disabled={!desktopRuntime || busy || turnRunning || signingIn}
+                >
+                  {copy.codexSignIn}
+                </Button>
+                <Alert.Root role="status">
+                  <Alert.Description>
+                    {signingIn
+                      ? copy.codexSignInWaiting
+                      : signedIn
+                        ? copy.codexSignInComplete
+                        : copy.codexSignInDescription}
+                  </Alert.Description>
+                </Alert.Root>
+              </div>
+            {/if}
             <div
               class="min-h-40 max-h-80 space-y-3 overflow-y-auto rounded-lg border bg-muted/10 p-3"
               aria-live="polite"
@@ -1333,6 +1427,12 @@
               </div>
             {/if}
 
+            {#if agentUiState.hostAccessDenied}
+              <Alert.Root variant="warning">
+                <ShieldCheck />
+                <Alert.Description>{copy.agentHostAccessDenied}</Alert.Description>
+              </Alert.Root>
+            {/if}
             <div class="space-y-2">
               <Label for="agent-message">{copy.conversation}</Label>
               <Textarea
@@ -1515,7 +1615,7 @@
                           onclick={() =>
                             void onNavigate({
                               ...routeForAgentAction(action.action),
-                              jobId: selectedJobId || undefined,
+                              jobId: selectedApplicationId || undefined,
                             })}
                         >
                           <span class="text-xs font-semibold">{action.action}</span>

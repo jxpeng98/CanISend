@@ -3,8 +3,8 @@
 ## Toolchain
 
 Use the toolchain pinned in `rust-toolchain.toml`. CanISend's product, build, tests, and release
-artifacts do not depend on Python. Trellis uses Python 3.9+ only for repository-local development
-hooks and task bookkeeping.
+artifacts do not depend on Python. Retained historical development scripts under `.trellis/` are
+optional; no Trellis installation, hook, or task runner is required to contribute.
 
 ## Minimum sufficient checks
 
@@ -42,10 +42,18 @@ Update the Rust-native roadmap when a tracked task is completed. Add a dated not
 decisions, material risks, and release evidence. Commits use Conventional Commits and should represent one auditable
 milestone.
 
-## Trellis project control
+## Project control
 
-Run `trellis init -u <name>` once after cloning, then let Codex or Claude Code load the tracked
-`.trellis/` workflow. Use a Trellis task for durable multi-file work; keep a contained one-turn edit
-inline when task history would add no value. Trellis task status is execution bookkeeping, not
-release authority: every Roadmap item still needs its exact GitHub Issue/milestone and committed
-evidence. See `.trellis/spec/guides/project-control.md` before creating roadmap-linked tasks.
+Use [AGENTS.md](AGENTS.md), the [project control guide](.trellis/spec/guides/project-control.md),
+and the existing plan for the current outcome. Record the scope, acceptance, smallest validation,
+and next step once. Add a separate design only when an unresolved contract needs it; do not create
+parallel task records, repeated approval rounds, or journal-only commits for routine work.
+
+The owner removed project-local Trellis skills, hooks, and agents on 2026-09-04. Existing plans,
+specs, and journals remain readable project material, including active plans under `.trellis/tasks/`.
+Do not run `trellis init` or `trellis update` unless explicitly reinstalling that workflow.
+
+Keep Roadmap IDs, GitHub Issues/milestones, exact evidence, and feature-freeze exceptions aligned.
+For a local change without a public work item, record that projection as pending; publishing or
+messaging externally requires the corresponding authority. Source completion, protected CI,
+artifact qualification, and user validation remain separate facts.

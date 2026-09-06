@@ -1,0 +1,7 @@
+{
+  "initialize": true,
+  "requires_openai_auth": true,
+  "existing_account_available": true,
+  "model_turns": 0,
+  "refresh_requested": false
+}

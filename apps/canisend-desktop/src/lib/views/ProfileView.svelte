@@ -2,6 +2,7 @@
   import {
     FileCheck2,
     FileText,
+    FileUp,
     FolderOpen,
     RefreshCw,
     ShieldCheck,
@@ -29,6 +30,7 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import { localFileDrop, type FileDropRejection } from "$lib/local-file-drop";
   import {
     buildJsonDiff,
     collectRevisionReferences,
@@ -86,6 +88,7 @@
   }: Props = $props();
 
   let sourcePath = $state("");
+  let sourceDropActive = $state(false);
   let sensitivity = $state<PrivacyClassification>("private-local");
   let importConsent = $state(false);
   let privateSessionConsent = $state(false);
@@ -101,6 +104,7 @@
   let initializationMarkdown = $state("");
   let previousInitializationTemplate = $state("");
   let initializationConsent = $state(false);
+  const profileSourceExtensions = ["typ", "md", "markdown", "txt", "json"];
 
   $effect(() => {
     const nextTemplate = copy.profileInitializationTemplate;
@@ -125,6 +129,10 @@
 
   async function chooseSource(): Promise<void> {
     sourcePath = (await chooseProfileSource()) ?? sourcePath;
+  }
+
+  function rejectSourceDrop(reason: FileDropRejection): void {
+    formError = reason === "multiple" ? copy.dropOneFile : copy.unsupportedDroppedFile;
   }
 
   async function submitImport(): Promise<void> {
@@ -360,19 +368,54 @@
           </Card.Header>
           <Card.Content class="space-y-[var(--density-section-gap)]">
             <div class="space-y-2">
-              <Label for="profile-source-file">{copy.sourceFile}</Label>
-              <div class="flex gap-2">
-                <Input id="profile-source-file" bind:value={sourcePath} readonly />
-                <Button type="button" variant="outline" class="shrink-0" onclick={chooseSource}>
-                  <FolderOpen
-                    size={16}
-                    strokeWidth={1.8}
-                    data-icon="inline-start"
-                    aria-hidden="true"
+              <div
+                use:localFileDrop={{
+                  enabled: desktopRuntime,
+                  active: () => !busy,
+                  extensions: profileSourceExtensions,
+                  onActiveChange: (active) => (sourceDropActive = active),
+                  onDrop: (path) => {
+                    sourcePath = path;
+                    formError = null;
+                  },
+                  onReject: rejectSourceDrop,
+                  onError: () => (formError = copy.fileDropUnavailable),
+                }}
+                class={[
+                  "space-y-3 rounded-lg border border-dashed p-3 transition-colors motion-reduce:transition-none",
+                  sourceDropActive ? "border-primary bg-primary/5" : "bg-muted/15",
+                ]}
+                data-drop-active={sourceDropActive}
+              >
+                <p class="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+                  <FileUp size={16} strokeWidth={1.8} aria-hidden="true" />
+                  {sourceDropActive ? copy.dropFileActive : copy.dropFileHere}
+                </p>
+                <Label for="profile-source-file">{copy.sourceFile}</Label>
+                <div class="flex gap-2">
+                  <Input
+                    id="profile-source-file"
+                    bind:value={sourcePath}
+                    title={sourcePath}
+                    readonly
                   />
-                  {copy.chooseFile}
-                </Button>
+                  <Button type="button" variant="outline" class="shrink-0" onclick={chooseSource}>
+                    <FolderOpen
+                      size={16}
+                      strokeWidth={1.8}
+                      data-icon="inline-start"
+                      aria-hidden="true"
+                    />
+                    {copy.chooseFile}
+                  </Button>
+                </div>
               </div>
+            </div>
+            <div class="space-y-1 text-xs leading-5 text-muted-foreground">
+              <p>{copy.profileImportStorageDescription}</p>
+              <p class="truncate font-mono" title={activeWorkspace.path}>
+                {activeWorkspace.path}
+              </p>
             </div>
             <div class="space-y-2">
               <Label for="profile-sensitivity">{copy.profileSensitivity}</Label>

@@ -37,13 +37,21 @@ struct McpProcess {
 
 impl McpProcess {
     fn start(workspace: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_canisend"))
-            .args([
-                "--workspace",
-                workspace.to_str().expect("UTF-8 fixture path"),
-                "mcp",
-                "serve",
-            ])
+        Self::start_with_application(workspace, None)
+    }
+
+    fn start_with_application(workspace: &Path, application: Option<&str>) -> Self {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_canisend"));
+        command.args([
+            "--workspace",
+            workspace.to_str().expect("UTF-8 fixture path"),
+            "mcp",
+            "serve",
+        ]);
+        if let Some(application) = application {
+            command.args(["--application", application]);
+        }
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -1042,5 +1050,201 @@ fn rejects_malformed_v4_arguments_without_mutation() {
         .data
         .status;
     assert_eq!(before, after);
+    fs::remove_dir_all(root).expect("remove workspace");
+}
+
+#[test]
+fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
+    let root = temporary_root("application-binding");
+    Application::initialize_workspace_v4(&root).expect("initialize Workspace");
+    let mut applications = Vec::new();
+    for (pack, category) in [
+        (GENERIC_APPLICATION_WORKFLOW_PACK_ID, "format"),
+        (canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID, "qualification"),
+    ] {
+        let source_text = "Synthetic bound Application requirement.";
+        let created = Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new(pack).expect("Pack ID"),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: format!("PRIVATE-TITLE-{category}"),
+                    opportunity_metadata: if pack == canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID {
+                        std::collections::BTreeMap::from([(
+                            WorkflowPackItemId::try_new("institution").expect("institution field"),
+                            canisend_contracts::ApplicationFieldValueV3::ShortText(
+                                "Fixture University".to_owned(),
+                            ),
+                        )])
+                    } else {
+                        Default::default()
+                    },
+                    application_metadata: Default::default(),
+                    source_text: source_text.to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: WorkflowPackItemId::try_new(category).expect("category"),
+                        statement: source_text.to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: source_text.len() as u64,
+                    }],
+                },
+            },
+        )
+        .expect("create Application")
+        .data
+        .stored;
+        applications.push(created);
+    }
+    let before = Application::workspace_status_v4(&root)
+        .expect("before")
+        .data
+        .status;
+    for (selected, other) in [
+        (&applications[0], &applications[1]),
+        (&applications[1], &applications[0]),
+    ] {
+        let selected_id = selected.snapshot.application.id.as_str();
+        let other_id = other.snapshot.application.id.as_str();
+        let mut mcp = McpProcess::start_with_application(&root, Some(selected_id));
+        mcp.initialize();
+        let listed = mcp.request(2, "tools/list", json!({}));
+        let tools = listed["result"]["tools"].as_array().expect("tools");
+        assert_eq!(tools.len(), CANISEND_MCP_TOOLS.len());
+        // Validly typed inputs ensure rejection comes from binding, not deserialization.
+        let source = &other.snapshot.requirements[0].source_span.content;
+        let samples = json!({
+            "application_id": other_id,
+            "requirement_id": other.snapshot.requirements[0].id,
+            "deliverable_id": "deliverable-fixture",
+            "expected_revision": 1,
+            "source": source, "profile_source": source, "evidence": source,
+            "change": "associate", "preview_token": "unissued-fixture-token",
+            "preview_sha256": "0".repeat(64), "approved": true,
+            "confirmed_private_read": true, "confirmed_private_export": true,
+            "decisions": [], "requirements": [], "deliverables": [],
+            "decision": "fixture", "title": "fixture", "media_type": "text/plain",
+            "content": "fixture", "destination": "exports/fixture"
+        });
+        let mut scoped_count = 0;
+        for (index, tool) in tools.iter().enumerate() {
+            let properties = tool["inputSchema"]["properties"]
+                .as_object()
+                .expect("properties");
+            let arguments = properties
+                .keys()
+                .map(|key| {
+                    (
+                        key.clone(),
+                        samples
+                            .get(key)
+                            .unwrap_or_else(|| panic!("missing typed fixture for {key}"))
+                            .clone(),
+                    )
+                })
+                .collect::<serde_json::Map<_, _>>();
+            let scoped = properties.contains_key("application_id");
+            scoped_count += usize::from(scoped);
+            let response = mcp.request(
+                10 + index as u64,
+                "tools/call",
+                json!({
+                    "name": tool["name"], "arguments": arguments
+                }),
+            );
+            assert_eq!(
+                response["error"]["code"], -32602,
+                "{}: {response}",
+                tool["name"]
+            );
+            assert_eq!(
+                response["error"]["data"]["code"],
+                if scoped {
+                    "application.binding-mismatch"
+                } else {
+                    "application.workspace-scope-required"
+                }
+            );
+            let text = response["error"]["message"].as_str().expect("error text");
+            assert!(
+                text.contains(if scoped {
+                    "does not match the bound Application"
+                } else {
+                    "Workspace-wide results are unavailable"
+                }),
+                "{}: {text}",
+                tool["name"]
+            );
+            assert!(!response.to_string().contains("PRIVATE-TITLE"));
+        }
+        assert_eq!(scoped_count, 32);
+        let own = mcp.request(
+            100,
+            "tools/call",
+            json!({
+                "name": "canisend_application_show", "arguments": { "application_id": selected_id }
+            }),
+        );
+        assert_eq!(own["result"]["isError"], false);
+        assert_eq!(
+            own["result"]["structuredContent"]["data"]["snapshot"]["application"]["id"],
+            selected_id
+        );
+        assert!(!own.to_string().contains(other_id));
+        for (index, name) in [
+            "canisend_profile_association_list",
+            "canisend_evidence_association_list",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let response = mcp.request(
+                110 + index as u64,
+                "tools/call",
+                json!({
+                    "name": name, "arguments": { "application_id": selected_id }
+                }),
+            );
+            assert_eq!(response["error"]["code"], -32602);
+            assert_eq!(
+                response["error"]["data"]["code"],
+                "application.workspace-scope-required"
+            );
+        }
+    }
+    let mut unbound = McpProcess::start(&root);
+    unbound.initialize();
+    let discovered = unbound.request(
+        2,
+        "tools/call",
+        json!({"name": "canisend_application_list", "arguments": {}}),
+    );
+    assert_eq!(discovered["result"]["isError"], false);
+    for application in &applications {
+        assert!(
+            discovered
+                .to_string()
+                .contains(application.snapshot.application.id.as_str())
+        );
+    }
+    drop(unbound);
+    for invalid in ["", "unknown-application"] {
+        let result = Command::new(env!("CARGO_BIN_EXE_canisend"))
+            .arg("--workspace")
+            .arg(&root)
+            .args(["mcp", "serve", "--application", invalid])
+            .stdin(Stdio::null())
+            .output()
+            .expect("invalid binding startup");
+        assert!(!result.status.success());
+        assert!(result.stdout.is_empty());
+    }
+    assert_eq!(
+        before,
+        Application::workspace_status_v4(&root)
+            .expect("after")
+            .data
+            .status
+    );
     fs::remove_dir_all(root).expect("remove workspace");
 }

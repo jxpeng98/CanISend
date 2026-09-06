@@ -1,75 +1,73 @@
 # Project Control
 
-## Authority
+Updated: 2026-09-04 — owner-approved direct development without Trellis skills or hooks.
 
-Trellis controls the current development task, its planning artifacts, relevant spec context, and
-cross-session journal. It does not replace CanISend's existing authorities:
+## Authority
 
 1. Accepted ADRs own product, architecture, trust, and platform decisions.
 2. `Cargo.toml`, `release/*.json`, `docs/contracts/*.json`, tags, and exact artifacts own machine
    and release facts.
-3. `docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md` owns 1.0 work ordering and gates.
-4. GitHub Issues and milestones are the public projection of P0/P1 Roadmap work.
-5. Trellis tasks describe the bounded execution needed to advance one of those authorities.
+3. `docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md` owns 1.0 ordering and gates.
+4. GitHub Issues and milestones project the Roadmap publicly; do not invent synchronization.
+5. Existing implementation plans hold bounded scope, acceptance, evidence, and the next action.
 
-When sources disagree, stop the affected claim, correct the lower-authority projection, and add a
-regression only when drift can be detected mechanically.
+When sources disagree, correct the lower-authority projection before advancing the affected claim.
+Do not rewrite historical release identities or weaken a product control to accelerate delivery.
 
-## Execution Model
+## Direct execution
 
-- The Master Roadmap is the backlog and work-order authority; GitHub milestones and Issues are its
-  public projection.
-- `08-10-1-0-roadmap-trellis-control` is the 1.0 programme parent. Create delivery children only
-  for Roadmap work that is Ready or In progress; do not mirror the full GitHub backlog.
-- Keep one critical-path child current. At most one architecture/safety child and one
-  qualification/evidence child may run beside it.
-- `M3-ARCH-001` / Issue #182 is Verified and archived. `M3-ALPHA9-001` / Issue #183 is Verified
-  against exact public Alpha.9 and its body-free host evidence. `M3-DEPS-001` / Issue #195 and
-  `M3-HEADLESS-001` / Issue #193 are Verified through protected PR #196 and archived.
-  `M3-ALPHA10-001` / Issue #194 is Verified by exact public Alpha.10 and the Codex-first
-  qualification evidence. `M4-READY-001` / Issue #71, `M4-FREEZE-001` / Issue #72, and
-  `M4-STAGE-001` / Issue #73 are Verified through protected PRs #201, #202, and #203.
-  `M4-CANDIDATE-001` / Issue #74 is Verified by exact public Beta.1 and protected PR #204.
-  `M4-LEDGER-001` / Issue #75 is Verified by a fresh public download, matching dry-run/write
-  transaction, and protected reconciliation. `M4-CHANNEL-001` / Issue #76 is Verified by exact
-  regenerated local package metadata and protected reconciliation; `M4-FREEZE-002` / Issue #77 is
-  Verified at the exact protected repository baseline. `M4-BETA2-001` and `M4-BETA2-002` are
-  Verified through protected PRs #219 and #220. `M4-BETA2-003` is Verified by private candidate
-  run `33824463477`, artifact `9920609356`, and independent inspection against protected source
-  `2ae2b507b953eef3101aa9689bd60f91a0046605`. `M3-EVID-005` / Issue #70 runs on public Beta.1,
-  is the current pre-RC evidence task, and remains required before RC.1; later RC and Stable work
-  remains in GitHub until its entry gate is satisfied.
+- Read `AGENTS.md`, the current Roadmap slice, its existing plan, and the relevant backend spec.
+- Continue authorized work directly. A task directory, status field, phase transition, subagent,
+  journal entry, or bookkeeping commit is not a prerequisite.
+- Keep one short execution checklist per independently verifiable outcome. Existing PRD/design/
+  implement files may be maintained in place; do not duplicate them into another tracking system.
+- Small changes need only a scope and acceptance note. Add design detail only for unresolved API,
+  data, consent, migration, or recovery contracts. Ask the owner only when such a decision cannot
+  be resolved from existing authority, or when an external/irreversible action is not authorized.
+- Trace the actual owner and all callers, implement one complete slice, run its smallest meaningful
+  checks, inspect the full diff, and update evidence plus the next step once.
+- Keep one integration slice active. Independent preparatory work may overlap only with explicit
+  file ownership and stable contracts; do not overlap competing storage or approval changes.
+- A local Roadmap row may carry owner, scope, acceptance, and pending Issue projection until public
+  synchronization is authorized. Pending projection never counts as completed release governance.
 
-## Planning Horizons
+Private Beta.2 baseline evidence is retained: M4-BETA2-001/002 reached protected main through
+PRs #219/#220; M4-BETA2-003 binds private candidate run `33824463477`, artifact `9920609356`,
+and protected source `2ae2b507b953eef3101aa9689bd60f91a0046605`. This is not public qualification.
 
-- **Current:** run the mixed-Application invited cohort on qualified public Beta.1 without treating
-  synthetic dogfood as user evidence.
-- **Near term:** reconcile the body-free cohort metrics and blocker classes before RC.1 planning.
-- **Medium term:** qualify two distinct clean RC matrices and the upgrade, documentation,
-  package-manager, accessibility, feedback, and final-notes evidence classes.
-- **Long term:** explicitly authorize and publish exact `v1.0.0`, establish 1.0.x support, then
-  consider deferred packs/platforms only from measured demand and a new accepted boundary.
+## Current sequence
 
-## Task Rules
+ADR-RN-0023 supersedes App-first delivery priority. Close out R0/R1 source and retain partial R2
+with its open gates; do not claim R2 acceptance. Reconcile the current feature branch with the
+owner-confirmed Beta integration target, preserving its version/release records and user changes.
+The master roadmap maps LF-C01–12: CLI boundary audit, independent build/resources/install, trusted
+headless approval, one Host plus same-device resumption, then bounded local collaboration.
+Cross-device work and unfinished embedded R2-R6 work are deferred.
 
-- Give a Roadmap-linked task its Roadmap ID, GitHub Issue and milestone, priority, owner role,
-  dependencies, authoritative files, expected evidence, and verification tier. Keep requirements
-  in `prd.md` and the compact searchable projection in `task.json.meta`.
-- One Trellis task should produce one independently verifiable outcome. Split only when children
-  can be planned, checked, and archived independently.
-- Do not copy the full Roadmap into `.trellis/`; link it and retain only task-specific context.
-- Do not mark a task complete from local output alone when its owner is protected CI, native
-  qualification, public bytes, user evidence, or explicit maintainer authorization.
-- Apply the minimum-sufficient checks in `.trellis/spec/backend/quality-guidelines.md`.
+Public Beta.1, private Beta.2 candidate evidence, active freeze, and historical observations retain
+their exact identities. Qualify new CLI bytes and explicitly test any future cohort-binding change;
+the current validator and user thresholds remain unchanged by a direction document.
 
-## Lifecycle Mapping
+## Validation and release control
 
-| Trellis state | Roadmap/GitHub state | Rule |
-|---|---|---|
-| `planning` | Planned or Ready | The PRD names the state and any missing entry evidence |
-| `in_progress` | In progress | Start only after planning review and entry-gate confirmation |
-| archived | Verified or Deferred | Archive only after linked public/evidence state is reconciled |
+- Follow `../backend/quality-guidelines.md`; one invariant has one primary test owner.
+- Reuse existing dual-Pack fixtures, protocol processes, adapter smokes, and release tooling.
+- Run changed-language checks and focused positive/negative regressions during edits. Run Tier 2
+  once on the final applicable PR head; protected Fast CI owns the complete workspace suite.
+- Native and extended assurance remain with their scheduled or exact-candidate owners. Recheck a
+  passing assertion only after a relevant change or a newly observed failure.
+- Report source implementation, protected CI, exact artifact qualification, and user validation
+  separately. A checked plan or local command cannot substitute for the other evidence classes.
+- Policy-bearing adapter removal, `AGENTS.md`, `PRODUCT.md`, and spec changes still need exact
+  post-baseline freeze exceptions when committed. Do not fabricate a future commit hash, broaden
+  automatic path exemptions, or alter the ledger merely to make an uncommitted change look released.
 
-Trellis completion does not prove release qualification. When a lower projection disagrees with
-an ADR, machine fact, or the Master Roadmap, keep the affected transition blocked and correct the
-lower projection before continuing.
+## Retained project material
+
+`.trellis/tasks/`, `.trellis/spec/`, and `.trellis/workspace/` remain readable documents with stable
+paths. Existing task JSON and context manifests are compatibility metadata, not execution gates.
+Keep completed records and private-data exclusions intact; no forced migration or archival is needed.
+The old workflow, scripts, template hashes, and upstream license are retained for provenance or
+explicit manual use. Do not regenerate removed skills/hooks with `trellis init` or `trellis update`
+unless the owner explicitly reinstalls Trellis. User-global tools and product Agent v4 Skills are
+outside this removal.

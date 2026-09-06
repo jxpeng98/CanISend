@@ -1,19 +1,23 @@
-<!-- TRELLIS:START -->
-# Trellis Instructions
-
-This project uses Trellis for current-task execution and cross-session memory. Product and release
-truth still belongs to the authorities named in `.trellis/spec/guides/project-control.md`.
-
-- Read `.trellis/workflow.md` before creating or advancing a Trellis task.
-- Read the relevant `.trellis/spec/` files before changing their layer.
-- Keep active PRDs and research under `.trellis/tasks/`; archive completed work through Trellis.
-- Use `.agents/skills/` and `.codex/agents/` only as generated Trellis platform adapters.
-
-Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a
-future `trellis update`.
-<!-- TRELLIS:END -->
-
 # CanISend Repository Instructions
+
+## Project control
+
+- Read the [project control guide](.trellis/spec/guides/project-control.md) and the relevant
+  [engineering guidelines](.trellis/spec/backend/index.md) before changing their layer.
+- Accepted ADRs own decisions; the [1.0 roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md)
+  owns work ordering; machine records and exact artifacts own release facts.
+- Work directly on the authorized outcome. Reuse the existing plan and record scope, acceptance,
+  evidence, and the next step there; no Trellis task creation, phase activation, agent dispatch,
+  journal, or bookkeeping commit is required.
+- Preserve existing `.trellis/tasks/`, `.trellis/spec/`, and `.trellis/workspace/` material as
+  ordinary project documents. Their directory names and task status fields do not control execution.
+- Project-local Trellis skills and hooks were removed by owner request. Do not run `trellis init`
+  or `trellis update`, regenerate those adapters, or require a Trellis skill unless the owner
+  explicitly requests reinstalling that workflow.
+- Ask only for missing decisions that change the outcome, or actions outside existing authority.
+  Do not repeatedly ask to plan, implement, check, or continue already authorized work.
+- Keep each change independently reviewable. Record actual checks and remaining gates; never
+  equate local implementation with protected CI, qualified artifacts, or user validation.
 
 ## Product scope
 

@@ -8,6 +8,7 @@
     RefreshCw,
     ShieldCheck,
   } from "@lucide/svelte";
+  import { untrack } from "svelte";
 
   import * as Page from "$lib/components/patterns/page/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -74,6 +75,7 @@
     type WorkspaceReadModel,
   } from "$lib/bridge";
   import type { Messages } from "$lib/i18n";
+  import { localFileDrop, type FileDropRejection } from "$lib/local-file-drop";
 
   type Props = {
     copy: Messages;
@@ -89,6 +91,7 @@
       selected: StoredApplicationModelV3 | null;
       stages: ApplicationFlowStageV3[];
     }) => void;
+    onApplicationCreated: (application: StoredApplicationModelV3) => void;
   };
 
   let {
@@ -99,6 +102,7 @@
     presentation,
     requestedApplicationId,
     onContextChange,
+    onApplicationCreated,
   }: Props = $props();
 
   let applications = $state<StoredApplicationModelV3[]>([]);
@@ -118,6 +122,7 @@
   let requirementDecisions = $state<Record<string, "confirm" | "exclude">>({});
   let intakeMode = $state<"pasted" | "local" | "url">("pasted");
   let localSource = $state("");
+  let localDropActive = $state(false);
   let sourceUrl = $state("");
   let privateReadConfirmed = $state(false);
   let networkFetchConfirmed = $state(false);
@@ -177,6 +182,7 @@
   const pendingAssociationNeedsPrivateRead = $derived(
     pendingAssociationChanges.some((item) => item.requiresPrivateRead),
   );
+  const applicationSourceExtensions = ["pdf", "typ", "txt", "md", "markdown", "json"];
 
   $effect(() => {
     const workspace = activeWorkspace.path;
@@ -209,13 +215,14 @@
   });
 
   $effect(() => {
-    onContextChange({
+    const context = {
       workspacePath: activeWorkspace.path,
       packId,
       applications,
       selected,
       stages,
-    });
+    };
+    untrack(() => onContextChange(context));
   });
 
   $effect(() => {
@@ -587,6 +594,11 @@
     localSource = (await chooseApplicationSource()) ?? localSource;
   }
 
+  function rejectLocalDrop(reason: FileDropRejection): void {
+    error = reason === "multiple" ? copy.dropOneFile : copy.unsupportedDroppedFile;
+    notice = null;
+  }
+
   async function submitIntakePreview(): Promise<void> {
     const base = intakeBase();
     if (!base) return;
@@ -636,7 +648,8 @@
       intakePreview = null;
       selected = receipt.data.stored;
       stages = receipt.data.stages;
-      notice = receipt.summary;
+      notice = null;
+      onApplicationCreated(receipt.data.stored);
       title = "";
       sourceText = "";
       localSource = "";
@@ -1126,14 +1139,50 @@
                   </p>
                 </Tabs.Content>
                 <Tabs.Content value="local" class="space-y-4 pt-4">
-                  <div class="space-y-2">
+                  <div
+                    use:localFileDrop={{
+                      enabled: desktopRuntime,
+                      active: () => intakeMode === "local" && !busy,
+                      extensions: applicationSourceExtensions,
+                      onActiveChange: (active) => (localDropActive = active),
+                      onDrop: (path) => {
+                        localSource = path;
+                        error = null;
+                      },
+                      onReject: rejectLocalDrop,
+                      onError: () => (error = copy.fileDropUnavailable),
+                    }}
+                    class={[
+                      "space-y-3 rounded-lg border border-dashed p-3 transition-colors motion-reduce:transition-none",
+                      localDropActive ? "border-primary bg-primary/5" : "bg-muted/15",
+                    ]}
+                    data-drop-active={localDropActive}
+                  >
+                    <p
+                      class="flex items-center gap-2 text-sm text-muted-foreground"
+                      aria-live="polite"
+                    >
+                      <FileUp size={16} strokeWidth={1.8} aria-hidden="true" />
+                      {localDropActive ? copy.dropFileActive : copy.dropFileHere}
+                    </p>
                     <Label for="generic-local-source">{copy.sourceFile}</Label>
                     <div class="flex flex-col gap-2 sm:flex-row">
-                      <Input id="generic-local-source" bind:value={localSource} readonly />
+                      <Input
+                        id="generic-local-source"
+                        bind:value={localSource}
+                        title={localSource}
+                        readonly
+                      />
                       <Button type="button" variant="outline" onclick={chooseLocalSource}>
                         {copy.chooseFile}
                       </Button>
                     </div>
+                  </div>
+                  <div class="space-y-1 text-xs leading-5 text-muted-foreground">
+                    <p>{copy.applicationImportStorageDescription}</p>
+                    <p class="truncate font-mono" title={activeWorkspace.path}>
+                      {activeWorkspace.path}
+                    </p>
                   </div>
                   <div class="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
                     <Checkbox

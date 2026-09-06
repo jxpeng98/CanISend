@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Desktop adapter ownership, Workspace v4 scope, process boundary, and command contract."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Minimum focused Rust/frontend checks, source gate, and no speculative compatibility layers."}
+{"file":".trellis/tasks/09-04-embedded-agent-app-r1/research/app-server-evidence.md","reason":"Verified official protocol, local Codex 0.152.0 schema, Tauri Channel, and repository reuse evidence."}
