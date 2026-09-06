@@ -283,9 +283,9 @@ LF-C02–12, change release authority, or create a second task ledger.
 - [x] Preserve and review existing source/process changes in independently reviewable commits.
 - [x] Integrate latest main/Beta.2 and the prior intake fix, resolve conflicts, record exact freeze
       dispositions, and run focused checks.
-- [ ] Run the final source gate and inspect protected CI on the integration PR.
-- [ ] Inspect protected Fast CI and merge the integration PR; close superseded PR work accurately.
-- [ ] Confirm clean local main and record exact integration evidence. Next implementation: LF-C02.
+- [x] Run the final source gate and inspect protected CI on the integration PR.
+- [x] Inspect protected Fast CI and merge the integration PR; close superseded PR work accurately.
+- [x] Confirm clean local main and record exact integration evidence. Next implementation: LF-C02.
 
 ### Audited baseline and boundaries
 
@@ -368,3 +368,40 @@ The same run's macOS suite found the exact Tauri inventory assertion still expec
 Contracts all-target Clippy, Rust format and diff checks pass. The exact CI workspace/all-target/
 all-feature Clippy command also passed locally; the initially uncached feature dependencies were
 fetched from the unchanged lockfile. Protected CI owns the remaining full-workspace tests.
+
+### Completed LF-C01 integration
+
+PR #226 and ancestral #225 merged as `03897b71d0a6a5762b60e8ad5180d3b75502d40e` on
+2026-09-06. The merge tree equals verified head `773168ca`; all six required Fast CI checks
+passed in run `34003574951`, and dependency policy passed in `34003574969`. Local main was
+clean and synchronized. Final source gate passed with 27 exact exceptions; the five drift items
+and three release-stage blockers remain. No release or native qualification was performed.
+
+## LF-C02 — default standalone CLI build
+
+Updated: 2026-09-06. Owner authorized execution after LF-C01. Baseline: `03897b71`.
+
+### Scope and acceptance
+
+- [x] Select only `crates/canisend-cli` through Cargo `default-members`; preserve all workspace members.
+- [x] Document default build/run/test commands and explicit full-workspace/desktop selection.
+- [x] Reuse Linux/Windows core CI to assert exact default selection, reject desktop dependencies,
+      and run `cargo build --locked` before existing tests and Host/MCP smokes.
+- [x] Prove the selected local build, five target dependency graphs and existing CLI/MCP behavior.
+
+Actual local evidence: root `cargo build --locked --offline` passed without frontend steps;
+root `cargo test --locked --offline --test binary_contract --test mcp_protocol` passed 12 CLI
+and five MCP tests. Cargo metadata selects exactly `canisend-cli`. Normal/build/dev dependency
+graphs for all five `release/targets.json` targets contain no GUI/Tauri/Wry/GTK/WebKit dependency;
+missing locked target crates were fetched without changing the lockfile. The exact new CI shell
+step passes locally and rejects empty, GUI-only and mixed default selections in bounded fixtures.
+The dependency pattern detects desktop package fixtures. Workflow YAML parses and diff checks pass.
+
+Integration gate: record the exact source commit in the existing freeze ledger, run the source
+gate on the final PR head, and require existing protected Fast CI before merging. The PR's check
+and merge records own final integration status; local checks do not claim native package evidence.
+
+Rollback restores Cargo default selection, CI and contributor instructions; product data is unchanged.
+No Rust behavior, dependency, schema, consent, storage, GUI support or release packaging changed.
+Next bounded slice is LF-C03: audit and verify standalone embedded resources and install lifecycle
+using existing doctor/package smokes; exact native artifacts remain separately qualified.

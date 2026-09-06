@@ -6,6 +6,29 @@ Use the toolchain pinned in `rust-toolchain.toml`. CanISend's product, build, te
 artifacts do not depend on Python. Retained historical development scripts under `.trellis/` are
 optional; no Trellis installation, hook, or task runner is required to contribute.
 
+## CLI-first development
+
+From the repository root, Cargo selects `canisend-cli` by default:
+
+```sh
+cargo build --locked
+cargo run --locked -- --help
+cargo run --locked -- doctor --json
+cargo test --locked
+```
+
+These commands build the native CLI and its Rust dependencies, including embedded resources;
+they require the pinned Rust toolchain and the platform's native C/C++ build tools, but no Node.js,
+pnpm, frontend build, or desktop webview SDK. Default tests cover the CLI package; use an explicit
+`-p` selection for another crate or `--workspace` for the full suite. The shared `canisend-app`
+crate is the domain facade and remains a CLI dependency.
+
+Desktop development is an explicit selection (`-p canisend-gui`) with its existing frontend and
+platform prerequisites; follow [the desktop guide](docs/guides/desktop-gui.md). Full-workspace CI
+continues to build and test the desktop. Existing Linux/Windows core CI additionally checks the
+CLI-only default selection and dependency graph, builds it without frontend steps, and runs the
+existing CLI/Host/MCP tests. These source checks do not qualify standalone release packages.
+
 ## Minimum sufficient checks
 
 Choose the smallest row that owns the change. Do not run every row for every edit.
