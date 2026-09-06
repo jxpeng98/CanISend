@@ -11,6 +11,7 @@ members = [
     "crates/canisend-store",
     "xtask",
 ]
+default-members = ["crates/canisend-cli"]
 exclude = ["spikes/r0-dependencies"]
 resolver = "3"
 

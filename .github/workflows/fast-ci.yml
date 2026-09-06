@@ -127,6 +127,20 @@ jobs:
         with:
           key: fast-ci-core-${{ matrix.name }}
 
+      - name: Verify standalone CLI default selection
+        shell: bash
+        run: |
+          cargo metadata --no-deps --format-version 1 --locked | \
+            jq -e '.workspace_default_members == [.packages[] | select(.name == "canisend-cli") | .id]'
+          cargo tree --locked -e normal,build,dev --prefix none > "$RUNNER_TEMP/cli-dependencies.txt"
+          if grep -Eq '^(canisend-gui|tauri(-[^ ]+)?|tao|wry|gtk[0-9]?(-sys)?|webkit2gtk(-sys)?) v' "$RUNNER_TEMP/cli-dependencies.txt"; then
+            echo "Desktop dependency found in the default CLI build/test graph" >&2
+            exit 1
+          fi
+
+      - name: Build default CLI without frontend prerequisites
+        run: cargo build --locked
+
       - name: Test core, Store, IO, CLI, and MCP contracts
         run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
 
