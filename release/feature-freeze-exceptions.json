@@ -689,6 +689,14 @@
         "xtask/src/main.rs"
       ],
       "reason": "Preserve local main Windows-validation history while reconciling it with the integrated Beta.2 source, intake fix, retained runtime boundaries and CLI-first project control. No new release or native qualification is claimed."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "b3794a8a34a10b276a8e2d4f31d4ad6ef4c5d8f5",
+      "paths": [
+        "apps/canisend-desktop/src/lib/views/AgentView.svelte"
+      ],
+      "reason": "Resolve the integration CI shared-status-composition failure by reusing Alert for provider sign-in status while retaining polite status announcements."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

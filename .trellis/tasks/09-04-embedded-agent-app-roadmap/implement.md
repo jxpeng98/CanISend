@@ -341,10 +341,17 @@ The App shell still feeds legacy dossier selection into AgentView, so complete v
 is an open R2 gate; see the correction in R2 evidence. This closeout does not implement or qualify
 that deferred App journey. The retained runtime does not inject CanISend private MCP tools.
 
-Local frontend verification after combining branches: 65 tests across state, bridge, Agent v4
-component, file drop, navigation and accessibility contracts passed. Svelte/TypeScript reports
+Local frontend verification after combining branches: all 97 tests across 15 files passed after
+fixing the first integration CI failure in provider sign-in status composition. The existing UI
+system guard remains unchanged; the shared Alert preserves the status announcement. Svelte/TypeScript reports
 zero errors/warnings and frontend formatting passes. Five registry tests, five MCP protocol tests
 and two local-input tests passed. Desktop protocol: three passed, one signed-in provider smoke intentionally ignored. Runtime: 15
 passed. Strict Clippy passed for App, CLI, MCP, IO and GUI; Rust formatting passed. Source gate and
 protected CI remain separate integration gates. The existing macOS linker unwind-size warning
 remains non-blocking; no signed-in provider or native artifact qualification was run.
+
+Integration source gate at `2a0500b7` passed with 24 exact freeze exceptions; 5 drift items and
+3 release-stage blockers remain reported. PR #226 first CI run `34002975360` found one UI
+composition violation (96/97 frontend tests passed). Fix `b3794a8` reuses the existing Alert;
+the full 97-test frontend suite, Svelte check and changed-file formatting pass locally. Its exact
+exception is recorded; the final head must pass the source gate and fresh protected CI.
