@@ -281,8 +281,9 @@ LF-C02–12, change release authority, or create a second task ledger.
       claiming isolation, consent, history, signed-in flow, or artifact acceptance.
 - [x] Inspect current branch/main, user changes, manifests, entry points and existing test owners.
 - [x] Preserve and review existing source/process changes in independently reviewable commits.
-- [ ] Integrate latest main/Beta.2 and the prior intake fix, resolve conflicts, record exact freeze
-      dispositions, and run focused checks plus the final source gate.
+- [x] Integrate latest main/Beta.2 and the prior intake fix, resolve conflicts, record exact freeze
+      dispositions, and run focused checks.
+- [ ] Run the final source gate and inspect protected CI on the integration PR.
 - [ ] Inspect protected Fast CI and merge the integration PR; close superseded PR work accurately.
 - [ ] Confirm clean local main and record exact integration evidence. Next implementation: LF-C02.
 
@@ -343,4 +344,7 @@ that deferred App journey. The retained runtime does not inject CanISend private
 Local frontend verification after combining branches: 65 tests across state, bridge, Agent v4
 component, file drop, navigation and accessibility contracts passed. Svelte/TypeScript reports
 zero errors/warnings and frontend formatting passes. Five registry tests, five MCP protocol tests
-and two local-input tests passed. Remaining Rust protocol/static checks and protected CI are pending.
+and two local-input tests passed. Desktop protocol: three passed, one signed-in provider smoke intentionally ignored. Runtime: 15
+passed. Strict Clippy passed for App, CLI, MCP, IO and GUI; Rust formatting passed. Source gate and
+protected CI remain separate integration gates. The existing macOS linker unwind-size warning
+remains non-blocking; no signed-in provider or native artifact qualification was run.
