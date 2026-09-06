@@ -553,3 +553,24 @@ Implemented and verified the bounded persistent Codex App Server desktop session
 
 [OK] **Completed**
 - Run the consented body-free invited cohort on qualified public Beta.1 before RC.1 planning.
+
+
+## Session 19: Beta2 import workflow clarity
+
+**Date**: 2026-09-04
+**Task**: Beta2 import workflow clarity
+**Branch**: `fix/beta2-import-workflow`
+
+### Summary
+
+Added native local-file intake for Applications and Profile, clarified Workspace storage, switched summary surfaces to canonical Application records, and verified Typst creation in an isolated macOS preview.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8091061f` | (see git log) |
+
+### Status
+
+[OK] **Completed**

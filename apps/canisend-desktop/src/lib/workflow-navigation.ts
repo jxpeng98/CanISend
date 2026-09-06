@@ -366,6 +366,8 @@ export function routeForAgentAction(action: string): WorkflowRoute {
 
 export function recommendWorkflowRoute(input: {
   workspacePath: string | null;
+  applicationCount: number;
+  hasSelectedApplication: boolean;
   jobs: JobRecord[];
   selectedJob: ApplicationDossierReadModel | null;
 }): WorkflowRecommendation {
@@ -373,6 +375,12 @@ export function recommendWorkflowRoute(input: {
     return { route: { view: "workspaces" }, reason: "choose-workspace" };
   }
   if (input.jobs.length === 0) {
+    if (input.applicationCount > 0) {
+      return {
+        route: { view: "applications" },
+        reason: input.hasSelectedApplication ? "continue-workflow" : "choose-application",
+      };
+    }
     return {
       route: { view: "opportunities", detail: "lead-list" },
       reason: "discover-opportunity",

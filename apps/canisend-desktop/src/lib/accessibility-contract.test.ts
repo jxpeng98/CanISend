@@ -14,6 +14,7 @@ const applicationsView = readFileSync(
   "utf8",
 );
 const settingsView = readFileSync(new URL("./views/SettingsView.svelte", import.meta.url), "utf8");
+const profileView = readFileSync(new URL("./views/ProfileView.svelte", import.meta.url), "utf8");
 const todayView = readFileSync(new URL("./views/TodayView.svelte", import.meta.url), "utf8");
 const playwrightConfig = readFileSync(
   new URL("../../playwright.config.ts", import.meta.url),
@@ -115,6 +116,16 @@ describe("desktop accessibility contract", () => {
     );
   });
 
+  it("keeps native file drops paired with keyboard-accessible file pickers", () => {
+    expect(genericApplicationsView).toContain("use:localFileDrop");
+    expect(profileView).toContain("use:localFileDrop");
+    expect(genericApplicationsView).toContain("onclick={chooseLocalSource}");
+    expect(profileView).toContain("onclick={chooseSource}");
+    expect(genericApplicationsView).toContain("copy.applicationImportStorageDescription");
+    expect(profileView).toContain("copy.profileImportStorageDescription");
+    expect(bridge).toContain('extensions: ["pdf", "typ", "txt", "md", "markdown", "json"]');
+  });
+
   it("routes the connected Application lifecycle through reviewed v4 mutations", () => {
     for (const operation of [
       "previewRequirementConfirmationV4",
@@ -139,6 +150,7 @@ describe("desktop accessibility contract", () => {
     expect(genericApplicationsView).toContain("requirement-decision-${requirement.id}");
     expect(genericApplicationsView).toContain("commitPendingLifecycleMutation");
     expect(genericApplicationsView).toContain("discardPendingLifecycleMutation");
+    expect(genericApplicationsView).toContain("untrack(() => onContextChange(context))");
   });
 
   it("keeps mixed Application selection keyboard-native and Workspace creation neutral", () => {
@@ -147,8 +159,10 @@ describe("desktop accessibility contract", () => {
     expect(app).toContain("aria-pressed={activePackId === GENERIC_APPLICATION_WORKFLOW_PACK_ID}");
     expect(app).toContain("aria-pressed={activePackId === ACADEMIC_JOB_WORKFLOW_PACK_ID}");
     expect(app).toContain("onContextChange={handleV4ApplicationContext}");
+    expect(app).toContain("activeWorkspace.status.application_count !== nextApplications.length");
     expect(app).toContain("onSelectV4Application={handleSelectV4Application}");
     expect(contextBar).toContain("usesV4ApplicationContext");
+    expect(contextBar).toContain('activeView === "applications" || v4Applications.length > 0');
     expect(contextBar).toContain("selectedV4Application?.snapshot.application.id");
     expect(contextBar).toContain("application.snapshot.opportunity.title");
     expect(genericApplicationsView).toContain(
@@ -162,8 +176,17 @@ describe("desktop accessibility contract", () => {
     expect(workspacesView).toContain("{copy.workflowPackDescription}");
   });
 
+  it("uses canonical Application collections and counts across summary surfaces", () => {
+    expect(app).toContain("listGenericApplications(activeWorkspace.path)");
+    expect(app).toContain("application_count: receipt.data.length");
+    expect(app).toContain("applicationCount={v4Applications.length}");
+    expect(todayView).toContain("{applicationCount}");
+    expect(workspacesView).toContain("activeWorkspace.status.application_count");
+    expect(workspacesView).not.toContain("activeWorkspace.status.job_count");
+  });
+
   it("rejects retired read projections before invoking the desktop host", () => {
-    expect(app).not.toMatch(/\b(?:listJobs|showJob)\b/u);
+    expect(app).not.toMatch(/\b(?:createJob|listJobs|showJob)\b/u);
     expect(app).toContain("listApplicationDossiers");
     expect(app).toContain("getApplicationDossier");
     for (const operation of [

@@ -49,7 +49,6 @@
     copyAgentHandoff,
     copyAgentMcpConfiguration,
     copyPackageProjection,
-    createJob,
     createWorkspace,
     discardDiscoveryPreview,
     discardJobSourcePreview,
@@ -93,6 +92,7 @@
     installCli,
     isDesktopRuntime,
     listApplicationDossiers,
+    listGenericApplications,
     listProfileSources,
     listDiscoveryLeads,
     listDiscoverySources,
@@ -317,6 +317,8 @@
   const recommendation = $derived(
     recommendWorkflowRoute({
       workspacePath: activeWorkspace?.path ?? null,
+      applicationCount: v4Applications.length,
+      hasSelectedApplication: selectedV4Application !== null,
       jobs,
       selectedJob,
     }),
@@ -722,14 +724,50 @@
     selected: StoredApplicationModelV3 | null;
     stages: ApplicationFlowStageV3[];
   }): void {
-    if (context.workspacePath !== activeWorkspace?.path || context.packId !== activePackId) return;
-    v4Applications = context.applications;
+    if (
+      !activeWorkspace ||
+      context.workspacePath !== activeWorkspace.path ||
+      context.packId !== activePackId
+    )
+      return;
+    const nextApplications = [
+      ...v4Applications.filter((application) => application.snapshot.pack.id !== context.packId),
+      ...context.applications,
+    ];
+    v4Applications = nextApplications;
+    if (activeWorkspace.status.application_count !== nextApplications.length) {
+      activeWorkspace = {
+        ...activeWorkspace,
+        status: { ...activeWorkspace.status, application_count: nextApplications.length },
+      };
+    }
     selectedV4Application = context.selected;
     v4Stages = context.stages;
     requestedV4ApplicationId = context.selected?.snapshot.application.id ?? "";
   }
 
+  function handleV4ApplicationCreated(application: StoredApplicationModelV3): void {
+    if (!activeWorkspace) return;
+    requestedV4ApplicationId = application.snapshot.application.id;
+    notice = `${copy.applicationCreatedInWorkspace} ${activeWorkspace.path}`;
+    noticeRoute = { view: "applications" };
+  }
+
   function handleSelectV4Application(applicationId: string): void {
+    const application = v4Applications.find(
+      (item) => item.snapshot.application.id === applicationId,
+    );
+    if (application) {
+      const packId = application.snapshot.pack.id;
+      if (
+        packId === GENERIC_APPLICATION_WORKFLOW_PACK_ID ||
+        packId === ACADEMIC_JOB_WORKFLOW_PACK_ID
+      ) {
+        selectApplicationPack(packId);
+      }
+      selectedV4Application = application;
+      v4Stages = [];
+    }
     requestedV4ApplicationId = applicationId;
   }
 
@@ -1021,8 +1059,40 @@
     }
   }
 
+  async function loadApplicationsForActive(): Promise<void> {
+    if (!activeWorkspace) {
+      resetV4ApplicationContext();
+      return;
+    }
+    try {
+      const receipt = await listGenericApplications(activeWorkspace.path);
+      v4Applications = receipt.data;
+      const next =
+        receipt.data.find(
+          (application) => application.snapshot.application.id === requestedV4ApplicationId,
+        ) ?? receipt.data[0];
+      if (next) handleSelectV4Application(next.snapshot.application.id);
+      else {
+        selectedV4Application = null;
+        requestedV4ApplicationId = "";
+        v4Stages = [];
+      }
+      activeWorkspace = {
+        ...activeWorkspace,
+        status: { ...activeWorkspace.status, application_count: receipt.data.length },
+      };
+    } catch (error) {
+      captureBridgeError(error);
+    }
+  }
+
   async function loadWorkspaceCollections(): Promise<void> {
-    await Promise.all([loadJobsForActive(), loadDiscoveryForActive(), loadProfileForActive()]);
+    await Promise.all([
+      loadApplicationsForActive(),
+      loadJobsForActive(),
+      loadDiscoveryForActive(),
+      loadProfileForActive(),
+    ]);
   }
 
   async function openWorkspace(path: string): Promise<void> {
@@ -1306,10 +1376,11 @@
     confirmedPrivateRead: boolean;
   }): Promise<boolean> {
     if (!activeWorkspace) return false;
+    const workspacePath = activeWorkspace.path;
     const result = await runAction(
       () =>
         importProfileSource({
-          workspace: activeWorkspace!.path,
+          workspace: workspacePath,
           ...options,
         }),
       {
@@ -1321,7 +1392,7 @@
     if (!result) return false;
     await loadProfileForActive();
     await loadJobsForActive();
-    notice = result.summary;
+    notice = `${copy.profileSourceStoredInWorkspace} ${workspacePath}`;
     return true;
   }
 
@@ -2294,28 +2365,6 @@
     return bridgeError === null;
   }
 
-  async function handleCreateJob(title: string, institution: string): Promise<boolean> {
-    if (!activeWorkspace) return false;
-    const result = await runAction(() => createJob(activeWorkspace!.path, title, institution));
-    if (!result) return false;
-    await loadJobsForActive();
-    await handleSelectJob(result.data.id);
-    recordSuccessfulAction(
-      {
-        operation: "job.create",
-        route: {
-          view: "applications",
-          detail: "source-intake",
-          jobId: result.data.id,
-        },
-        jobId: result.data.id,
-      },
-      result,
-    );
-    notice = result.summary;
-    return true;
-  }
-
   async function handleSelectJob(jobId: string): Promise<boolean> {
     if (!activeWorkspace) return false;
     if (jobIntakePreview && jobIntakePreview.preview.data.job.id !== jobId) {
@@ -2756,6 +2805,7 @@
             presentation={workflowPackPresentation}
             requestedApplicationId={requestedV4ApplicationId}
             onContextChange={handleV4ApplicationContext}
+            onApplicationCreated={handleV4ApplicationCreated}
           />
         {:else if applicationsViewFailed}
           <Alert.Root variant="destructive" class="min-h-12">
@@ -2938,7 +2988,7 @@
             {copy}
             {desktopRuntime}
             {activeWorkspace}
-            jobCount={jobs.length}
+            applicationCount={v4Applications.length}
             upcomingDeadlineCount={upcomingDeadlineItems.length}
             {nearestDeadlineItem}
             {workspaceHealth}
