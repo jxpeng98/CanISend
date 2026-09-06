@@ -714,6 +714,15 @@
         "crates/canisend-contracts/src/operation.rs"
       ],
       "reason": "Align the exact Tauri inventory regression with the two retained login/session commands already exported and registered; preserve all CLI/MCP inventory and registry rejection assertions."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "85bbfac98512c346bbb57f50dce790f1c200eccd",
+      "paths": [
+        ".github/workflows/fast-ci.yml",
+        "Cargo.toml"
+      ],
+      "reason": "Implement owner-authorized LF-C02 CLI source-build isolation using Cargo default-members and existing core CI; preserve explicit desktop/workspace checks, frozen product contracts and release qualification boundaries."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
