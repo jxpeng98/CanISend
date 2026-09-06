@@ -734,6 +734,21 @@
         "xtask/src/main.rs"
       ],
       "reason": "Close LF-C03 source-verification gaps with isolated standalone install/resource regressions and replace obsolete native upgrade commands with the existing v4 dual-Pack and Host workflows; preserve exact release-pair verification and qualification gates."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "5afe3755cb9b7931096ec8df8dafee98005959cb",
+      "paths": [
+        "Cargo.lock",
+        "crates/canisend-app/src/application_mutations_v4.rs",
+        "crates/canisend-app/src/approval.rs",
+        "crates/canisend-app/src/association_v4.rs",
+        "crates/canisend-cli/tests/mcp_protocol.rs",
+        "crates/canisend-mcp/Cargo.toml",
+        "crates/canisend-mcp/src/lib.rs",
+        "scripts/smoke_agent_v4_mcp.sh"
+      ],
+      "reason": "Close the LF-C04 consent gap by requiring a separate Host form response for exact Broker-owned commits and private read/export requests; preserve canonical revalidation, process-local grants and real-Host qualification as a separate gate."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
