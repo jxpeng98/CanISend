@@ -3,7 +3,7 @@
   "name": "windows-desktop-validation",
   "title": "Fix Windows desktop validation gaps",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": "cross-layer",
   "package": null,
@@ -11,22 +11,24 @@
   "creator": "Jiaxi",
   "assignee": "Jiaxi",
   "createdAt": "2026-08-31",
-  "completedAt": null,
+  "completedAt": "2026-09-02",
   "branch": "fix/windows-desktop-validation",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
-  "pr_url": null,
+  "commit": "467eaae70abe8503aa48350d13ca334b318f3f40",
+  "pr_url": "https://github.com/jxpeng98/CanISend/pull/213",
   "subtasks": [],
   "children": [],
   "parent": null,
-  "relatedFiles": [],
-  "notes": "",
+  "relatedFiles": [
+    ".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/closure-evidence.md"
+  ],
+  "notes": "The macOS continuation merged through PR #213. Targeted Windows runtime checks subsequently passed with exact binary attribution; PATH state and temporary tools were restored and removed. See the linked closure evidence.",
   "meta": {
     "requirement_ids": "WIN-VAL-1,WIN-CHECKPOINT-1,MAC-HANDOFF-1,WIN-GUI-1,WIN-COPY-1,WIN-RUST-1,WIN-PROBE-1,WIN-A11Y-1,WIN-DELIVERY-1",
     "verification_tier": "focused plus final source gate",
     "support_boundary": "Windows CLI validation and nonpublishing desktop candidate only",
-    "current_checkpoint": "review-only Windows commit; product work resumes on macOS",
-    "native_windows_closure": "required after macOS; cannot be inferred from macOS results"
+    "current_checkpoint": "product repairs merged through PR #213",
+    "native_windows_closure": "passed on Windows 11 Arm64 with x64 emulation; not native x64 hardware certification"
   }
 }

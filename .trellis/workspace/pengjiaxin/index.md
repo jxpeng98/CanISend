@@ -19,12 +19,15 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~515 | Active |
+| `journal-1.md` | ~597 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
 
 ## Session History
+
+Historical session numbers were assigned independently on merged branches; duplicate numbers
+retain their original branch identity. They do not control current execution.
 
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |

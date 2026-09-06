@@ -148,3 +148,19 @@ rerun the five-target release workflow.
       post-merge cross-platform boundary passes.
 - [ ] Commit closure records through a documentation-only protected PR if required; no product or
       release-authority bytes change in that closure.
+
+## Closure review — 2026-09-02
+
+**Result:** complete, with evidence and limitations recorded in
+`research/closure-evidence.md`.
+
+- Phases 1–5 were completed on macOS using focused checks, followed by the single source gate.
+- PR #213 supplied the protected full-suite boundary and merged the Windows fixes. PR #214 merged
+  the packaging-budget follow-up without changing CLI or GUI product source.
+- Cross-built PE32+ x86-64 artifacts, final-head CI, final-head package qualification, targeted
+  Windows WebView2/PATH behavior, and stock Windows accessibility startup were verified.
+- The final guest runtime check occurred after protected merge rather than as the pre-merge gate
+  originally written in Phase 6. Failure would therefore have required a protected revert. The
+  check passed, user state was restored, and no product follow-up is required.
+- The phase checkboxes above retain the approved execution-plan snapshot; this closure review and
+  the PRD acceptance disposition are the final status authority.

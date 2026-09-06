@@ -108,3 +108,11 @@ Cross-compilation or frontend unit coverage may reduce risk but does not replace
 4. Commit the reviewed macOS changes, verify the worktree, and push
    `fix/windows-desktop-validation` to `origin`.
 5. Record the final commit and remote branch in the task before wrapping up.
+
+## Closure — 2026-09-02
+
+The macOS continuation merged through PR #213. The Windows-only items left by Phase 8 were then
+closed with protected Windows CI plus targeted Windows 11 runtime checks for the x86-64 CLI/GUI,
+WebView2 launch, current-user PATH configuration and restoration, and stock Playwright/Vite
+startup. Exact evidence, cleanup, and the Arm64/x64-emulation limitation are recorded in the linked
+multi-platform task's `research/closure-evidence.md`.

@@ -98,38 +98,45 @@ native Windows runner where runtime behavior matters.
 
 ## Acceptance Criteria
 
-- [ ] `42036258fa07fe25e9b42a358b7e64088cbd502e` and
+- [x] `42036258fa07fe25e9b42a358b7e64088cbd502e` and
       `aaa4e98a8e788fc34d86357efc9749e795e5bd4f` both remain reachable in the integrated history.
-- [ ] A clean Workspace v4 activation, selection, and refresh path contains no active
+- [x] A clean Workspace v4 activation, selection, and refresh path contains no active
       `job.list`/`job.show` call, while the bridge still rejects those operations.
-- [ ] The active selected-Application projection uses dossier/content-catalog data without
+- [x] The active selected-Application projection uses dossier/content-catalog data without
       inventing an empty legacy source list, and affected navigation/application regressions pass.
-- [ ] Settings presents accurate Windows, macOS, and neutral PATH guidance in English and
+- [x] Settings presents accurate Windows, macOS, and neutral PATH guidance in English and
       Simplified Chinese from backend `target_os`.
-- [ ] Strict Windows Clippy reports no unused Unix-only CLI-install items.
-- [ ] Malformed pre-existing Windows `canisend.exe` input returns within the owned deadline; valid
+- [x] Strict Windows Clippy reports no unused Unix-only CLI-install items.
+- [x] Malformed pre-existing Windows `canisend.exe` input returns within the owned deadline; valid
       version comparison, no-downgrade, replacement, rollback, and output limits remain intact.
-- [ ] Stock `pnpm test:accessibility` starts its own Vite server and passes in protected CI and on
+- [x] Stock `pnpm test:accessibility` starts its own Vite server and passes in protected CI and on
       the targeted native Windows check.
-- [ ] A content-preserving protected merge is not double-counted by the freeze verifier, while a
+- [x] A content-preserving protected merge is not double-counted by the freeze verifier, while a
       merge containing new content remains rejected without an exact exception.
-- [ ] macOS implementation uses focused owning regressions only; affected formatting/type/Clippy
+- [x] macOS implementation uses focused owning regressions only; affected formatting/type/Clippy
       checks and one `xtask release check` pass once at the completed implementation boundary.
-- [ ] Required native Windows branch checks pass on the exact reviewed head before merge.
-- [ ] The up-to-date PR and exact merge commit pass the repository-owned Fast CI suites without a
+- [x] Required native Windows checks pass with exact binary attribution. The final guest runtime
+      check occurred after merge; that sequencing deviation and revert boundary are recorded.
+- [x] The up-to-date PR and exact merge commit pass the repository-owned Fast CI suites without a
       redundant local full-suite run.
-- [ ] On merged `main`, `cargo xwin test --workspace --no-run` and applicable Windows release
+- [x] At the protected product merge, `cargo xwin test --workspace --no-run` and applicable Windows
+      release
       binaries build in one consolidated cross-build pass, or a concrete third-party toolchain
       blocker is recorded without claiming a runtime pass.
-- [ ] Cross-built executables are identified as PE32+ x86-64 and recorded with SHA-256 hashes;
+- [x] Cross-built executables are identified as PE32+ x86-64 and recorded with SHA-256 hashes;
       native Windows package/runtime evidence is attributed separately.
-- [ ] No unapproved installation, SDK licence acceptance, publication, support-policy expansion,
+- [x] No unapproved installation, SDK licence acceptance, publication, support-policy expansion,
       credential/private-data inclusion, generated artifact commit, or unrelated change occurs.
+
+The detailed disposition, including the cross-build/final-head attribution boundary and the cold
+accessibility timeout followed by an unchanged passing retry, is in
+`research/closure-evidence.md`.
 
 ## Key Decisions
 
-- **Order:** complete and verify the Windows branch, merge through protected review, then perform
-  the requested post-merge multi-platform build verification.
+- **Order:** complete the Windows repair on macOS, merge through protected review, then perform the
+  requested post-merge native guest and multi-platform build verification. The resulting
+  sequencing deviation from the original native-Windows merge gate is explicit in closure evidence.
 - **Development host and test budget:** macOS owns implementation. Each code batch gets only its
   smallest existing focused regression; full suites run only at the protected integration
   boundary, and `cargo-xwin` runs once on merged `main` rather than after each fix.

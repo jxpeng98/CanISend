@@ -385,6 +385,20 @@ Validated main on Apple Silicon macOS with native Rust, CLI, MCP, host, frontend
 ### Summary
 
 Refined the desktop sidebar and bilingual copy, aligned canonical v4 Skills, added CLI and MCP parity regressions, qualified an unpublished macOS Design Preview, and merged PR #215 after all six required Fast CI checks passed.
+## Session 15: Close Windows multi-platform validation
+
+**Date**: 2026-09-02
+**Task**: Close Windows multi-platform validation
+**Branch**: `main`
+
+### Summary
+
+Recorded protected integration and cross-platform evidence, restored native Windows test state, and archived the completed Windows tasks.
+
+### Main Changes
+
+- Recorded PR #213/#214, final CI, cross-build hashes, package artifact sizes, and native WebView2/PATH/accessibility evidence.
+- Archived the Windows handoff and multi-platform verification tasks after targeted closure passed.
 
 ### Git Commits
 
@@ -495,6 +509,12 @@ Corrected source/public release truth, passed one exact nonpublishing Beta.2 nat
 | `0da7f5f6d9bc1f896ef979dcb103993eff51e7fc` | (see git log) |
 | `d5ec49300661b1ebdc9b9ebcb14c615d317fb369` | (see git log) |
 | `2a928dd3baa642920b5f420d4ba58337c165331a` | (see git log) |
+| `8ee0c11a` | (see git log) |
+
+### Testing
+
+- [OK] Trellis context validation passed for both archived tasks.
+- [OK] git diff --check passed; product suites were not repeated for docs-only closure.
 
 ### Status
 
@@ -574,3 +594,4 @@ Added native local-file intake for Applications and Profile, clarified Workspace
 ### Status
 
 [OK] **Completed**
+- Use the existing desktop size-optimization plan for any further package slimming work.

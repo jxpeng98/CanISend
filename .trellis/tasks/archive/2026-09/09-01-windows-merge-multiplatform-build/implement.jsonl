@@ -1,0 +1,6 @@
+{"file":".trellis/spec/guides/project-control.md","reason":"Defines protected integration, release evidence, and authority boundaries."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Guides the Rust, desktop, packaging, and platform boundary review."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Applies to bounded CLI probe and rollback behavior."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines focused verification and strict warning expectations."}
+{"file":".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/windows-branch-readiness.md","reason":"Records the original branch, blocker, and freeze-audit baseline."}
+{"file":".trellis/tasks/archive/2026-09/09-01-windows-merge-multiplatform-build/research/closure-evidence.md","reason":"Records final protected, cross-build, native Windows, packaging, and cleanup evidence."}
