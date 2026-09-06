@@ -496,3 +496,11 @@ Next: complete LF-C04 integration, then LF-C05 real Host journey and canonical r
 LF-C06–08 source coordination work independently reviewable, LF-C09 optional, LF-C10/11 exact
 qualification separate, and LF-C12 deferred. No public release or historical-evidence relabelling
 is authorized by this implementation scope.
+
+The final source gate detected the expected third-party lock fingerprint change from enabling
+RMCP elicitation. Exact base/head TOML comparison proved the sole change is `rmcp 3.0.1 -> url`:
+all 751 package identities/versions/checksums and other edges are unchanged. CLI reverse dependency
+inspection confirmed `url 2.5.8` already belongs to the IO/HTTP/render graph. Fresh installed
+`cargo-deny 0.19.7` passed advisories, bans, licenses and sources, with existing duplicate, unused
+license-allowance and yanked `chacha20 0.10.1` warnings. Review date and fingerprint are refreshed;
+all reachability restrictions and the 2026-09-07 review/expiry deadlines are preserved.
