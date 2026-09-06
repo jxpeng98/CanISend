@@ -58,6 +58,31 @@ canisend --workspace /path/to/workspace host status --host codex --json
 runtime-package lookup, and `Python runtime: not required`. Workspace and host status must identify clean Workspace
 v4 and current Agent v4 resources. Do not continue with a binary that fails these checks.
 
+## CLI-only first run
+
+The standalone archive works independently of the desktop application. Packs, Skills, schemas,
+templates, the Typst renderer and fonts are embedded in the executable; no App bundle or source
+checkout is a runtime resource directory. Run the verified executable by its absolute path when
+checking a new installation, including when the installation path contains spaces or Unicode.
+
+Create a new Workspace, then prepare the selected Host integration:
+
+```console
+canisend --workspace ./applications workspace init --json
+canisend --workspace ./applications host setup --host codex --json
+canisend --workspace ./applications host status --host codex --json
+```
+
+Use `--host claude` for Claude Code. Setup installs the owned Skills and returns the MCP
+registration command for the running executable; it does not edit the Host's MCP configuration.
+Review and register that command in the Host. Installing or removing CanISend does not install,
+log in to, or uninstall the external Host.
+
+If multiple CanISend executables are on `PATH`, inspect the selected path (`command -v canisend`
+on macOS/Linux or `Get-Command canisend` in PowerShell) and run its `version --json`. Preserve any
+unrelated file at a proposed destination; archive installation does not own it. After moving the
+binary, regenerate Host setup with the new executable and update the Host registration explicitly.
+
 ## Install the macOS desktop application
 
 On Apple Silicon, download `CanISend-VERSION-aarch64-apple-darwin.dmg`, `SHA256SUMS`, the release

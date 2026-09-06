@@ -117,14 +117,93 @@ fn version_truth_remains_bound_to_the_current_source_release() {
 }
 
 #[test]
-fn doctor_proves_embedded_resources_and_no_python_requirement() {
-    let value = run_json(&["doctor", "--json"]);
+fn standalone_install_relocation_and_reinstall_preserve_resources_and_workspace() {
+    let root = TestDirectory::new("standalone 中文 path");
+    let install = root.path().join("installed binary");
+    let home = root.path().join("empty home");
+    let cwd = root.path().join("unrelated cwd");
+    let workspace = root.path().join("user workspace");
+    for directory in [&install, &home, &cwd] {
+        fs::create_dir_all(directory).expect("isolated directory");
+    }
+    let binary = install.join(format!("canisend{}", std::env::consts::EXE_SUFFIX));
+    fs::copy(env!("CARGO_BIN_EXE_canisend"), &binary).expect("install standalone binary");
+    let invoke = |arguments: &[&str]| {
+        let mut command = Command::new(&binary);
+        command
+            .args(arguments)
+            .current_dir(&cwd)
+            .env_clear()
+            .env("PATH", &cwd)
+            .env("HOME", &home)
+            .env("USERPROFILE", &home)
+            .env("TMPDIR", &home)
+            .env("TEMP", &home)
+            .env("TMP", &home);
+        // Windows needs its OS directory, not a developer toolchain or user profile.
+        if let Some(system_root) = std::env::var_os("SystemRoot") {
+            command.env("SystemRoot", system_root);
+        }
+        assert_json_output(command.output().expect("standalone CLI runs"))
+    };
+    let value = invoke(&["doctor", "--json"]);
     assert_eq!(value["status"], "healthy");
     assert_eq!(value["data"]["resource_manifest"], "verified");
     assert_eq!(value["data"]["embedded_typst"], "verified");
     assert_eq!(value["data"]["runtime_package_downloads"], false);
     assert_eq!(value["data"]["python_required"], false);
+    assert_eq!(value["data"]["system_font_scan"], false);
     assert_eq!(value["data"]["render_probe"]["page_count"], 2);
+
+    let workspace_path = workspace.to_str().expect("UTF-8 Workspace path");
+    invoke(&["--workspace", workspace_path, "workspace", "init", "--json"]);
+    let setup = invoke(&[
+        "--workspace",
+        workspace_path,
+        "host",
+        "setup",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    let registered = setup["data"]["mcp"]["executable"]
+        .as_str()
+        .expect("registered standalone executable");
+    assert_eq!(
+        fs::canonicalize(registered).expect("registered binary"),
+        fs::canonicalize(&binary).expect("installed binary")
+    );
+    let before_uninstall = file_snapshot(&workspace);
+    fs::remove_dir_all(&install).expect("uninstall binary only");
+    assert!(!binary.exists());
+    assert_eq!(file_snapshot(&workspace), before_uninstall);
+
+    fs::create_dir(&install).expect("recreate install directory");
+    fs::copy(env!("CARGO_BIN_EXE_canisend"), &binary)
+        .expect("reinstall verified same-build binary");
+    assert_eq!(invoke(&["doctor", "--json"])["status"], "healthy");
+    assert_eq!(
+        invoke(&[
+            "--workspace",
+            workspace_path,
+            "host",
+            "status",
+            "--host",
+            "codex",
+            "--json",
+        ])["data"]["skills"]["state"],
+        "up-to-date"
+    );
+    assert_eq!(
+        invoke(&[
+            "--workspace",
+            workspace_path,
+            "workspace",
+            "check",
+            "--json"
+        ])["data"]["ok"],
+        true
+    );
 }
 
 #[test]

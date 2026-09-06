@@ -11,12 +11,15 @@ then proves:
 
 1. Beta and RC archive/manifest hashes match the verified pair;
 2. Beta `version` and `doctor` identify a standalone native runtime;
-3. Beta creates and checks an external synthetic workspace, then makes a verified backup;
+3. Beta runs the existing clean-v4 quick-start with both Packs and a synthetic Profile Source,
+   then makes a verified backup of that external Workspace;
 4. the installed unit advances to RC, whose `version`, `doctor`, workspace open, and check pass;
+   the two Application snapshots remain unchanged;
 5. the Beta binary either accepts the unchanged schema or rejects an advanced schema with stable
    `workspace.conflict`, without mutating the workspace;
 6. Beta restores its pre-upgrade backup into a new path and checks the restored workspace;
-7. RC regenerates a Codex host pack;
+7. RC installs and checks the owned Codex Agent v4 Skills and prepares MCP registration through
+   `host setup`/`host status`, without changing the Host's configuration;
 8. uninstall removes the installed binary/notices while the workspace, backup, and restored workspace remain; and
 9. no release or package repository is changed.
 

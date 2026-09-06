@@ -14019,7 +14019,11 @@ fn check_upgrade_qualification_policy() -> Result<(), String> {
         "workspace backup",
         "workspace restore",
         "workspace.conflict",
-        "agent assets export --host codex",
+        "smoke_documented_quickstart.sh",
+        "cmp \"$root/before-applications.json\" \"$root/after-applications.json\"",
+        "host setup --host codex",
+        "host status --host codex",
+        ".agents/canisend-agent-v4.json",
         "installed-binary-and-notices-uninstalled",
         "no-publication",
     ] {
