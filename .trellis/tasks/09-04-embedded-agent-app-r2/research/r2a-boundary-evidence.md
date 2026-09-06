@@ -56,12 +56,16 @@ model-provided booleans as user consent.
 
 ## Real App Server probe — 2026-09-05
 
-The opt-in [probe](../../../../scripts/probe_codex_app_server.py) uses Python 3.11+ standard library,
+The historical [probe source](https://github.com/jxpeng98/CanISend/blob/b06a402fcf59e8fae0ba3c8f351016aef39cd8d7/scripts/probe_codex_app_server.py) used Python 3.11+ standard library,
 this exact installed native binary, a local Responses fixture, and a disposable stdio MCP server.
 It creates a fresh child-only Codex configuration home, supplies no account credentials, and never
 uses a real model endpoint. Reports contain booleans, counts, tool names, platform, version and binary
 digest; temporary provider sessions contain synthetic data and are removed. The probe is development
-qualification tooling, not a second product runtime. Run without Python `-O`:
+qualification tooling, not a second product runtime. During CLI-first closeout, the active script
+was removed to preserve ADR-RN-0001 and the existing Rust-only CI boundary. Its full source remains
+in the immutable commit above; the commands below are historical invocations, not current checkout
+instructions. A future resumed provider-qualification task must use the native test tooling.
+The historical probe required assertions enabled (no Python `-O`):
 
 ```console
 python3 scripts/probe_codex_app_server.py --codex /absolute/path/to/codex

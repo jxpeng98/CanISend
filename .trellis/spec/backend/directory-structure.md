@@ -414,11 +414,10 @@ execution/hooks/plugins/apps feature overrides. The experimental policy is versi
 fake protocol fixture owns bootstrap arguments, alias paths, policy rejection and unexpected
 provider-request rejection. Positive real-provider consent and effective isolation remain R2a enablement gates.
 
-The opt-in `scripts/probe_codex_app_server.py --codex /absolute/path/to/codex` owns exact provider
-capability observations. It requires Python 3.11+, uses a disposable child configuration home and
-loopback model plus stdio MCP with synthetic data, and emits only a body-free report. Do not add it
-to Fast CI or treat it as authenticated/native release qualification. The 0.152.0 named-permission
-probe requires the canonical executable path for both launch and filesystem rules; its observed
-MCP elicitation metadata has no item ID, so production correlation must reject ambiguous matches.
-Its explicit `--installed-account` mode only checks existing account availability with process-level
-restrictions and no model turn; account recognition is separate from full signed-in flow qualification.
+Historical provider capability observations and their immutable probe-source reference are retained in
+[the R2a evidence](../../tasks/09-04-embedded-agent-app-r2/research/r2a-boundary-evidence.md).
+The Python probe was removed from active scripts during CLI-first closeout under ADR-RN-0001;
+future resumed qualification belongs in native test tooling. Historical synthetic-loopback or
+account-availability observations do not qualify authenticated flow, native artifacts or R2 acceptance.
+The observed 0.152.0 MCP elicitation metadata has no item ID, so production correlation must reject
+ambiguous matches.
