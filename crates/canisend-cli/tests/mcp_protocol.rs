@@ -497,6 +497,29 @@ fn guarded_lifecycle(local_candidate: bool) {
         requirements["result"]["structuredContent"]["data"]
     );
 
+    let navigation = Command::new(test_binary())
+        .args([
+            "--workspace",
+            root.to_str().unwrap(),
+            "application",
+            "show",
+            "--application",
+            application_id.as_str(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(navigation.status.success());
+    let navigation: Value = serde_json::from_slice(&navigation.stdout).unwrap();
+    assert_eq!(
+        navigation["next_actions"][0]["action"],
+        "application.pack.show"
+    );
+    assert_eq!(
+        navigation["data"],
+        recovered["result"]["structuredContent"]["data"]
+    );
+
     let plan_preview = mcp.request(
         6,
         "tools/call",

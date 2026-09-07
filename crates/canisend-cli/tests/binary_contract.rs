@@ -746,6 +746,7 @@ fn workspace_v4_holds_generic_and_academic_applications_together() {
         shown["data"]["snapshot"]["pack"]["id"],
         "org.canisend.academic-job"
     );
+    assert_eq!(shown["next_actions"][0]["action"], "requirement.list");
     let pack = run_json(&[
         "--workspace",
         workspace.text(),

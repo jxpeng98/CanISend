@@ -1459,17 +1459,74 @@ fn application_show(
     let stored = Application::application_model_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
-    success(
-        operation,
-        "current",
-        &stored,
-        vec![
-            format!("Application: {}", stored.snapshot.opportunity.title),
-            format!("Revision: {}", stored.snapshot.application.revision.get()),
-            format!("Requirements: {}", stored.snapshot.requirements.len()),
-            format!("Deliverables: {}", stored.snapshot.deliverables.len()),
-        ],
-    )
+    use canisend_contracts::RequirementConfirmationV3;
+    let count = |state| {
+        stored
+            .snapshot
+            .requirements
+            .iter()
+            .filter(|requirement| requirement.confirmation == state)
+            .count()
+    };
+    let proposed = count(RequirementConfirmationV3::Proposed);
+    let confirmed = count(RequirementConfirmationV3::Confirmed);
+    let excluded = count(RequirementConfirmationV3::Excluded);
+    let plan = stored.snapshot.plan.as_ref().map_or_else(
+        || "not created".to_owned(),
+        |plan| {
+            format!(
+                "{:?}; decision {}; {} blocker(s)",
+                plan.state,
+                plan.decision
+                    .as_ref()
+                    .map_or("not set", |decision| decision.as_str()),
+                plan.blockers.len()
+            )
+        },
+    );
+    // Navigation from current metadata, not permission or a claim of export readiness.
+    let (action, description) = if stored.snapshot.requirements.is_empty() || proposed > 0 {
+        (
+            "requirement.list",
+            "Review the current Requirements and decide only unfinished work through the Host",
+        )
+    } else if stored.snapshot.plan.is_none() {
+        (
+            "application.pack.show",
+            "Requirement decisions are complete; inspect the Pack catalog and associated Evidence before proposing a Plan",
+        )
+    } else if stored.snapshot.deliverables.is_empty() {
+        (
+            "plan.show",
+            "Inspect Plan state, decision and blockers; verify associated Evidence before preparing materials",
+        )
+    } else {
+        (
+            "deliverable.list",
+            "Inspect existing material states before revision or review; local export still requires current readiness and consent",
+        )
+    };
+    let mut human = vec![
+        format!("Application: {}", stored.snapshot.opportunity.title),
+        format!("Revision: {}", stored.snapshot.application.revision.get()),
+        format!("Requirements: {proposed} proposed; {confirmed} confirmed; {excluded} excluded"),
+        format!("Plan: {plan}"),
+        format!("Deliverables: {}", stored.snapshot.deliverables.len()),
+    ];
+    human.extend(stored.snapshot.deliverables.iter().map(|item| {
+        format!(
+            "  {}: {:?} (revision {})",
+            item.kind.as_str(),
+            item.state,
+            item.revision.get()
+        )
+    }));
+    let mut output = success(operation, "current", &stored, human)?;
+    output.response.next_actions.push(NextAction {
+        action: action.to_owned(),
+        description: description.to_owned(),
+    });
+    Ok(output)
 }
 
 fn application_pack_show(

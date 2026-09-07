@@ -1191,3 +1191,49 @@ no declaration/catalog inventory changed. The new Skill behavior is source guida
 live-model acceptance claim. Rebuild and install the new resources before testing changed Host
 behavior; no repeated Requirement confirmation is needed on the completed original fixture.
 No native approval was supplied by the agent and no registry publication occurred.
+
+### Application journey versus engineering completion — 2026-09-07
+
+Owner requested continued development and an explicit mapping between the user's application
+journey, implemented features and the acceptance work. LF-C01–08 source integration and local
+LF-C10/11 automation are complete as scoped; this does not mean every future application-editing
+scenario or public release qualification is complete.
+
+| User journey | Existing implementation / source evidence | Remaining user-level evidence or capability |
+|---|---|---|
+| Install and initialize | Rust CLI, embedded Packs/five Skills, scoped setup/upgrade/remove, local Cargo/npm installation | Native platform matrix and actual registry installations after publication |
+| Understand call and verify applicant facts | Source-backed creation, Requirements, Profile Sources, Evidence confirmation/association | Real Host content reasoning; existing Source replacement after downstream work lacks a complete public adapter path |
+| Decide fit and materials | Exact Pack catalog, Requirement decisions, proceed/hold Plan proposal and confirmation | Complete the current Host's Evidence and dual-Pack Plan steps; assess gap handling |
+| Draft, revise, review and export | Full-set initial drafts, individual revisions, evidence audit, review disposition, scoped local export | Actual writing quality and visual document inspection; original source/material-set changes need explicit supported paths |
+| Resume and collaborate | Canonical reads, backup/restore, leases, persisted candidates and interrupted-commit recovery | Second real session resumption; two-Host qualification only for the collaboration claim |
+| Submit to external portal | Outside current product scope | CanISend does not upload or submit Applications |
+
+Recent False/True work is LF-C04 consent behavior observed through LF-C05 real Host qualification,
+feeding the LF-C10 candidate evidence. It is one integration boundary, not the entire application
+journey or a development stage to repeat for every Requirement. The successful True observation
+is already recorded; continuing means the first unfinished application dependency. Run owning
+positive/negative automated regressions for changed boundaries; repeat human cases only for
+changed interactions or required exact candidate binding. Registry build/publish CI belongs to
+LF-C03/10 distribution and must not be confused with model writing-quality validation.
+
+Next implemented slice: improve existing CLI `application show` as the continuation entrypoint.
+It now prints proposed/confirmed/excluded Requirement counts, Plan state/decision/blocker count,
+and each Deliverable state. Existing `next_actions` points to the relevant read operation based
+on canonical metadata; the snapshot response remains unchanged. These are navigation hints,
+not executable permissions, automatic writes, evidence-readiness or export-readiness claims.
+No new command, workflow store or confirmation mechanism was introduced.
+
+Validation: the existing mixed-Pack CLI test checks navigation for unfinished Requirements; the
+MCP lifecycle test checks navigation after confirmation and exact unchanged snapshot data before
+proceeding to Plan. Both pass. A PTY smoke on the original confirmed fixture displayed one confirmed
+Requirement, no Plan and the catalog/Evidence next read. The initial text-output assertion used a
+pipe, where JSON is intentional; retained the proper JSON contract assertion and inspected text
+through a PTY. Removed duplicate next-action rendering found there. Affected all-target Clippy,
+formatting, source check and diff check pass. No Application mutation or additional native form
+was performed. Future release artifacts need rebuilding to include this source change.
+
+Next development priority: audit and complete bounded source/requirement change handling for an
+existing Application, with explicit downstream invalidation and recovery, before claiming the
+whole iterative application experience complete. Continue the original real Host fixture at its
+first unmet dependency; do not repeat the successful Requirement confirmation. Publication remains
+subject to the owner's retained Beta conditions.
