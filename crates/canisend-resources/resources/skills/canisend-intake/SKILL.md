@@ -63,12 +63,29 @@ or source content requires a supported correction path, not silently undoing exi
    schema; do not send only a changed subset. The user answers the form. Refresh context after
    each commit; never silently exclude an unmet mandatory criterion to make the application fit.
 
+## Correct an existing Requirement
+
+When the installed catalog includes `canisend_requirement_revise_preview`, use it for one existing
+Requirement UUID with the current Application revision, exact associated Source reference and
+replacement category, statement, priority and byte span. It validates the replacement against the
+Source and Pack, then lists the exact downstream Plan/Deliverable revisions that become stale.
+If `preview.status` is `unchanged`, no approval token is issued: reuse the current state and do not
+call commit. Otherwise the user reviews the exact change through
+`canisend_requirement_revise_commit` with `request_confirmation: true`.
+
+Revision preserves identity and history, returns that Requirement to `proposed`, and clears its
+old confirmation. Other Requirement decisions remain intact. Re-read before continuing: the current
+confirmation adapter still requires an entirely proposed set without a Plan, and stale Plan
+replacement is not yet exposed. Report that bounded recovery gap for mixed decisions or existing
+downstream work; do not replay confirmation, erase the Plan, or recreate the Application.
+
 ## Hand off
 
 Give the Requirements and Source references to `canisend-materials`, with mandatory conditions,
 format constraints and unresolved ambiguity. If applicant facts are missing, use
 `canisend-workspace` for Profile Sources and Evidence; an advert is not proof of applicant ability.
-When source wording changes, refresh extraction/confirmation and identify affected plans/materials.
+When source wording changes, use the supported correction path above and carry the affected
+Plan/material revisions into recovery.
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. `request_private_read`
 requests consent; it does not assert consent. After denial, stop the denied operation without

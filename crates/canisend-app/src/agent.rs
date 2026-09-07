@@ -71,7 +71,7 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 40] = [
+pub const CANISEND_MCP_TOOLS: [&str; 42] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -106,6 +106,8 @@ pub const CANISEND_MCP_TOOLS: [&str; 40] = [
     "canisend_requirement_extract_commit",
     "canisend_requirement_extract_preview",
     "canisend_requirement_list",
+    "canisend_requirement_revise_commit",
+    "canisend_requirement_revise_preview",
     "canisend_requirement_show",
     "canisend_review_disposition_commit",
     "canisend_review_disposition_preview",
@@ -114,7 +116,7 @@ pub const CANISEND_MCP_TOOLS: [&str; 40] = [
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 29] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 30] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -139,6 +141,7 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 29] = [
     "canisend_requirement_confirm_preview",
     "canisend_requirement_extract_preview",
     "canisend_requirement_list",
+    "canisend_requirement_revise_preview",
     "canisend_requirement_show",
     "canisend_review_disposition_preview",
     "canisend_review_inspect",
@@ -146,7 +149,7 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 29] = [
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 11] = [
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 12] = [
     "canisend_deliverable_draft_commit",
     "canisend_deliverable_revise_commit",
     "canisend_evidence_association_commit",
@@ -157,6 +160,7 @@ pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 11] = [
     "canisend_profile_association_commit",
     "canisend_requirement_confirm_commit",
     "canisend_requirement_extract_commit",
+    "canisend_requirement_revise_commit",
     "canisend_review_disposition_commit",
 ];
 

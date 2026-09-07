@@ -53,7 +53,7 @@ pub use application_mutation_v4::{
     ApplicationDeliverableReviseRequestV4, ApplicationMutationServiceV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    RequirementDecisionV4,
+    ApplicationRequirementReviseRequestV4, RequirementDecisionV4,
 };
 pub use application_projection_v3::{
     APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,

@@ -1249,7 +1249,7 @@ needed for the initial slice. Preserve the current qualified fixture and histori
 | Slice | Scope | Acceptance | State |
 |---|---|---|---|
 | I1 | Read-only exact update-impact preview at the repository owner; use the same transition and invalidation rules as commit | Preview and commit agree on projected snapshot/digest and stale IDs; preview writes no head/history/audit; bad revision/identity/deletion fails; concurrent change invalidates the expected revision | Complete locally |
-| I2 | Typed single-Requirement revision with source/span checks, private-read scope and native preview/commit; expose through existing adapters with explicit schema changes | Retain Requirement identity, increment its revision, clear obsolete confirmation, stale only affected downstream work; no-op is read/completed; denial/replay preserve state | Pending I1 |
+| I2 | Typed single-Requirement revision with source/span checks, private-read scope and native preview/commit; expose through existing adapters with explicit schema changes | Retain Requirement identity, increment its revision, clear obsolete confirmation, stale only affected downstream work; no-op is read/completed; denial/replay preserve state | Complete locally (CLI/MCP; recovery remains I3) |
 | I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | Pending I2 |
 | I4 | Dual-Pack end-to-end revision/recovery automation and updated Skills/CLI guidance; rebuild and perform one bounded real Host journey | Both Packs revise existing input through new consent to current materials/export; old revisions recoverable; conflicting writers and interrupted responses resolve from canonical state | Pending I2–I3 |
 
@@ -1282,3 +1282,44 @@ Logs are `/tmp/canisend-impact-test.log` and `/tmp/canisend-impact-clippy.log`. 
 CLI/MCP tool, business mutation or real Host confirmation was added/run. I2 is the next slice:
 construct validated typed corrections and bind the exact impact into the existing native-consent
 preview/commit workflow before exposing a user-facing edit operation.
+
+
+I2 completed locally — 2026-09-07: added typed `ApplicationRequirementReviseRequestV4` and
+`canisend_requirement_revise_preview` / `canisend_requirement_revise_commit` through the CLI's
+existing MCP server. The request can replace one existing Requirement's category, statement,
+priority and exact associated Source span. Source association/revision/digest, normalized UTF-8
+span and Pack validation are shared with extraction. Identity and history remain; changed content
+increments the Requirement revision, clears its confirmation and lets the repository stale exact
+downstream revisions. Existing decisions and immutable material content are preserved.
+
+The Broker binds the current snapshot, typed request and exact semantic impact (including any
+Opportunity Source reference addition). Commit timestamps remain repository-owned and are not
+promised as a projected final digest. An unchanged request returns `preview.status=unchanged`
+without an approval token or mutation confirmation. Private Source reads retain their separate
+consent boundary. Changed requests use native confirmation with no model-supplied `approved`
+field. No unrestricted snapshot update, new CLI mutation switch or desktop adapter was added.
+The operation registry marks these as canonical MCP leaves; this does not claim Tauri parity.
+
+Inspection also found that Source associations can change independently of the Application
+revision. Both extraction and revision now recheck the exact current association inside the
+Application write transaction, sharing one Store-owned validator. The regression validates a
+candidate, unlinks its Source, then exercises the commit boundary directly: no Application head,
+history or audit change. A positive associated-Source case matches the projected digest.
+
+Validation: the Store transaction regression and all seven Application mutation tests pass,
+including no-op, denial/replay/stale grants, private reads, invalid Source/span/category/identity,
+explicit Source rebinding and correction after material export. Five MCP protocol tests passed
+in the complete run; the cross-Application catalog test initially lacked the new typed field and
+scoped-tool count. After updating those fixtures, its focused rerun passes for both Packs. The
+simulated native False/True correction flow passes and issues no form for unchanged content or
+replay. Affected all-target Clippy, formatting, shell syntax, diff and `xtask source check` pass.
+The catalog now has 42 tools (30 read/preview, 12 guarded writes); embedded registry, active package
+contract digest and smoke inventories are synchronized. No generated schema file drift occurred.
+Logs: `/tmp/canisend-i2-{transaction,tests,rebind,mcp,binding,clippy,source}.log`.
+
+Next is I3: explicitly revise/associate Sources and make partial Requirement re-confirmation,
+stale Plan replacement and material recovery usable together. The existing exact-set confirmation
+and existing-Plan guards remain; Intake guidance states this recovery limitation instead of
+instructing another doomed confirmation. I2 is a bounded correction API, not acceptance of the
+complete iterative journey. No real Host consent, candidate evidence refresh, publication, tag,
+push or PR was performed; release and live-model qualification remain separate.

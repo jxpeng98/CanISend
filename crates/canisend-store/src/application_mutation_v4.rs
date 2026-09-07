@@ -14,9 +14,10 @@ use sha2::{Digest, Sha256};
 use crate::{
     ApplicationAssociationServiceV4, ApplicationFlowComposeRequestV3,
     ApplicationFlowPlannedDeliverableV3, ApplicationFlowRequirementDraftV3,
-    ApplicationModelCommitResultV3, ApplicationModelRepository, BlobStore, Database,
-    MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3, MAX_APPLICATION_FLOW_SOURCE_BYTES_V3, StoreError,
-    StoredApplicationModelV3, generate_id, now_utc,
+    ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationModelUpdatePreviewV3,
+    BlobStore, Database, MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3,
+    MAX_APPLICATION_FLOW_SOURCE_BYTES_V3, StoreError, StoredApplicationModelV3, generate_id,
+    now_utc,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +40,15 @@ pub struct ApplicationRequirementExtractRequestV4 {
     pub expected_revision: Revision,
     pub source: ContentRevisionReferenceV3,
     pub requirements: Vec<ApplicationFlowRequirementDraftV3>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationRequirementReviseRequestV4 {
+    pub expected_revision: Revision,
+    pub requirement_id: RequirementId,
+    pub source: ContentRevisionReferenceV3,
+    pub requirement: ApplicationFlowRequirementDraftV3,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,6 +138,122 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         let current = self.current(pack, application_id, request.expected_revision)?;
         self.validate_requirement_extraction_request(pack, application_id, request, &current)?;
         Ok(current)
+    }
+
+    pub fn preview_requirement_revision(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationRequirementReviseRequestV4,
+    ) -> Result<
+        (
+            StoredApplicationModelV3,
+            Option<ApplicationModelUpdatePreviewV3>,
+        ),
+        StoreError,
+    > {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        let impact = self
+            .requirement_revision_candidate(pack, application_id, request, &current)?
+            .map(|candidate| {
+                ApplicationModelRepository::new(self.database).preview_update(
+                    application_id,
+                    request.expected_revision,
+                    candidate,
+                )
+            })
+            .transpose()?;
+        Ok((current, impact))
+    }
+
+    pub fn revise_requirement(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationRequirementReviseRequestV4,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        let candidate = self
+            .requirement_revision_candidate(pack, application_id, &request, &current)?
+            .ok_or_else(|| {
+                StoreError::ApplicationModelConflict(
+                    "Requirement already matches the requested content; no commit is needed"
+                        .to_owned(),
+                )
+            })?;
+        ApplicationModelRepository::new(self.database).commit_with_requirement_source(
+            application_id,
+            request.expected_revision,
+            candidate,
+            ActorKind::User,
+            "application-v4-requirement-revise",
+            &request.source,
+        )
+    }
+
+    fn requirement_revision_candidate(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationRequirementReviseRequestV4,
+        current: &StoredApplicationModelV3,
+    ) -> Result<Option<canisend_contracts::ApplicationModelSnapshotV3>, StoreError> {
+        if current.snapshot.application.lifecycle == ApplicationLifecycleV3::Archived {
+            return Err(StoreError::ApplicationModelConflict(
+                "archived Applications cannot be revised".to_owned(),
+            ));
+        }
+        self.validate_requirement_source(
+            pack,
+            application_id,
+            &request.source,
+            std::slice::from_ref(&request.requirement),
+        )?;
+        let mut candidate = current.snapshot.clone();
+        let requirement = candidate
+            .requirements
+            .iter_mut()
+            .find(|requirement| requirement.id == request.requirement_id)
+            .ok_or_else(|| {
+                StoreError::InvalidInput(
+                    "Requirement does not belong to the selected Application".to_owned(),
+                )
+            })?;
+        let draft = &request.requirement;
+        let source_span = ContentSpanV3 {
+            content: request.source.clone(),
+            start_byte: draft.start_byte,
+            end_byte: draft.end_byte,
+        };
+        if requirement.category == draft.category
+            && requirement.statement == draft.statement
+            && requirement.priority == draft.priority
+            && requirement.source_span == source_span
+        {
+            return Ok(None);
+        }
+        requirement.category = draft.category.clone();
+        requirement.statement = draft.statement.clone();
+        requirement.priority = draft.priority;
+        requirement.source_span = source_span;
+        requirement.confirmation = RequirementConfirmationV3::Proposed;
+        requirement.confirmed_by = None;
+        requirement.confirmed_at = None;
+        requirement.revision = next_revision(requirement.revision)?;
+        candidate.application.revision = next_revision(candidate.application.revision)?;
+        candidate.application.updated_at = now_utc()?;
+        if !candidate
+            .opportunity
+            .source_ids
+            .contains(&request.source.id)
+        {
+            candidate
+                .opportunity
+                .source_ids
+                .push(request.source.id.clone());
+            candidate.opportunity.revision = next_revision(candidate.opportunity.revision)?;
+        }
+        Ok(Some(candidate))
     }
 
     pub fn validate_plan_proposal(
@@ -380,12 +506,13 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             .collect::<Result<Vec<_>, StoreError>>()?;
         candidate.requirements.extend(extracted);
         crate::application_v3::validate_snapshot(&candidate)?;
-        ApplicationModelRepository::new(self.database).commit(
+        ApplicationModelRepository::new(self.database).commit_with_requirement_source(
             application_id,
             request.expected_revision,
             candidate,
             ActorKind::HostAgent,
             "application-v4-requirement-extract",
+            &request.source,
         )
     }
 
@@ -659,28 +786,28 @@ impl<'a> ApplicationMutationServiceV4<'a> {
                 canisend_contracts::APPLICATION_MODEL_V3_MAX_REQUIREMENTS
             )));
         }
-        let association = ApplicationAssociationServiceV4::new(self.database, self.blobs)
-            .source_associations(application_id)?
-            .into_iter()
-            .find(|association| association.source == request.source)
-            .ok_or_else(|| {
-                StoreError::ApplicationAssociationConflict(
-                    "Requirement extraction Source is not associated with this Application"
-                        .to_owned(),
-                )
-            })?;
-        if association.stale {
-            return Err(StoreError::ApplicationAssociationConflict(
-                "Requirement extraction Source association is stale".to_owned(),
-            ));
-        }
+        self.validate_requirement_source(
+            pack,
+            application_id,
+            &request.source,
+            &request.requirements,
+        )
+    }
+
+    fn validate_requirement_source(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        reference: &ContentRevisionReferenceV3,
+        requirements: &[ApplicationFlowRequirementDraftV3],
+    ) -> Result<(), StoreError> {
+        crate::association_v4::validate_current_source_association(
+            self.database.connection(),
+            application_id,
+            reference,
+        )?;
         let source = ApplicationAssociationServiceV4::new(self.database, self.blobs)
-            .source(&request.source.id, request.source.revision)?;
-        if source.normalized_sha256 != request.source.sha256 {
-            return Err(StoreError::ApplicationAssociationConflict(
-                "Requirement extraction Source digest does not match its exact revision".to_owned(),
-            ));
-        }
+            .source(&reference.id, reference.revision)?;
         let bytes = self.blobs.read_verified(
             &source.normalized_sha256,
             u64::try_from(MAX_APPLICATION_FLOW_SOURCE_BYTES_V3)
@@ -688,13 +815,13 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         )?;
         let normalized_text = String::from_utf8(bytes).map_err(|_| {
             StoreError::ApplicationModelIntegrity(
-                "Requirement extraction Source is not normalized UTF-8 text".to_owned(),
+                "Requirement Source is not normalized UTF-8 text".to_owned(),
             )
         })?;
         crate::application_flow_v3::validate_source_and_requirements(
             pack,
             &normalized_text,
-            &request.requirements,
+            requirements,
         )
     }
 }

@@ -207,9 +207,9 @@ jq -e \
     and $setup.data.mcp.protocol_version == "2025-11-25"
     and $setup.data.mcp.configuration_target == ".codex/config.toml"
     and ($setup.data.mcp.registration_command | contains("mcp serve"))
-    and ($setup.data.mcp.tools | length) == 40
-    and ($setup.data.mcp.read_only_tools | length) == 29
-    and ($setup.data.mcp.guarded_write_tools | length) == 11
+    and ($setup.data.mcp.tools | length) == 42
+    and ($setup.data.mcp.read_only_tools | length) == 30
+    and ($setup.data.mcp.guarded_write_tools | length) == 12
     and $setup.data.mcp_configuration_mutated == false
     and $repeat.ok == true
     and $repeat.data.skills.state == "up-to-date"
@@ -443,7 +443,7 @@ fi
 if ! jq -s -e '
   . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 40) and
+  (map(select(.id == 2))[0].result.tools | length == 42) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
@@ -480,6 +480,8 @@ if ! jq -s -e '
     "canisend_requirement_extract_commit",
     "canisend_requirement_extract_preview",
     "canisend_requirement_list",
+    "canisend_requirement_revise_commit",
+    "canisend_requirement_revise_preview",
     "canisend_requirement_show",
     "canisend_review_disposition_commit",
     "canisend_review_disposition_preview",

@@ -66,9 +66,9 @@ for host in codex claude; do
         .data.mcp.executable == $binary
         or (.data.mcp.executable | endswith($binary))
       )
-      and (.data.mcp.tools | length) == 40
-      and (.data.mcp.read_only_tools | length) == 29
-      and (.data.mcp.guarded_write_tools | length) == 11
+      and (.data.mcp.tools | length) == 42
+      and (.data.mcp.read_only_tools | length) == 30
+      and (.data.mcp.guarded_write_tools | length) == 12
       and (.data.mcp.registration_command | contains("mcp serve"))
       and .data.mcp_configuration_mutated == false
     ' "$smoke_root/$host-setup.json" >/dev/null
@@ -85,7 +85,7 @@ for host in codex claude; do
       and .data.host == $host
       and .data.scope == "project"
       and .data.skills.state == "up-to-date"
-      and (.data.mcp.tools | length) == 40
+      and (.data.mcp.tools | length) == 42
       and .data.mcp_configuration_mutated == false
     ' "$smoke_root/$host-status.json" >/dev/null
 done

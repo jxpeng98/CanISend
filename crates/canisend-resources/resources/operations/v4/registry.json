@@ -51,6 +51,8 @@
     {"id":"requirement.show","phase":"read","context":"application","agent_task":"requirements","adapters":{"cli":"requirement show","mcp":"canisend_requirement_show","tauri":"requirement_show"}},
     {"id":"requirement.extract.preview","phase":"preview","context":"application","agent_task":"requirements","adapters":{"cli":"requirement extract preview","mcp":"canisend_requirement_extract_preview","tauri":"requirement_extract_preview"}},
     {"id":"requirement.extract.commit","phase":"commit","context":"application","agent_task":"requirements","adapters":{"cli":"requirement extract commit","mcp":"canisend_requirement_extract_commit","tauri":"requirement_extract_commit"}},
+    {"id":"requirement.revise.preview","phase":"preview","context":"application","agent_task":"requirements","adapters":{"cli":"requirement revise preview","mcp":"canisend_requirement_revise_preview","tauri":"requirement_revise_preview"}},
+    {"id":"requirement.revise.commit","phase":"commit","context":"application","agent_task":"requirements","adapters":{"cli":"requirement revise commit","mcp":"canisend_requirement_revise_commit","tauri":"requirement_revise_commit"}},
     {"id":"requirement.confirm.preview","phase":"preview","context":"application","agent_task":"requirements","adapters":{"cli":"requirement confirm preview","mcp":"canisend_requirement_confirm_preview","tauri":"requirement_confirm_preview"}},
     {"id":"requirement.confirm.commit","phase":"commit","context":"application","agent_task":"requirements","adapters":{"cli":"requirement confirm commit","mcp":"canisend_requirement_confirm_commit","tauri":"requirement_confirm_commit"}},
 

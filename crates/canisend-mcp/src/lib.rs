@@ -15,10 +15,11 @@ use canisend_app::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    ApprovalBrokerError, ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
-    AssociationChangeV4, EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4,
-    EvidenceAssociationPreviewRequestV4, PrivateExportConsent, PrivateReadConsent,
-    ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
+    ApplicationRequirementReviseRequestV4, ApprovalBrokerError, ApprovalKind,
+    AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
+    EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceAssociationPreviewRequestV4,
+    PrivateExportConsent, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
+    RequirementDecisionV4,
 };
 use canisend_contracts::{
     ApplicationId, ContentRevisionReferenceV3, DeliverableId, EvidenceProposalSet, ExecutionMode,
@@ -232,6 +233,20 @@ pub struct RequirementExtractCommitParameters {
         description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
     )]
     pub request_confirmation: bool,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementRevisePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub requirement_id: String,
+    pub source: ContentRevisionReferenceV3,
+    pub requirement: RequirementExtractInput,
     #[schemars(
         description = "Request separate native private-read consent; this flag does not grant consent."
     )]
@@ -470,6 +485,9 @@ impl CanISendMcpServer {
             let kind = match request.name.as_ref() {
                 "canisend_requirement_extract_commit" => {
                     ApprovalKind::ApplicationRequirementExtraction
+                }
+                "canisend_requirement_revise_commit" => {
+                    ApprovalKind::ApplicationRequirementRevision
                 }
                 "canisend_requirement_confirm_commit" => {
                     ApprovalKind::ApplicationRequirementConfirmation
@@ -1001,6 +1019,76 @@ impl CanISendMcpServer {
         let application_id = self.parse_application_id(&parameters.application_id)?;
         Self::mutation_result(
             self.mutation_approvals.commit_requirement_extraction(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.request_confirmation,
+                parameters
+                    .request_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Preview a Source-bound correction to one existing Requirement and exact downstream stale revisions. Unchanged content returns preview.status=unchanged without an approval token.",
+        annotations(
+            title = "Preview Requirement revision",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_revise_preview(
+        &self,
+        Parameters(parameters): Parameters<RequirementRevisePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let requirement_id = RequirementId::try_new(parameters.requirement_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        let draft = parameters.requirement;
+        Self::mutation_result(
+            self.mutation_approvals.preview_requirement_revision(
+                self.workspace(),
+                &application_id,
+                ApplicationRequirementReviseRequestV4 {
+                    expected_revision: Self::revision(parameters.expected_revision)?,
+                    requirement_id,
+                    source: parameters.source,
+                    requirement: ApplicationFlowRequirementDraftV3 {
+                        category: Self::pack_item(&draft.category)?,
+                        statement: draft.statement,
+                        priority: draft.priority,
+                        start_byte: draft.start_byte,
+                        end_byte: draft.end_byte,
+                    },
+                },
+                parameters
+                    .request_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Request native confirmation, then revise one Requirement, clear its obsolete decision and stale affected downstream work; the preview token is single-use",
+        annotations(
+            title = "Commit Requirement revision",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_revise_commit(
+        &self,
+        Parameters(parameters): Parameters<RequirementExtractCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.commit_requirement_revision(
                 self.workspace(),
                 &application_id,
                 &parameters.preview_token,
