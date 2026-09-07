@@ -2,7 +2,8 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.3`. This source is not a published checkpoint.
+- Checked-in source: `1.0.0-beta.3`. Its macOS ARM64 CLI is published on npm as a testing distribution;
+  this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -27,6 +28,13 @@ platforms listed in the npm package itself. Build, install and validate those ex
 manual `npm publish`; upload the native package before the `canisend` entry. GitHub CI setup and
 publication are deferred to the owner. This registry-only scope does not qualify a complete Beta
 checkpoint or refresh real-Host evidence. Cargo publication remains separate.
+
+Published npm packages: `canisend@1.0.0-beta.3` and `canisend-darwin-arm64@1.0.0-beta.3`, from
+source `9774d125fdbd55583475103171de0cdbb6488571`. The `next` install was independently downloaded
+and verified against the exact published tarball, native executable and included source archive.
+Registry readback also reports `latest` pointing to this first version. The version's supported
+npm platform is macOS ARM64. Future CI should publish a new version rather than attempt to
+overwrite these immutable registry packages.
 
 PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
 or manually dispatched candidate is not a published release.

@@ -25,6 +25,17 @@ export, and external submission decision.
 
 ## Current status
 
+The npm testing release `canisend@1.0.0-beta.3` is available for **macOS Apple Silicon**:
+
+```sh
+npm install -g canisend@next
+canisend --workspace ./applications workspace init --host codex
+```
+
+It includes the native CLI, both Packs, five Skills, and the corresponding source archive. Other
+npm platforms and Cargo publication are pending. This locally verified registry distribution is
+separate from the fully qualified checkpoints below.
+
 The checked-in source version is `1.0.0-beta.3`. The latest publicly qualified checkpoint is `v1.0.0-beta.1`
 ([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1)), built once from
 `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified after promotion, and bound

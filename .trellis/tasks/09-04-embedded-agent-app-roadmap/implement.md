@@ -1424,3 +1424,29 @@ local publication preflight, native-package-first upload, registry readback and 
 from npm. Keep actual upload results and artifact hashes under `dist/npm-beta3/`; record results
 here after the attempted publication. No GitHub tag, push, PR or CI-secret configuration is needed
 for this owner-authorized npm testing publication.
+
+Result: published `canisend-darwin-arm64@1.0.0-beta.3` first, verified its registry digest, then
+published `canisend@1.0.0-beta.3`. npm requested separate browser verification for each publish;
+the owner completed the npm verification and both CLI invocations returned success. No CanISend
+product confirmation was involved. The `next` channel is available; registry readback also shows
+`latest` assigned to this first version. This release supports macOS Apple Silicon only.
+
+Exact source is local commit `9774d125fdbd55583475103171de0cdbb6488571`. Node launcher/packaging
+tests (three), source check, fresh release build, ad-hoc signature verification, archive smoke,
+local npm install, and all six simulated Host tests passed. A new cache and isolated install prefix
+downloaded `canisend@next` from the public registry; package SHA-512/SHA-1, native bytes, included
+source bytes and product identity match the prepared artifacts. Workspace initialization installed
+all five Skills in `.agents/skills`, and Workspace check passed. Actual records and SHA-256 values:
+`dist/npm-beta3/publication.json` and `dist/npm-beta3/checks/registry-*.json`.
+
+The isolated global-prefix npm install also triggered the machine's mise maintenance, whose log
+records removal of older Claude Code, Antigravity CLI, Quarto, Codex and Bun versions. A read-only
+installed-tool check confirmed all five currently active versions remain installed. This was an
+environment side effect, not a CanISend install script; npm package scripts were disabled.
+Prefer a nonglobal npm prefix for future isolated verification to avoid global-install shim hooks.
+
+The full release check still reports historical provider-dogfood/current Agent binding drift;
+historical evidence and the qualification ledger remain byte-identical. Cargo was not uploaded;
+no GitHub push, tag, PR, CI configuration or CI secret change was made. Future automated uploads
+must use a new version, since both published npm version records are immutable. The manual npm
+publication request is complete; I3b can resume independently of formal Beta qualification.
