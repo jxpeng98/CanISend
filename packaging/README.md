@@ -99,17 +99,19 @@ Cargo 1.97 can dry-run and publish the complete dependency set together:
 cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
 ```
 
-`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces `canisend` and native
-`canisend-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}` packages.
-The entry forwards arguments, exit status and stdio to an exact-version optional native dependency;
-there is no download script. Node >=22.14 is required for the npm launcher. A partial bundle set is
-usable for local tests only; publication CI requires all five platforms. Run
-`node --test packaging/npm/launcher.test.cjs` for platform dispatch and error handling checks.
+`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces one `canisend` package with
+the supplied binaries in `native/{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}`.
+The entry forwards arguments, exit status and stdio to the matching embedded executable; there
+are no dependencies or download scripts. Node >=22.14 is required for the npm launcher. A partial
+bundle set declares its actual targets for local tests and owner-authorized testing publications;
+publication CI requires all five platforms in the same archive. All users download that archive,
+including the other platforms' binaries. Run
+`node --test packaging/npm/launcher.test.cjs packaging/npm/pack.test.mjs` for packaging and dispatch checks.
 
 The existing annotated-tag native release workflow calls `package-registries.yml` only after
 `verify-published-release` succeeds. It verifies and reuses those release assets, dry-runs all
-Cargo packages, tests the installed Linux npm entry, then publishes Cargo followed by npm native
-packages and finally the npm entry. Prereleases use npm's `next` dist-tag; stable uses `latest`.
+Cargo packages, tests the installed Linux npm entry, then publishes Cargo followed by the single
+`canisend` npm package. Prereleases use npm's `next` dist-tag; stable uses `latest`.
 A registry failure stops the job; partial publication is not rolled back or silently overwritten.
 Before retrying, inspect which immutable versions were uploaded and reconcile that exact set.
 

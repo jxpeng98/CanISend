@@ -32,8 +32,8 @@ jobs:
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
-      - name: Test native launcher dispatch
-        run: node --test packaging/npm/launcher.test.cjs
+      - name: Test unified npm packaging and native launcher dispatch
+        run: node --test packaging/npm/launcher.test.cjs packaging/npm/pack.test.mjs
       - name: Validate tag and reuse verified release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,14 +53,14 @@ jobs:
           done
           unzip -q "dist/registry-assets/canisend-$version-x86_64-pc-windows-msvc.zip" -d dist/registry-bundles
           node packaging/npm/pack.mjs dist/npm-registry dist/registry-bundles/*
-          jq -e --arg version "$version" '.complete and .version == $version' dist/npm-registry/packages.json
+          jq -e --arg version "$version" '.complete and .version == $version and .archives == ["canisend-" + $version + ".tgz"]' dist/npm-registry/packages.json
       - name: Verify Cargo registry packages before any upload
         run: cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
       - name: Verify installed npm entry and simulated Host
         shell: bash
         run: |
-          npm install --offline --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/npm-smoke" \
-            "dist/npm-registry/canisend-$(jq -r .version dist/npm-registry/packages.json).tgz" dist/npm-registry/canisend-linux-x64-gnu-*.tgz
+          npm install --offline --ignore-scripts --omit=optional --no-audit --no-fund --prefix "$RUNNER_TEMP/npm-smoke" \
+            "dist/npm-registry/canisend-$(jq -r .version dist/npm-registry/packages.json).tgz"
           binary="$RUNNER_TEMP/npm-smoke/node_modules/.bin/canisend"
           "$binary" --workspace "$RUNNER_TEMP/npm-workspace" workspace init --host codex --json
           CANISEND_TEST_CLI_BINARY="$binary" cargo test -p canisend --locked --test mcp_protocol
@@ -68,7 +68,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
-      - name: Publish native npm packages before the CLI entry
+      - name: Publish the single canisend npm package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
@@ -77,6 +77,4 @@ jobs:
           version="$(jq -r .version dist/npm-registry/packages.json)"
           channel=latest
           if [[ "$version" == *-* ]]; then channel=next; fi
-          while IFS= read -r archive; do
-            npm publish "dist/npm-registry/$archive" --access public --tag "$channel" --ignore-scripts
-          done < <(jq -r '.archives[]' dist/npm-registry/packages.json)
+          npm publish "dist/npm-registry/canisend-$version.tgz" --access public --tag "$channel" --ignore-scripts

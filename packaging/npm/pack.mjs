@@ -29,41 +29,57 @@ function platformMetadata(target) {
   return { os: [os], cpu: [cpu], ...(libc ? { libc: [libc === 'gnu' ? 'glibc' : libc] } : {}) };
 }
 fs.mkdirSync(output); // Refuse overwrite.
-const common = { version, license: 'GPL-3.0-only', repository: { type: 'git', url: 'git+https://github.com/jxpeng98/CanISend.git' } };
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-function pack(name, metadata, populate) {
-  const directory = path.join(output, name);
-  fs.mkdirSync(directory);
-  populate(directory);
-  fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({ name, ...common, ...metadata }, null, 2) + '\n');
-  const packed = JSON.parse(execFileSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: directory, encoding: 'utf8' }));
-  return packed[0].filename;
+const directory = path.join(output, 'canisend');
+fs.mkdirSync(directory);
+function copyFile(source, destination) {
+  if (!fs.lstatSync(source).isFile()) throw Error(`not a regular file: ${source}`);
+  fs.copyFileSync(source, destination);
 }
-const archives = [];
+for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'TYPST-ASSETS-LICENSE', 'TYPST-ASSETS-NOTICE']) {
+  copyFile(path.join(inputs[0].bundle, file), path.join(directory, file));
+}
 for (const input of inputs) {
   const [os] = platforms[input.target];
-  const name = `canisend-${platforms[input.target].join('-')}`;
-  archives.push(pack(name, { description: `CanISend native CLI for ${input.target}`, ...platformMetadata(input.target) }, directory => {
-    for (const file of ['canisend' + (os === 'win32' ? '.exe' : ''), 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'TYPST-ASSETS-LICENSE', 'TYPST-ASSETS-NOTICE', 'TARGET', 'RELEASE.json']) {
-      const source = path.join(input.bundle, file);
-      if (!fs.lstatSync(source).isFile()) throw Error(`not a regular file: ${source}`);
-      fs.copyFileSync(source, path.join(directory, file));
-    }
-    fs.chmodSync(path.join(directory, os === 'win32' ? 'canisend.exe' : 'canisend'), 0o755);
-  }));
+  const native = path.join(directory, 'native', platforms[input.target].join('-'));
+  fs.mkdirSync(native, { recursive: true });
+  const executable = os === 'win32' ? 'canisend.exe' : 'canisend';
+  for (const file of [executable, 'TARGET', 'RELEASE.json']) {
+    copyFile(path.join(input.bundle, file), path.join(native, file));
+  }
+  fs.chmodSync(path.join(native, executable), 0o755);
 }
-archives.push(pack('canisend', {
+copyFile(fileURLToPath(new URL('canisend.cjs', import.meta.url)), path.join(directory, 'canisend.cjs'));
+const sourceArchive = path.join(inputs[0].bundle, 'SOURCE.tar.gz');
+if (fs.existsSync(sourceArchive)) copyFile(sourceArchive, path.join(directory, 'SOURCE.tar.gz'));
+fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({
+  name: 'canisend', version, license: 'GPL-3.0-only',
+  repository: { type: 'git', url: 'git+https://github.com/jxpeng98/CanISend.git' },
   description: 'Evidence-bound application preparation CLI', bin: { canisend: 'canisend.cjs' }, engines: { node: '>=22.14' },
   ...(inputs.length === 1 ? platformMetadata(inputs[0].target) : {}),
-  optionalDependencies: Object.fromEntries(inputs.map(input => [`canisend-${platforms[input.target].join('-')}`, version])),
-}, directory => {
-  fs.copyFileSync(fileURLToPath(new URL('canisend.cjs', import.meta.url)), path.join(directory, 'canisend.cjs'));
-  fs.copyFileSync(path.join(inputs[0].bundle, 'LICENSE'), path.join(directory, 'LICENSE'));
-  const sourceArchive = path.join(inputs[0].bundle, 'SOURCE.tar.gz');
-  if (fs.existsSync(sourceArchive)) {
-    if (!fs.lstatSync(sourceArchive).isFile()) throw Error('source archive must be a regular file');
-    fs.copyFileSync(sourceArchive, path.join(directory, 'SOURCE.tar.gz'));
-  }
-  fs.writeFileSync(path.join(directory, 'README.md'), `# CanISend CLI\n\nPrepare evidence-bound applications locally. This npm package installs the Rust CLI.\n\n## Install\n\n\`\`\`sh\nnpm install -g canisend@${version}\ncanisend --workspace ./applications workspace init --host codex\n\`\`\`\n\nRequires Node.js 22.14 or newer. Keep optional dependencies enabled.\n\nThis package version supports:\n${inputs.map(input => `- ${input.target}`).join('\n')}\n\nThe CLI embeds both workflow Packs and all five Skills. Workspace initialization with \`--host codex\` installs the Skills in \`.agents/skills\`.\n\nApplication evidence, consent, review, and export controls remain active. CanISend does not upload or submit applications.\n\n[Source and documentation](https://github.com/jxpeng98/CanISend)\n${fs.existsSync(sourceArchive) ? '\nThe corresponding source is included in `SOURCE.tar.gz`. Extract it and run `cargo build --release --locked -p canisend` to build the CLI.\n' : ''}`);
-}));
+}, null, 2) + '\n');
+fs.writeFileSync(path.join(directory, 'README.md'), `# CanISend CLI
+
+Prepare evidence-bound applications locally. This single npm package includes the Rust CLI.
+
+## Install
+
+\`\`\`sh
+npm install -g canisend@${version}
+canisend --workspace ./applications workspace init --host codex
+\`\`\`
+
+Requires Node.js 22.14 or newer. No platform packages, install scripts, or additional binary downloads are needed.
+
+This package version supports:
+${inputs.map(input => `- ${input.target}`).join('\n')}
+
+The CLI embeds both workflow Packs and all five Skills. Workspace initialization with \`--host codex\` installs the Skills in \`.agents/skills\`.
+
+Application evidence, consent, review, and export controls remain active. CanISend does not upload or submit applications.
+
+[Source and documentation](https://github.com/jxpeng98/CanISend)
+${fs.existsSync(sourceArchive) ? '\nThe corresponding source is included in `SOURCE.tar.gz`. Extract it and run `cargo build --release --locked -p canisend` to build the CLI.\n' : ''}`);
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const packed = JSON.parse(execFileSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: directory, encoding: 'utf8' }));
+const archives = [packed[0].filename];
 fs.writeFileSync(path.join(output, 'packages.json'), JSON.stringify({ version, complete: seen.size === Object.keys(platforms).length, archives }, null, 2) + '\n');

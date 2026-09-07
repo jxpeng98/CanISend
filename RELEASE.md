@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.3`. Its macOS ARM64 CLI is published on npm as a testing distribution;
+- Checked-in source: `1.0.0-beta.4`. Its single-package npm testing distribution is being prepared;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -23,11 +23,12 @@
 - Machine stage: Beta / `beta-qualifying`; feature-freeze status is independently recorded in
   `release/qualification-ledger.json`. RC and Stable remain unauthorized until their gates pass.
 
-The owner authorized `1.0.0-beta.3` as a local npm testing prerelease on `next`, with the supported
-platforms listed in the npm package itself. Build, install and validate those exact bytes before
-manual `npm publish`; upload the native package before the `canisend` entry. GitHub CI setup and
-publication are deferred to the owner. This registry-only scope does not qualify a complete Beta
-checkpoint or refresh real-Host evidence. Cargo publication remains separate.
+The owner authorized local npm testing prereleases on `next`, with the supported platforms listed
+in the npm package itself. Starting with `1.0.0-beta.4`, publish one self-contained `canisend`
+package with executables under `native/`; no platform package or installation-time download is
+needed. Build, install and validate those exact bytes before manual `npm publish`. GitHub CI setup
+and publication are deferred to the owner. This registry-only scope does not qualify a complete
+Beta checkpoint or refresh real-Host evidence. Cargo publication remains separate.
 
 Published npm packages: `canisend@1.0.0-beta.3` and `canisend-darwin-arm64@1.0.0-beta.3`, from
 source `9774d125fdbd55583475103171de0cdbb6488571`. The `next` install was independently downloaded

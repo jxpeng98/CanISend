@@ -16,7 +16,7 @@ function run(platform, arch, glibc, result = { status: 0 }, missing = false) {
   vm.runInNewContext(source, { require, process, console: { error() {} } });
   return { requested, spawned, killed, code: process.exitCode };
 }
-test('select native packages and forward arguments/stdin/stdout without a shell', () => {
+test('select embedded native binaries and forward arguments/stdin/stdout without a shell', () => {
   for (const [os, arch, glibc, suffix] of [
     ['darwin', 'arm64', undefined, 'darwin-arm64/canisend'],
     ['darwin', 'x64', undefined, 'darwin-x64/canisend'],
@@ -25,12 +25,12 @@ test('select native packages and forward arguments/stdin/stdout without a shell'
     ['win32', 'x64', undefined, 'win32-x64/canisend.exe'],
   ]) {
     const result = run(os, arch, glibc);
-    assert.equal(result.requested, `canisend-${suffix}`);
+    assert.equal(result.requested, `./native/${suffix}`);
     assert.equal(JSON.stringify(result.spawned), JSON.stringify(['/native', ['mcp', 'serve'], { stdio: 'inherit' }]));
     assert.equal(result.code, 0);
   }
 });
-test('preserve failures and termination; report missing native packages', () => {
+test('preserve failures and termination; report missing native binaries', () => {
   assert.equal(run('darwin', 'arm64', null, { status: 7 }).code, 7);
   assert.deepEqual(run('darwin', 'arm64', null, { signal: 'SIGTERM' }).killed, [123, 'SIGTERM']);
   assert.equal(run('darwin', 'arm64', null, { error: Error('spawn failed') }).code, 1);

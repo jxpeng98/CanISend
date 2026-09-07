@@ -1450,3 +1450,19 @@ historical evidence and the qualification ledger remain byte-identical. Cargo wa
 no GitHub push, tag, PR, CI configuration or CI secret change was made. Future automated uploads
 must use a new version, since both published npm version records are immutable. The manual npm
 publication request is complete; I3b can resume independently of formal Beta qualification.
+
+### Single-package npm distribution — 2026-09-08
+
+The owner requested one npm package instead of `canisend` plus `canisend-darwin-arm64`.
+Advance source to `1.0.0-beta.4` and embed supplied native executables in `canisend/native/`.
+The existing launcher selects the local platform path. No dependencies, install script or binary
+download is needed. The packer and existing CI recipe now emit and publish exactly one archive;
+the full CI matrix includes all five executables in that archive. Historical Beta.3 packages
+remain available for existing installations. This manual testing version still supports only the
+locally verified macOS ARM64 target; the multi-target packaging test uses synthetic fixtures.
+
+Reuse the owner's manual npm `next` publication authority. Verify the new source, native archive,
+single tarball, nonglobal isolated install and simulated Host before uploading only `canisend`.
+Then independently download from npm and compare exact bytes, version and Workspace/Skills setup.
+Keep artifacts and actual results under `dist/npm-beta4/`. Cargo publication, GitHub integration
+and formal Beta qualification remain outside this run. Historical evidence is preserved.
