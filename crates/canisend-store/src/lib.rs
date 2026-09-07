@@ -62,7 +62,8 @@ pub use application_projection_v3::{
 };
 pub use application_v3::{
     ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationModelRevisionV3,
-    StoredApplicationModelV3, WORKSPACE_V3_FORMAT, WorkspaceV3AuthorityState,
+    ApplicationModelUpdatePreviewV3, StoredApplicationModelV3, WORKSPACE_V3_FORMAT,
+    WorkspaceV3AuthorityState,
 };
 pub use artifact::ArtifactService;
 pub use association_v4::{

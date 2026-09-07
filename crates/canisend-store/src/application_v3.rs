@@ -51,6 +51,19 @@ pub struct ApplicationModelCommitResultV3 {
     pub stale_deliverable_ids: Vec<DeliverableId>,
 }
 
+/// Read-only projection of a normal update. It is not a commit or approval receipt.
+/// Pass the original candidate to commit; the repository owns stale transitions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApplicationModelUpdatePreviewV3 {
+    pub expected_revision: Revision,
+    pub base_snapshot_sha256: Sha256Digest,
+    pub projected_snapshot: ApplicationModelSnapshotV3,
+    pub projected_snapshot_sha256: Sha256Digest,
+    pub stale_plan_ids: Vec<PlanId>,
+    pub stale_deliverable_ids: Vec<DeliverableId>,
+}
+
 pub struct ApplicationModelRepository<'a> {
     database: &'a mut Database,
 }
@@ -306,6 +319,36 @@ impl<'a> ApplicationModelRepository<'a> {
                 })
             })
             .collect()
+    }
+
+    /// Validate an ordinary revision and show its exact downstream impact without writing.
+    /// Commit still revalidates the expected revision inside its write transaction.
+    pub fn preview_update(
+        &self,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        candidate: ApplicationModelSnapshotV3,
+    ) -> Result<ApplicationModelUpdatePreviewV3, StoreError> {
+        let current = self.get(application_id)?;
+        if current.snapshot.application.revision != expected_revision {
+            return Err(StoreError::ApplicationModelConflict(format!(
+                "expected Application revision {}, found {}",
+                expected_revision.get(),
+                current.snapshot.application.revision.get()
+            )));
+        }
+        let (projected_snapshot, stale_plan_ids, stale_deliverable_ids) =
+            prepare_update(&current.snapshot, candidate, false)?;
+        validate_snapshot(&projected_snapshot)?;
+        let (_, projected_snapshot_sha256) = serialize_snapshot(&projected_snapshot)?;
+        Ok(ApplicationModelUpdatePreviewV3 {
+            expected_revision,
+            base_snapshot_sha256: current.snapshot_sha256,
+            projected_snapshot,
+            projected_snapshot_sha256,
+            stale_plan_ids,
+            stale_deliverable_ids,
+        })
     }
 
     pub fn commit(
@@ -2122,6 +2165,38 @@ mod tests {
         candidate.application.updated_at = timestamp("2026-08-02T12:10:00Z");
         candidate.requirements[0].statement = "Explain the revised public benefit.".to_owned();
         candidate.requirements[0].revision = revision(2);
+        let before = ApplicationModelRepository::new(fixture.database())
+            .get(&application_id)
+            .expect("before preview");
+        let preview = ApplicationModelRepository::new(fixture.database())
+            .preview_update(&application_id, revision(1), candidate.clone())
+            .expect("preview exact dependency impact");
+        assert_eq!(preview.expected_revision, revision(1));
+        assert_eq!(preview.base_snapshot_sha256, before.snapshot_sha256);
+        assert_eq!(
+            ApplicationModelRepository::new(fixture.database())
+                .get(&application_id)
+                .unwrap(),
+            before
+        );
+        assert_eq!(
+            ApplicationModelRepository::new(fixture.database())
+                .history(&application_id)
+                .unwrap()
+                .len(),
+            1
+        );
+        let audit_count: i64 = fixture
+            .database()
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-v3.commit'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audit_count, 0);
+        let original_candidate = candidate.clone();
         let committed = ApplicationModelRepository::new(fixture.database())
             .commit(
                 &application_id,
@@ -2131,6 +2206,35 @@ mod tests {
                 "confirm-revised-requirement",
             )
             .expect("commit revision");
+        assert_eq!(preview.projected_snapshot, committed.stored.snapshot);
+        assert_eq!(
+            preview.projected_snapshot_sha256,
+            committed.stored.snapshot_sha256
+        );
+        assert_eq!(preview.stale_plan_ids, committed.stale_plan_ids);
+        assert_eq!(
+            preview.stale_deliverable_ids,
+            committed.stale_deliverable_ids
+        );
+        // The preview cannot reserve a revision or authorize a stale subsequent update.
+        assert!(matches!(
+            ApplicationModelRepository::new(fixture.database()).preview_update(
+                &application_id,
+                revision(1),
+                original_candidate.clone()
+            ),
+            Err(StoreError::ApplicationModelConflict(_))
+        ));
+        assert!(matches!(
+            ApplicationModelRepository::new(fixture.database()).commit(
+                &application_id,
+                revision(1),
+                original_candidate,
+                ActorKind::User,
+                "stale-preview"
+            ),
+            Err(StoreError::ApplicationModelConflict(_))
+        ));
         let plan = committed.stored.snapshot.plan.as_ref().expect("plan");
         assert_eq!(plan.state, PlanStateV3::Stale);
         assert_eq!(plan.revision, revision(2));
@@ -2151,6 +2255,67 @@ mod tests {
                 .len(),
             2
         );
+    }
+
+    #[test]
+    fn update_preview_rejects_invalid_changes_without_writes() {
+        let mut fixture = TestDatabase::new("update-preview-invalid");
+        activate(fixture.database());
+        let original = confirmed_snapshot();
+        let id = original.application.id.clone();
+        let before = ApplicationModelRepository::new(fixture.database())
+            .create(original.clone(), ActorKind::User, "preview-fixture")
+            .unwrap()
+            .stored;
+        let mut candidate = original;
+        candidate.application.revision = revision(2);
+        candidate.application.updated_at = timestamp("2026-08-02T12:10:00Z");
+        let mut wrong_id = candidate.clone();
+        wrong_id.application.id = draft_snapshot(999).application.id;
+        let mut deleted = candidate.clone();
+        deleted.requirements.clear();
+        let mut forged = candidate.clone();
+        forged.plan.as_mut().unwrap().state = PlanStateV3::Stale;
+        forged.plan.as_mut().unwrap().revision = revision(2);
+        let mut invalid = candidate.clone();
+        invalid.requirements[0].statement.clear();
+        invalid.requirements[0].revision = revision(2);
+        for (expected, request) in [
+            (revision(2), candidate),
+            (revision(1), wrong_id),
+            (revision(1), deleted),
+            (revision(1), forged),
+            (revision(1), invalid),
+        ] {
+            assert!(
+                ApplicationModelRepository::new(fixture.database())
+                    .preview_update(&id, expected, request)
+                    .is_err()
+            );
+            assert_eq!(
+                ApplicationModelRepository::new(fixture.database())
+                    .get(&id)
+                    .unwrap(),
+                before
+            );
+        }
+        assert_eq!(
+            ApplicationModelRepository::new(fixture.database())
+                .history(&id)
+                .unwrap()
+                .len(),
+            1
+        );
+        let audits: i64 = fixture
+            .database()
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-v3.commit'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(audits, 0);
     }
 
     #[test]

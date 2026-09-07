@@ -1237,3 +1237,48 @@ existing Application, with explicit downstream invalidation and recovery, before
 whole iterative application experience complete. Continue the original real Host fixture at its
 first unmet dependency; do not repeat the successful Requirement confirmation. Publication remains
 subject to the owner's retained Beta conditions.
+
+### Iterative application changes: execution plan — 2026-09-07
+
+Owner authorized planning and implementation of the next development stage. Outcome: revise an
+existing Application without recreating it or silently treating old Plans/materials as current.
+Reuse existing repository dependency invalidation, immutable revision history, Blob references,
+ApprovalBroker and native forms. No new workflow database, background service or migration is
+needed for the initial slice. Preserve the current qualified fixture and historical evidence.
+
+| Slice | Scope | Acceptance | State |
+|---|---|---|---|
+| I1 | Read-only exact update-impact preview at the repository owner; use the same transition and invalidation rules as commit | Preview and commit agree on projected snapshot/digest and stale IDs; preview writes no head/history/audit; bad revision/identity/deletion fails; concurrent change invalidates the expected revision | Complete locally |
+| I2 | Typed single-Requirement revision with source/span checks, private-read scope and native preview/commit; expose through existing adapters with explicit schema changes | Retain Requirement identity, increment its revision, clear obsolete confirmation, stale only affected downstream work; no-op is read/completed; denial/replay preserve state | Pending I1 |
+| I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | Pending I2 |
+| I4 | Dual-Pack end-to-end revision/recovery automation and updated Skills/CLI guidance; rebuild and perform one bounded real Host journey | Both Packs revise existing input through new consent to current materials/export; old revisions recoverable; conflicting writers and interrupted responses resolve from canonical state | Pending I2–I3 |
+
+Implementation notes: ApplicationModelRepository::prepare_update already owns Requirement-to-Plan
+and Plan/Evidence-to-Deliverable invalidation. Existing v4 extraction only adds proposals before
+confirmation and cannot serve as an implicit correction API. Do not loosen it globally or reuse
+an old confirmation token. I1 exposes the shared calculation without opening a new mutation route.
+A projected snapshot is neither durable state nor permission and must never be presented as a
+commit receipt. I2 must distinguish editing an existing decision from repeating the same decision.
+Source revision/association atomicity and exact-set confirmation after partial correction must be
+resolved in I2/I3 before their public adapter paths are declared complete.
+
+Checks: owning Store tests per slice; relevant formatting/Clippy for Rust; source gate at adapter/
+contract integration. Do not repeat unrelated native approval cases during I1. Candidate-specific
+Host and release gates remain open without blocking source implementation; no publication in this
+stage. Reuse the current branch and record meaningful local commits, without routine PR creation.
+
+I1 completed: `ApplicationModelRepository::preview_update` reads current state, verifies the base
+revision, and calls the same `prepare_update` plus semantic validation as normal commit. Its
+separate preview type contains base/projected digests and exact stale Plan/Deliverable IDs, without
+commit time, actor, receipt or grant. The commit path still recalculates and validates inside its
+transaction; the original candidate is committed, never a caller-forged stale projection.
+
+Extended the existing Requirement invalidation test to prove preview/commit parity, unchanged
+head/history/audit after preview and rejection of stale preview/commit after another revision.
+Added a bounded negative test for wrong base revision, wrong identity, persisted Requirement
+deletion, forged stale Plan and semantically invalid Requirement content; all leave canonical
+state/history/audit unchanged. Both tests, Store all-target Clippy, formatting and diff check pass.
+Logs are `/tmp/canisend-impact-test.log` and `/tmp/canisend-impact-clippy.log`. No schema migration,
+CLI/MCP tool, business mutation or real Host confirmation was added/run. I2 is the next slice:
+construct validated typed corrections and bind the exact impact into the existing native-consent
+preview/commit workflow before exposing a user-facing edit operation.
