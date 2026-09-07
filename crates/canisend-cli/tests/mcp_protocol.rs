@@ -113,6 +113,18 @@ impl McpProcess {
         }
     }
 
+    /// Stop at a real server request so a test can kill the process before replying or
+    /// accept synthetically without consuming the business receipt from stdout.
+    fn pending_confirmation(&mut self, id: u64, params: Value) -> Value {
+        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": params}));
+        let mut line = String::new();
+        assert_ne!(self.stdout.read_line(&mut line).unwrap(), 0);
+        let response: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(response["method"], "elicitation/create", "{response}");
+        self.confirmations.push(response["params"].clone());
+        response["id"].clone()
+    }
+
     fn initialize(&mut self) -> Value {
         let response = self.request(
             1,
@@ -620,8 +632,36 @@ fn guarded_lifecycle(local_candidate: bool) {
             json!({"name": "canisend_deliverable_draft_commit", "arguments": commit_args}),
         );
         assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
-        mcp.request(
+        let preview = mcp.request(
             104,
+            "tools/call",
+            json!({"name": "canisend_local_task_draft_preview", "arguments": arguments}),
+        );
+        let (token, digest) = mutation_preview_binding(&preview);
+        let commit = json!({"name": "canisend_deliverable_draft_commit", "arguments": {
+            "application_id": application_id.as_str(), "preview_token": token,
+            "preview_sha256": digest, "request_confirmation": true}});
+        mcp.pending_confirmation(105, commit.clone());
+        // Kill while the native form is unanswered: the durable candidate must survive,
+        // and the dead process's grant must never authorize a restarted reviewer.
+        mcp.child
+            .kill()
+            .expect("kill reviewer with pending consent");
+        assert!(!mcp.child.wait().unwrap().success());
+        drop(mcp);
+        assert_eq!(
+            Application::show_local_task_v4(&root, task.id.as_str())
+                .unwrap()
+                .data,
+            *task
+        );
+        mcp = McpProcess::start(&root);
+        mcp.initialize();
+        let replay = mcp.request(106, "tools/call", commit);
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        assert!(mcp.confirmations.is_empty());
+        mcp.request(
+            107,
             "tools/call",
             json!({"name": "canisend_local_task_draft_preview", "arguments": arguments}),
         )
@@ -645,19 +685,54 @@ fn guarded_lifecycle(local_candidate: bool) {
         )
     };
     let (draft_token, draft_digest) = mutation_preview_binding(&draft_preview);
-    let drafted = mcp.request(
-        11,
-        "tools/call",
-        json!({
-            "name": "canisend_deliverable_draft_commit",
-            "arguments": {
-                "application_id": application_id.as_str(),
-                "preview_token": draft_token,
-                "preview_sha256": draft_digest,
-                "request_confirmation": true
+    let commit = json!({
+        "name": "canisend_deliverable_draft_commit",
+        "arguments": {"application_id": application_id.as_str(), "preview_token": draft_token,
+            "preview_sha256": draft_digest, "request_confirmation": true}
+    });
+    let drafted = if let Some(task) = &submitted {
+        let confirmation_id = mcp.pending_confirmation(11, commit.clone());
+        // Isolated synthetic peer only. Deliberately do not read the commit receipt.
+        mcp.send(&json!({"jsonrpc": "2.0", "id": confirmation_id,
+            "result": {"action": "accept", "content": {"confirm": true}}}));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let state = Application::show_local_task_v4(&root, task.id.as_str())
+                .unwrap()
+                .data;
+            if state.state == canisend_contracts::LocalTaskStateV4::Committed {
+                break;
             }
-        }),
-    );
+            assert!(
+                std::time::Instant::now() < deadline,
+                "commit did not become durable"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let form = mcp.confirmations.last().unwrap().to_string();
+        assert!(form.contains(task.id.as_str()));
+        assert!(form.contains(task.candidate_sha256.as_ref().unwrap().as_str()));
+        assert!(form.contains(draft_body));
+        // A lost receipt is resolved by canonical state, never a duplicate commit.
+        mcp.child
+            .kill()
+            .expect("kill reviewer without reading receipt");
+        assert!(!mcp.child.wait().unwrap().success());
+        drop(mcp);
+        mcp = McpProcess::start(&root);
+        mcp.initialize();
+        let replay = mcp.request(108, "tools/call", commit);
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        assert!(mcp.confirmations.is_empty());
+        mcp.request(
+            109,
+            "tools/call",
+            json!({"name": "canisend_application_show",
+            "arguments": {"application_id": application_id.as_str()}}),
+        )
+    } else {
+        mcp.request(11, "tools/call", commit)
+    };
     if let Some(task) = &submitted {
         let recovered = Application::show_local_task_v4(&root, task.id.as_str())
             .unwrap()
@@ -672,10 +747,6 @@ fn guarded_lifecycle(local_candidate: bool) {
             json!(binding.snapshot_sha256),
             drafted["result"]["structuredContent"]["data"]["snapshot_sha256"]
         );
-        let form = mcp.confirmations.last().unwrap().to_string();
-        assert!(form.contains(task.id.as_str()));
-        assert!(form.contains(task.candidate_sha256.as_ref().unwrap().as_str()));
-        assert!(form.contains(draft_body));
     }
     let deliverable_id = drafted["result"]["structuredContent"]["data"]["snapshot"]["deliverables"]
         [0]["id"]

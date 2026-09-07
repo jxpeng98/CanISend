@@ -207,8 +207,8 @@ jq -e \
     and $setup.data.mcp.protocol_version == "2025-11-25"
     and $setup.data.mcp.configuration_target == ".codex/config.toml"
     and ($setup.data.mcp.registration_command | contains("mcp serve"))
-    and ($setup.data.mcp.tools | length) == 39
-    and ($setup.data.mcp.read_only_tools | length) == 28
+    and ($setup.data.mcp.tools | length) == 40
+    and ($setup.data.mcp.read_only_tools | length) == 29
     and ($setup.data.mcp.guarded_write_tools | length) == 11
     and $setup.data.mcp_configuration_mutated == false
     and $repeat.ok == true
@@ -440,7 +440,7 @@ fi
 if ! jq -s -e '
   . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 39) and
+  (map(select(.id == 2))[0].result.tools | length == 40) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
@@ -462,6 +462,7 @@ if ! jq -s -e '
     "canisend_export_prepare_commit",
     "canisend_export_prepare_preview",
     "canisend_export_show",
+    "canisend_local_task_draft_preview",
     "canisend_plan_confirm_commit",
     "canisend_plan_confirm_preview",
     "canisend_plan_propose_commit",

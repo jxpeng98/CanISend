@@ -553,8 +553,12 @@ mod tests {
     use canisend_resources::generic_application_workflow_pack;
     use serde_json::json;
 
-    #[test]
-    fn local_draft_commit_is_atomic_and_rechecks_retained_candidate() {
+    fn fixture() -> (
+        std::path::PathBuf,
+        Workspace,
+        canisend_core::VerifiedWorkflowPackBundle,
+        crate::StoredApplicationModelV3,
+    ) {
         let root =
             std::env::temp_dir().join(format!("canisend-local-task-{}", generate_id().unwrap()));
         let mut first = Workspace::init_v4(&root).unwrap();
@@ -592,15 +596,39 @@ mod tests {
             )
             .unwrap()
             .stored;
-        let app_id = app.snapshot.application.id.clone();
+        (root, first, pack, app)
+    }
 
+    fn submit(
+        first: &mut Workspace,
+        id: &ApplicationId,
+        revision: Revision,
+        candidate: &Value,
+    ) -> LocalTaskV4 {
+        let mut service = LocalTaskServiceV4::new(&mut first.database, &first.blobs);
+        let task = service.prepare(id, revision).unwrap();
+        let task = service.claim(&task.id, task.generation).unwrap();
+        service
+            .submit(
+                &task.id,
+                task.generation,
+                task.lease_id.as_ref().unwrap(),
+                candidate,
+            )
+            .unwrap()
+    }
+    fn confirm_plan(
+        first: &mut Workspace,
+        root: &std::path::Path,
+        pack: &canisend_core::VerifiedWorkflowPackBundle,
+        app_id: &ApplicationId,
+    ) -> crate::StoredApplicationModelV3 {
         use crate::{ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3};
         use canisend_contracts::{ExecutionMode, PlannedDeliverableDispositionV3};
-        let revision = Revision::try_new(2).unwrap();
-        let baseline = ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+        ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, root)
             .confirm_requirements_and_plan(
-                &pack,
-                &app_id,
+                pack,
+                app_id,
                 ApplicationFlowPlanRequestV3 {
                     expected_revision: Revision::try_new(1).unwrap(),
                     decision: WorkflowPackItemId::try_new("proceed").unwrap(),
@@ -615,29 +643,234 @@ mod tests {
             )
             .unwrap()
             .commit
+            .stored
+    }
+
+    // Independent connections enter each operation together; outcomes, not scheduling, are asserted.
+    fn race<T: Send>(
+        root: &std::path::Path,
+        left: impl FnOnce(&mut Workspace) -> T + Send,
+        right: impl FnOnce(&mut Workspace) -> T + Send,
+    ) -> [T; 2] {
+        let mut first = Workspace::open_v4(Some(root)).unwrap();
+        let mut second = Workspace::open_v4(Some(root)).unwrap();
+        let start = std::sync::Barrier::new(2);
+        std::thread::scope(|scope| {
+            let left = scope.spawn(|| {
+                start.wait();
+                left(&mut first)
+            });
+            let right = scope.spawn(|| {
+                start.wait();
+                right(&mut second)
+            });
+            [left.join().unwrap(), right.join().unwrap()]
+        })
+    }
+
+    #[test]
+    fn concurrent_local_workers_serialize_claim_submit_compose_and_cancel() {
+        let (root, mut first, pack, app) = fixture();
+        let app_id = app.snapshot.application.id;
+        let baseline = confirm_plan(&mut first, &root, &pack, &app_id);
+        let revision = baseline.snapshot.application.revision;
+        let prepared = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .prepare(&app_id, revision)
+            .unwrap();
+        // Close the initializer so the Workspace header has been checkpointed before reopening.
+        drop(first);
+        let claim = |workspace: &mut Workspace| {
+            LocalTaskServiceV4::new(&mut workspace.database, &workspace.blobs)
+                .claim(&prepared.id, prepared.generation)
+        };
+        let claims = race(&root, claim, claim);
+        assert_eq!(claims.iter().filter(|result| result.is_ok()).count(), 1);
+        let claimed = claims.into_iter().find_map(Result::ok).unwrap();
+        let candidate = |content: &str| {
+            json!({"expected_revision": revision.get(), "deliverables": [{
+                "kind": "primary-document", "title": "Synthetic draft", "media_type": "text/plain", "content": content
+            }]})
+        };
+        let candidates = [
+            candidate("Synthetic candidate A"),
+            candidate("Synthetic candidate B"),
+        ];
+        let submit_candidate = |workspace: &mut Workspace, candidate: &Value| {
+            LocalTaskServiceV4::new(&mut workspace.database, &workspace.blobs).submit(
+                &claimed.id,
+                claimed.generation,
+                claimed.lease_id.as_ref().unwrap(),
+                candidate,
+            )
+        };
+        let submissions = race(
+            &root,
+            |workspace| submit_candidate(workspace, &candidates[0]),
+            |workspace| submit_candidate(workspace, &candidates[1]),
+        );
+        assert_eq!(
+            submissions.iter().filter(|result| result.is_ok()).count(),
+            1
+        );
+        let winning_index = submissions.iter().position(Result::is_ok).unwrap();
+        let submitted = submissions.into_iter().find_map(Result::ok).unwrap();
+        let mut first = Workspace::open_v4(Some(&root)).unwrap();
+        assert_eq!(
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .candidate(&submitted.id)
+                .unwrap(),
+            candidates[winning_index]
+        );
+        assert_eq!(
+            ApplicationModelRepository::new(&mut first.database)
+                .get(&app_id)
+                .unwrap(),
+            baseline
+        );
+        let other = submit(
+            &mut first,
+            &app_id,
+            revision,
+            &candidates[1 - winning_index],
+        );
+        assert_ne!(other.candidate_sha256, submitted.candidate_sha256);
+        let tasks = [submitted, other];
+        let requests = tasks.each_ref().map(|task| {
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .draft_request(
+                    &task.id,
+                    task.generation,
+                    task.candidate_sha256.as_ref().unwrap(),
+                )
+                .unwrap()
+        });
+        let compose = |workspace: &mut Workspace, request: LocalTaskDraftRequestV4| {
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .compose_local_task_with_actor(&pack, &app_id, request, ActorKind::HostAgent)
+        };
+        let commits = race(
+            &root,
+            |workspace| compose(workspace, requests[0].clone()),
+            |workspace| compose(workspace, requests[1].clone()),
+        );
+        assert_eq!(commits.iter().filter(|result| result.is_ok()).count(), 1);
+        let winner = commits.iter().position(Result::is_ok).unwrap();
+        let committed = commits
+            .into_iter()
+            .find_map(Result::ok)
+            .unwrap()
+            .commit
             .stored;
+        assert_eq!(
+            committed.snapshot.application.revision.get(),
+            revision.get() + 1
+        );
+        assert_eq!(
+            ApplicationModelRepository::new(&mut first.database)
+                .get(&app_id)
+                .unwrap(),
+            committed
+        );
+        let service = LocalTaskServiceV4::new(&mut first.database, &first.blobs);
+        assert_eq!(
+            service.show(&tasks[1 - winner].id).unwrap(),
+            tasks[1 - winner]
+        );
+        let terminal = service.show(&tasks[winner].id).unwrap();
+        assert_eq!(terminal.state, LocalTaskStateV4::Committed);
+        assert_eq!(
+            terminal.committed_application.unwrap().snapshot_sha256,
+            committed.snapshot_sha256
+        );
+        let expected_content = &requests[winner].compose.deliverables[0].content;
+        let content = committed.snapshot.deliverables[0].content.as_ref().unwrap();
+        assert_eq!(
+            first
+                .blobs
+                .read_verified(&content.sha256, 256 * 1024)
+                .unwrap(),
+            expected_content.as_bytes()
+        );
+        assert!(first.check().unwrap().ok);
+        drop(first);
+        std::fs::remove_dir_all(&root).unwrap();
+
+        // On a fresh Application either cancellation wins with no business mutation,
+        // or compose wins with both the Application and task committed together.
+        let (root, mut first, pack, app) = fixture();
+        let app_id = app.snapshot.application.id;
+        let baseline = confirm_plan(&mut first, &root, &pack, &app_id);
+        let task = submit(
+            &mut first,
+            &app_id,
+            baseline.snapshot.application.revision,
+            &candidates[0],
+        );
+        let request = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .draft_request(
+                &task.id,
+                task.generation,
+                task.candidate_sha256.as_ref().unwrap(),
+            )
+            .unwrap();
+        drop(first);
+        let outcomes = race(
+            &root,
+            |workspace| {
+                LocalTaskServiceV4::new(&mut workspace.database, &workspace.blobs)
+                    .cancel(&task.id, task.generation, task.lease_id.as_ref().unwrap())
+                    .is_ok()
+            },
+            |workspace| {
+                ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                    .compose_local_task_with_actor(&pack, &app_id, request, ActorKind::HostAgent)
+                    .is_ok()
+            },
+        );
+        assert_eq!(outcomes.into_iter().filter(|success| *success).count(), 1);
+        let mut first = Workspace::open_v4(Some(&root)).unwrap();
+        let current = ApplicationModelRepository::new(&mut first.database)
+            .get(&app_id)
+            .unwrap();
+        let terminal = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .show(&task.id)
+            .unwrap();
+        if outcomes[0] {
+            assert_eq!(terminal.state, LocalTaskStateV4::Cancelled);
+            assert_eq!(current, baseline);
+        } else {
+            assert_eq!(terminal.state, LocalTaskStateV4::Committed);
+            assert_eq!(
+                current.snapshot.application.revision.get(),
+                baseline.snapshot.application.revision.get() + 1
+            );
+            assert_eq!(
+                terminal.committed_application.unwrap().snapshot_sha256,
+                current.snapshot_sha256
+            );
+        }
+        assert_eq!(
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .candidate(&task.id)
+                .unwrap(),
+            candidates[0]
+        );
+        assert!(first.check().unwrap().ok);
+        drop(first);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn local_draft_commit_is_atomic_and_rechecks_retained_candidate() {
+        let (root, mut first, pack, app) = fixture();
+        let app_id = app.snapshot.application.id.clone();
+
+        let revision = Revision::try_new(2).unwrap();
+        let baseline = confirm_plan(&mut first, &root, &pack, &app_id);
         let candidate = json!({"expected_revision": 2, "deliverables": [{
             "kind": "primary-document", "title": "Synthetic draft",
             "media_type": "text/plain", "content": "Synthetic candidate; no real personal facts."
         }]});
-        fn submit(
-            first: &mut Workspace,
-            id: &ApplicationId,
-            revision: Revision,
-            candidate: &Value,
-        ) -> LocalTaskV4 {
-            let mut service = LocalTaskServiceV4::new(&mut first.database, &first.blobs);
-            let task = service.prepare(id, revision).unwrap();
-            let task = service.claim(&task.id, task.generation).unwrap();
-            service
-                .submit(
-                    &task.id,
-                    task.generation,
-                    task.lease_id.as_ref().unwrap(),
-                    candidate,
-                )
-                .unwrap()
-        }
         let cancelled = submit(&mut first, &app_id, revision, &candidate);
         let cancelled = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
             .cancel(
@@ -772,43 +1005,7 @@ mod tests {
     #[test]
     fn leases_serialize_workers_reject_stale_inputs_and_retain_candidates_without_application_writes()
      {
-        let root =
-            std::env::temp_dir().join(format!("canisend-local-task-{}", generate_id().unwrap()));
-        let mut first = Workspace::init_v4(&root).unwrap();
-        let embedded = generic_application_workflow_pack();
-        let pack = WorkflowPackByteLoader::verify(
-            embedded.manifest_bytes(),
-            embedded.into_resources(),
-            WorkflowPackOrigin::BuiltIn,
-            &WorkflowPackRuntime::parse(
-                env!("CARGO_PKG_VERSION"),
-                "3.0.0-alpha.1",
-                "3.0.0-alpha.1",
-            )
-            .unwrap(),
-            &WorkflowPackCapabilityRegistry::built_in(),
-        )
-        .unwrap()
-        .into_bundle();
-        let app = ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
-            .create(
-                &pack,
-                ApplicationFlowCreateRequestV3 {
-                    title: "Synthetic local task".to_owned(),
-                    opportunity_metadata: Default::default(),
-                    application_metadata: Default::default(),
-                    source_text: "Provide a narrative.".to_owned(),
-                    requirements: vec![ApplicationFlowRequirementDraftV3 {
-                        category: WorkflowPackItemId::try_new("format").unwrap(),
-                        statement: "Provide a narrative.".to_owned(),
-                        priority: RequirementPriorityV3::Mandatory,
-                        start_byte: 0,
-                        end_byte: 20,
-                    }],
-                },
-            )
-            .unwrap()
-            .stored;
+        let (root, first, _pack, app) = fixture();
         let app_id = app.snapshot.application.id.clone();
         drop(first);
         let mut first = Workspace::open_v4(Some(&root)).unwrap();

@@ -5,7 +5,7 @@
 > and unaccepted; unfinished R2-R6 scope is deferred. Historical checklists below are not the
 > active queue. The master roadmap owns the next CLI-first slice.
 
-Status: App-first stage closed as superseded; CLI-first closeout and baseline reconciliation in progress
+Status: App-first stage superseded; LF-C01–08 local source integration complete; human and release qualification open
 Date: 2026-09-04
 
 ## Roadmap at a glance
@@ -20,7 +20,7 @@ R0 authority/clean-v4 [source complete] -> R1 App Server [source complete]
      +-> R6 cleanup after parity and rollback window (independent of R5)
 ```
 
-The [master roadmap](../../../docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md#33-approved-app-first-delivery-sequence)
+The [master roadmap](../../../docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md#33-approved-cli-first-delivery-sequence)
 owns ordering, M4-APP-001–005, and release gates. R2a proves the provider boundary before broad UI
 work. R2b preparation can overlap only once receipt/binding contracts are stable. Re-estimate effort
 from that proof; the old short Beta-only estimate does not cover the expanded App scope.
@@ -841,3 +841,53 @@ Affected all-target Clippy and Tier 2 source check pass; public inventory is 39 
 Next: LF-C08 bounded race/crash qualification over these same transaction and recovery paths.
 Actual two-Host user acceptance remains an LF-C07 qualification item; it does not block independent
 local implementation. No upload, submission, push, PR or release qualification was performed.
+
+
+### LF-C08 and first-stage source integration — 2026-09-07
+
+The owner explicitly selected LF-C01–08 source integration and automated validation as the first
+stage. Human Host acceptance and exact standalone/collaboration release qualification are outside
+this completion claim; their existing gates remain open. Integration stays on local main with no
+PR, push, new branch, GUI removal, new coordinator, or product consent bypass.
+
+LF-C08 reuses the existing local-task fixture with independent SQLite connections and synchronized
+threads. Competing claims, different submissions and distinct candidate commits each have exactly
+one winner. A losing submitted task remains unchanged and the Application advances once. A
+cancellation racing composition produces one complete outcome. Existing owning checks retain
+stale-input, generation/lease expiry, altered-candidate, duplicate/replay and transaction-rollback
+coverage. No production concurrency change was needed.
+
+The MCP subprocess test now explicitly kills and waits for a reviewer while its native form is
+unanswered, then verifies unchanged candidate metadata and refusal of its token after restart.
+It also accepts a synthetic fixture form, waits for the durable commit without reading stdout,
+kills that process and recovers the result through canonical state. A lost receipt cannot cause
+a duplicate commit. These are actual process interruptions with synthetic consent, not real user
+Host acceptance or OS power-loss qualification.
+
+First-stage completion audit:
+
+| Scope | Current evidence |
+|---|---|
+| LF-C01–02 CLI-first boundary | CLI default member and independent CI ownership; source dependency/operation checks |
+| LF-C03 standalone resource lifecycle | Binary relocation/install/reinstall, isolated consumer environment, resource repair, Host setup/removal and backup/restore tests |
+| LF-C04 exact headless approval | App Broker owning tests and MCP false/malformed/stale/replay/wrong-context/restart assertions |
+| LF-C05 both Pack journeys | Dual-Pack MCP smoke completes source-bound Evidence, Requirement/Plan/draft/review/export and exact canonical reopen/restore |
+| LF-C06 candidate coordination | CLI handoff/retained private candidate/backup restore plus Store lease and current-input tests |
+| LF-C07 atomic candidate acceptance | Exact native form binding and one transaction for draft plus committed task revision/snapshot |
+| LF-C08 competing/crashed operations | Three local-task owning tests including real concurrent connections; interrupted MCP reviewer and unread-receipt recovery |
+
+Final milestone results: 13 binary-contract tests and 6 MCP protocol tests pass; App library
+137 passed, 1 existing public-network test ignored; all 3 Store local-task tests pass. Affected
+Clippy, formatting and source check pass. The Host and dual-Pack scripts now include the new
+40-tool catalog (29 read-only, 11 guarded); the first smoke attempts exposed their stale count/list
+assertions, which were corrected. Desktop bootstrap assertions now compare the shared catalogs
+instead of independent stale counts; its focused bootstrap regression passes.
+
+Successful smoke artifacts: `/private/tmp/canisend-first-stage-host-20260907-final` and
+`/private/tmp/canisend-first-stage-mcp-20260907-final`. Backup/restore verifies canonical state and
+original export manifests; it does not claim that scoped exported files are copied into restores.
+The App/desktop test links emitted a nonfatal macOS debug-unwind-size warning; no test failed.
+
+Next boundary: separately qualify actual single/two-Host journeys and exact standalone CLI bytes
+under LF-C05/07/10/11 when that qualification work is selected. Do not automatically start optional
+Hosts, cross-device synchronization or release publication after this source integration stage.
