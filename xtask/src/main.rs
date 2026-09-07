@@ -6460,9 +6460,9 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "pnpm test:accessibility",
                 "cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings",
                 "cargo test --workspace --exclude canisend-gui --locked",
-                "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+                "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
                 "cargo run -p xtask --locked -- source check",
-                "cargo build --locked -p canisend-cli",
+                "cargo build --locked -p canisend",
                 "cargo clippy -p canisend-gui --all-targets --all-features --locked -- -D warnings",
                 "cargo test -p canisend-gui --locked",
                 "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol"
@@ -6646,9 +6646,9 @@ fn check_native_test_ownership() -> Result<(), String> {
         "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol",
         "cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings",
         "cargo test --workspace --exclude canisend-gui --locked",
-        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
         "cargo run -p xtask --locked -- source check",
-        "cargo build --locked -p canisend-cli",
+        "cargo build --locked -p canisend",
         "--features canisend-gui/custom-protocol",
         "Smoke Agent v4 host resources and MCP through the built CLI",
         "./scripts/smoke_host_v4.sh",
@@ -6815,7 +6815,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         "runner: ubuntu-24.04",
         "runner: windows-2025",
         "uses: dtolnay/rust-toolchain@1.97.0",
-        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
     ] {
         if !core_job.contains(required) {
             return Err(format!(
@@ -15331,7 +15331,7 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
         .iter()
         .filter_map(|node| node["id"].as_str().map(|id| (id.to_owned(), node)))
         .collect::<BTreeMap<_, _>>();
-    let root_ids = ["canisend-cli", "canisend-gui"]
+    let root_ids = ["canisend", "canisend-gui"]
         .into_iter()
         .map(|name| {
             packages

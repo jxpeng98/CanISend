@@ -32,7 +32,7 @@ version="$(jq -er '.data.version' "$output/version.json")"
 node - "$output/npm-package/package.json" "$version" <<'JS'
 const fs = require('node:fs');
 fs.writeFileSync(process.argv[2], JSON.stringify({
-  name: 'canisend-cli-local', version: process.argv[3], private: true,
+  name: 'canisend-local', version: process.argv[3], private: true,
   description: 'Local-only CanISend native CLI installation fixture',
   license: 'GPL-3.0-only', os: [process.platform], cpu: [process.arch],
   bin: {canisend: 'canisend'},
@@ -52,19 +52,19 @@ for channel in cargo npm; do
   "$installed" --workspace "$workspace" workspace init --host codex --json > "$output/$channel-init.json"
   test "$(find "$workspace/.agents/skills" -name SKILL.md | wc -l | tr -d ' ')" = 5
   "$installed" --workspace "$workspace" workspace check --json > "$output/$channel-before.json"
-  CANISEND_TEST_CLI_BINARY="$installed" cargo test -p canisend-cli --locked --offline --test mcp_protocol \
+  CANISEND_TEST_CLI_BINARY="$installed" cargo test -p canisend --locked --offline --test mcp_protocol \
     > "$output/$channel-host.log" 2>&1
   # Existing setup/remove smoke requires a regular file, not the npm bin symlink.
   resolved="$(node -e 'process.stdout.write(require("node:fs").realpathSync(process.argv[1]))' "$installed")"
   "$script_dir/smoke_host_v4.sh" "$resolved" "$output/$channel-host-setup" > "$output/$channel-setup.log" 2>&1
 done
-npm uninstall --global --prefix "$output/npm" canisend-cli-local > "$output/npm-uninstall.log" 2>&1
+npm uninstall --global --prefix "$output/npm" canisend-local > "$output/npm-uninstall.log" 2>&1
 test ! -e "$npm_binary"
 "$binary" --workspace "$output/npm-workspace" workspace check --json > "$output/npm-after.json"
 cmp "$output/npm-before.json" "$output/npm-after.json"
 # Keep an independent verification copy so uninstall cannot hide workspace damage.
 cp "$binary" "$output/verification-cli"
-cargo uninstall --root "$output/cargo" canisend-cli > "$output/cargo-uninstall.log" 2>&1
+cargo uninstall --root "$output/cargo" canisend > "$output/cargo-uninstall.log" 2>&1
 test ! -e "$binary"
 "$output/verification-cli" --workspace "$output/cargo-workspace" workspace check --json > "$output/cargo-after.json"
 cmp "$output/cargo-before.json" "$output/cargo-after.json"

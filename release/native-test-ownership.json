@@ -71,9 +71,9 @@
       "pnpm test:accessibility",
       "cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings",
       "cargo test --workspace --exclude canisend-gui --locked",
-      "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+      "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
       "cargo run -p xtask --locked -- source check",
-      "cargo build --locked -p canisend-cli",
+      "cargo build --locked -p canisend",
       "cargo clippy -p canisend-gui --all-targets --all-features --locked -- -D warnings",
       "cargo test -p canisend-gui --locked",
       "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol"

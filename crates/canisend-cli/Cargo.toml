@@ -1,5 +1,5 @@
 [package]
-name = "canisend-cli"
+name = "canisend"
 description = "Native CanISend command-line application"
 version.workspace = true
 edition.workspace = true
@@ -9,6 +9,9 @@ authors.workspace = true
 repository.workspace = true
 publish = ["crates-io"]
 build = "build.rs"
+
+[lib]
+name = "canisend_cli"
 
 [[bin]]
 name = "canisend"

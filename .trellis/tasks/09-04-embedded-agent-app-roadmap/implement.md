@@ -1148,3 +1148,18 @@ also fails on `provider dogfood Agent v4 contract binding is stale`; historical 
 were not rewritten. No tag, push or real registry publication occurred. Logs are retained in
 `dist/registry-preparation/`. Next: confirm package ownership/names, restore registry login and
 CI secrets, and obtain current candidate qualification before publishing exact immutable versions.
+
+### Public package names confirmed — 2026-09-07
+
+Owner selected `canisend` for both crates.io and npm. Renamed the Cargo entry package while
+retaining its existing source directory and Rust library target, updated workspace dependencies,
+lockfile, dependency policy, active build/test commands and CI package selection. npm now emits
+`canisend` plus `canisend-{platform}` optional native packages. Historical records stay unchanged.
+
+Checks passed: eight-package Cargo publication dry-run (including isolated `canisend` build),
+source check, workspace default-package assertion, two launcher tests, workflow YAML/shell syntax,
+and packing/installing/running the renamed npm entry with the macOS ARM64 native package.
+Public npm and Cargo sparse-index name lookups returned 404; this is not a reservation or proof
+of publication rights. Logs: `/tmp/canisend-rename-publish.log`, `/tmp/canisend-rename-source.log`;
+local npm artifacts: `dist/npm-canisend-name/`. Publication credentials and current release
+qualification remain outstanding as recorded above; no registry upload, tag or push occurred.

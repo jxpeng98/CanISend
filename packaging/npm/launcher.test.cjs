@@ -25,7 +25,7 @@ test('select native packages and forward arguments/stdin/stdout without a shell'
     ['win32', 'x64', undefined, 'win32-x64/canisend.exe'],
   ]) {
     const result = run(os, arch, glibc);
-    assert.equal(result.requested, `canisend-cli-${suffix}`);
+    assert.equal(result.requested, `canisend-${suffix}`);
     assert.equal(JSON.stringify(result.spawned), JSON.stringify(['/native', ['mcp', 'serve'], { stdio: 'inherit' }]));
     assert.equal(result.code, 0);
   }

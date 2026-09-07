@@ -113,7 +113,7 @@ if [[ "$old_observed" != "$old_version" ]]; then
   exit 1
 fi
 
-cargo build -p canisend-cli --release --locked
+cargo build -p canisend --release --locked
 current_source="$repo_root/target/release/canisend"
 current_cli="$fixture_root/current/canisend"
 mkdir -p "$(dirname "$current_cli")"

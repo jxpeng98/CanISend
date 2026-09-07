@@ -38,7 +38,7 @@ function pack(name, metadata, populate) {
 const archives = [];
 for (const input of inputs) {
   const [os, cpu, libc] = platforms[input.target];
-  const name = `canisend-cli-${platforms[input.target].join('-')}`;
+  const name = `canisend-${platforms[input.target].join('-')}`;
   archives.push(pack(name, { description: `CanISend native CLI for ${input.target}`, os: [os], cpu: [cpu], ...(libc ? { libc: [libc === 'gnu' ? 'glibc' : libc] } : {}) }, directory => {
     for (const file of ['canisend' + (os === 'win32' ? '.exe' : ''), 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'TYPST-ASSETS-LICENSE', 'TYPST-ASSETS-NOTICE', 'TARGET', 'RELEASE.json']) {
       const source = path.join(input.bundle, file);
@@ -48,9 +48,9 @@ for (const input of inputs) {
     fs.chmodSync(path.join(directory, os === 'win32' ? 'canisend.exe' : 'canisend'), 0o755);
   }));
 }
-archives.push(pack('canisend-cli', {
+archives.push(pack('canisend', {
   description: 'Evidence-bound application preparation CLI', bin: { canisend: 'canisend.cjs' }, engines: { node: '>=22.14' },
-  optionalDependencies: Object.fromEntries(Object.values(platforms).map(p => [`canisend-cli-${p.join('-')}`, version])),
+  optionalDependencies: Object.fromEntries(Object.values(platforms).map(p => [`canisend-${p.join('-')}`, version])),
 }, directory => {
   fs.copyFileSync(fileURLToPath(new URL('canisend.cjs', import.meta.url)), path.join(directory, 'canisend.cjs'));
   fs.copyFileSync(path.join(inputs[0].bundle, 'LICENSE'), path.join(directory, 'LICENSE'));

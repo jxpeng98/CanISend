@@ -6,7 +6,7 @@ if (process.platform === 'linux') {
   platform += process.report.getReport().header.glibcVersionRuntime ? '-gnu' : '-musl';
 }
 try {
-  const binary = require.resolve(`canisend-cli-${platform}/canisend${process.platform === 'win32' ? '.exe' : ''}`);
+  const binary = require.resolve(`canisend-${platform}/canisend${process.platform === 'win32' ? '.exe' : ''}`);
   const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.signal) process.kill(process.pid, result.signal);

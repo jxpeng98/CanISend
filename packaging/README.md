@@ -85,7 +85,7 @@ executable: there are no npm dependencies, lifecycle scripts, runtime downloads 
 business logic. npm is offline and uses a test-local cache. Public package names, cross-platform
 npm dispatch, Windows shims and registry publication are deferred. The local smoke verifies source installation, not a download from crates.io;
 registry publication is a separate operation described below.
-The private npm fixture is named `canisend-cli-local` and cannot be published by `npm publish`.
+The private npm fixture is named `canisend-local` and cannot be published by `npm publish`.
 
 See the [Cargo install reference](https://doc.rust-lang.org/cargo/commands/cargo-install.html)
 and [npm local tarball installation reference](https://docs.npmjs.com/cli/v11/commands/npm-install/).
@@ -96,11 +96,11 @@ The eight CLI dependency crates now allow crates.io publication; desktop and xta
 Cargo 1.97 can dry-run and publish the complete dependency set together:
 
 ```console
-cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend-cli
+cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
 ```
 
-`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces `canisend-cli` and native
-`canisend-cli-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}` packages.
+`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces `canisend` and native
+`canisend-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}` packages.
 The entry forwards arguments, exit status and stdio to an exact-version optional native dependency;
 there is no download script. Node >=22.14 is required for the npm launcher. A partial bundle set is
 usable for local tests only; publication CI requires all five platforms. Run

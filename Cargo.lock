@@ -516,6 +516,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "canisend"
+version = "1.0.0-beta.2"
+dependencies = [
+ "canisend-app",
+ "canisend-contracts",
+ "canisend-io",
+ "canisend-mcp",
+ "clap",
+ "lopdf",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "canisend-app"
 version = "1.0.0-beta.2"
 dependencies = [
@@ -533,20 +547,6 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "winreg",
-]
-
-[[package]]
-name = "canisend-cli"
-version = "1.0.0-beta.2"
-dependencies = [
- "canisend-app",
- "canisend-contracts",
- "canisend-io",
- "canisend-mcp",
- "clap",
- "lopdf",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -579,8 +579,8 @@ dependencies = [
 name = "canisend-gui"
 version = "1.0.0-beta.2"
 dependencies = [
+ "canisend",
  "canisend-app",
- "canisend-cli",
  "canisend-contracts",
  "hex",
  "open",
@@ -8066,7 +8066,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 name = "xtask"
 version = "1.0.0-beta.2"
 dependencies = [
- "canisend-cli",
+ "canisend",
  "canisend-contracts",
  "canisend-resources",
  "hex",

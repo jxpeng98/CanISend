@@ -450,7 +450,7 @@ jobs:
       - name: Build native release binary
         run: >-
           cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
-          --locked --target ${{ matrix.target }} -p canisend-cli
+          --locked --target ${{ matrix.target }} -p canisend
 
       - name: Resolve stage-selected native binary
         id: native_binary
@@ -542,7 +542,7 @@ jobs:
           CANISEND_PERFORMANCE_OUTPUT: ${{ runner.temp }}/canisend-performance.json
         run: >-
           cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }}
-          -p canisend-cli --locked
+          -p canisend --locked
           --target x86_64-unknown-linux-gnu
           --test performance_contract -- --ignored --nocapture
 
@@ -638,7 +638,7 @@ jobs:
           extracted="$RUNNER_TEMP/release-smoke-${{ matrix.target }}/extracted/canisend-$version-${{ matrix.target }}/canisend"
           CANISEND_TEST_CLI_BINARY="$extracted" \
             cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }} \
-            -p canisend-cli --locked --target x86_64-unknown-linux-gnu --test mcp_protocol
+            -p canisend --locked --target x86_64-unknown-linux-gnu --test mcp_protocol
 
       - name: Download verified public Alpha.5 migration baseline
         if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'

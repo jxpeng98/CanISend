@@ -9,8 +9,8 @@ qualification. Keep the interactive Workspace separate from the automated fixtur
 From the repository root, build the native CLI if it is not current, then run:
 
 ```sh
-cargo build -p canisend-cli --locked
-cargo test -p canisend-cli --locked --test mcp_protocol
+cargo build -p canisend --locked
+cargo test -p canisend --locked --test mcp_protocol
 cargo test -p canisend-app --locked --lib approval::tests
 bash scripts/smoke_agent_v4_mcp.sh target/debug/canisend dist/agent-acceptance-run
 ```
@@ -22,7 +22,7 @@ network access, or manual clicks. The same suite can target an extracted local c
 
 ```sh
 CANISEND_TEST_CLI_BINARY=/absolute/path/to/extracted/canisend \
-  cargo test -p canisend-cli --locked --test mcp_protocol
+  cargo test -p canisend --locked --test mcp_protocol
 ```
 
 The override exists only in test code and must name an absolute existing file. Both the MCP
