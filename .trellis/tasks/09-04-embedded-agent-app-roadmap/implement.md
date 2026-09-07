@@ -891,3 +891,54 @@ The App/desktop test links emitted a nonfatal macOS debug-unwind-size warning; n
 Next boundary: separately qualify actual single/two-Host journeys and exact standalone CLI bytes
 under LF-C05/07/10/11 when that qualification work is selected. Do not automatically start optional
 Hosts, cross-device synchronization or release publication after this source integration stage.
+
+
+### LF-C10 local candidate automation integration — 2026-09-07
+
+Continued the next roadmap boundary with a local release-profile CLI candidate. LF-C09 is optional;
+LF-C12 remains deferred. This step supplies actual packaged-byte automation for LF-C10, not its
+full native/human release qualification. No release record, cohort threshold, historical evidence,
+GITHUB_RUN_ID or prescribed environment was fabricated or rewritten.
+
+The candidate was built with `cargo build -p canisend-cli --profile release --locked` from product
+source `7d41ce73c9b6fe40fffb9d5c2e64712f537683a3`, Rust 1.97.0, aarch64-apple-darwin. Actual host:
+macOS 27.0 build 26A5425a, arm64; this is not the prescribed macos-15 qualification runner.
+Existing native packaging and four-argument archive smoke were reused.
+
+Fixed a discovered artifact-integrity gap: packaging now validates the executable's reported
+build target before staging, and archive smoke compares the extracted runtime target and full
+product identity with RELEASE.json. Raw archive inspection also exposed macOS AppleDouble entries;
+packaging disables their inclusion, and the final archive contains exactly 12 expected files.
+A new bounded shell regression rejects wrong-target packaging,
+relabeled archives and stale RELEASE metadata before business smoke. It runs once in existing
+Linux Fast CI. The isolated consumer check uses the extracted executable, empty HOME/PATH and an
+unrelated cwd, retaining only Windows SystemRoot where required. jq is a harness/build dependency,
+not a consumer runtime dependency.
+
+The existing dual-Pack smoke now exercises generic CLI local-task prepare/claim/submit followed by
+explicit private-read MCP preview and the existing native draft commit. It asserts exact committed
+task/Application/digest binding; academic direct drafting and later review/export/restore stay
+covered. Consent responses remain synthetic fixture inputs only.
+
+Actual results:
+
+- Release build, native package and extracted archive smoke passed: version/doctor/resources,
+  isolated consumer init/check, documented two-Pack quickstart, project/global Host lifecycle,
+  guarded dual-Pack flow with local candidate handoff, exact canonical reopen/restore and export
+  verification, install/removal with Workspace retention.
+- All three archive identity refusal fixtures passed; shell syntax and source check passed.
+- Preserved pre-existing local Beta.1 binary reports source `0d11c456d726`, SHA-256
+  `bccf0eade0703fe120b9f4ce37172ec482460992ed7cd5cb251ecfbdc97a2635`. Local replacement with
+  the extracted Beta.2 binary preserved both Application snapshots exactly; the pre-upgrade backup
+  restored and checked with both versions; removing the installed executable retained the Workspace.
+  This is a local cross-version test, not the beta→rc archive-pair qualification policy.
+- Full `xtask release check` passed source and dependency checks, then failed on the existing stale
+  provider dogfood Skill identity/digest. Later release checks were not reached or claimed passed.
+
+The superseding archive is in `dist/lfc10-local-20260907/packages-clean/`, with its completed
+`archive-smoke-clean/` run. Earlier candidate output is retained as diagnostic evidence only.
+Artifacts and body-free evidence are under `dist/lfc10-local-20260907/`; `validation.json` identifies
+exact archive/executable digests, actual environment, commands/results and unqualified status.
+The archive is a local candidate only. Real Host acceptance, clean native matrix, signing and
+exact release/upgrade/cohort qualification remain open under LF-C05/07/10/11. No push, PR, tag,
+release, platform-support expansion or human acceptance claim was made.

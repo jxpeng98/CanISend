@@ -178,6 +178,11 @@ jobs:
       - name: Test core, Store, IO, CLI, and MCP contracts
         run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
 
+      - name: Reject mismatched native archive identities
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/test_native_archive_identity.sh "${{ matrix.binary }}"
+
       - name: Smoke Agent v4 host resources and MCP through the built CLI
         shell: bash
         run: |

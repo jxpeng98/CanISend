@@ -669,6 +669,7 @@ qualify_application_lifecycle() {
   local private_marker="${13}"
   local start_byte end_byte arguments
   local extracted_requirement_id preview_token preview_sha256
+  local local_task_id local_task_generation local_task_lease local_candidate_sha256
 
   mcp_tool_call "canisend_application_pack_show" "$(
     jq -nc --arg application_id "$application_id" '{application_id: $application_id}'
@@ -962,8 +963,42 @@ qualify_application_lifecycle() {
         deliverables: $deliverables
       }'
   )"
-  mcp_tool_call "canisend_deliverable_draft_preview" "$arguments"
-  assert_mcp_operation "deliverable.draft.preview"
+  if [[ "$label" == "generic" ]]; then
+    jq 'del(.application_id)' <<< "$arguments" > "$smoke_root/candidates/generic-local-draft.json"
+    "$binary" --workspace "$workspace" local-task prepare \
+      --application "$application_id" --expected-revision 5 --json \
+      > "$smoke_root/generic-local-task-prepared.json"
+    local_task_id="$(jq -er '.data.id' "$smoke_root/generic-local-task-prepared.json")"
+    local_task_generation="$(jq -er '.data.generation' "$smoke_root/generic-local-task-prepared.json")"
+    "$binary" --workspace "$workspace" local-task claim \
+      --task "$local_task_id" --expected-generation "$local_task_generation" --json \
+      > "$smoke_root/generic-local-task-claimed.json"
+    local_task_generation="$(jq -er '.data.generation' "$smoke_root/generic-local-task-claimed.json")"
+    local_task_lease="$(jq -er '.data.lease_id' "$smoke_root/generic-local-task-claimed.json")"
+    "$binary" --workspace "$workspace" local-task submit \
+      --task "$local_task_id" --expected-generation "$local_task_generation" \
+      --lease "$local_task_lease" --candidate "$smoke_root/candidates/generic-local-draft.json" --json \
+      > "$smoke_root/generic-local-task-submitted.json"
+    local_task_generation="$(jq -er '.data.generation' "$smoke_root/generic-local-task-submitted.json")"
+    local_candidate_sha256="$(jq -er '.data.candidate_sha256' "$smoke_root/generic-local-task-submitted.json")"
+    arguments="$(jq -nc --arg application_id "$application_id" --arg task_id "$local_task_id" \
+      --argjson expected_generation "$local_task_generation" --arg candidate_sha256 "$local_candidate_sha256" '{
+        application_id: $application_id, task_id: $task_id, expected_generation: $expected_generation,
+        candidate_sha256: $candidate_sha256, request_private_read: false
+      }')"
+    mcp_tool_call "canisend_local_task_draft_preview" "$arguments"
+    assert_mcp_failure
+    if [[ "$MCP_RESPONSE" == *"$private_marker"* ]]; then
+      echo "Agent v4 MCP smoke: denied local candidate preview leaked private content" >&2
+      exit 1
+    fi
+    arguments="$(jq -c '.request_private_read = true' <<< "$arguments")"
+    mcp_tool_call "canisend_local_task_draft_preview" "$arguments"
+    assert_mcp_operation "local-task.draft.preview"
+  else
+    mcp_tool_call "canisend_deliverable_draft_preview" "$arguments"
+    assert_mcp_operation "deliverable.draft.preview"
+  fi
   capture_preview_binding
   arguments="$(
     jq -nc \
@@ -979,6 +1014,21 @@ qualify_application_lifecycle() {
   )"
   mcp_tool_call "canisend_deliverable_draft_commit" "$arguments"
   assert_mcp_operation "deliverable.draft.commit"
+  if [[ "$label" == "generic" ]]; then
+    printf '%s\n' "$MCP_RESPONSE" > "$smoke_root/generic-local-task-draft-commit.json"
+    "$binary" --workspace "$workspace" local-task show --task "$local_task_id" --json \
+      > "$smoke_root/generic-local-task-committed.json"
+    jq -e --slurpfile commit "$smoke_root/generic-local-task-draft-commit.json" \
+      --argjson submitted_generation "$local_task_generation" --arg candidate_sha256 "$local_candidate_sha256" '
+      .data as $task | $commit[0].result.structuredContent.data as $commit |
+      $task.state == "committed" and $task.generation == ($submitted_generation + 1) and
+      $task.candidate_sha256 == $candidate_sha256 and
+      $task.committed_application.id == $commit.snapshot.application.id and
+      $task.committed_application.expected_revision == $commit.snapshot.application.revision and
+      $task.committed_application.snapshot_sha256 == $commit.snapshot_sha256 and
+      $task.committed_application.pack == $task.application.pack
+    ' "$smoke_root/generic-local-task-committed.json" >/dev/null
+  fi
   if ! jq -e \
     --argjson expected_deliverable_count "$expected_deliverable_count" '
       .result.structuredContent.data.snapshot.application.revision == 6
