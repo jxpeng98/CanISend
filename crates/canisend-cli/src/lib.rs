@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod app_adapter;
+mod local_task;
 
 use std::{
     ffi::OsString,
@@ -73,6 +74,11 @@ pub fn public_clap_leaf_paths() -> Vec<String> {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Coordinate local workers and retain untrusted candidates without committing an Application.
+    LocalTask {
+        #[command(subcommand)]
+        command: local_task::LocalTaskCommand,
+    },
     /// Print native product and protocol versions.
     Version(OutputArgs),
     /// Check the native binary's embedded foundation.
@@ -195,10 +201,21 @@ enum ApplicationCommand {
     List(OutputArgs),
     /// Show one Pack-bound Application in the current Workspace v4.
     Show(ApplicationIdArgs),
+    /// Inspect the complete verified Pack bound to one Application.
+    Pack {
+        #[command(subcommand)]
+        command: ApplicationPackCommand,
+    },
     /// Archive one Application without deleting history or shared Workspace data.
     Archive(ApplicationArchiveArgs),
     /// Create a Pack-bound Application from a reviewed JSON request.
     Create(ApplicationCreateArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ApplicationPackCommand {
+    /// Show the exact Pack Manifest, including all Deliverable minimum/maximum counts.
+    Show(ApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -490,6 +507,7 @@ struct HostRemoveArgs {
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
+            Command::LocalTask { command } => command.json(),
             Command::Version(output) | Command::Doctor(output) => output.json,
             Command::Mcp {
                 command: McpCommand::Serve { .. },
@@ -521,6 +539,9 @@ impl Cli {
             Command::Application { command } => match command {
                 ApplicationCommand::List(output) => output.json,
                 ApplicationCommand::Show(arguments) => arguments.output.json,
+                ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(arguments),
+                } => arguments.output.json,
                 ApplicationCommand::Archive(arguments) => arguments.output.json,
                 ApplicationCommand::Create(arguments) => arguments.output.json,
             },
@@ -792,6 +813,7 @@ fn render_unsupported_legacy_surface(surface: &str, json_output: bool) -> ExitCo
 fn execute(cli: Cli) -> CommandResult<CommandOutput> {
     let Cli { workspace, command } = cli;
     match command {
+        Command::LocalTask { command } => local_task::execute(workspace, command),
         Command::Version(_) => version(),
         Command::Doctor(_) => doctor(),
         Command::Mcp {
@@ -830,6 +852,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Application {
             command: ApplicationCommand::Show(arguments),
         } => application_show(workspace, &arguments.application),
+        Command::Application {
+            command:
+                ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(arguments),
+                },
+        } => application_pack_show(workspace, &arguments.application),
         Command::Application {
             command: ApplicationCommand::Archive(arguments),
         } => application_archive(workspace, arguments),
@@ -1318,6 +1346,25 @@ fn application_show(
             format!("Deliverables: {}", stored.snapshot.deliverables.len()),
         ],
     )
+}
+
+fn application_pack_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "application.pack.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let manifest = Application::application_pack_manifest_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    let mut human = vec![format!("Pack: {} {}", manifest.id, manifest.version)];
+    human.extend(manifest.deliverables.kinds.iter().map(|kind| {
+        format!(
+            "{}: minimum {}, maximum {}",
+            kind.id, kind.minimum, kind.maximum
+        )
+    }));
+    success(operation, "current", &manifest, human)
 }
 
 const MAX_APPLICATION_CANDIDATE_BYTES: u64 = 4 * 1024 * 1024;
@@ -1870,8 +1917,8 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AgentSkillsScopeArgument, ApplicationCommand, AssociationCommand, Cli, Command,
-        CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
+        AgentSkillsScopeArgument, ApplicationCommand, ApplicationPackCommand, AssociationCommand,
+        Cli, Command, CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
         ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
         public_clap_leaf_paths, unsupported_legacy_surface,
     };
@@ -1896,11 +1943,31 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 31);
+        assert_eq!(actual.len(), 39);
     }
 
     #[test]
     fn canonical_v4_commands_parse_and_legacy_paths_are_preflight_rejected() {
+        let pack = Cli::try_parse_from([
+            "canisend",
+            "application",
+            "pack",
+            "show",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+            "--json",
+        ])
+        .expect("Application Pack show command");
+        assert!(pack.explicit_json());
+        assert!(matches!(
+            pack.command,
+            Command::Application {
+                command: ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(_)
+                }
+            }
+        ));
+
         let initialized = Cli::try_parse_from([
             "canisend",
             "--workspace",

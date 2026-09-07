@@ -16,6 +16,11 @@
   explicitly requests reinstalling that workflow.
 - Ask only for missing decisions that change the outcome, or actions outside existing authority.
   Do not repeatedly ask to plan, implement, check, or continue already authorized work.
+- Default to local development and local integration. Reuse the current branch; do not create a
+  branch, worktree or PR for each task. Create isolation only for conflicting parallel work or
+  a risky experiment. Merge completed branches locally, preferring fast-forward when possible.
+- Use meaningful local commits and milestone checks. Create a PR only when the owner requests
+  external review or the remote integration policy requires one; batch a coherent milestone.
 - Keep each change independently reviewable. Record actual checks and remaining gates; never
   equate local implementation with protected CI, qualified artifacts, or user validation.
 
@@ -60,12 +65,17 @@ Use the smallest tier that proves the change, then rely on the scheduled/native 
 
 1. Focused: one test or smoke at the lowest layer that owns the changed invariant; add formatting and relevant Clippy
    only when Rust source changed. Documentation-only changes do not run Rust tests.
-2. Source gate: `cargo run -p xtask --locked -- release check` plus the fast workspace CI.
-3. Native release: exact packaged-binary matrices on the five supported targets.
+2. Source gate: `cargo run -p xtask --locked -- source check` plus Fast CI; no human Host or release-evidence refresh.
+3. Native release: `cargo run -p xtask --locked -- release check` and exact packaged-binary qualification.
 4. Extended assurance: scheduled fuzzing, dependency advisory/license checks, signing, notarization, Authenticode,
    provenance, package-manager lifecycle, and clean-tag release qualification.
 
-Do not run a higher tier merely to repeat a passing lower-tier assertion. Run Tier 2 once on the final PR head for
-shared contracts, release metadata, CI, or multi-crate behavior; Fast CI owns the complete workspace suite. Run Tier 3
+Do not run a higher tier merely to repeat a passing lower-tier assertion. Batch Tier 2 at meaningful local integration
+milestones for shared contracts, release metadata, CI, or multi-crate behavior; do not require a PR to run it. Fast CI
+owns the complete remote workspace suite. Run Tier 3
 only for packaging/runtime changes or an exact release candidate. Trust-boundary, consent, data-loss, recovery, and
 release-integrity changes still require their smallest positive and negative regression at the owning layer.
+
+Human Host acceptance and exact release records gate the affected candidate, not ordinary implementation or
+the next independent development slice. Use synthetic confirmation responses only in isolated automated tests;
+never answer a real user's product consent form. Do not request another approval to continue authorized development.

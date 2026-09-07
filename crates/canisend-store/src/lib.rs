@@ -18,6 +18,7 @@ mod discovery;
 mod document;
 mod evidence;
 mod job;
+mod local_task_v4;
 mod matching;
 mod migration_v3;
 mod pack_migration_v3;
@@ -84,6 +85,9 @@ pub use discovery::DiscoveryService;
 pub use document::DocumentService;
 pub use evidence::EvidenceService;
 pub use job::{JobService, NewSource};
+pub use local_task_v4::{
+    LOCAL_TASK_CANDIDATE_PURPOSE_V4, LOCAL_TASK_OPERATION_V4, LocalTaskServiceV4,
+};
 pub use matching::MatchService;
 pub use migration_v3::{
     ACADEMIC_JOB_PACK_ID, LEGACY_WORKSPACE_SCHEMA_VERSION, WORKSPACE_V3_MIGRATION_PREVIEW_FORMAT,

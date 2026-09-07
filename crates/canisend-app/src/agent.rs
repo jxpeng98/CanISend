@@ -71,8 +71,9 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 36] = [
+pub const CANISEND_MCP_TOOLS: [&str; 39] = [
     "canisend_application_list",
+    "canisend_application_pack_show",
     "canisend_application_show",
     "canisend_deliverable_audit",
     "canisend_deliverable_draft_commit",
@@ -84,6 +85,8 @@ pub const CANISEND_MCP_TOOLS: [&str; 36] = [
     "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_evidence_confirm_commit",
+    "canisend_evidence_confirm_preview",
     "canisend_export_list",
     "canisend_export_prepare_commit",
     "canisend_export_prepare_preview",
@@ -110,8 +113,9 @@ pub const CANISEND_MCP_TOOLS: [&str; 36] = [
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 26] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 28] = [
     "canisend_application_list",
+    "canisend_application_pack_show",
     "canisend_application_show",
     "canisend_deliverable_audit",
     "canisend_deliverable_draft_preview",
@@ -120,6 +124,7 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 26] = [
     "canisend_deliverable_show",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_evidence_confirm_preview",
     "canisend_export_list",
     "canisend_export_prepare_preview",
     "canisend_export_show",
@@ -139,10 +144,11 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 26] = [
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 10] = [
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 11] = [
     "canisend_deliverable_draft_commit",
     "canisend_deliverable_revise_commit",
     "canisend_evidence_association_commit",
+    "canisend_evidence_confirm_commit",
     "canisend_export_prepare_commit",
     "canisend_plan_confirm_commit",
     "canisend_plan_propose_commit",
@@ -862,7 +868,7 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(codex.tools.len(), 36);
+        assert_eq!(codex.tools.len(), 39);
         assert_eq!(codex.guarded_write_tools.len(), 10);
         assert!(
             CANISEND_MCP_V2_TOOLS

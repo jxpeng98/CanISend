@@ -21,17 +21,18 @@ This skill covers Agent v4 tasks `intake` and `requirements` for one exact Appli
    consent requested by CanISend.
 2. Propose a bounded intake and explicit Source-to-Application association. Preserve provenance,
    extraction metadata, content digest, and duplicate findings.
-3. Preview the exact intended mutations. Ask the user to approve that preview, then commit its
-   single-use token and verify the receipt.
+3. Preview the exact intended mutations, then call the guarded commit with
+   `request_confirmation: true` to request the native form. The user answers; verify the result.
 
 ## Establish Requirements
 
 1. Extract only Pack-qualified Requirements supported by exact Source spans. Preserve ambiguity
    and missing information instead of inventing criteria, deadlines, identities, or facts.
 2. Let the user correct classification and wording before confirmation.
-3. Preview, approve, commit, and verify the exact revision-bound proposal. Refresh Application
-   context after every commit.
+3. Preview the exact revision-bound proposal, request native confirmation, let the user approve,
+   and verify the commit. Refresh Application context after every commit.
 
-All writes follow `orient -> propose -> preview -> approve -> commit -> verify`. On stale context,
-denied consent, malformed output, expiry, or host restart, discard the candidate and start from a
-fresh orientation. Never write `.canisend` or submit an Application.
+Follow `canisend-workspace` for MCP consent fields and preview handling. `request_private_read`
+requests consent; it does not assert consent. After denial, stop without retry or fallback. On stale
+context, malformed output, expiry, or restart, discard the preview and re-orient. Never write
+`.canisend` or submit an Application.

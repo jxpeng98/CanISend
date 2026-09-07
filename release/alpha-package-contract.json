@@ -15,7 +15,7 @@
       "compatibility_pack_scope": "none",
       "format": "canisend.operation-registry/v4",
       "path": "crates/canisend-resources/resources/operations/v4/registry.json",
-      "sha256": "8780fd4e28e9361b0beddd19b269d3f4627af88256e07b4b98952e2281269834"
+      "sha256": "edc66ab6c365e55189993ea71ade3052bf56887da8e96f90c5fd61c382e0300d"
     },
     "resource_manifest": {
       "entry_count": 89,

@@ -5,17 +5,18 @@ release jobs do not repeat the whole workspace test graph for every target. Thei
 to prove the behavior that depends on the exact target runner and packaged bytes.
 
 Development uses five logical jobs in `.github/workflows/fast-ci.yml`. Three run on Apple Silicon:
-the first owns locked Svelte dependencies, type checks, unit tests, and one production static-asset
-build. It uploads those exact assets; the formatting/Clippy/release-contract job and the complete
-workspace/property/debug-build job consume the same artifact before compiling the Tauri binary.
-The two Rust jobs then run in parallel. A bounded Ubuntu Chrome job owns keyboard, focus,
-accessibility, reflow, and key visual-state checks. One lightweight matrix runs the core, Store,
-IO, CLI, and MCP contract tests on Ubuntu and Windows. No fast job builds a release profile or
-creates release evidence.
+`desktop-ui` owns Svelte checks, UI tests, the production frontend build, and desktop Rust
+Clippy/tests/build. Independent `macos-quality` and `macos-tests` jobs check the CLI and shared
+Rust crates with `--exclude canisend-gui`; they need no frontend artifact or desktop job.
+`xtask source check` verifies source contracts without release qualification. The workspace
+suite already includes generated property tests, so Fast CI does not run that target twice.
+A bounded Ubuntu Chrome job owns keyboard, focus, accessibility, reflow, and key visual-state
+checks. One lightweight matrix runs core, Store, IO, CLI, and MCP contracts on Ubuntu and Windows.
+No fast job builds a release profile or creates release evidence.
 
-The initial and exact-cache warm measurements are recorded in
-[`fast-ci-stage6.json`](../performance/fast-ci-stage6.json). Their critical paths were 287 and 99
-seconds respectively, so both stay below the five-minute development budget.
+Historical initial and exact-cache warm measurements are retained in
+[`fast-ci-stage6.json`](../performance/fast-ci-stage6.json): 287 and 99 seconds respectively.
+The independent job split has not yet been timed in CI.
 
 The machine-readable authority is
 [`release/native-test-ownership.json`](../../release/native-test-ownership.json). `xtask release
@@ -36,10 +37,10 @@ of the named native package gates.
 | Linux GNU job | release performance and full synthetic workflow budgets |
 | Linux musl job | musl linker and execution of the extracted static-target archive |
 | Apple Silicon desktop job | version-matched CLI/GUI build, bounded ZIP, compressed read-only DMG with `/Applications` link, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
-| Svelte fast CI | locked dependencies, Svelte/TypeScript checks, focused unit tests, and production static-asset build |
+| Desktop fast CI | locked dependencies, Svelte/TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build |
 | Browser fast CI | pinned Chrome skip-link and primary-navigation traversal, focus restoration, automated accessibility, bilingual 200% reflow, and key active-state checks |
 | Linux/Windows core fast CI | locked core, Store, IO, CLI, and MCP contract tests on Ubuntu and Windows without packaging or release profiles |
-| macOS Rust fast CI | development formatting, Clippy, complete workspace tests, generated properties, debug CLI/GUI build, recovery/render coverage, and clean-v4 CLI/host/MCP smoke |
+| macOS CLI/shared Rust fast CI | formatting, Clippy and workspace tests excluding GUI, generated properties within that suite, source contracts, debug CLI build, recovery/render coverage, and clean-v4 CLI/host/MCP smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |
 | Native release source and package gates | Linux full suite, dependency policy, GNU performance/synthetic budgets, Linux/Windows exact package smoke, and signing checks |
 | Scheduled workflows | Intel GUI compilation, Windows/Linux desktop package qualification, and bounded malformed-input fuzzing outside the edit loop |

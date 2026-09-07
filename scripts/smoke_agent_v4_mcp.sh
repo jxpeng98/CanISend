@@ -207,9 +207,9 @@ jq -e \
     and $setup.data.mcp.protocol_version == "2025-11-25"
     and $setup.data.mcp.configuration_target == ".codex/config.toml"
     and ($setup.data.mcp.registration_command | contains("mcp serve"))
-    and ($setup.data.mcp.tools | length) == 36
-    and ($setup.data.mcp.read_only_tools | length) == 26
-    and ($setup.data.mcp.guarded_write_tools | length) == 10
+    and ($setup.data.mcp.tools | length) == 39
+    and ($setup.data.mcp.read_only_tools | length) == 28
+    and ($setup.data.mcp.guarded_write_tools | length) == 11
     and $setup.data.mcp_configuration_mutated == false
     and $repeat.ok == true
     and $repeat.data.skills.state == "up-to-date"
@@ -440,10 +440,11 @@ fi
 if ! jq -s -e '
   . as $responses |
   (map(select(.id == 1))[0].result.protocolVersion == "2025-11-25") and
-  (map(select(.id == 2))[0].result.tools | length == 36) and
+  (map(select(.id == 2))[0].result.tools | length == 39) and
   (map(select(.id == 2))[0].result.tools | all(.[]; .outputSchema.type == "object")) and
   (map(select(.id == 2))[0].result.tools | map(.name) | sort == [
     "canisend_application_list",
+    "canisend_application_pack_show",
     "canisend_application_show",
     "canisend_deliverable_audit",
     "canisend_deliverable_draft_commit",
@@ -455,6 +456,8 @@ if ! jq -s -e '
     "canisend_evidence_association_commit",
     "canisend_evidence_association_list",
     "canisend_evidence_association_preview",
+    "canisend_evidence_confirm_commit",
+    "canisend_evidence_confirm_preview",
     "canisend_export_list",
     "canisend_export_prepare_commit",
     "canisend_export_prepare_preview",
@@ -611,6 +614,44 @@ fi
 printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&3
 
+# Create real source-bound Evidence through the public guarded API, not database fixture writes.
+evidence_arguments="$(
+  jq -nc --arg application_id "$generic_id" \
+    --slurpfile imported "$smoke_root/profile-source-import.json" \
+    --rawfile quote "$profile_source" '
+    $imported[0].data as $data | {
+      application_id: $application_id,
+      profile_source: {id: $data.source.id, revision: $data.source.revision,
+        sha256: $data.source.original.sha256},
+      proposals: {profile_revision: $data.profile_revision, proposals: [{
+        kind: "employment", summary: "Managed a cross-domain programme (synthetic fixture)",
+        source_quote: $quote,
+        source_span: {source: $data.source.normalized_text, start_byte: 0,
+          end_byte: ($quote | utf8bytelength)},
+        sensitivity: "private-local"
+      }]},
+      request_private_read: true
+    }'
+)"
+mcp_tool_call "canisend_evidence_confirm_preview" "$evidence_arguments"
+assert_mcp_operation "evidence.confirm.preview"
+capture_preview_binding
+mcp_tool_call "canisend_evidence_confirm_commit" "$(
+  jq -nc --arg application_id "$generic_id" --arg preview_token "$MCP_PREVIEW_TOKEN" \
+    --arg preview_sha256 "$MCP_PREVIEW_SHA256" '{
+      application_id: $application_id, preview_token: $preview_token,
+      preview_sha256: $preview_sha256, request_confirmation: true, request_private_read: true
+    }'
+)"
+assert_mcp_operation "evidence.confirm.commit"
+mcp_tool_call "canisend_evidence_association_list" "$(
+  jq -nc --arg application_id "$generic_id" '{application_id: $application_id}'
+)"
+assert_mcp_operation "evidence.association.list"
+jq -e '.result.structuredContent.data.associations == []
+  and (.result.structuredContent.data.evidence | length) == 1' <<< "$MCP_RESPONSE" >/dev/null
+confirmed_evidence="$(jq -ec '.result.structuredContent.data.evidence[0].evidence' <<< "$MCP_RESPONSE")"
+
 qualify_application_lifecycle() {
   local label="$1"
   local application_id="$2"
@@ -627,6 +668,32 @@ qualify_application_lifecycle() {
   local private_marker="${13}"
   local start_byte end_byte arguments
   local extracted_requirement_id preview_token preview_sha256
+
+  mcp_tool_call "canisend_application_pack_show" "$(
+    jq -nc --arg application_id "$application_id" '{application_id: $application_id}'
+  )"
+  assert_mcp_operation "application.pack.show"
+  jq -e --arg pack "$expected_pack" --argjson plan "$valid_plan" '
+    .result.structuredContent.data | .id == $pack and
+    all(.deliverables.kinds[]; . as $kind |
+      ($plan | map(select(.kind == $kind.id)) | length) >= $kind.minimum)
+  ' <<< "$MCP_RESPONSE" >/dev/null
+
+  mcp_tool_call "canisend_evidence_association_preview" "$(
+    jq -nc --arg application_id "$application_id" --argjson evidence "$confirmed_evidence" '{
+      application_id: $application_id, evidence: $evidence, change: "associate"
+    }'
+  )"
+  assert_mcp_operation "evidence.association.preview"
+  capture_preview_binding
+  mcp_tool_call "canisend_evidence_association_commit" "$(
+    jq -nc --arg application_id "$application_id" --arg preview_token "$MCP_PREVIEW_TOKEN" \
+      --arg preview_sha256 "$MCP_PREVIEW_SHA256" '{
+        application_id: $application_id, preview_token: $preview_token,
+        preview_sha256: $preview_sha256, request_confirmation: true, request_private_read: true
+      }'
+  )"
+  assert_mcp_operation "evidence.association.commit"
 
   start_byte="$(
     jq -nr \
@@ -659,7 +726,7 @@ qualify_application_lifecycle() {
           start_byte: $start_byte,
           end_byte: $end_byte
         }],
-        confirmed_private_read: false
+        request_private_read: false
       }'
   )"
   mcp_tool_call "canisend_requirement_extract_preview" "$arguments"
@@ -674,8 +741,8 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true,
-        confirmed_private_read: false
+        request_confirmation: true,
+        request_private_read: false
       }'
   )"
   mcp_tool_call "canisend_requirement_extract_commit" "$arguments"
@@ -715,7 +782,7 @@ qualify_application_lifecycle() {
           application_id: $application_id,
           preview_token: $preview_token,
           preview_sha256: $preview_sha256,
-          approved: false
+          request_confirmation: false
         }'
     )"
     mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
@@ -751,7 +818,7 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true
+        request_confirmation: true
       }'
   )"
   mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
@@ -774,7 +841,7 @@ qualify_application_lifecycle() {
           application_id: $application_id,
           preview_token: $preview_token,
           preview_sha256: $preview_sha256,
-          approved: true
+          request_confirmation: true
         }'
     )"
     mcp_tool_call "canisend_requirement_confirm_commit" "$arguments"
@@ -825,7 +892,7 @@ qualify_application_lifecycle() {
           application_id: $application_id,
           preview_token: $preview_token,
           preview_sha256: $preview_sha256,
-          approved: true
+          request_confirmation: true
         }'
     )"
     mcp_tool_call "canisend_plan_propose_commit" "$arguments"
@@ -854,7 +921,7 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true
+        request_confirmation: true
       }'
   )"
   mcp_tool_call "canisend_plan_propose_commit" "$arguments"
@@ -878,7 +945,7 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true
+        request_confirmation: true
       }'
   )"
   mcp_tool_call "canisend_plan_confirm_commit" "$arguments"
@@ -906,7 +973,7 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true
+        request_confirmation: true
       }'
   )"
   mcp_tool_call "canisend_deliverable_draft_commit" "$arguments"
@@ -916,6 +983,8 @@ qualify_application_lifecycle() {
       .result.structuredContent.data.snapshot.application.revision == 6
       and (.result.structuredContent.data.snapshot.deliverables | length) ==
         $expected_deliverable_count
+      and (.result.structuredContent.data.snapshot.deliverables |
+        all(.[]; (.evidence_inputs | length) > 0))
     ' <<< "$MCP_RESPONSE" >/dev/null; then
     echo "Agent v4 MCP smoke: $label draft result is incomplete" >&2
     exit 1
@@ -924,7 +993,7 @@ qualify_application_lifecycle() {
   arguments="$(
     jq -nc --arg application_id "$application_id" '{
       application_id: $application_id,
-      confirmed_private_read: false
+      request_private_read: false
     }'
   )"
   mcp_tool_call "canisend_deliverable_audit" "$arguments"
@@ -937,7 +1006,7 @@ qualify_application_lifecycle() {
   arguments="$(
     jq -nc --arg application_id "$application_id" '{
       application_id: $application_id,
-      confirmed_private_read: true
+      request_private_read: true
     }'
   )"
   mcp_tool_call "canisend_deliverable_audit" "$arguments"
@@ -950,7 +1019,7 @@ qualify_application_lifecycle() {
   arguments="$(
     jq -nc --arg application_id "$application_id" '{
       application_id: $application_id,
-      confirmed_private_read: false
+      request_private_read: false
     }'
   )"
   mcp_tool_call "canisend_review_inspect" "$arguments"
@@ -963,7 +1032,7 @@ qualify_application_lifecycle() {
   arguments="$(
     jq -nc --arg application_id "$application_id" '{
       application_id: $application_id,
-      confirmed_private_read: true
+      request_private_read: true
     }'
   )"
   mcp_tool_call "canisend_review_inspect" "$arguments"
@@ -977,7 +1046,7 @@ qualify_application_lifecycle() {
     jq -nc --arg application_id "$application_id" '{
       application_id: $application_id,
       expected_revision: 6,
-      confirmed_private_read: true
+      request_private_read: true
     }'
   )"
   mcp_tool_call "canisend_review_disposition_preview" "$arguments"
@@ -992,8 +1061,8 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true,
-        confirmed_private_read: true
+        request_confirmation: true,
+        request_private_read: true
       }'
   )"
   mcp_tool_call "canisend_review_disposition_commit" "$arguments"
@@ -1008,7 +1077,7 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         expected_revision: 7,
         destination: $destination,
-        confirmed_private_export: true
+        request_private_export: true
       }'
   )"
   mcp_tool_call "canisend_export_prepare_preview" "$arguments"
@@ -1023,8 +1092,8 @@ qualify_application_lifecycle() {
         application_id: $application_id,
         preview_token: $preview_token,
         preview_sha256: $preview_sha256,
-        approved: true,
-        confirmed_private_export: true
+        request_confirmation: true,
+        request_private_export: true
       }'
   )"
   mcp_tool_call "canisend_export_prepare_commit" "$arguments"
@@ -1063,6 +1132,7 @@ qualify_application_lifecycle() {
     echo "Agent v4 MCP smoke: $label export verification is incomplete" >&2
     exit 1
   fi
+  printf '%s\n' "$MCP_RESPONSE" > "$smoke_root/$label-export-final.json"
 
   arguments="$(
     jq -nc --arg application_id "$application_id" '{application_id: $application_id}'
@@ -1099,7 +1169,7 @@ generic_drafts='[{
   "kind": "primary-document",
   "title": "Reviewed project narrative",
   "media_type": "text/markdown",
-  "content": "PRIVATE-MCP-GENERIC-DELIVERABLE"
+  "content": "PRIVATE-MCP-GENERIC-DELIVERABLE: MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme."
 }]'
 academic_plan='[
   {
@@ -1122,13 +1192,13 @@ academic_drafts='[
     "kind": "cover-letter",
     "title": "Reviewed academic cover letter",
     "media_type": "text/markdown",
-    "content": "PRIVATE-MCP-ACADEMIC-COVER-LETTER"
+    "content": "PRIVATE-MCP-ACADEMIC-COVER-LETTER: MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme."
   },
   {
     "kind": "cv",
     "title": "Reviewed academic CV",
     "media_type": "text/markdown",
-    "content": "PRIVATE-MCP-ACADEMIC-CV"
+    "content": "PRIVATE-MCP-ACADEMIC-CV: MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme."
   }
 ]'
 
@@ -1192,4 +1262,46 @@ mcp_pid=""
 "$binary" --workspace "$restored" workspace check --json \
   | jq -e '.ok == true and .data.ok == true' >/dev/null
 
-echo "Agent v4 MCP smoke: ok (Skills, guarded dual-Pack lifecycle, backup, restore, and reopen passed)"
+for label in generic academic; do
+  application_id="$(
+    jq -er '.result.structuredContent.data.snapshot.application.id' \
+      "$smoke_root/$label-lifecycle-final.json"
+  )"
+  # New CLI processes must see the same canonical state after reopen and restore.
+  for reopened_workspace in "$workspace" "$restored"; do
+    "$binary" --workspace "$reopened_workspace" application show \
+      --application "$application_id" --json \
+      | jq -e --slurpfile expected "$smoke_root/$label-lifecycle-final.json" '
+          .ok == true and .data == $expected[0].result.structuredContent.data
+        ' >/dev/null
+  done
+  "$binary" --workspace "$workspace" export show \
+    --application "$application_id" \
+    --destination "applications/$application_id/exports/$label-smoke" --json \
+    | jq -e --slurpfile expected "$smoke_root/$label-export-final.json" '
+        .ok == true and .data.manifest == $expected[0].result.structuredContent.data.manifest
+      ' >/dev/null
+  # Scoped export directories are derived output, not backup authority. Restored
+  # drafts/review state survive above; exporting again needs a fresh consent.
+  "$binary" --workspace "$restored" export list --application "$application_id" --json \
+    | jq -e '.ok == true and .data.exports == []' >/dev/null
+done
+
+jq -n --slurpfile generic "$smoke_root/generic-lifecycle-final.json" \
+  --slurpfile academic "$smoke_root/academic-lifecycle-final.json" '{
+    verification: "automated-protocol-fixture",
+    human_host_acceptance: false,
+    exact_reopen_and_restore: true,
+    original_export_manifests_verified: true,
+    scoped_export_directories_restored: false,
+    applications: ([$generic[0], $academic[0]] | map(.result.structuredContent.data | {
+      application_id: .snapshot.application.id,
+      pack: .snapshot.pack,
+      revision: .snapshot.application.revision,
+      snapshot_sha256,
+      plan_state: .snapshot.plan.state,
+      deliverable_count: (.snapshot.deliverables | length)
+    }))
+  }' > "$smoke_root/acceptance-summary.json"
+
+echo "Agent v4 MCP smoke: ok (guarded dual-Pack lifecycle, exact reopen/restore, and export verification passed; automated fixture only)"

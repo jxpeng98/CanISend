@@ -15,20 +15,21 @@ This skill covers Agent v4 tasks `review` and `export` for one exact Application
    evidence support, and Pack-qualified cross-Deliverable findings against that exact snapshot.
 3. Explain unresolved findings. The user may approve eligible dispositions; deterministic blockers
    require correction and cannot be silently dismissed.
-4. Preview each disposition, obtain approval for that exact digest, commit its single-use token,
-   and verify the returned revision and audit receipt.
+4. Preview each disposition, call its guarded commit with `request_confirmation: true`, and
+   let the user answer the native form. Verify the returned revision and audit receipt.
 
 ## Render and export locally
 
 1. Re-orient after review and require current readiness. Readiness means only that CanISend may
    prepare local files.
-2. Obtain separate private-export consent. Preview the exact Deliverables, format, destination,
-   replacement behavior, and artifact graph.
+2. Request separate private-export consent with `request_private_export`. Preview the exact
+   Deliverables, format, destination, replacement behavior, and artifact graph.
 3. Preserve user edits through CanISend's reconciliation path. Render only from authoritative
    structured Deliverables, never from an edited managed projection.
-4. Commit the approved export preview and verify every returned artifact digest and local path.
-   Confirm that `submission_performed` is `false`.
+4. Request native confirmation for the export preview with `request_confirmation: true`; only
+   the user may approve. Verify every returned artifact digest and local path, and confirm that
+   `submission_performed` is `false`.
 
-All writes follow `orient -> propose -> preview -> approve -> commit -> verify`. On stale context,
-expiry, replay, consent denial, or restart, discard the preview and begin again. Never upload,
-log in to a portal, or submit an Application.
+Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
+are not user approval. After denial, stop without retry or fallback. On stale context, expiry,
+replay, or restart, discard the preview and re-orient. Never upload, log in to a portal, or submit.

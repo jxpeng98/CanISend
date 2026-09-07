@@ -10,6 +10,11 @@ Use the smallest verification tier that proves the changed invariant. `AGENTS.md
 `CONTRIBUTING.md` own the full matrix; local checks must not automatically escalate to the full
 workspace, native matrix, or extended assurance suite.
 
+Batch checks at meaningful local milestones, not every edit, commit or branch merge. A completed
+feature, changed public contract, substantial conflict resolution or candidate warrants the owning
+checks. Focused bug and trust/data-boundary regressions remain part of implementation. A PR is not
+a testing prerequisite, and an unchanged clean fast-forward does not invalidate passing evidence.
+
 ## Forbidden Patterns
 
 - No direct adapter writes to SQLite, `.canisend/`, Blobs, or managed projections.
@@ -33,9 +38,15 @@ workspace, native matrix, or extended assurance suite.
    needs an inventory/reference check, not a new product test framework.
 2. Rust leaf: focused test, `cargo fmt --all -- --check`, affected-package Clippy.
 3. Shared contract/resource/CI/release metadata: smallest affected test plus one final
-   `cargo run -p xtask --locked -- release check`.
+   `cargo run -p xtask --locked -- source check`.
 4. Desktop: affected pnpm check/test; build only when bundling changed.
 5. Native/extended assurance: only the owning scheduled or release workflow.
+
+The release-specific scenarios below retain `release check` for candidate qualification or
+changes to the validator being exercised. They are not requirements to renew human evidence,
+freeze exceptions or dated release attestations on every development PR. The full release
+command remains strict; dependency review also retains its existing scheduled/change-triggered
+workflow. Automated tests use explicit synthetic fixtures, never fabricated release records.
 
 ## Scenario: release artifact contract metadata
 

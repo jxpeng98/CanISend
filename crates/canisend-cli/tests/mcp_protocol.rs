@@ -186,8 +186,8 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 26);
-    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 10);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 28);
+    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 11);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
         let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
@@ -200,6 +200,13 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
             json!(!name.ends_with("_preview") && !name.ends_with("_commit"))
         );
         assert_eq!(tool["annotations"]["openWorldHint"], json!(false));
+        let properties = &tool["inputSchema"]["properties"];
+        assert!(properties.get("approved").is_none());
+        assert!(properties.get("confirmed_private_read").is_none());
+        assert!(properties.get("confirmed_private_export").is_none());
+        if guarded_write {
+            assert_eq!(properties["request_confirmation"]["type"], "boolean");
+        }
     }
 
     drop(mcp);
@@ -255,7 +262,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
         let (token, digest) = mutation_preview_binding(&preview);
         let request = json!({"name": "canisend_requirement_confirm_commit", "arguments": {
             "application_id": application_id.as_str(), "preview_token": token,
-            "preview_sha256": digest, "approved": true
+            "preview_sha256": digest, "request_confirmation": true
         }});
         let refused = peer.request(3, "tools/call", request.clone());
         assert_eq!(
@@ -294,6 +301,38 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
     let mut mcp = McpProcess::start(&root);
     mcp.initialize();
 
+    // An old model-supplied approval assertion cannot authorize the new interface.
+    let legacy = mcp.request(
+        90,
+        "tools/call",
+        json!({
+            "name": "canisend_requirement_confirm_commit", "arguments": {
+                "application_id": application_id.as_str(), "preview_token": "unissued",
+                "preview_sha256": "0".repeat(64), "approved": true
+            }
+        }),
+    );
+    assert!(legacy["error"].is_object() || legacy["result"]["isError"] == true);
+    assert!(mcp.confirmations.is_empty());
+
+    let catalog = mcp.request(
+        91,
+        "tools/call",
+        json!({
+            "name": "canisend_application_pack_show", "arguments": {
+                "application_id": application_id.as_str()
+            }
+        }),
+    );
+    assert_eq!(
+        catalog["result"]["structuredContent"]["operation"],
+        "application.pack.show"
+    );
+    assert_eq!(
+        catalog["result"]["structuredContent"]["data"]["id"],
+        GENERIC_APPLICATION_WORKFLOW_PACK_ID
+    );
+
     let extraction_preview = mcp.request(
         2,
         "tools/call",
@@ -310,7 +349,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                     "start_byte": 10,
                     "end_byte": 35
                 }],
-                "confirmed_private_read": false
+                "request_private_read": false
             }
         }),
     );
@@ -328,8 +367,8 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true,
-                "confirmed_private_read": false
+                "request_confirmation": true,
+                "request_private_read": false
             }
         }),
     );
@@ -373,7 +412,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -415,7 +454,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -445,7 +484,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -510,7 +549,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": draft_token,
                 "preview_sha256": draft_digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -527,7 +566,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "name": "canisend_deliverable_audit",
             "arguments": {
                 "application_id": application_id.as_str(),
-                "confirmed_private_read": false
+                "request_private_read": false
             }
         }),
     );
@@ -541,7 +580,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
         "tools/call",
         json!({
             "name": "canisend_deliverable_audit",
-            "arguments": {"application_id": application_id.as_str(), "confirmed_private_read": true}
+            "arguments": {"application_id": application_id.as_str(), "request_private_read": true}
         }),
     );
     assert_eq!(
@@ -564,7 +603,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "name": "canisend_deliverable_audit",
             "arguments": {
                 "application_id": application_id.as_str(),
-                "confirmed_private_read": true
+                "request_private_read": true
             }
         }),
     );
@@ -600,7 +639,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -617,7 +656,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true
+                "request_confirmation": true
             }
         }),
     );
@@ -629,7 +668,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "name": "canisend_deliverable_audit",
             "arguments": {
                 "application_id": application_id.as_str(),
-                "confirmed_private_read": true
+                "request_private_read": true
             }
         }),
     );
@@ -643,7 +682,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "name": "canisend_review_inspect",
             "arguments": {
                 "application_id": application_id.as_str(),
-                "confirmed_private_read": false
+                "request_private_read": false
             }
         }),
     );
@@ -658,7 +697,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "name": "canisend_review_inspect",
             "arguments": {
                 "application_id": application_id.as_str(),
-                "confirmed_private_read": true
+                "request_private_read": true
             }
         }),
     );
@@ -676,7 +715,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             "arguments": {
                 "application_id": application_id.as_str(),
                 "expected_revision": 7,
-                "confirmed_private_read": true
+                "request_private_read": true
             }
         }),
     );
@@ -690,8 +729,8 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": token,
                 "preview_sha256": digest,
-                "approved": true,
-                "confirmed_private_read": true
+                "request_confirmation": true,
+                "request_private_read": true
             }
         }),
     );
@@ -708,7 +747,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
         json!({
             "name": "canisend_export_prepare_preview", "arguments": {
                 "application_id": application_id.as_str(), "expected_revision": 8,
-                "destination": "exports/refused", "confirmed_private_export": true
+                "destination": "exports/refused", "request_private_export": true
             }
         }),
     );
@@ -727,7 +766,7 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "expected_revision": 8,
                 "destination": destination,
-                "confirmed_private_export": true
+                "request_private_export": true
             }
         }),
     );
@@ -741,8 +780,8 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": export_token,
                 "preview_sha256": export_digest,
-                "approved": true,
-                "confirmed_private_export": true
+                "request_confirmation": true,
+                "request_private_export": true
             }
         }),
     );
@@ -792,8 +831,8 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
                 "application_id": application_id.as_str(),
                 "preview_token": export_token,
                 "preview_sha256": export_digest,
-                "approved": true,
-                "confirmed_private_export": true
+                "request_confirmation": true,
+                "request_private_export": true
             }
         }),
     );
@@ -1013,8 +1052,8 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
                 "application_id": application_id.as_str(),
                 "preview_token": denied_token,
                 "preview_sha256": denied_digest,
-                "approved": false,
-                "confirmed_private_read": false
+                "request_confirmation": false,
+                "request_private_read": false
             }
         }),
     );
@@ -1028,8 +1067,8 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
                 "application_id": application_id.as_str(),
                 "preview_token": denied_token,
                 "preview_sha256": denied_digest,
-                "approved": true,
-                "confirmed_private_read": true
+                "request_confirmation": true,
+                "request_private_read": true
             }
         }),
     );
@@ -1065,8 +1104,8 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
                 "application_id": application_id.as_str(),
                 "preview_token": approved_token,
                 "preview_sha256": approved_digest,
-                "approved": true,
-                "confirmed_private_read": true
+                "request_confirmation": true,
+                "request_private_read": true
             }
         }),
     );
@@ -1085,8 +1124,8 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
                 "application_id": application_id.as_str(),
                 "preview_token": approved_token,
                 "preview_sha256": approved_digest,
-                "approved": true,
-                "confirmed_private_read": true
+                "request_confirmation": true,
+                "request_private_read": true
             }
         }),
     );
@@ -1106,6 +1145,66 @@ fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
         Some(1)
     );
     assert!(!linked.to_string().contains(private_sentinel));
+
+    let evidence_request = json!({
+        "name": "canisend_evidence_confirm_preview", "arguments": {
+            "application_id": application_id.as_str(),
+            "profile_source": {"id": imported_source.id, "revision": imported_source.revision,
+                "sha256": imported_source.original.sha256},
+            "proposals": {"profile_revision": 1, "proposals": [{
+                "kind": "employment", "summary": "Synthetic source-backed fact",
+                "source_quote": private_sentinel,
+                "source_span": {"source": imported_source.normalized_text,
+                    "start_byte": 11, "end_byte": 11 + private_sentinel.len()},
+                "sensitivity": "private-local"
+            }]}, "request_private_read": true
+        }
+    });
+    for accepted in [false, true] {
+        mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": true}}));
+        let preview = mcp.request(60, "tools/call", evidence_request.clone());
+        let (token, digest) = mutation_preview_binding(&preview);
+        mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": accepted}}));
+        let commit_request = json!({"name": "canisend_evidence_confirm_commit", "arguments": {
+            "application_id": application_id.as_str(), "preview_token": token,
+            "preview_sha256": digest, "request_confirmation": true, "request_private_read": true
+        }});
+        let form_count = mcp.confirmations.len();
+        let result = mcp.request(61, "tools/call", commit_request.clone());
+        if accepted {
+            assert_eq!(
+                result["result"]["structuredContent"]["operation"],
+                "evidence.confirm.commit"
+            );
+            assert_eq!(
+                mcp.confirmations.len() - form_count,
+                2,
+                "private read and mutation use separate forms"
+            );
+        } else {
+            assert_eq!(
+                result["error"]["data"]["code"],
+                "consent.host-confirmation-required"
+            );
+            assert!(!result.to_string().contains(private_sentinel));
+        }
+        let replay = mcp.request(62, "tools/call", commit_request);
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        let inventory = mcp.request(63, "tools/call", json!({
+            "name": "canisend_evidence_association_list", "arguments": {"application_id": application_id.as_str()}
+        }));
+        let data = &inventory["result"]["structuredContent"]["data"];
+        assert_eq!(
+            data["evidence"].as_array().unwrap().len(),
+            usize::from(accepted)
+        );
+        assert_eq!(
+            data["associations"],
+            json!([]),
+            "confirmation does not associate Evidence"
+        );
+        assert!(!inventory.to_string().contains(private_sentinel));
+    }
 
     for (id, legacy) in [
         (15, "canisend_agent_v3_context"),
@@ -1227,9 +1326,10 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
             "expected_revision": 1,
             "source": source, "profile_source": source, "evidence": source,
             "change": "associate", "preview_token": "unissued-fixture-token",
-            "preview_sha256": "0".repeat(64), "approved": true,
-            "confirmed_private_read": true, "confirmed_private_export": true,
+            "preview_sha256": "0".repeat(64), "request_confirmation": true,
+            "request_private_read": true, "request_private_export": true,
             "decisions": [], "requirements": [], "deliverables": [],
+            "proposals": {"profile_revision": 1, "proposals": []},
             "decision": "fixture", "title": "fixture", "media_type": "text/plain",
             "content": "fixture", "destination": "exports/fixture"
         });
@@ -1284,7 +1384,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
             );
             assert!(!response.to_string().contains("PRIVATE-TITLE"));
         }
-        assert_eq!(scoped_count, 32);
+        assert_eq!(scoped_count, 35);
         let own = mcp.request(
             100,
             "tools/call",

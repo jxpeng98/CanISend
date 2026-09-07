@@ -39,6 +39,7 @@ pub enum ApprovalKind {
     DiscoveryImport,
     DiscoveryRefresh,
     EvidenceAssociation,
+    EvidenceConfirmation,
     ExportPrepare,
     JobIntake,
     ProfileAssociation,

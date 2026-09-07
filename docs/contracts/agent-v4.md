@@ -20,6 +20,54 @@ and reasoning state but never write SQLite, Blobs, projections, or `.canisend` p
 MCP is the preferred structured transport; the standalone native CLI is a semantic equivalent and
 does not require the desktop App to be open.
 
+### MCP confirmation requests
+
+MCP commit inputs use `request_confirmation`, not a model-supplied approval assertion. True
+requests the server's native exact-preview form; false consumes the selected preview without
+committing. The server authorizes a change only after an actual `accept` response with exactly
+`{"confirm":true}`. Decline, cancel, false, unsupported form capability, malformed responses and
+timeout fail closed. Single-use tokens remain bound to the same MCP process, exact preview and
+current context. A request to display a form is not permission to answer it for the user.
+
+Private operations similarly use `request_private_read` and `request_private_export` to request
+separate native consent. These flags do not assert consent; private data remains unavailable
+until the corresponding form is accepted. Commit and private consent are independent gates.
+
+This is a breaking correction to the developing MCP input schemas: old `approved`,
+`confirmed_private_read` and `confirmed_private_export` fields are rejected rather than treated
+as aliases. Hosts must rediscover the tools and discard old previews when reconnecting to the
+updated binary. Internal trusted application services retain their explicit approval/consent
+types; this change does not turn model input into an approval or alter persisted v4 data.
+
+Use `canisend_application_pack_show` (CLI `application pack show`) to read the complete verified
+manifest for an Application's exact Pack binding before selecting Deliverables. A validator's
+first error is not a complete catalog. The response includes every kind's minimum and maximum;
+it does not expose user Source or Deliverable bodies.
+
+`canisend_evidence_confirm_preview` accepts an exact imported ProfileSource reference and an
+`EvidenceProposalSet`. Quotes must match byte ranges in that source's normalized artifact;
+source digests, Profile revision and sensitivity are checked before a preview is issued.
+`canisend_evidence_confirm_commit` requests native confirmation of that exact catalog, with
+separate private-read consent when required. It creates Workspace Evidence without changing
+the Application or automatically associating Evidence. Use the existing guarded association
+tools afterward. Changed source/context, denial and replay cannot commit the saved preview.
+
+### Local task coordination
+
+The CLI `local-task list/prepare/show/claim/submit/cancel/candidate-show` commands coordinate bounded Deliverable draft candidate work
+on one device. Their `local-task.*` operations are CLI adapter operations, not additional
+canonical Agent task kinds or MCP/GUI tools. A task binds an exact Application snapshot; its
+coordination generation is separate from the Application revision.
+`local-task list --application ID` returns the latest 100 tasks as body-free metadata, so a new
+session can recover task IDs without relying on the old conversation.
+
+A claim lease permits one worker to hand off a candidate. It grants no Evidence, content-change,
+export, or private-read approval. Private payload reads require `--confirm-private-read`.
+Submitted candidates remain untrusted input: a reviewer must route an accepted proposal through
+the existing business preview, user confirmation, and commit path. Task submission or cancellation
+does not commit a business change or advance the Application revision. Business review disposition
+and commit handoff are a later LF-C07 slice.
+
 ## Canonical tasks
 
 The task-resource model declares exactly ten composable tasks:

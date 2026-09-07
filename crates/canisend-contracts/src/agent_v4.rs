@@ -84,7 +84,12 @@ impl AgentTaskKindV4 {
     #[must_use]
     pub const fn operation_prefixes(self) -> &'static [&'static str] {
         match self {
-            Self::Orientation => &["workspace.status", "application.list", "application.show"],
+            Self::Orientation => &[
+                "workspace.status",
+                "application.list",
+                "application.show",
+                "application.pack.show",
+            ],
             Self::ProfileEvidence => &[
                 "profile.",
                 "evidence.list",
@@ -698,6 +703,28 @@ mod tests {
                 snapshot_sha256: digest('b'),
             }),
         }
+    }
+
+    #[test]
+    fn orientation_can_read_an_exact_application_pack_without_authorizing_mutation() {
+        let mut request = AgentTaskRequestV4 {
+            protocol: AgentProtocolV4::V4,
+            task_id: id(3),
+            task: AgentTaskKindV4::Orientation,
+            operation: OperationId::try_new("application.pack.show").expect("operation"),
+            context: context(),
+            resources: Vec::new(),
+            requested_consents: Vec::new(),
+        };
+        assert!(request.validate_semantics().is_empty());
+        assert!(!AgentTaskKindV4::Orientation.accepts_operation("application.archive.commit"));
+        request.context.application = None;
+        assert!(
+            request
+                .validate_semantics()
+                .iter()
+                .any(|violation| { violation.code == "agent_v4.application_context_required" })
+        );
     }
 
     #[test]

@@ -22,10 +22,12 @@ mod discovery;
 mod document;
 mod dossier;
 mod error;
+mod evidence_v4;
 mod intake;
 mod intake_v4;
 mod job;
 mod local_intake_v4;
+mod local_task_v4;
 mod migration_v3;
 mod package;
 mod plan;
@@ -42,6 +44,11 @@ mod workflow;
 mod workflow_pack;
 mod workflow_pack_presentation;
 mod workspace;
+
+pub use evidence_v4::{
+    EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceApprovalPreviewV4,
+    EvidencePreviewReadModelV4,
+};
 
 pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,

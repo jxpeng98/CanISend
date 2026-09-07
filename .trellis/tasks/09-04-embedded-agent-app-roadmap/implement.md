@@ -504,3 +504,313 @@ inspection confirmed `url 2.5.8` already belongs to the IO/HTTP/render graph. Fr
 `cargo-deny 0.19.7` passed advisories, bans, licenses and sources, with existing duplicate, unused
 license-allowance and yanked `chacha20 0.10.1` warnings. Review date and fingerprint are refreshed;
 all reachability restrictions and the 2026-09-07 review/expiry deadlines are preserved.
+
+
+### LF-C04 protected closeout and LF-C05 acceptance preparation
+
+LF-C04 merged through PR #229 at `83c9120d915851a0113f2490458c3c396a8f25d0` on
+2026-09-06. The merge tree equals checked head `f2deab6cee8d84cbf0f19747c3021fc8a61a7571`.
+Final source validation passed with 31 exact freeze exceptions and the existing five drift items
+and three stage blockers. Fast CI `34029310377` passed all six required jobs; dependency assurance
+`34029310398` passed. This closes source integration, not actual Host/user qualification.
+
+LF-C05 reuses the documented quickstart fixture and the checked native development binary.
+The generated environment is `/private/tmp/canisend-lfc05-interactive`, outside product data and
+source control. Its `README.md`, `HOST-PROMPT.txt` and `prepared-environment.json` record the launch
+steps and body-free identities. The copied binary digest is
+`058c27963b8d6a39b5459f4475b9e826a878ab306f7c1e9fed56cda54495b4e2`; it is not a release archive.
+Both Packs, synthetic Profile Source, backup/restore, project-only Skills and a clean Workspace
+check passed. The new project MCP file comes from `host setup`'s exact configuration snippet.
+No global Host configuration or authentication was changed, and no worker was automatically started.
+
+- [x] Prepare independent native binary and two Pack-bound synthetic Applications at revision 1.
+- [x] Verify generated Codex Skills/configuration, basic lifecycle and canonical Workspace integrity.
+- [x] User starts Codex CLI 0.152.0 and rejects the native CanISend confirmation form (boolean false).
+- [x] Verify unchanged canonical state after rejection, then obtain actual acceptance of a fresh exact preview.
+- [ ] Complete both Pack journeys, review/export/recovery and another local Host session's resumption.
+- [ ] Record actual body-free operation/revision/digest outcomes; exclude synthetic responders.
+
+The user ran the first real interaction in Codex CLI 0.152.0 on 2026-09-06 and reported that
+cancellation did not occur. The MCP `requirement.confirm.commit` receipt was `confirmed` at
+11:28:59Z; generic Application revision changed from 1 to 2 and its selected Requirement became
+confirmed at revision 2. A read-only CLI recheck verified snapshot
+`49515485d819e89c7751ada193a4206c784c46fe9d14f5e98ea076fae331c08c`.
+The user's separate Workspace check reported healthy state. Integrity success does not establish
+consent or cancellation success. The copied binary still matches the recorded SHA-256; the
+observed calls used MCP preview/commit/show, without a shell mutation fallback.
+
+The user subsequently clarified that a prompt appeared and they selected confirmation/Trust,
+not cancellation. This attempt therefore does not demonstrate a cancellation-handling defect.
+The wording alone does not distinguish a Host tool-trust prompt from CanISend's exact-change
+elicitation form; keep that distinction unqualified. LF-C05 acceptance has not passed.
+Preserve the generic revision-2 fixture. A read-only check confirmed the academic Application
+remains at revision 1 with a proposed Requirement; `CANCEL-RETEST-PROMPT.txt` in the prepared
+environment targets that untouched fixture with a fresh preview. The next real user test must
+cancel the exact-change form and verify unchanged revision and snapshot, without retry or
+fallback. Do not reuse the original generic revision-1 prompt, infer approval, reset state, or
+weaken confirmation checks. Continue the full journeys only after the actual cancel/accept checks.
+
+The second reported cancellation returned MCP `approval.denied` and preserved both Applications.
+Read-only canonical checks confirmed academic revision 1 and its original snapshot, and generic
+revision 2 and its recorded snapshot. Inspection of the actual MCP invocation at 12:07:27Z found
+`approved: false`: the Host selected the explicit denial path before server elicitation. This is
+valid negative evidence for explicit denial, not evidence that a user cancelled the native form.
+The reported academic Requirement ID omitted its final `8`; the canonical ID remains
+`01a0766f-74d7-7510-85ac-2657256a48d8`. The prior preview is consumed; the next attempt needs a
+fresh preview and `approved: true` solely to enter the separate Host confirmation gate, followed
+by actual user cancellation. The updated external prompt makes this distinction explicit.
+
+The third attempt at 12:17:10Z invoked exactly one guarded MCP commit with `approved: true`.
+It returned `consent.host-confirmation-required` after 23.3 seconds, without an authorized
+operation. Read-only canonical checks again confirmed academic revision 1 with the original
+snapshot and generic revision 2 with its recorded snapshot. This establishes rejection of a
+guarded commit without Host confirmation; it does not identify the underlying form action.
+The user-supplied report says no form response was supplied. The shared error also covers
+decline, cancellation, unsupported capability and transport failure, so native UI cancellation
+remains unqualified until the operator identifies the visible prompt and actual action. Do not
+request another identical run before resolving that observation. No product code defect is
+demonstrated by these denials; full journey and local-session resumption remain pending.
+
+The operator then clarified that the third attempt displayed the actual form and they selected
+`false`. Combined with the recorded `approved: true` invocation, Host-consent error and unchanged
+canonical snapshots, this closes the real-Host negative confirmation check. Record the precise
+action as boolean false (explicit rejection), not a proven MCP `action: cancel` response: raw
+form response metadata was not captured. No further rejection retest is needed. Next: an actual
+positive confirmation of a fresh academic preview, both Pack journeys, and a separately opened
+local session reading the persisted records. `CONTINUE-JOURNEY-PROMPT.txt` and
+`RESUME-CHECK-PROMPT.txt` in the prepared environment provide these bounded operator steps.
+
+The subsequent positive attempt was blocked by Host automatic approval review before MCP
+execution. Read-only inspection of the Host operation records found the 12:24:44Z commit reused
+the same token issued at 12:17:03Z and used in the rejected 12:17:10Z invocation; no intervening
+fresh preview was recorded. Tokens were compared without copying their values into this record.
+This violated the continuation prompt's fresh-preview requirement. The Host cited repeated use
+after failure and the stop-on-failure instruction. No new receipt or form was produced. A fresh
+canonical check still shows academic revision 1 and its original snapshot. Preserve the completed
+negative confirmation evidence, but keep positive acceptance blocked. Do not retry the token or
+change execution paths. Further positive execution requires informed user approval and a fresh,
+reviewed preview in its owning MCP process; stop if a new preview cannot be obtained.
+
+Further diagnosis of the operator's `approval.missing-or-replayed` result identified a Host
+state-transfer error. At 12:29:13Z a fresh preview was obtained, but its token remained only in
+the local `newToken` variable; no `store()` retained the preview across tool invocations. At
+12:30:55Z the commit again supplied the token used in the 12:17:10Z denial. The preceding expiry
+check used the new preview's deadline for that old token, so it did not validate the submitted
+binding. CanISend correctly rejected the consumed token. No product change is justified by this
+trace. Correct the Host procedure to retain one complete preview record with `store()`, then
+derive token, digest and expiry together from `load()` after explicit approval. Never reconstruct
+a token from conversation text or substitute an old literal. Preparing that retained preview is
+read-only; further commit remains stopped pending the operator's next explicit authorization.
+
+The corrected Host procedure retained the complete fresh preview and verified it with a separate
+`load()` invocation. The operator then explicitly authorized one commit, reviewed the displayed
+academic revision-1 Requirement confirmation form, and selected True. The reported
+`requirement.confirm.commit` response was `confirmed`; the selected local record was cleared and
+no retry or subsequent business operation occurred. Read-only canonical inspection independently
+confirmed Application revision 2, Requirement revision 2 and `confirmed` state, with snapshot
+`873660d43fc2194f3cbac34b376dcb4a9048f86fec3d32b967deb9564827b9c7`.
+The operation response did not return a separate audit receipt field; do not invent an audit ID
+or claim independent audit verification. Real native-form positive and negative confirmation
+checks are now complete. The updated continuation prompt starts with Plans for the two existing
+revision-2 Applications; full journeys and separate-session canonical resumption remain pending.
+
+Academic Plan preparation then stopped on `input.invalid`: the Host selected only cover-letter
+after a partial validator error and omitted the required CV. Inspection of the complete checked
+academic manifest, whose digest matches the Application's bound Pack, confirms minimum/maximum
+1/1 for both `cover-letter` and `cv`; research-statement and teaching-statement are 0/1 each.
+The failed preview performed no commit and was not retained, per the operator report. The
+correction is a fresh Plan preview containing both mandatory kinds, not relaxing Pack validation.
+This also exposes a Host discovery limitation: the current MCP surface has no complete Pack
+catalog read operation, and the CLI resource command lists metadata only. Record this as an
+acceptance usability gap; do not describe first-error probing as complete catalog discovery.
+
+### LF-C05 independent evidence review and replacement fixture — 2026-09-07
+
+The operator authorized subagent verification. One read-only subagent independently reviewed
+the acceptance mapping and confirmed that historical native False/True evidence does not close
+full dual-Pack journeys or separate-session resumption. Both parent and subagent found the old
+`/private/tmp/canisend-lfc05-interactive` directory absent. Its last revision-2 states are historical
+observations, not states reverified today. No original backup was found in the inspected locations.
+The later academic Plan preview expired without a commit, per the operator report.
+
+A new fixture was prepared under gitignored `dist/lfc05-20260907`, reusing the documented
+quickstart smoke: two Packs, basic data, backup and restore passed. Its copied binary retains
+SHA-256 `058c27963b8d6a39b5459f4475b9e826a878ab306f7c1e9fed56cda54495b4e2`.
+Generic Application is `01a07b4c-f6a1-79f5-a27d-a5d0cb5991fa`; academic Application is
+`01a07b4c-f6f8-7805-9628-e9fdaef063ec`. Both begin at revision 1. This is a new acceptance round,
+not recovery or resumption of the missing fixture. Project-only Host resources were installed;
+no Host session or automated form responder was started. The local README and HOST-PROMPT retain
+the native human gates while keeping each fresh preview and its approval in one active turn.
+Subagents may review artifacts and state independently, but do not receive active approval grants.
+
+### LF-C05 automation-first acceptance optimization — 2026-09-07
+
+The operator authorized automated verification before the remaining brief real-Host check.
+Reused the existing dual-Pack MCP smoke and owning protocol/Broker tests; no new runner, product
+control change or automated response in a human Host was introduced. An independent subagent
+review identified the missing exact reopen/restore assertion. The smoke now compares each
+Application's complete canonical data with its final MCP snapshot after reopening and restoring,
+verifies original exports through a new CLI process, and emits `acceptance-summary.json` with an
+explicit automated-only classification. Scoped export directories are excluded by the existing
+backup contract: restored export discovery is asserted empty, while canonical draft/review state
+and referenced Blob integrity are verified. Re-export requires fresh consent.
+
+Actual local checks passed: enhanced dual-Pack smoke at `dist/lfc05-auto-verified-20260907`,
+all 5 MCP protocol tests, all 9 ApprovalBroker tests, Bash syntax and diff whitespace. The app
+test link emitted the existing large `__eh_frame` warning; all selected tests passed. Both Pack
+flows reached revision 7 with confirmed Plans, one generic and two academic Deliverables, reviewed
+local exports, and exact state after reopening/restoring. These are synthetic fixtures, not
+evidence-backed real application writing or human Host qualification. The form timeout branch
+has no dedicated elapsed-time regression and is not claimed as covered. No Rust source or CI
+configuration changed; protected CI and native qualification were not run for this local slice.
+Independent subagent review found no actionable issues in the script or guide; it was a static
+review, not another test run or Windows qualification.
+
+The repeatable procedure is [Agent acceptance](../../../docs/guides/agent-acceptance.md).
+Use existing native False/True evidence for the matching build/Host; keep remaining real Host
+steps in one active conversation, with immediate user form responses rather than cross-task
+preview copying. Next: complete the brief actual dual-Pack Host journey and separate-session
+canonical resumption. LF-C05 remains pending those observations; LF-C06 is not started by these
+automatic checks.
+
+### Actual Host hold-Plan boundary — 2026-09-07
+
+The new user-started Host reports Codex CLI 0.153.4 (different from the historical 0.152.0 form
+evidence). Canonical inspection confirms academic Application `01a07b4c-f6f8-7805-9628-e9fdaef063ec`
+at revision 3 with a confirmed Requirement and a draft `hold` Plan containing required
+cover-letter and CV. Generic remains revision 1. The operator reports zero confirmed Evidence,
+healthy Workspace and no drafts/exports. No independent audit ID was returned.
+
+The 10:13:00Z Plan confirmation preview was retained; the 10:13:07Z invocation correctly loaded
+its token/digest/expiry together and cleared the selected record. Host automatic review rejected
+the commit before native confirmation because the transcript did not establish the user's
+choice of this exact Plan. This was not the earlier token-transfer bug. The MCP schema requires
+explicit approval of the exact preview before `approved: true`, and the server additionally
+requires its native form. Do not weaken either control or retry the rejected call. The concrete
+remaining decision is whether the operator accepts this hold Plan; even confirmation does not
+resolve the evidence gap or establish drafting/export readiness. Further execution needs that
+informed decision and a fresh preview. Real Host qualification remains incomplete.
+
+Preliminary LF-C06 audit found that the existing TaskService/TaskDescriptor and ReviewService are
+Job-bound. Their existing lease/transaction/Blob patterns are reusable, but their public data types
+cannot be relabelled as Application v4. Any coordination slice must bind Application/Pack/input
+versions, keep coordination generation separate from content revision, and account for the
+business-commit/accepted-task recovery boundary. No collaboration implementation or migration has
+been made. Respect the LF-C05 dependency before selecting that implementation; LF-C07 needs two
+user-started real Hosts, LF-C09 remains optional, LF-C10/11 qualification and publication remain
+separate, and LF-C12 remains deferred.
+
+### LF-C05 development fixes — 2026-09-07
+
+Owner authorized implementation after the actual Host refusal. The MCP request contract now
+uses `request_confirmation` and `request_private_read/export`: these request native forms and
+never assert a prior human decision. Actual native acceptance remains mandatory; legacy input
+fields are rejected. No rejected interactive commit was retried and no Host policy was bypassed.
+Hosts must rediscover schemas and obtain fresh previews from the updated binary.
+
+Added exact Application Pack manifest discovery through CLI/MCP and its Orientation permission,
+so Hosts read all required kinds before proposing a Plan. Added a public guarded v4 Evidence
+confirmation path using existing ProfileSource, catalog, Broker, transaction and Blob primitives.
+It checks source revision/digests, byte quotes, privacy and current Application context, stores
+only the exact approved Workspace catalog, and leaves association to the existing separate tools.
+No Job, database migration or direct database fixture seed was introduced.
+
+Actual local checks:
+- Source-bound Evidence owning regression: passed (positive, private denial, source/quote/range/
+  revision/digest mismatch, stale source, cross-Application, restart and single-use rejection).
+- Exact Pack catalog owning regression and CLI dual-Pack binary contract: passed.
+- Orientation exact-operation regression: passed.
+- MCP protocol suite: 5 passed, including old-field rejection and native Evidence False/True.
+- ApprovalBroker suite: 9 passed, including manual-clock expiry and replay cases.
+- Formatting and affected Store/App/MCP/CLI all-target Clippy: passed.
+- Updated native debug binary dual-Pack smoke: passed at `dist/lfc05-fixed-final-20260907`;
+  both Applications reached revision 7, all Deliverables retained Evidence inputs, and exact
+  reopen/restore plus original export verification passed. Its summary explicitly records
+  `human_host_acceptance: false`.
+
+The source gate detected the new guide in the domain-coupling inventory; inspected classification
+is `compatibility-surface`, then the checked inventory was refreshed. The subsequent
+`cargo run -p xtask --locked -- release check` passed schemas, resources, inventory, documentation,
+release truth, dependency policy and version checks, then stopped at
+`provider dogfood Skill identity or digest is stale`. Existing exact-artifact human evidence in
+`release/provider-dogfood.json` must not be relabelled as qualification of these changed Skills.
+Protected Fast CI and real Host/new-artifact qualification remain unproven. LF-C05 remains open;
+next step is a user-controlled updated Host with fresh native confirmation, then canonical
+resumption and truthful evidence renewal. No release fact, deadline or validator was weakened.
+
+### CLI development-flow simplification — 2026-09-07
+
+The owner requested a review and removal of excessive development gates and manual stops. The
+CLI-first architecture remains appropriate; the avoidable delay came from coupling development
+to current human/release evidence, making CLI CI wait for the desktop, duplicating property
+coverage, and allowing validator unit tests to depend on live qualification dates and records.
+
+Implemented one source entry point, `xtask source check`, by reusing the existing checks. Full
+`release check` still calls all 34 original checks; human/artifact readiness, freeze dispositions
+and dependency dates retain their release or existing dedicated workflow owners. No release
+validator, historical qualification record, product confirmation, or dependency deadline was
+weakened. LF-C06 depends on the automated LF-C05/code contracts, with actual Host acceptance
+remaining a candidate qualification item. This supersedes the earlier instruction to wait for
+human LF-C05 completion before dependent implementation; no LF-C06 code is implemented here.
+
+Fast CI now runs CLI/shared quality and tests independently of desktop UI. GUI Rust maintenance
+runs in the existing desktop job, the unused frontend artifact handoff is removed, and property
+tests run once in the source workspace suite. Existing job names and the release workflow remain
+intact. Validator regressions use an explicitly synthetic temporary fixture; live dependency
+expiry is checked by the existing dependency workflow and full release command. Active project
+instructions, the ADR amendment, roadmap and acceptance guide describe this boundary consistently.
+
+The now-complete source check also found and resolved earlier API projection omissions: typed
+operation/semantic mappings, new MCP request-field markers, and the current source package's
+operation-registry binding. Actual CLI/MCP coverage is recorded; no absent GUI implementation or
+human run was invented.
+
+Verification: `cargo run -p xtask --locked -- source check` passed; all 91 xtask tests passed;
+xtask all-target Clippy, Rust formatting, workflow YAML parsing and `git diff --check` passed.
+The full release check still rejects the stale provider-dogfood Skill digest, proving the old
+record cannot qualify current bytes. Protected GitHub CI and new real Host/candidate qualification
+have not run. Next development can proceed from the passing source checks without another process
+approval; collect remaining real evidence when the affected candidate is ready.
+
+### Local integration and milestone checks — 2026-09-07
+
+Owner prefers local development/merges, checks at important milestones, and no routine PRs.
+Updated the active instructions, contributing guide, quality guide, ADR amendment and roadmap:
+reuse the current branch; isolate only conflicting parallel work or risky experiments; make
+meaningful local commits and merges; batch broader checks at completed features, contract changes,
+substantial conflict resolution or candidate boundaries. Keep focused bug/consent/data-integrity
+regressions. PRs are only for requested external review or required protected remote integration.
+
+Current `feat/lf-c05-host-acceptance` and local `main` both point to `83c9120d`; work is uncommitted,
+so there is no committed divergence to merge. No branch, PR, push, deletion or remote protection
+change was made. This clarification is documentation-only; validate whitespace and active docs,
+without repeating the already-passing Rust suites from the preceding milestone.
+
+### LF-C06 local task coordination — 2026-09-07
+
+Implemented the next bounded source slice under the owner's local-development policy. The new
+CLI-only `local-task list/prepare/show/claim/submit/cancel/candidate-show` family reuses the nullable
+Job association in the existing tasks table, immutable Blobs and audit/transaction primitives.
+There is no schema migration, daemon, worker launcher, separate database or new approval system.
+Existing legacy `task` commands remain rejected.
+
+Tasks bind an exact Application/Pack/snapshot plus scoped Source/Profile/Evidence metadata and
+Profile revision. Immediate transactions fence claims and submissions with a separate generation
+and a 15-minute lease; stale inputs, stale generations and old leases fail. Candidate objects are
+bounded to 256 KiB, immutable and explicitly untrusted. Listing returns at most 100 recent metadata
+records; candidate bodies require explicit private-read consent and survive backup/restore.
+Coordination audit uses host-agent, not an invented human approval. No Application revision or
+business state changes, and no accepted-task state can misrepresent a later business commit.
+
+Milestone checks: Store owning positive/negative regression passed (two connections, expiry and
+reclaim, stale generation/lease/inputs, bounded candidates, archived Application, row consistency,
+reopen and retained candidate). CLI binary-contract run passed 12/13 initially; the one failure
+was a previous hard-coded MCP tool count, replaced with the actual public tool catalog and its
+focused rerun passed. The new CLI handoff test passes private-read denial, all seven commands,
+unchanged Application and exact backup/restore. Affected all-target Clippy and source check passed.
+The coupling inventory accurately records the one new Store/test file reusing Job-null columns.
+
+LF-C06's local coordination slice is source-complete. LF-C07 still owns actual two-Host work,
+exact-candidate review and its existing Broker commit/receipt integration; LF-C08 owns the fuller
+race/crash qualification. No real Host or release qualification is claimed. Continue from these
+local results without a PR or another process approval.
