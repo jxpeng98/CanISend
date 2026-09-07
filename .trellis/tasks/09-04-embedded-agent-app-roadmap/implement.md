@@ -1466,3 +1466,23 @@ single tarball, nonglobal isolated install and simulated Host before uploading o
 Then independently download from npm and compare exact bytes, version and Workspace/Skills setup.
 Keep artifacts and actual results under `dist/npm-beta4/`. Cargo publication, GitHub integration
 and formal Beta qualification remain outside this run. Historical evidence is preserved.
+
+Result: published only `canisend@1.0.0-beta.4` after the owner completed npm browser verification.
+Source commit: `2886c3c6a652aefedf07b2a011141777d66fec57`. The 26,104,790-byte archive embeds the
+macOS ARM64 executable and matching source archive; its SHA-256 is
+`032243b6fab7e86d531e5893e31e141bb40a169742a9da60439e952bcfc25b55`.
+Node packaging/dispatch checks, source gate, release build, signing and archive lifecycle checks,
+isolated single-package install, all six simulated Host tests and publication dry-run passed.
+
+Public npm readback matches the local SHA-512/SHA-1. A fresh nonglobal prefix/cache installed
+exactly one package with optional dependencies disabled, verified the embedded executable/source
+bytes, initialized Workspace with all five Skills and checked healthy state. The generated MCP
+configuration points to the executable inside `canisend/native/darwin-arm64/`. `next` now points
+to Beta.4; `latest` remains Beta.3. Actual evidence: `dist/npm-beta4/publication.json` and `checks/`.
+No old package was removed or republished. The existing tag workflow was updated locally to emit
+and upload one archive; no CI configuration, GitHub push/tag/PR or Cargo upload occurred.
+
+Full release qualification still reports historical provider-dogfood/current Agent binding drift;
+all five retained evidence files remain byte-identical. The single-package npm request is complete.
+Next independent development remains I3b; broader native/Host qualification and CI activation retain
+their existing scope.
