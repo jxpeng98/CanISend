@@ -6,7 +6,7 @@
     {
       "task": "orientation",
       "description": "Inspect Workspace health, Packs, Applications, and the next bounded action without reading private bodies.",
-      "operation_prefixes": ["workspace.status", "application.list", "application.show"],
+      "operation_prefixes": ["workspace.status", "application.list", "application.show", "application.pack.show"],
       "mutation": false,
       "phases": ["orient", "verify"],
       "workspace_only_allowed": true

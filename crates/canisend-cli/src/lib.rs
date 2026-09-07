@@ -1324,7 +1324,7 @@ fn host_status(
         "mcp": mcp,
         "mcp_configuration_mutated": false,
     });
-    success(
+    let mut output = success(
         operation,
         status,
         &data,
@@ -1337,7 +1337,30 @@ fn host_status(
             "The response includes the deterministic MCP registration and verification commands"
                 .to_owned(),
         ],
-    )
+    )?;
+    let (action, advice) = match skills.state {
+        canisend_app::AgentSkillsStatusState::UpToDate => (
+            "host.reconnect",
+            "Resources match this binary. After an upgrade, reconnect the Host, rediscover tools and discard old previews. MCP connection has not been verified.",
+        ),
+        canisend_app::AgentSkillsStatusState::NotInstalled
+        | canisend_app::AgentSkillsStatusState::UpdateAvailable
+        | canisend_app::AgentSkillsStatusState::Incomplete => (
+            "host.setup",
+            "Install, update or repair bundled Skills using this binary and the same --workspace, --host and --scope. Pause active Host tasks first; setup preserves user-modified files. Then reconnect and rediscover tools.",
+        ),
+        canisend_app::AgentSkillsStatusState::UserModified
+        | canisend_app::AgentSkillsStatusState::Unmanaged => (
+            "host.review-conflicts",
+            "Preserve and review the conflicting Skills before setup. Do not edit the ownership manifest or force overwrite. Keep custom guidance outside managed files; resolve only the reviewed conflicts.",
+        ),
+    };
+    output.response.next_actions.push(NextAction {
+        action: action.to_owned(),
+        description: format!("{advice} Selected host: {}; scope: {}; directory: {}. If the executable moved, use the returned MCP registration command.",
+            host.as_str(), arguments.scope.as_str(), skills.directory.display()),
+    });
+    Ok(output)
 }
 
 fn host_remove(

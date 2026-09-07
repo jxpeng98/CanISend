@@ -1001,3 +1001,36 @@ formatting, diff validation and `xtask source check` pass. Local PTY reproductio
 retained under `dist/init-onboarding-check/`. Previous packaged `552a072` bytes are unchanged;
 this source slice needs a fresh package before distribution. Cargo/npm distribution remains the
 next installation-channel scope; no registry publication or other package-manager work performed.
+
+### Skills strengthening and upgrade mitigation — 2026-09-07
+
+Owner authorized stronger project Skills and bounded upgrade mitigation using existing installers.
+The four Skills now distinguish CLI setup from guarded business mutations, preserve previously
+supplied choices, limit denial to the denied operation, and avoid inventing missing audit fields.
+Workspace guidance covers initialization, scope/discovery, version/resource checks, conflict
+preservation, reconnect/tool rediscovery and expired preview disposal. Host guides and Intake UI
+metadata follow the same task ownership. No real consent or provider configuration is changed.
+
+`host status` now returns state-specific next actions for setup/repair, conflict review or
+reconnection, including selected Host/scope/directory and the unverified connection boundary.
+The existing installer still owns digest preflight, file replacement and manifest-last writes;
+no second upgrade subsystem or guaranteed atomic directory upgrade was introduced. A new owning
+regression covers current/old/missing file mixtures, a late user-edit conflict with no partial
+writes, resumed upgrade and repeat setup for both Hosts.
+
+The resource suite exposed an existing task-model omission (`application.pack.show`) and a stale
+fixed-phrase Skill assertion. Updated the resource projection to the existing canonical contract
+and checked the current native confirmation field while retaining exact task coverage checks.
+Historical release/Host evidence and protocol versions remain unchanged.
+
+Checks: 17 resource tests and 14 CLI binary tests pass; affected all-target Clippy, formatting,
+diff validation and source check pass. All four Skill frontmatter/UI metadata files parse and
+match their names/default prompts (Ruby YAML validation; the Skill helper could not run because
+PyYAML was unavailable). A local old-552a072-to-new-debug Skills update passed for Codex and
+Claude, including same-version digest detection, repeat setup, healthy restored Workspace and
+exact preservation of both completed Application snapshots. Fixture script/result and logs are
+under `dist/skills-upgrade-check/`.
+
+Next: rebuild the distributable candidate with these resources before Cargo/npm installation
+validation. Existing archives are unchanged. Real-model Skill selection, human Host acceptance,
+full power-loss/concurrent-install qualification and release publication are not claimed.

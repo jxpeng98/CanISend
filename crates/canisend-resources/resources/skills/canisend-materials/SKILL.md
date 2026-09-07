@@ -16,7 +16,7 @@ This skill covers Agent v4 tasks `fit-plan` and `drafting` for one exact Applica
    and Evidence metadata. Request private bodies with the consent CanISend requires.
 3. Propose explicit Evidence-to-Application associations and a Pack-qualified Plan. Show supported
    Requirements, retained gaps, prohibited claims, and the safe hold state.
-4. The user alone chooses whether and how to proceed. Preview the Plan and associations, then
+4. Respect the user's existing proceed/hold choice; ask only when that choice is missing. Preview the Plan and associations, then
    request native confirmation with `request_confirmation: true`; the user answers the form.
 
 ## Draft Deliverables
@@ -32,8 +32,9 @@ This skill covers Agent v4 tasks `fit-plan` and `drafting` for one exact Applica
 4. Call the guarded commit with the single-use preview token and `request_confirmation: true`.
    Local-task draft previews reuse `canisend_deliverable_draft_commit`; a lease is not approval.
    Only the user may approve the native form. Verify the new revision, snapshot digest, audit
-   event, and artifact references.
+   event when returned, and artifact references; do not invent missing receipt fields.
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
-are not user approval. After denial, stop without retry or fallback. Refresh context after stale
+are not user approval. After denial, stop the denied operation without retry or fallback;
+independent authorized checks may continue. Refresh context after stale
 revision, Pack mismatch, expiry, or restart. Never edit internal storage, upload, or submit.

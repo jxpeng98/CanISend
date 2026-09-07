@@ -88,7 +88,11 @@ fn agent_v4_model_schemas_and_examples_share_one_clean_contract() {
         serde_json::from_slice(model_resource.bytes).expect("Agent v4 task-resource model JSON");
     assert_eq!(model.format, AGENT_V4_TASK_MODEL_FORMAT);
     assert_eq!(model.protocol, AGENT_V4_PROTOCOL);
-    assert!(model.validate_semantics().is_empty());
+    assert!(
+        model.validate_semantics().is_empty(),
+        "{:?}",
+        model.validate_semantics()
+    );
 
     let schema_resources = [
         (
@@ -474,7 +478,7 @@ fn agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift() {
         let metadata = String::from_utf8_lossy(openai_metadata[skill]);
         assert!(body.contains("canisend.workspace/v4"));
         assert!(body.contains("canisend.agent/v4"));
-        assert!(body.contains("orient -> propose -> preview -> approve -> commit -> verify"));
+        assert!(body.contains("request_confirmation: true"));
         assert!(!body.contains("canisend.agent/v2"));
         assert!(!body.contains("canisend.agent/v3"));
         assert!(!body.contains("canisend-job-intake"));
@@ -745,4 +749,71 @@ fn agent_skills_management_rejects_symlinked_host_directories() {
 
     fs::remove_dir_all(root).expect("cleanup workspace");
     fs::remove_dir_all(outside).expect("cleanup outside");
+}
+
+#[test]
+fn skills_upgrade_resumes_mixed_files_and_preflights_conflicts() {
+    let root = std::env::temp_dir().join(format!("canisend-skills-resume-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir(&root).unwrap();
+    for host in [AgentHost::Codex, AgentHost::Claude] {
+        let installed = install_agent_skills(host, &root).unwrap();
+        let mut old: AgentSkillsManifest =
+            serde_json::from_slice(&fs::read(&installed.manifest_path).unwrap()).unwrap();
+        // Model a stopped update: one current file, one old file, one missing file,
+        // and the old manifest still in place. No real user files are involved.
+        let old_bytes = b"previous managed fixture";
+        for entry in &mut old.files {
+            fs::write(root.join(&entry.path), old_bytes).unwrap();
+            entry.sha256 = hex::encode(Sha256::digest(old_bytes));
+        }
+        fs::write(&installed.manifest_path, serde_json::to_vec(&old).unwrap()).unwrap();
+        let first = &installed.files[0];
+        fs::write(
+            root.join(&first.path),
+            get(ResourceId::from_str(&first.resource_id).unwrap()).bytes,
+        )
+        .unwrap();
+        fs::remove_file(root.join(&installed.files[1].path)).unwrap();
+        let last = root.join(&installed.files.last().unwrap().path);
+        fs::write(&last, b"user customization").unwrap();
+        let manifest_before = fs::read(&installed.manifest_path).unwrap();
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::UserModified
+        );
+        assert!(install_agent_skills(host, &root).is_err());
+        assert!(!root.join(&installed.files[1].path).exists());
+        assert_eq!(
+            fs::read(root.join(&installed.files[2].path)).unwrap(),
+            old_bytes
+        );
+        assert_eq!(fs::read(&installed.manifest_path).unwrap(), manifest_before);
+        assert_eq!(fs::read(&last).unwrap(), b"user customization");
+        // Resolve only the fixture edit; setup can resume from the old manifest.
+        fs::write(&last, old_bytes).unwrap();
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::Incomplete
+        );
+        assert_eq!(
+            install_agent_skills(host, &root).unwrap().state,
+            AgentSkillsInstallState::Updated
+        );
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::UpToDate
+        );
+        assert_eq!(
+            install_agent_skills(host, &root).unwrap().state,
+            AgentSkillsInstallState::UpToDate
+        );
+        for entry in &installed.files {
+            assert_eq!(
+                hex::encode(Sha256::digest(fs::read(root.join(&entry.path)).unwrap())),
+                entry.sha256
+            );
+        }
+    }
+    fs::remove_dir_all(root).unwrap();
 }

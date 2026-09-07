@@ -517,6 +517,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
             host,
             "--json",
         ]);
+        assert_eq!(status["next_actions"][0]["action"], "host.reconnect");
         assert_eq!(status["operation"], "host.status");
         assert_eq!(status["status"], "ready");
         assert_eq!(status["data"]["scope"], "project");
@@ -1300,6 +1301,16 @@ fn workspace_init_installs_selected_skills_without_interactive_input() {
             .unwrap()
             .contains("Workspace initialized")
     );
+    let status = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "host",
+        "status",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(status["next_actions"][0]["action"], "host.review-conflicts");
     assert_eq!(fs::read_to_string(modified).unwrap(), "user-owned edit");
     assert!(
         run(&[

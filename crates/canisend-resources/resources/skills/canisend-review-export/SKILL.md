@@ -16,7 +16,7 @@ This skill covers Agent v4 tasks `review` and `export` for one exact Application
 3. Explain unresolved findings. The user may approve eligible dispositions; deterministic blockers
    require correction and cannot be silently dismissed.
 4. Preview each disposition, call its guarded commit with `request_confirmation: true`, and
-   let the user answer the native form. Verify the returned revision and audit receipt.
+   let the user answer the native form. Verify the returned revision and any returned audit receipt; report an absent receipt as absent.
 
 ## Render and export locally
 
@@ -31,5 +31,6 @@ This skill covers Agent v4 tasks `review` and `export` for one exact Application
    `submission_performed` is `false`.
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
-are not user approval. After denial, stop without retry or fallback. On stale context, expiry,
+are not user approval. After denial, stop the denied operation without retry or fallback;
+independent authorized checks may continue. On stale context, expiry,
 replay, or restart, discard the preview and re-orient. Never upload, log in to a portal, or submit.

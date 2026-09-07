@@ -33,6 +33,7 @@ This skill covers Agent v4 tasks `intake` and `requirements` for one exact Appli
    and verify the commit. Refresh Application context after every commit.
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. `request_private_read`
-requests consent; it does not assert consent. After denial, stop without retry or fallback. On stale
+requests consent; it does not assert consent. After denial, stop the denied operation without retry or fallback;
+independent authorized checks may continue. On stale
 context, malformed output, expiry, or restart, discard the preview and re-orient. Never write
 `.canisend` or submit an Application.
