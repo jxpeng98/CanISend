@@ -1338,11 +1338,32 @@ for label in generic academic; do
     | jq -e '.ok == true and .data.exports == []' >/dev/null
 done
 
+# Committed task results and private candidate bytes are canonical backup authority too.
+local_task_id="$(jq -er '.data.id' "$smoke_root/generic-local-task-committed.json")"
+for reopened_workspace in "$workspace" "$restored"; do
+  "$binary" --workspace "$reopened_workspace" local-task show --task "$local_task_id" --json \
+    | jq -e --slurpfile expected "$smoke_root/generic-local-task-committed.json" \
+      '.ok == true and .data == $expected[0].data' >/dev/null
+  if "$binary" --workspace "$reopened_workspace" local-task candidate-show \
+    --task "$local_task_id" --json > "$smoke_root/local-candidate-denied.json"; then
+    echo "Agent v4 MCP smoke: recovered candidate read bypassed private consent" >&2
+    exit 1
+  fi
+  jq -e '.ok == false and .error.code == "consent.required"' \
+    "$smoke_root/local-candidate-denied.json" >/dev/null
+  "$binary" --workspace "$reopened_workspace" local-task candidate-show \
+    --task "$local_task_id" --confirm-private-read --json \
+    | jq -e --slurpfile expected "$smoke_root/candidates/generic-local-draft.json" \
+      '.ok == true and .data == $expected[0]' >/dev/null
+done
+
 jq -n --slurpfile generic "$smoke_root/generic-lifecycle-final.json" \
   --slurpfile academic "$smoke_root/academic-lifecycle-final.json" '{
     verification: "automated-protocol-fixture",
     human_host_acceptance: false,
     exact_reopen_and_restore: true,
+    committed_task_reopen_and_restore: true,
+    private_candidate_reopen_and_restore: true,
     original_export_manifests_verified: true,
     scoped_export_directories_restored: false,
     applications: ([$generic[0], $academic[0]] | map(.result.structuredContent.data | {

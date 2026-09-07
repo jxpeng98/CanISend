@@ -942,3 +942,20 @@ exact archive/executable digests, actual environment, commands/results and unqua
 The archive is a local candidate only. Real Host acceptance, clean native matrix, signing and
 exact release/upgrade/cohort qualification remain open under LF-C05/07/10/11. No push, PR, tag,
 release, platform-support expansion or human acceptance claim was made.
+
+
+### LF-C11 local collaboration recovery evidence — 2026-09-07
+
+The extracted LF-C10 release binary now runs the existing dual-Pack smoke with exact comparisons
+of committed local-task metadata and private candidate JSON after both process reopen and backup
+restore. Both recovered candidate reads reject missing private-read consent before the positive
+explicit fixture read. The full flow passes at `dist/lfc11-local-20260907/`; its acceptance summary
+records committed-task and private-candidate restoration separately from Application restoration.
+This closes a gap in the previous automation, which checked Application snapshots and exports
+but did not compare the committed task result and candidate payload after restoring the backup.
+
+Shell syntax, diff validation and source check pass. No runtime code or candidate binary changed;
+the test uses the same `0ea764742c7f4be9e55921290c4bc1a353b898bc97ec7c82b48fafa4833a8994`
+extracted binary recorded in the LF-C10 local validation. Actual two-Host user acceptance and the
+prescribed native/release matrix are still unperformed. Those missing evidence classes prevent
+claiming full LF-C10/11 qualification; automated fixture responses cannot replace them.
