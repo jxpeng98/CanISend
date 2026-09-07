@@ -186,7 +186,7 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 28);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 29);
     assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 11);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
@@ -215,6 +215,15 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
 
 #[test]
 fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
+    guarded_lifecycle(false);
+}
+
+#[test]
+fn local_task_candidate_uses_native_draft_confirmation() {
+    guarded_lifecycle(true);
+}
+
+fn guarded_lifecycle(local_candidate: bool) {
     let root = temporary_root("application-lifecycle");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
     let created = Application::create_application_flow_v4(
@@ -522,23 +531,119 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
     assert_eq!(cli_plan["data"]["plan"]["state"], json!("confirmed"));
 
     let draft_body = "PRIVATE-MCP-DELIVERABLE-V1";
-    let draft_preview = mcp.request(
-        10,
-        "tools/call",
-        json!({
-            "name": "canisend_deliverable_draft_preview",
-            "arguments": {
-                "application_id": application_id.as_str(),
-                "expected_revision": 5,
-                "deliverables": [{
-                    "kind": "primary-document",
-                    "title": "Reviewed primary document",
-                    "media_type": "text/markdown",
-                    "content": draft_body
-                }]
-            }
-        }),
-    );
+    let submitted =
+        if local_candidate {
+            let task = Application::prepare_local_task_v4(
+                &root,
+                application_id.as_str(),
+                canisend_contracts::Revision::try_new(5).unwrap(),
+            )
+            .unwrap()
+            .data;
+            let claimed =
+                Application::claim_local_task_v4(&root, task.id.as_str(), task.generation)
+                    .unwrap()
+                    .data;
+            let candidate_path = root.join("worker-candidate.json");
+            fs::write(&candidate_path, serde_json::to_vec(&json!({
+            "expected_revision": 5,
+            "deliverables": [{"kind": "primary-document", "title": "Reviewed primary document",
+                "media_type": "text/markdown", "content": draft_body}]
+        })).unwrap()).unwrap();
+            let submitted = Application::submit_local_task_v4(
+                &root,
+                claimed.id.as_str(),
+                claimed.generation,
+                claimed.lease_id.as_ref().unwrap().as_str(),
+                &candidate_path,
+            )
+            .unwrap()
+            .data;
+            // A new reviewer process recovers the persisted candidate, not another process's approval.
+            drop(mcp);
+            mcp = McpProcess::start(&root);
+            mcp.initialize();
+            Some(submitted)
+        } else {
+            None
+        };
+    let draft_preview = if let Some(task) = &submitted {
+        let mut arguments = json!({"application_id": application_id.as_str(), "task_id": task.id,
+            "expected_generation": task.generation, "candidate_sha256": task.candidate_sha256,
+            "request_private_read": false});
+        let refused = mcp.request(
+            100,
+            "tools/call",
+            json!({"name": "canisend_local_task_draft_preview", "arguments": arguments}),
+        );
+        assert!(refused["error"].is_object() || refused["result"]["isError"] == true);
+        assert!(!refused.to_string().contains(draft_body));
+        arguments["request_private_read"] = json!(true);
+        let preview = mcp.request(
+            101,
+            "tools/call",
+            json!({"name": "canisend_local_task_draft_preview", "arguments": arguments}),
+        );
+        let form = mcp.confirmations.last().unwrap().to_string();
+        assert!(form.contains(task.id.as_str()));
+        assert!(form.contains(task.candidate_sha256.as_ref().unwrap().as_str()));
+        let (token, digest) = mutation_preview_binding(&preview);
+        mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": false}}));
+        let commit_args = json!({"application_id": application_id.as_str(), "preview_token": token,
+            "preview_sha256": digest, "request_confirmation": true});
+        let denied = mcp.request(
+            102,
+            "tools/call",
+            json!({"name": "canisend_deliverable_draft_commit", "arguments": commit_args}),
+        );
+        assert!(denied["error"].is_object() || denied["result"]["isError"] == true);
+        assert_eq!(
+            Application::show_local_task_v4(&root, task.id.as_str())
+                .unwrap()
+                .data,
+            *task
+        );
+        assert_eq!(
+            Application::application_model_v4(&root, application_id.as_str())
+                .unwrap()
+                .data
+                .snapshot
+                .application
+                .revision
+                .get(),
+            5
+        );
+        mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": true}}));
+        let replay = mcp.request(
+            103,
+            "tools/call",
+            json!({"name": "canisend_deliverable_draft_commit", "arguments": commit_args}),
+        );
+        assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+        mcp.request(
+            104,
+            "tools/call",
+            json!({"name": "canisend_local_task_draft_preview", "arguments": arguments}),
+        )
+    } else {
+        mcp.request(
+            10,
+            "tools/call",
+            json!({
+                "name": "canisend_deliverable_draft_preview",
+                "arguments": {
+                    "application_id": application_id.as_str(),
+                    "expected_revision": 5,
+                    "deliverables": [{
+                        "kind": "primary-document",
+                        "title": "Reviewed primary document",
+                        "media_type": "text/markdown",
+                        "content": draft_body
+                    }]
+                }
+            }),
+        )
+    };
     let (draft_token, draft_digest) = mutation_preview_binding(&draft_preview);
     let drafted = mcp.request(
         11,
@@ -553,6 +658,25 @@ fn completes_the_guarded_requirement_plan_and_deliverable_lifecycle() {
             }
         }),
     );
+    if let Some(task) = &submitted {
+        let recovered = Application::show_local_task_v4(&root, task.id.as_str())
+            .unwrap()
+            .data;
+        assert_eq!(
+            recovered.state,
+            canisend_contracts::LocalTaskStateV4::Committed
+        );
+        let binding = recovered.committed_application.unwrap();
+        assert_eq!(binding.expected_revision.get(), 6);
+        assert_eq!(
+            json!(binding.snapshot_sha256),
+            drafted["result"]["structuredContent"]["data"]["snapshot_sha256"]
+        );
+        let form = mcp.confirmations.last().unwrap().to_string();
+        assert!(form.contains(task.id.as_str()));
+        assert!(form.contains(task.candidate_sha256.as_ref().unwrap().as_str()));
+        assert!(form.contains(draft_body));
+    }
     let deliverable_id = drafted["result"]["structuredContent"]["data"]["snapshot"]["deliverables"]
         [0]["id"]
         .as_str()
@@ -1323,6 +1447,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
             "application_id": other_id,
             "requirement_id": other.snapshot.requirements[0].id,
             "deliverable_id": "deliverable-fixture",
+            "task_id": "task-fixture", "expected_generation": 3, "candidate_sha256": "0".repeat(64),
             "expected_revision": 1,
             "source": source, "profile_source": source, "evidence": source,
             "change": "associate", "preview_token": "unissued-fixture-token",
@@ -1384,7 +1509,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
             );
             assert!(!response.to_string().contains("PRIVATE-TITLE"));
         }
-        assert_eq!(scoped_count, 35);
+        assert_eq!(scoped_count, 36);
         let own = mcp.request(
             100,
             "tools/call",

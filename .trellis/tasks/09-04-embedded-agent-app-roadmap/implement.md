@@ -814,3 +814,30 @@ LF-C06's local coordination slice is source-complete. LF-C07 still owns actual t
 exact-candidate review and its existing Broker commit/receipt integration; LF-C08 owns the fuller
 race/crash qualification. No real Host or release qualification is claimed. Continue from these
 local results without a PR or another process approval.
+
+
+### LF-C07 local candidate commit integration — 2026-09-07
+
+Scope: connect an exact persisted Submitted local task to the existing Deliverable draft Broker.
+The new MCP-only `local-task.draft.preview` requires native private-read consent bound to the
+Application, task, generation and candidate digest. It validates the retained typed compose
+request through the existing Pack-qualified draft validator. The existing `deliverable.draft.commit`
+shows the Broker-owned exact candidate and requires actual native confirmation; no second commit
+API, approval system, daemon, migration, branch or PR was added.
+
+The owning Application transaction rechecks task state/generation, candidate bytes and digest,
+Application snapshot and ancillary inputs, then saves both the draft and Committed task binding.
+The durable completion metadata identifies the resulting Application revision/snapshot, while
+its audit actor remains host-agent. It does not fabricate a separate human audit receipt.
+
+Validation: the new synthetic MCP peer test passes private-read refusal, reviewer-process restart,
+exact form binding, native False with no mutation, cancelled-token replay refusal, and fresh
+preview/native True with matching committed metadata. The existing lifecycle also passes. The
+all-tool binding test required new typed parameter samples and its updated scoped-tool count.
+Store owns stale/cancelled/generation/digest/content checks and injected task-save failure rollback.
+Affected all-target Clippy and Tier 2 source check pass; public inventory is 39 CLI / 131 Tauri /
+40 MCP tools (29 read-only, 11 guarded). These are source checks, not protected CI or release facts.
+
+Next: LF-C08 bounded race/crash qualification over these same transaction and recovery paths.
+Actual two-Host user acceptance remains an LF-C07 qualification item; it does not block independent
+local implementation. No upload, submission, push, PR or release qualification was performed.

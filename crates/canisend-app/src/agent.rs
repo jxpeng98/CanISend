@@ -71,7 +71,7 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 39] = [
+pub const CANISEND_MCP_TOOLS: [&str; 40] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -91,6 +91,7 @@ pub const CANISEND_MCP_TOOLS: [&str; 39] = [
     "canisend_export_prepare_commit",
     "canisend_export_prepare_preview",
     "canisend_export_show",
+    "canisend_local_task_draft_preview",
     "canisend_plan_confirm_commit",
     "canisend_plan_confirm_preview",
     "canisend_plan_propose_commit",
@@ -113,7 +114,7 @@ pub const CANISEND_MCP_TOOLS: [&str; 39] = [
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 28] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 29] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -128,6 +129,7 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 28] = [
     "canisend_export_list",
     "canisend_export_prepare_preview",
     "canisend_export_show",
+    "canisend_local_task_draft_preview",
     "canisend_plan_confirm_preview",
     "canisend_plan_propose_preview",
     "canisend_plan_show",
@@ -868,8 +870,11 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(classified.len(), codex.tools.len());
         assert!(codex.tools.iter().all(|tool| classified.contains(tool)));
-        assert_eq!(codex.tools.len(), 39);
-        assert_eq!(codex.guarded_write_tools.len(), 10);
+        assert_eq!(codex.tools.len(), CANISEND_MCP_TOOLS.len());
+        assert_eq!(
+            codex.guarded_write_tools.len(),
+            CANISEND_MCP_GUARDED_WRITE_TOOLS.len()
+        );
         assert!(
             CANISEND_MCP_V2_TOOLS
                 .into_iter()

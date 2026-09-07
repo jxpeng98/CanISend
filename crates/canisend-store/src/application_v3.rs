@@ -55,10 +55,14 @@ pub struct ApplicationModelRepository<'a> {
     database: &'a mut Database,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ApplicationMutation {
+#[derive(Clone, Copy)]
+enum ApplicationMutation<'a> {
     Commit,
     Archive,
+    LocalTaskDraft {
+        request: &'a crate::LocalTaskDraftRequestV4,
+        blobs: &'a crate::BlobStore,
+    },
 }
 
 impl<'a> ApplicationModelRepository<'a> {
@@ -365,6 +369,24 @@ impl<'a> ApplicationModelRepository<'a> {
         )
     }
 
+    pub(crate) fn commit_local_task(
+        &mut self,
+        application_id: &ApplicationId,
+        candidate: ApplicationModelSnapshotV3,
+        actor: ActorKind,
+        request: &crate::LocalTaskDraftRequestV4,
+        blobs: &crate::BlobStore,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        self.commit_internal(
+            application_id,
+            request.compose.expected_revision,
+            candidate,
+            actor,
+            "application-flow-compose",
+            ApplicationMutation::LocalTaskDraft { request, blobs },
+        )
+    }
+
     fn commit_internal(
         &mut self,
         application_id: &ApplicationId,
@@ -372,7 +394,7 @@ impl<'a> ApplicationModelRepository<'a> {
         candidate: ApplicationModelSnapshotV3,
         actor: ActorKind,
         reason: &str,
-        mutation: ApplicationMutation,
+        mutation: ApplicationMutation<'_>,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
         let reason = validate_reason(reason)?.to_owned();
         let actor_name = enum_name(actor)?;
@@ -389,10 +411,21 @@ impl<'a> ApplicationModelRepository<'a> {
                 current.snapshot.application.revision.get()
             )));
         }
+        let local_task = match mutation {
+            ApplicationMutation::LocalTaskDraft { request, blobs } => {
+                Some(crate::local_task_v4::validate_draft_request(
+                    &transaction,
+                    blobs,
+                    application_id,
+                    request,
+                )?)
+            }
+            _ => None,
+        };
         let (snapshot, stale_plan_ids, stale_deliverable_ids) = prepare_update(
             &current.snapshot,
             candidate,
-            mutation == ApplicationMutation::Archive,
+            matches!(mutation, ApplicationMutation::Archive),
         )?;
         validate_snapshot(&snapshot)?;
         let (snapshot_json, snapshot_sha256) = serialize_snapshot(&snapshot)?;
@@ -436,8 +469,14 @@ impl<'a> ApplicationModelRepository<'a> {
             event_id.as_str(),
             &actor_name,
             match (storage, mutation) {
-                (ApplicationStorage::V3, ApplicationMutation::Commit) => "application-v3.commit",
-                (ApplicationStorage::V4, ApplicationMutation::Commit) => "application-v4.commit",
+                (
+                    ApplicationStorage::V3,
+                    ApplicationMutation::Commit | ApplicationMutation::LocalTaskDraft { .. },
+                ) => "application-v3.commit",
+                (
+                    ApplicationStorage::V4,
+                    ApplicationMutation::Commit | ApplicationMutation::LocalTaskDraft { .. },
+                ) => "application-v4.commit",
                 (ApplicationStorage::V3, ApplicationMutation::Archive) => "application-v3.archive",
                 (ApplicationStorage::V4, ApplicationMutation::Archive) => "application-v4.archive",
             },
@@ -446,6 +485,9 @@ impl<'a> ApplicationModelRepository<'a> {
             &reason,
             &committed_at,
         )?;
+        if let Some(task) = local_task {
+            crate::local_task_v4::mark_committed(&transaction, task, &snapshot, &snapshot_sha256)?;
+        }
         transaction.commit()?;
         Ok(ApplicationModelCommitResultV3 {
             stored: StoredApplicationModelV3 {

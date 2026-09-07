@@ -13,6 +13,11 @@
   ],
   "fixtures": [
     {
+      "id": "local-task-draft-mcp",
+      "path": "crates/canisend-cli/tests/mcp_protocol.rs",
+      "marker": "fn local_task_candidate_uses_native_draft_confirmation()"
+    },
+    {
       "id": "local-task-cli-handoff",
       "path": "crates/canisend-cli/tests/binary_contract.rs",
       "marker": "fn local_task_handoff_preserves_application_and_requires_private_read()"
@@ -444,8 +449,8 @@
     {
       "pack": "generic-application",
       "surface": "mcp",
-      "operations": ["application.pack.show", "evidence.confirm.preview", "evidence.confirm.commit", "workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit", "review.inspect", "review.disposition.preview", "review.disposition.commit", "export.list", "export.show", "export.prepare.preview", "export.prepare.commit"],
-      "fixtures": ["workspace-evidence-v4", "workspace-v4-mcp-reads", "mixed-mcp-workspace", "application-mutations-mcp"]
+      "operations": ["local-task.draft.preview", "application.pack.show", "evidence.confirm.preview", "evidence.confirm.commit", "workspace.status", "workspace.check", "application.list", "application.show", "profile-source.list", "profile.association.list", "profile.association.preview", "profile.association.commit", "evidence.association.list", "evidence.association.preview", "evidence.association.commit", "requirement.list", "requirement.show", "requirement.extract.preview", "requirement.extract.commit", "requirement.confirm.preview", "requirement.confirm.commit", "plan.show", "plan.propose.preview", "plan.propose.commit", "plan.confirm.preview", "plan.confirm.commit", "deliverable.list", "deliverable.show", "deliverable.draft.preview", "deliverable.draft.commit", "deliverable.revise.preview", "deliverable.revise.commit", "deliverable.audit", "review.inspect", "review.disposition.preview", "review.disposition.commit", "export.list", "export.show", "export.prepare.preview", "export.prepare.commit"],
+      "fixtures": ["local-task-draft-mcp", "workspace-evidence-v4", "workspace-v4-mcp-reads", "mixed-mcp-workspace", "application-mutations-mcp"]
     },
     {
       "pack": "academic-job",
@@ -509,7 +514,7 @@
     },
     {
       "operation": "deliverable.draft.commit",
-      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+      "fixtures": ["local-task-draft-mcp", "application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
     },
     {
       "operation": "deliverable.revise.commit",
@@ -608,10 +613,10 @@
     },
     {
       "id": "deliverable-draft",
-      "preview_operations": ["deliverable.draft.preview"],
+      "preview_operations": ["deliverable.draft.preview", "local-task.draft.preview"],
       "commit_operation": "deliverable.draft.commit",
       "outcomes": ["success", "stale", "replay", "wrong-context", "no-mutation", "recovery"],
-      "fixtures": ["application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
+      "fixtures": ["local-task-draft-mcp", "application-mutations-v4", "application-mutations-mcp", "approval-broker", "approval-context"]
     },
     {
       "id": "deliverable-revise",

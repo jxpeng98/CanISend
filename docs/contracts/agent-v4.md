@@ -54,19 +54,25 @@ tools afterward. Changed source/context, denial and replay cannot commit the sav
 
 ### Local task coordination
 
-The CLI `local-task list/prepare/show/claim/submit/cancel/candidate-show` commands coordinate bounded Deliverable draft candidate work
-on one device. Their `local-task.*` operations are CLI adapter operations, not additional
-canonical Agent task kinds or MCP/GUI tools. A task binds an exact Application snapshot; its
-coordination generation is separate from the Application revision.
-`local-task list --application ID` returns the latest 100 tasks as body-free metadata, so a new
-session can recover task IDs without relying on the old conversation.
+The CLI `local-task list/prepare/show/claim/submit/cancel/candidate-show` commands coordinate bounded
+Deliverable draft candidate work on one device. A task binds an exact Application snapshot;
+its coordination generation is separate from the Application revision. These commands do not
+add canonical Agent task kinds. `local-task list --application ID` returns the latest 100 tasks
+as body-free metadata so a new session can recover task IDs without the old conversation.
 
-A claim lease permits one worker to hand off a candidate. It grants no Evidence, content-change,
-export, or private-read approval. Private payload reads require `--confirm-private-read`.
-Submitted candidates remain untrusted input: a reviewer must route an accepted proposal through
-the existing business preview, user confirmation, and commit path. Task submission or cancellation
-does not commit a business change or advance the Application revision. Business review disposition
-and commit handoff are a later LF-C07 slice.
+A claim lease permits a worker to hand off a candidate. It grants no Evidence, content-change,
+export, or private-read approval. CLI private payload reads require `--confirm-private-read`.
+Submitted candidates remain untrusted input; submission or cancellation never advances the
+Application revision.
+
+`canisend_local_task_draft_preview` loads one exact Submitted task candidate using its Application
+ID, task ID, generation, and candidate digest. `request_private_read` requests native consent
+before reading the payload. The existing draft validator then prepares `local-task.draft.preview`;
+this does not approve the candidate or change the Application. Use the returned token and digest
+with the existing `canisend_deliverable_draft_commit`, whose native form remains mandatory.
+A successful commit creates the approved draft and marks the local task Committed atomically.
+A stale task, changed Application or inputs, cancellation, denial, or replay cannot commit the
+handoff. There is no separate local-task commit tool, GUI integration, or two-Host qualification.
 
 ## Canonical tasks
 

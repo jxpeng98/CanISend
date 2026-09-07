@@ -10,6 +10,7 @@ pub enum LocalTaskStateV4 {
     Claimed,
     Submitted,
     Cancelled,
+    Committed,
 }
 
 /// Body-free local coordination metadata. A lease never authorizes a business mutation.
@@ -25,4 +26,6 @@ pub struct LocalTaskV4 {
     pub lease_expires_at: Option<UtcTimestamp>,
     pub candidate_sha256: Option<Sha256Digest>,
     pub candidate_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub committed_application: Option<AgentApplicationBindingV4>,
 }

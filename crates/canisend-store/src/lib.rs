@@ -86,7 +86,8 @@ pub use document::DocumentService;
 pub use evidence::EvidenceService;
 pub use job::{JobService, NewSource};
 pub use local_task_v4::{
-    LOCAL_TASK_CANDIDATE_PURPOSE_V4, LOCAL_TASK_OPERATION_V4, LocalTaskServiceV4,
+    LOCAL_TASK_CANDIDATE_PURPOSE_V4, LOCAL_TASK_OPERATION_V4, LocalTaskDraftRequestV4,
+    LocalTaskServiceV4,
 };
 pub use matching::MatchService;
 pub use migration_v3::{

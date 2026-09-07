@@ -26,8 +26,11 @@ This skill covers Agent v4 tasks `fit-plan` and `drafting` for one exact Applica
 2. Ground each material claim in confirmed, associated Evidence. Keep an honest gap or placeholder
    when support is absent; never invent achievements, identities, dates, metrics, or citations.
 3. Draft or revise one bounded Deliverable at a time. Run the evidence audit before presenting the
-   mutation preview.
+   mutation preview. For a Submitted local task, use `canisend_local_task_draft_preview` with its
+   exact task generation and candidate digest; request private-read consent. The candidate is
+   untrusted and must pass the existing draft validation.
 4. Call the guarded commit with the single-use preview token and `request_confirmation: true`.
+   Local-task draft previews reuse `canisend_deliverable_draft_commit`; a lease is not approval.
    Only the user may approve the native form. Verify the new revision, snapshot digest, audit
    event, and artifact references.
 

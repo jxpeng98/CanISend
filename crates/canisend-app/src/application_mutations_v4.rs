@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use canisend_contracts::{
-    ActorKind, ApplicationId, PrivacyClassification, Sha256Digest, WorkspaceSourceKindV4,
+    ActorKind, ApplicationId, EntityId, PrivacyClassification, Sha256Digest, WorkspaceSourceKindV4,
 };
 use canisend_io::EmbeddedTypstCompiler;
 use canisend_store::{
@@ -10,7 +10,8 @@ use canisend_store::{
     ApplicationFlowExportReadModelV3, ApplicationFlowReviewReadModelV3, ApplicationFlowServiceV3,
     ApplicationModelCommitResultV3, ApplicationMutationServiceV4, ApplicationPlanConfirmRequestV4,
     ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
-    ApplicationRequirementExtractRequestV4, StoredApplicationModelV3,
+    ApplicationRequirementExtractRequestV4, LocalTaskDraftRequestV4, LocalTaskServiceV4,
+    StoredApplicationModelV3,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -64,6 +65,10 @@ enum PendingApplicationMutationV4 {
     DeliverableDraft {
         workspace: PathBuf,
         preview: ApplicationMutationPreviewV4<ApplicationFlowComposeRequestV3>,
+    },
+    LocalTaskDraft {
+        workspace: PathBuf,
+        preview: ApplicationMutationPreviewV4<LocalTaskDraftRequestV4>,
     },
     DeliverableRevise {
         workspace: PathBuf,
@@ -221,6 +226,54 @@ impl ApplicationMutationApprovalBrokerV4 {
             application_id,
             receipt,
             |workspace, preview| PendingApplicationMutationV4::DeliverableDraft {
+                workspace,
+                preview,
+            },
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn preview_local_task_draft(
+        &self,
+        root: &Path,
+        application_id: &ApplicationId,
+        task_id: &EntityId,
+        expected_generation: u64,
+        candidate_sha256: &Sha256Digest,
+        consent: Option<PrivateReadConsent>,
+    ) -> Result<
+        ApplicationMutationApprovalPreviewV4<LocalTaskDraftRequestV4>,
+        ApplicationMutationApprovalErrorV4,
+    > {
+        if consent.is_none() {
+            return Err(private_read_required(
+                "Reading a local task candidate requires explicit private-read consent",
+            )
+            .into());
+        }
+        let request = {
+            let mut workspace = open_workspace_v4(root)?;
+            let service = LocalTaskServiceV4::new(&mut workspace.database, &workspace.blobs);
+            if service
+                .show(task_id)
+                .map_err(ApplicationError::from)?
+                .application
+                .id
+                != *application_id
+            {
+                return Err(ApplicationMutationApprovalErrorV4::BindingMismatch);
+            }
+            service
+                .draft_request(task_id, expected_generation, candidate_sha256)
+                .map_err(ApplicationError::from)?
+        };
+        let receipt = Application::preview_local_task_draft_v4(root, application_id, request)?;
+        self.insert(
+            root,
+            ApprovalKind::DeliverableDraft,
+            application_id,
+            receipt,
+            |workspace, preview| PendingApplicationMutationV4::LocalTaskDraft {
                 workspace,
                 preview,
             },
@@ -430,6 +483,14 @@ impl ApplicationMutationApprovalBrokerV4 {
             |pending| match pending {
                 PendingApplicationMutationV4::DeliverableDraft { workspace, preview } => {
                     Ok(Application::commit_deliverable_draft_v4(
+                        &workspace,
+                        &preview.context.application_id,
+                        preview.request,
+                        preview.preview_sha256,
+                    ))
+                }
+                PendingApplicationMutationV4::LocalTaskDraft { workspace, preview } => {
+                    Ok(Application::commit_local_task_draft_v4(
                         &workspace,
                         &preview.context.application_id,
                         preview.request,
@@ -713,6 +774,58 @@ impl Application {
             request,
             vec!["Record explicit user authority on the current draft Plan".to_owned()],
         )
+    }
+
+    fn preview_local_task_draft_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: LocalTaskDraftRequestV4,
+    ) -> Result<
+        ActionReceipt<ApplicationMutationPreviewV4<LocalTaskDraftRequestV4>>,
+        ApplicationError,
+    > {
+        let draft =
+            Self::preview_deliverable_draft_v4(root, application_id, request.compose.clone())?;
+        mutation_preview(
+            "local-task.draft.preview",
+            draft.data.context,
+            request,
+            draft.data.changes,
+        )
+    }
+
+    fn commit_local_task_draft_v4(
+        root: &Path,
+        application_id: &ApplicationId,
+        request: LocalTaskDraftRequestV4,
+        expected_preview_sha256: Sha256Digest,
+    ) -> Result<ActionReceipt<StoredApplicationModelV3>, ApplicationError> {
+        ensure_preview(
+            Self::preview_local_task_draft_v4(root, application_id, request.clone())?
+                .data
+                .preview_sha256,
+            expected_preview_sha256,
+        )?;
+        let pack = exact_pack(root, application_id)?;
+        let mut workspace = open_workspace_v4(root)?;
+        let workspace_root = workspace.paths.root.clone();
+        let committed = ApplicationFlowServiceV3::new(
+            &mut workspace.database,
+            &workspace.blobs,
+            &workspace_root,
+        )
+        .compose_local_task_with_actor(
+            &pack,
+            application_id,
+            request,
+            ActorKind::HostAgent,
+        )?;
+        Ok(ActionReceipt::new(
+            "deliverable.draft.commit",
+            "review-required",
+            "Committed the exact local task candidate as private Deliverable drafts",
+            committed.commit.stored,
+        ))
     }
 
     pub fn preview_deliverable_draft_v4(

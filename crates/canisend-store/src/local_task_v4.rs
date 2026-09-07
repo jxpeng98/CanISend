@@ -3,6 +3,7 @@ use canisend_contracts::{
     LocalTaskV4, Revision, Sha256Digest, UtcTimestamp,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
@@ -12,6 +13,15 @@ use crate::{BlobStore, Database, StoreError, application_v3::load_current, gener
 pub const LOCAL_TASK_OPERATION_V4: &str = "local.deliverable.draft";
 pub const LOCAL_TASK_CANDIDATE_PURPOSE_V4: &str = "deliverable.draft.preview";
 const MAX_CANDIDATE_BYTES: usize = 256 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalTaskDraftRequestV4 {
+    pub task_id: EntityId,
+    pub expected_generation: u64,
+    pub candidate_sha256: Sha256Digest,
+    pub compose: crate::ApplicationFlowComposeRequestV3,
+}
 
 pub struct LocalTaskServiceV4<'a> {
     database: &'a mut Database,
@@ -45,6 +55,7 @@ impl<'a> LocalTaskServiceV4<'a> {
             lease_expires_at: None,
             candidate_sha256: None,
             candidate_bytes: None,
+            committed_application: None,
         };
         transaction.execute(
             "INSERT INTO tasks(id, status, created_at, operation, descriptor_json, actor, execution_mode)
@@ -141,7 +152,7 @@ impl<'a> LocalTaskServiceV4<'a> {
                 digest.as_str(),
                 task.id.as_str(),
                 to_i64(task.generation)?,
-                timestamp(OffsetDateTime::now_utc())?.as_str()
+                timestamp(OffsetDateTime::now_utc())?.as_str(),
             ],
         )?;
         save(&transaction, &task, "local.task.submit")?;
@@ -175,6 +186,29 @@ impl<'a> LocalTaskServiceV4<'a> {
         Ok(task)
     }
 
+    pub fn draft_request(
+        &self,
+        task_id: &EntityId,
+        expected_generation: u64,
+        candidate_sha256: &Sha256Digest,
+    ) -> Result<LocalTaskDraftRequestV4, StoreError> {
+        let task = load(self.database.connection(), task_id)?;
+        let compose = serde_json::from_value(self.candidate(task_id)?)?;
+        let request = LocalTaskDraftRequestV4 {
+            task_id: task_id.clone(),
+            expected_generation,
+            candidate_sha256: candidate_sha256.clone(),
+            compose,
+        };
+        validate_draft_request(
+            self.database.connection(),
+            self.blobs,
+            &task.application.id,
+            &request,
+        )?;
+        Ok(request)
+    }
+
     /// Private content access: the application facade must obtain explicit private-read consent.
     pub fn candidate(&self, id: &EntityId) -> Result<Value, StoreError> {
         let task = load(self.database.connection(), id)?;
@@ -197,6 +231,55 @@ impl<'a> LocalTaskServiceV4<'a> {
         }
         Ok(value)
     }
+}
+
+pub(crate) fn validate_draft_request(
+    connection: &Connection,
+    blobs: &BlobStore,
+    application_id: &ApplicationId,
+    request: &LocalTaskDraftRequestV4,
+) -> Result<LocalTaskV4, StoreError> {
+    let task = load(connection, &request.task_id)?;
+    require_generation(&task, request.expected_generation)?;
+    require_current(connection, &task)?;
+    if task.state != LocalTaskStateV4::Submitted
+        || task.application.id != *application_id
+        || task.candidate_sha256.as_ref() != Some(&request.candidate_sha256)
+        || task.application.expected_revision != request.compose.expected_revision
+    {
+        return Err(StoreError::TaskConflict(
+            "Local draft differs from the submitted candidate binding".to_owned(),
+        ));
+    }
+    let bytes = blobs.read_verified(&request.candidate_sha256, MAX_CANDIDATE_BYTES as u64)?;
+    let expected = candidate_bytes(&serde_json::to_value(&request.compose)?)?;
+    if bytes != expected || task.candidate_bytes != Some(bytes.len() as u64) {
+        return Err(StoreError::TaskConflict(
+            "Local draft bytes differ from the retained candidate".to_owned(),
+        ));
+    }
+    Ok(task)
+}
+
+pub(crate) fn mark_committed(
+    transaction: &Transaction<'_>,
+    mut task: LocalTaskV4,
+    snapshot: &canisend_contracts::ApplicationModelSnapshotV3,
+    digest: &Sha256Digest,
+) -> Result<(), StoreError> {
+    task.generation = next_generation(task.generation)?;
+    task.state = LocalTaskStateV4::Committed;
+    task.committed_application = Some(AgentApplicationBindingV4 {
+        id: snapshot.application.id.clone(),
+        pack: AgentPackBindingV4 {
+            id: snapshot.pack.id.clone(),
+            version: snapshot.pack.version.clone(),
+            content_digest: snapshot.pack.content_digest.clone(),
+        },
+        expected_revision: snapshot.application.revision,
+        snapshot_sha256: digest.clone(),
+    });
+    save(transaction, &task, "local.task.commit")
 }
 
 fn inputs(
@@ -311,8 +394,20 @@ fn load(connection: &Connection, id: &EntityId) -> Result<LocalTaskV4, StoreErro
         LocalTaskStateV4::Claimed => task.generation >= 2 && lease_present && !candidate_present,
         LocalTaskStateV4::Submitted => task.generation >= 3 && lease_present && candidate_present,
         LocalTaskStateV4::Cancelled => task.generation >= 3 && lease_present,
+        LocalTaskStateV4::Committed => task.generation >= 4 && lease_present && candidate_present,
     };
-    if !coherent
+    let committed_matches = match &task.committed_application {
+        Some(result) => {
+            task.state == LocalTaskStateV4::Committed
+                && result.id == task.application.id
+                && result.pack == task.application.pack
+                && result.expected_revision.get()
+                    == task.application.expected_revision.get().saturating_add(1)
+        }
+        None => task.state != LocalTaskStateV4::Committed,
+    };
+    if !committed_matches
+        || !coherent
         || task.candidate_sha256.is_some() != task.candidate_bytes.is_some()
         || (task.candidate_sha256.is_some() && !candidate_present)
         || matches!(
@@ -332,12 +427,17 @@ fn load(connection: &Connection, id: &EntityId) -> Result<LocalTaskV4, StoreErro
 }
 
 fn save(transaction: &Transaction<'_>, task: &LocalTaskV4, action: &str) -> Result<(), StoreError> {
-    transaction.execute(
+    let updated = transaction.execute(
         "UPDATE tasks SET descriptor_json=?2,status=?3,lease_id=?4,lease_expires_at=?5,candidate_sha256=?6 WHERE id=?1 AND operation=?7",
         params![task.id.as_str(), serde_json::to_string(task)?, serde_json::to_value(task.state)?.as_str(),
             task.lease_id.as_ref().map(EntityId::as_str), task.lease_expires_at.as_ref().map(UtcTimestamp::as_str),
             task.candidate_sha256.as_ref().map(Sha256Digest::as_str), LOCAL_TASK_OPERATION_V4],
     )?;
+    if updated != 1 {
+        return Err(StoreError::TaskConflict(
+            "Local task update did not affect exactly one row".to_owned(),
+        ));
+    }
     audit(transaction, task, action)
 }
 
@@ -348,13 +448,22 @@ fn audit(
 ) -> Result<(), StoreError> {
     transaction.execute(
         "INSERT INTO audit_events(id,actor,action,subject_id,subject_revision,reason,created_at)
-         VALUES (?1,'host-agent',?2,?3,?4,'local coordination only; no business approval',?5)",
+         VALUES (?1,'host-agent',?2,?3,?4,?6,?5)",
         params![
             generate_id()?.as_str(),
             action,
             task.id.as_str(),
             to_i64(task.generation)?,
-            timestamp(OffsetDateTime::now_utc())?.as_str()
+            timestamp(OffsetDateTime::now_utc())?.as_str(),
+            match &task.committed_application {
+                Some(binding) => format!(
+                    "local candidate committed with Application {} revision {} snapshot {}",
+                    binding.id,
+                    binding.expected_revision.get(),
+                    binding.snapshot_sha256
+                ),
+                None => "local coordination only; no business approval".to_owned(),
+            }
         ],
     )?;
     Ok(())
@@ -444,6 +553,222 @@ mod tests {
     use canisend_resources::generic_application_workflow_pack;
     use serde_json::json;
 
+    #[test]
+    fn local_draft_commit_is_atomic_and_rechecks_retained_candidate() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-local-task-{}", generate_id().unwrap()));
+        let mut first = Workspace::init_v4(&root).unwrap();
+        let embedded = generic_application_workflow_pack();
+        let pack = WorkflowPackByteLoader::verify(
+            embedded.manifest_bytes(),
+            embedded.into_resources(),
+            WorkflowPackOrigin::BuiltIn,
+            &WorkflowPackRuntime::parse(
+                env!("CARGO_PKG_VERSION"),
+                "3.0.0-alpha.1",
+                "3.0.0-alpha.1",
+            )
+            .unwrap(),
+            &WorkflowPackCapabilityRegistry::built_in(),
+        )
+        .unwrap()
+        .into_bundle();
+        let app = ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+            .create(
+                &pack,
+                ApplicationFlowCreateRequestV3 {
+                    title: "Synthetic local task".to_owned(),
+                    opportunity_metadata: Default::default(),
+                    application_metadata: Default::default(),
+                    source_text: "Provide a narrative.".to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: WorkflowPackItemId::try_new("format").unwrap(),
+                        statement: "Provide a narrative.".to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: 20,
+                    }],
+                },
+            )
+            .unwrap()
+            .stored;
+        let app_id = app.snapshot.application.id.clone();
+
+        use crate::{ApplicationFlowPlanRequestV3, ApplicationFlowPlannedDeliverableV3};
+        use canisend_contracts::{ExecutionMode, PlannedDeliverableDispositionV3};
+        let revision = Revision::try_new(2).unwrap();
+        let baseline = ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+            .confirm_requirements_and_plan(
+                &pack,
+                &app_id,
+                ApplicationFlowPlanRequestV3 {
+                    expected_revision: Revision::try_new(1).unwrap(),
+                    decision: WorkflowPackItemId::try_new("proceed").unwrap(),
+                    deliverables: vec![ApplicationFlowPlannedDeliverableV3 {
+                        kind: WorkflowPackItemId::try_new("primary-document").unwrap(),
+                        disposition: PlannedDeliverableDispositionV3::Required,
+                        rationale: "Synthetic local candidate".to_owned(),
+                        constraints: vec![],
+                        execution_mode: Some(ExecutionMode::HostAgent),
+                    }],
+                },
+            )
+            .unwrap()
+            .commit
+            .stored;
+        let candidate = json!({"expected_revision": 2, "deliverables": [{
+            "kind": "primary-document", "title": "Synthetic draft",
+            "media_type": "text/plain", "content": "Synthetic candidate; no real personal facts."
+        }]});
+        fn submit(
+            first: &mut Workspace,
+            id: &ApplicationId,
+            revision: Revision,
+            candidate: &Value,
+        ) -> LocalTaskV4 {
+            let mut service = LocalTaskServiceV4::new(&mut first.database, &first.blobs);
+            let task = service.prepare(id, revision).unwrap();
+            let task = service.claim(&task.id, task.generation).unwrap();
+            service
+                .submit(
+                    &task.id,
+                    task.generation,
+                    task.lease_id.as_ref().unwrap(),
+                    candidate,
+                )
+                .unwrap()
+        }
+        let cancelled = submit(&mut first, &app_id, revision, &candidate);
+        let cancelled = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .cancel(
+                &cancelled.id,
+                cancelled.generation,
+                cancelled.lease_id.as_ref().unwrap(),
+            )
+            .unwrap();
+        assert!(
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .draft_request(
+                    &cancelled.id,
+                    cancelled.generation,
+                    cancelled.candidate_sha256.as_ref().unwrap()
+                )
+                .is_err()
+        );
+
+        let stale = submit(&mut first, &app_id, revision, &candidate);
+        let stale_request = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .draft_request(
+                &stale.id,
+                stale.generation,
+                stale.candidate_sha256.as_ref().unwrap(),
+            )
+            .unwrap();
+        ProfileService::new(&mut first.database, &first.blobs)
+            .import_source(
+                NewProfileSource {
+                    kind: ProfileSourceKind::PlainText,
+                    original_bytes: b"Synthetic changed input".to_vec(),
+                    normalized_text: "Synthetic changed input".to_owned(),
+                    content_type: "text/plain".to_owned(),
+                    sensitivity: PrivacyClassification::PrivateLocal,
+                },
+                ActorKind::User,
+            )
+            .unwrap();
+        assert!(
+            ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+                .compose_local_task_with_actor(&pack, &app_id, stale_request, ActorKind::HostAgent)
+                .is_err()
+        );
+
+        let task = submit(&mut first, &app_id, revision, &candidate);
+        let service = LocalTaskServiceV4::new(&mut first.database, &first.blobs);
+        let digest = task.candidate_sha256.as_ref().unwrap();
+        assert!(
+            service
+                .draft_request(&task.id, task.generation - 1, digest)
+                .is_err()
+        );
+        assert!(
+            service
+                .draft_request(
+                    &task.id,
+                    task.generation,
+                    &Sha256Digest::try_new("0".repeat(64)).unwrap()
+                )
+                .is_err()
+        );
+        let request = service
+            .draft_request(&task.id, task.generation, digest)
+            .unwrap();
+        let mut altered = request.clone();
+        altered.compose.deliverables[0].content = "Different candidate".to_owned();
+        assert!(
+            ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+                .compose_local_task_with_actor(&pack, &app_id, altered, ActorKind::HostAgent)
+                .is_err()
+        );
+        // A task-save failure must roll back the Application revision and its references too.
+        first.database.connection().execute_batch("CREATE TEMP TRIGGER reject_local_commit BEFORE UPDATE ON tasks WHEN NEW.status = 'committed' BEGIN SELECT RAISE(ABORT, 'synthetic task save failure'); END;").unwrap();
+        assert!(
+            ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+                .compose_local_task_with_actor(
+                    &pack,
+                    &app_id,
+                    request.clone(),
+                    ActorKind::HostAgent
+                )
+                .is_err()
+        );
+        assert_eq!(
+            ApplicationModelRepository::new(&mut first.database)
+                .get(&app_id)
+                .unwrap(),
+            baseline
+        );
+        assert_eq!(
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .show(&task.id)
+                .unwrap(),
+            task
+        );
+        first
+            .database
+            .connection()
+            .execute_batch("DROP TRIGGER reject_local_commit;")
+            .unwrap();
+        let committed = ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+            .compose_local_task_with_actor(&pack, &app_id, request.clone(), ActorKind::HostAgent)
+            .unwrap()
+            .commit
+            .stored;
+        let result = LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+            .show(&task.id)
+            .unwrap();
+        assert_eq!(result.state, LocalTaskStateV4::Committed);
+        assert_eq!(result.generation, task.generation + 1);
+        let binding = result.committed_application.unwrap();
+        assert_eq!(
+            binding.expected_revision,
+            committed.snapshot.application.revision
+        );
+        assert_eq!(binding.snapshot_sha256, committed.snapshot_sha256);
+        assert_eq!(
+            LocalTaskServiceV4::new(&mut first.database, &first.blobs)
+                .candidate(&task.id)
+                .unwrap(),
+            candidate
+        );
+        assert!(
+            ApplicationFlowServiceV3::new(&mut first.database, &first.blobs, &root)
+                .compose_local_task_with_actor(&pack, &app_id, request, ActorKind::HostAgent)
+                .is_err()
+        );
+        assert!(first.check().unwrap().ok);
+        drop(first);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn leases_serialize_workers_reject_stale_inputs_and_retain_candidates_without_application_writes()
      {

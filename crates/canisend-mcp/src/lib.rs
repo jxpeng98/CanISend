@@ -284,6 +284,19 @@ pub struct DeliverableDraftPreviewParameters {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct LocalTaskDraftPreviewParameters {
+    pub application_id: String,
+    pub task_id: String,
+    pub expected_generation: u64,
+    pub candidate_sha256: Sha256Digest,
+    #[schemars(
+        description = "Request native private-read consent for the exact stored candidate; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeliverableRevisePreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
@@ -526,6 +539,9 @@ impl CanISendMcpServer {
                         matches!(
                             name.as_str(),
                             "application_id"
+                                | "task_id"
+                                | "expected_generation"
+                                | "candidate_sha256"
                                 | "source"
                                 | "profile_source"
                                 | "evidence"
@@ -1272,6 +1288,37 @@ impl CanISendMcpServer {
                 deliverables,
             },
         ))
+    }
+
+    #[tool(
+        description = "Read an exact submitted local task candidate after native private-read consent and preview it for the existing Deliverable draft commit",
+        annotations(
+            title = "Preview local task drafts",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_local_task_draft_preview(
+        &self,
+        Parameters(parameters): Parameters<LocalTaskDraftPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let task_id = canisend_contracts::EntityId::try_new(parameters.task_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        Self::mutation_result(
+            self.mutation_approvals.preview_local_task_draft(
+                self.workspace(),
+                &application_id,
+                &task_id,
+                parameters.expected_generation,
+                &parameters.candidate_sha256,
+                parameters
+                    .request_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
     }
 
     #[tool(

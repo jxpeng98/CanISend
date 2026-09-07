@@ -711,7 +711,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            39
+            40
         );
         for (operation, surfaces) in [
             (
@@ -734,9 +734,14 @@ mod tests {
             .iter()
             .filter(|binding| binding.operation.as_str().starts_with("local-task."))
             .collect::<Vec<_>>();
-        assert_eq!(local_tasks.len(), 7);
+        assert_eq!(local_tasks.len(), 8);
         assert!(local_tasks.iter().all(|binding| {
-            binding.surface == OperationSurface::Cli
+            binding.surface
+                == if binding.operation.as_str() == "local-task.draft.preview" {
+                    OperationSurface::Mcp
+                } else {
+                    OperationSurface::Cli
+                }
                 && binding.class == OperationClass::CanonicalLeaf
         }));
         assert!(bindings.iter().all(|binding| {

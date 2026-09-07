@@ -468,6 +468,39 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         request: ApplicationFlowComposeRequestV3,
         actor: ActorKind,
     ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
+        self.compose_internal(pack, application_id, request, actor, None)
+    }
+
+    pub fn compose_local_task_with_actor(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: crate::LocalTaskDraftRequestV4,
+        actor: ActorKind,
+    ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
+        crate::local_task_v4::validate_draft_request(
+            self.database.connection(),
+            self.blobs,
+            application_id,
+            &request,
+        )?;
+        self.compose_internal(
+            pack,
+            application_id,
+            request.compose.clone(),
+            actor,
+            Some(request),
+        )
+    }
+
+    fn compose_internal(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationFlowComposeRequestV3,
+        actor: ActorKind,
+        local_task: Option<crate::LocalTaskDraftRequestV4>,
+    ) -> Result<ApplicationFlowCommitReadModelV3, StoreError> {
         let current = self.current_for_pack(pack, application_id, request.expected_revision)?;
         let plan = current.snapshot.plan.as_ref().ok_or_else(|| {
             StoreError::ApplicationModelConflict(
@@ -562,13 +595,23 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                 ));
             }
         }
-        let commit = ApplicationModelRepository::new(self.database).commit(
-            application_id,
-            request.expected_revision,
-            candidate,
-            actor,
-            "application-flow-compose",
-        )?;
+        let commit = if let Some(task) = local_task {
+            ApplicationModelRepository::new(self.database).commit_local_task(
+                application_id,
+                candidate,
+                actor,
+                &task,
+                self.blobs,
+            )?
+        } else {
+            ApplicationModelRepository::new(self.database).commit(
+                application_id,
+                request.expected_revision,
+                candidate,
+                actor,
+                "application-flow-compose",
+            )?
+        };
         self.commit_read_model(pack, commit)
     }
 
