@@ -979,3 +979,25 @@ form acceptance/refusal/malformed capabilities, context checks, replay, interrup
 CLI Clippy, formatting and source check pass. The guide documents the one-command override and
 retains the explicitly untested full elapsed-time form-timeout case. Local LF-C10/11 acceptance
 is complete under the clarified scope; real Host and native release qualification remain pending.
+
+### CLI initialization onboarding — 2026-09-07
+
+Owner requested a Skills installation choice during Workspace initialization. Reused `host setup`
+for explicit `workspace init --host codex|claude|generic --scope project|global`; interactive
+terminals offer Codex/Claude project/user locations and default to skipping. JSON, redirected
+streams and `--no-skills` never prompt. Initialization remains an error on an existing Workspace;
+if subsequent Skills setup fails, the error states that initialization succeeded and directs the
+user to `host setup`. Existing user-file conflict protection is retained.
+
+Initialization without setup now returns a next action explaining locations; setup prints the
+installed directory and distinguishes resource readiness from unverified MCP registration.
+The generated Workspace README and installation guide now describe the CLI-first startup flow.
+No product consent, MCP registration, user global configuration or release record is modified.
+
+Validation: all 14 CLI binary contract tests pass, including selected installation and refusal to
+overwrite an unmanaged Skill. Eight local PTY cases pass (both Hosts/project+user, default skip,
+invalid input, no-skills and JSON), with isolated HOME directories. CLI all-target Clippy,
+formatting, diff validation and `xtask source check` pass. Local PTY reproduction and logs are
+retained under `dist/init-onboarding-check/`. Previous packaged `552a072` bytes are unchanged;
+this source slice needs a fresh package before distribution. Cargo/npm distribution remains the
+next installation-channel scope; no registry publication or other package-manager work performed.

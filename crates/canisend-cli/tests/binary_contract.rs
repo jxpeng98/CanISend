@@ -1238,3 +1238,88 @@ fn local_task_handoff_preserves_application_and_requires_private_read() {
     ]);
     assert!(!replay.status.success());
 }
+
+#[test]
+fn workspace_init_installs_selected_skills_without_interactive_input() {
+    let workspace = TestDirectory::new("init-skills");
+    let initialized = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    assert!(!workspace.path().join(".agents/skills").exists());
+    assert_eq!(initialized["next_actions"][0]["action"], "host.setup");
+    for (host, folder) in [("codex", ".agents"), ("claude", ".claude")] {
+        let workspace = TestDirectory::new(host);
+        let result = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "init",
+            "--host",
+            host,
+            "--scope",
+            "project",
+            "--json",
+        ]);
+        assert_eq!(result["data"]["host_setup"]["skills"]["state"], "installed");
+        assert_eq!(
+            result["data"]["host_setup"]["mcp_configuration_mutated"],
+            false
+        );
+        assert!(
+            workspace
+                .path()
+                .join(folder)
+                .join("skills/canisend-workspace/SKILL.md")
+                .is_file()
+        );
+    }
+    let workspace = TestDirectory::new("init-skills-conflict");
+    let modified = workspace
+        .path()
+        .join(".agents/skills/canisend-workspace/SKILL.md");
+    fs::create_dir_all(modified.parent().unwrap()).unwrap();
+    fs::write(&modified, "user-owned edit").unwrap();
+    let failure = run(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert!(!failure.status.success());
+    let response: Value = serde_json::from_slice(&failure.stdout).unwrap();
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Workspace initialized")
+    );
+    assert_eq!(fs::read_to_string(modified).unwrap(), "user-owned edit");
+    assert!(
+        run(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "check",
+            "--json"
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        !run(&["workspace", "init", "--host", "codex", "--no-skills"])
+            .status
+            .success()
+    );
+    assert!(
+        !run(&["workspace", "init", "--scope", "global"])
+            .status
+            .success()
+    );
+}

@@ -65,7 +65,22 @@ templates, the Typst renderer and fonts are embedded in the executable; no App b
 checkout is a runtime resource directory. Run the verified executable by its absolute path when
 checking a new installation, including when the installation path contains spaces or Unicode.
 
-Create a new Workspace, then prepare the selected Host integration:
+Interactive `canisend --workspace ./applications workspace init` offers an optional Skills
+installation choice: Codex or Claude Code, in this Workspace or in the user home. Enter skips
+installation. No prompt is shown with `--json`, redirected output/input, or `--no-skills`.
+
+For scripts, select the Host explicitly; project scope is the default:
+
+```console
+canisend --workspace ./applications workspace init --host codex --scope project --json
+```
+
+Use `--scope global` for user-wide Skills. Initialization still creates only the selected
+Workspace; global Skills do not register a global MCP connection. If installation fails after
+Workspace creation, the error says so; resolve the cause and run `host setup` against that
+Workspace. Existing managed-file protection applies to this path too.
+
+Alternatively, create a Workspace and prepare the Host integration separately:
 
 ```console
 canisend --workspace ./applications workspace init --json

@@ -6,7 +6,7 @@ mod local_task;
 use std::{
     ffi::OsString,
     fs,
-    io::IsTerminal,
+    io::{IsTerminal, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -377,6 +377,15 @@ struct WorkspaceBackupArgs {
 
 #[derive(Debug, Args)]
 struct WorkspaceInitArgs {
+    /// Install bundled Skills for this Host after creating the Workspace.
+    #[arg(long, value_enum, conflicts_with = "no_skills")]
+    host: Option<HostArgument>,
+    /// Skills location; project is the default when --host is supplied.
+    #[arg(long, value_enum, requires = "host")]
+    scope: Option<AgentSkillsScopeArgument>,
+    /// Skip the interactive Skills installation choice.
+    #[arg(long)]
+    no_skills: bool,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -829,8 +838,8 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: ResourceCommand::List(_),
         } => resource_list(),
         Command::Workspace {
-            command: WorkspaceCommand::Init(_),
-        } => workspace_init(workspace),
+            command: WorkspaceCommand::Init(arguments),
+        } => workspace_init(workspace, arguments),
         Command::Workspace {
             command: WorkspaceCommand::Status(_),
         } => workspace_status(workspace),
@@ -1026,8 +1035,25 @@ fn resource_list() -> CommandResult<CommandOutput> {
     success("resource.list", "available", &data, human)
 }
 
-fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+fn workspace_init(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkspaceInitArgs,
+) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let selection = if let Some(host) = arguments.host {
+        Some((
+            host,
+            arguments.scope.unwrap_or(AgentSkillsScopeArgument::Project),
+        ))
+    } else if !arguments.no_skills
+        && !wants_json(arguments.output.json)
+        && std::io::stdin().is_terminal()
+        && std::io::stderr().is_terminal()
+    {
+        prompt_init_skills(&root)?
+    } else {
+        None
+    };
     let receipt = Application::initialize_workspace_v4_with_policy(
         &root,
         WorkspaceInitPolicy::PreserveExistingFiles,
@@ -1035,7 +1061,7 @@ fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutpu
     .map(|receipt| (receipt.data.path, receipt.data.status))
     .map_err(|error| app_adapter::failure("workspace.initialize.commit", error))?;
     let (path, data) = receipt;
-    success(
+    let mut output = success(
         "workspace.initialize.commit",
         "initialized",
         &data,
@@ -1045,7 +1071,78 @@ fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutpu
             format!("Workspace format: {}", data.workspace_format),
             "Workflow Packs bind to individual Applications".to_owned(),
         ],
-    )
+    )?;
+    if let Some((host, scope)) = selection {
+        let setup = host_setup(Some(path.clone()), HostConfigurationArgs {
+            host, scope, executable: None, output: OutputArgs { json: arguments.output.json },
+        }).map_err(|mut failure| {
+            let message = format!("Workspace initialized at {}; Skills setup failed: {}. Use host setup to retry installation.", path.display(), failure.error.message);
+            failure.error.message.clone_from(&message);
+            failure.human = message;
+            failure
+        })?;
+        output.human.extend(setup.human);
+        output.response.data.as_mut().expect("initialization data")["host_setup"] =
+            setup.response.data.expect("host setup data");
+    } else {
+        let guidance = "Skills were not installed by this invocation. Run host setup --host codex (or claude); project scope uses <workspace>/.agents/skills or .claude/skills. Add --scope global for the corresponding directory in your home. Existing installations are preserved.";
+        output.response.next_actions.push(NextAction {
+            action: "host.setup".to_owned(),
+            description: guidance.to_owned(),
+        });
+    }
+    Ok(output)
+}
+
+fn prompt_init_skills(
+    root: &Path,
+) -> CommandResult<Option<(HostArgument, AgentSkillsScopeArgument)>> {
+    eprintln!("Optional Skills installation (MCP registration is a separate step):");
+    eprintln!("  1. Codex, project: {}/.agents/skills", root.display());
+    eprintln!(
+        "  2. Claude Code, project: {}/.claude/skills",
+        root.display()
+    );
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
+    if let Some(home) = home.as_ref() {
+        eprintln!(
+            "  3. Codex, user: {}/.agents/skills",
+            Path::new(home).display()
+        );
+        eprintln!(
+            "  4. Claude Code, user: {}/.claude/skills",
+            Path::new(home).display()
+        );
+    }
+    eprint!("  0. Skip [default]\nChoose [0-4]: ");
+    let read = || -> std::io::Result<String> {
+        std::io::stderr().flush()?;
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        Ok(answer)
+    };
+    let answer = read().map_err(|error| {
+        app_adapter::failure(
+            "workspace.initialize.commit",
+            ApplicationError::InvalidInput(error.to_string()),
+        )
+    })?;
+    let selection = match answer.trim() {
+        "" | "0" => None,
+        "1" => Some((HostArgument::Codex, AgentSkillsScopeArgument::Project)),
+        "2" => Some((HostArgument::Claude, AgentSkillsScopeArgument::Project)),
+        "3" if home.is_some() => Some((HostArgument::Codex, AgentSkillsScopeArgument::Global)),
+        "4" if home.is_some() => Some((HostArgument::Claude, AgentSkillsScopeArgument::Global)),
+        _ => {
+            return Err(app_adapter::failure(
+                "workspace.initialize.commit",
+                ApplicationError::InvalidInput(
+                    "Choose one of the listed Skills installation options".to_owned(),
+                ),
+            ));
+        }
+    };
+    Ok(selection)
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
@@ -1160,6 +1257,7 @@ fn host_setup(
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
+    let skills_directory = skills.directory.clone();
     let registration = mcp
         .registration_command
         .as_deref()
@@ -1181,8 +1279,9 @@ fn host_setup(
                 arguments.scope.as_str(),
                 host.as_str()
             ),
+            format!("Skills directory: {}", skills_directory.display()),
             format!("MCP registration: {registration}"),
-            "Host MCP configuration was not modified automatically".to_owned(),
+            "Skills are installed; MCP connection has not been verified. Run the registration command, then reconnect the Host and discover its tools. Open the Workspace in the Host to discover project Skills.".to_owned(),
         ],
     )
 }
