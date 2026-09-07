@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.2`. This source is not a published checkpoint.
+- Checked-in source: `1.0.0-beta.3`. This source is not a published checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -21,6 +21,12 @@
   retain their original license facts.
 - Machine stage: Beta / `beta-qualifying`; feature-freeze status is independently recorded in
   `release/qualification-ledger.json`. RC and Stable remain unauthorized until their gates pass.
+
+The owner authorized `1.0.0-beta.3` as a local npm testing prerelease on `next`, with the supported
+platforms listed in the npm package itself. Build, install and validate those exact bytes before
+manual `npm publish`; upload the native package before the `canisend` entry. GitHub CI setup and
+publication are deferred to the owner. This registry-only scope does not qualify a complete Beta
+checkpoint or refresh real-Host evidence. Cargo publication remains separate.
 
 PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
 or manually dispatched candidate is not a published release.

@@ -58,6 +58,13 @@ the current validator and user thresholds remain unchanged by a direction docume
 
 ## Validation and release control
 
+Owner-directed exception, 2026-09-07: build a new CLI source version and publish the npm testing
+prerelease manually from the locally authenticated CLI; the owner will configure GitHub CI later.
+Use `next`, declare only the supplied native platforms, and verify the installed package. This
+bounded registry distribution uses local acceptance and does not claim the complete Beta native
+matrix or current real-Host qualification. Preserve the historical evidence, qualification ledger,
+and all product evidence/consent/data controls. Full qualified checkpoints still use their gates.
+
 - Follow `../backend/quality-guidelines.md`; one invariant has one primary test owner.
 - Reuse existing dual-Pack fixtures, protocol processes, adapter smokes, and release tooling.
 - Run focused regressions when they resolve a bug or protect a trust/data boundary. Batch broader

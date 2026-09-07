@@ -1365,3 +1365,62 @@ bytes/history and explicit handling of shared Source references; then I4 dual-Pa
 resumption acceptance. This run did not test new Source imports/replacements, the desktop recovery
 UI, real Host/model behavior, or a fresh native package. No real consent form, candidate evidence
 rewrite, publication, tag, push or PR was performed.
+
+### Current-source Cargo/npm distribution candidate — 2026-09-07
+
+Owner requested distribution and registry publication before I3b. Built clean source
+`c5ac46a4c7834db06c38610a601fe655eccd9088` with the release profile, signed the macOS ARM64
+executable using the existing ad-hoc policy, and reused native/npm packaging. Artifacts and exact
+hashes are retained in `dist/registry-c5ac46a/` (`README.md`, `result.json`, `SHA256SUMS`): eight
+Cargo source packages, the npm `canisend` entry and macOS ARM64 native package, and the standalone
+archive. Other native targets are not included; npm `packages.json` correctly says `complete: false`.
+
+Checks passed: all eight crates compiled in Cargo publication dry-run; native archive consumer,
+dual-Pack lifecycle, reopen/restore, export and uninstall smoke; npm installation, exact binary
+parity, five Skills in `.agents/skills`, two launcher tests, and all six simulated Host protocol
+tests against the installed npm command. Bounded path/config/token-pattern inspection found no
+matches in the ten registry archives. It is not an exhaustive secret audit. Existing locked
+`chacha20 0.10.1` yanked warning remains.
+
+Initial Cargo preflight failures were traced to same-version temporary-registry caches from
+`cd479fd`, not missing source files. Newly generated tarballs contained the revision interfaces,
+but downstream crates reused old registry sources and compiled metadata. Backed up seven old
+CanISend source-cache directories and sixteen corresponding temporary-registry build fingerprints;
+the original eight-package preflight then passed. Failed and successful logs remain under `checks/`.
+Use a fresh `CARGO_TARGET_DIR` for future same-version publication preflights to isolate their
+temporary registries. No product source or dependency version was changed for this recovery.
+
+npm login is verified as `jxpeng98`; Cargo credentials are configured. Registry name checks returned
+404 for both entry names, seven Cargo dependency names and five npm native names. This does not
+reserve them or prove upload permission. GitHub Actions secrets are still absent, and existing
+remote main/tag protections remain intact. The full release check still fails on historical
+provider-dogfood/current Agent contract binding; no historical record was rewritten, and no real
+Host form was answered. The owner previously retained Beta release conditions, so these locally
+verified artifacts are not qualified for upload. No publication, tag, push or PR occurred.
+
+Next for distribution: resolve historical/current release-evidence binding, qualify changed Host
+behavior and the complete native matrix, integrate through existing remote protections, then
+publish the dependency crates and npm native packages before the `canisend` entry. Configure the
+existing tag workflow's registry credentials as part of that publication. I3b remains deferred.
+
+### Owner-directed local npm testing publication — 2026-09-07
+
+After the remaining Beta and CI conditions were disclosed, the owner requested a new version and
+manual npm CLI upload using the existing local login, with GitHub CI setup/publication deferred
+to the owner. Scope this run to npm `next`; Cargo versions stay aligned but no Cargo upload is
+performed. This supersedes the previous upload stop for this bounded testing distribution only.
+Full qualified-checkpoint, native-matrix, real-Host and cohort claims remain pending.
+
+Advance active source projections to `1.0.0-beta.3` without rewriting historical provider evidence,
+Beta readiness/freeze or qualification history. The npm packer now derives dependencies from the
+supplied bundles; a single-platform entry declares its OS/CPU/libc restrictions, and its generated
+README lists the actual supported targets. The full five-target CI completeness check remains.
+One packaging regression exercises both a single-platform package and the full native matrix.
+The manual npm entry also includes the exact committed source archive so the matching CLI source
+is available without waiting for the later GitHub integration.
+
+Acceptance: source check, fresh release build, exact archive and installed npm lifecycle checks,
+local publication preflight, native-package-first upload, registry readback and clean installation
+from npm. Keep actual upload results and artifact hashes under `dist/npm-beta3/`; record results
+here after the attempted publication. No GitHub tag, push, PR or CI-secret configuration is needed
+for this owner-authorized npm testing publication.
