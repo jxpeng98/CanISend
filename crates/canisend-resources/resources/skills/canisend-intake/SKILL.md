@@ -45,6 +45,11 @@ normalized spans. Applicant Profile imports and Evidence belong to `canisend-wor
 
 ## Establish Requirements
 
+Read the current Requirement set before extracting or confirming. If its decisions already match
+the user's request, reuse the completed state and hand off; do not request another confirmation
+preview. If only proposed decisions remain, respect the exact-set contract below. Changed intent
+or source content requires a supported correction path, not silently undoing existing decisions.
+
 1. Extract only Pack-qualified Requirements supported by exact Source spans. Preserve ambiguity
    and missing information instead of inventing criteria, deadlines, identities, or facts.
 2. Split compound requirements when their evidence or material coverage differs, preserving

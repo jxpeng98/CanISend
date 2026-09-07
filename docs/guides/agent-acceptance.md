@@ -130,3 +130,20 @@ model-level outcomes automatically.
 
 These cases were checked against CLI/MCP parameter types and Store preconditions. They remain
 model behavior scenarios, not claims that a live model session has passed them.
+
+### Resume acceptance from observed state
+
+Before requesting another test, read the newest result records and canonical Application state;
+do not select the next action from an old pasted recap. A later successful True receipt and matching
+read invalidate an earlier “awaiting True” message. Record the completed case once and advance.
+A conflict after that success is a duplicate-operation check, not a failed native confirmation.
+
+For a planned multi-case acceptance run, a negative case ends that mutation, not the whole run.
+Continue independently authorized checks and the next explicitly authorized case; only require
+new input where the outcome or consent scope is missing. Never auto-answer a form. If the user
+only authorized one case, report that result and stop at that scope. Do not reset a confirmed
+Requirement or silently create a new Application just to repeat a completed test.
+
+The owning protocol regression now covers successful confirmation followed by a duplicate preview:
+it returns conflict with read-state remediation, opens no new form, preserves the exact snapshot,
+and allows the next Plan stage. Model continuity must also be observed in the actual Host.

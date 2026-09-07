@@ -51,8 +51,20 @@ approval tokens. The final reviewer refreshes the Application and exact candidat
 After each durable change, retain returned IDs/revisions and re-read changed context. Summarize
 completed stages, current missing input or decision, and the next concrete action; do not create
 another workflow database or invent completion flags. On restart, upgrade, stale context or lost
-preview metadata, rediscover schemas as needed and obtain a fresh preview. Prior conversation
-text cannot reconstruct a token or establish the current revision.
+preview metadata, rediscover schemas as needed and read current state first. Obtain a new
+preview only if a change is still needed. Prior conversation text cannot reconstruct a token
+or establish the current revision.
+
+Before any repeated instruction, timeout recovery or test continuation, compare the requested
+outcome with canonical state and the latest result records. A confirmed Requirement, matching
+confirmed Plan or existing valid Deliverable is completed work; skip its write and continue from
+the first unmet dependency within the authorized outcome. Do not replay an earlier checklist.
+
+For `workspace.conflict`, read the Application and relevant stage state. If the intended result
+already exists, report “already completed” with its revision and continue; do not request a form,
+reset the stage or claim a new commit. If the states differ, explain that difference and resolve
+only the missing decision. A failed response alone cannot prove that an earlier attempt did not
+commit. Preserve uncertainty about the original form response when it is not observable.
 
 Use `request_confirmation: true` only to request the actual form for guarded writes; the user
 answers it. Follow `canisend-workspace` for private-data and confirmation boundaries. After a

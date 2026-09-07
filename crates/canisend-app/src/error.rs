@@ -336,6 +336,13 @@ fn classify_store(error: &StoreError) -> Classification {
         ),
     };
     let (details, remediation) = match error {
+        StoreError::ApplicationModelConflict(_) => (
+            None,
+            Some(NextAction {
+                action: "read the current Application before choosing the next step".to_owned(),
+                description: "Use application.show and the relevant stage reads. If the requested result already matches current state, reuse it and continue to the first unmet dependency within the user's scope. Otherwise reconcile the difference before preparing a new preview. Do not replay the failed write or reuse its token; this conflict is not a new commit receipt.".to_owned(),
+            }),
+        ),
         StoreError::CandidateStructural(violations) | StoreError::CandidateSemantic(violations) => (
             serde_json::to_value(violations).ok(),
             Some(NextAction {

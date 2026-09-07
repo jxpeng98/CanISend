@@ -1163,3 +1163,31 @@ Public npm and Cargo sparse-index name lookups returned 404; this is not a reser
 of publication rights. Logs: `/tmp/canisend-rename-publish.log`, `/tmp/canisend-rename-source.log`;
 local npm artifacts: `dist/npm-canisend-name/`. Publication credentials and current release
 qualification remain outstanding as recorded above; no registry upload, tag or push occurred.
+
+### Recover completed stages instead of repeating confirmation — 2026-09-07
+
+Owner reported repeated acceptance stops and requested smoother application flow. The decisive
+record was already present: `host-acceptance-true-2026-09-07.json` reports a successful native
+Requirement commit at 20:08:39Z, confirmed_by=user, academic revision 2, and unchanged generic
+Application. A fresh canonical CLI read independently matches snapshot
+`f7466b6de48ae990707ce575b1535fca0a90361addac827c0d7beb87749f3db0`.
+The subsequent conflict was a duplicate decision after success, not failure to persist approval.
+The coordinating agent had relied on the older rejection recap and incorrectly requested another
+True test. Preserve all three records (rejection, success, repeat conflict) without relabelling.
+
+Added shared ApplicationModelConflict remediation: read canonical Application/stage state,
+reuse an already-matching result, otherwise reconcile before a fresh preview. The conflict remains
+non-retryable and cannot issue a consent token or new commit receipt. Strengthened Workflow/Intake
+Skills and acceptance guidance to read latest results before repeating a step, skip completed
+stages, and stop only the denied mutation rather than unrelated authorized work. Updated the
+local acceptance launcher to resume from actual state instead of always starting the False case.
+Existing candidate binary and installed candidate Skills remain untouched for evidence identity.
+
+The owning MCP lifecycle regression now confirms Requirements, rejects a duplicate preview with
+read-state remediation, verifies no additional form and identical state, then proceeds through
+Plan and the rest of the existing lifecycle. It passes. Affected all-target Clippy, formatting,
+source check and diff check pass. Package bindings were inspected and remain unchanged because
+no declaration/catalog inventory changed. The new Skill behavior is source guidance, not a fresh
+live-model acceptance claim. Rebuild and install the new resources before testing changed Host
+behavior; no repeated Requirement confirmation is needed on the completed original fixture.
+No native approval was supplied by the agent and no registry publication occurred.

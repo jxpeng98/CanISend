@@ -464,6 +464,39 @@ fn guarded_lifecycle(local_candidate: bool) {
         json!(3)
     );
 
+    // A stale instruction after success must be recoverable through reads, without
+    // another form or mutation; the next valid stage still works below.
+    let form_count = mcp.confirmations.len();
+    let duplicate = mcp.request(
+        500,
+        "tools/call",
+        json!({"name": "canisend_requirement_confirm_preview", "arguments": {
+            "application_id": application_id.as_str(), "expected_revision": 3,
+            "decisions": [
+                {"requirement_id": requirement_id.as_str(), "decision": "confirm"},
+                {"requirement_id": extracted_requirement_id, "decision": "confirm"}
+            ]
+        }}),
+    );
+    assert_eq!(duplicate["error"]["data"]["code"], "workspace.conflict");
+    assert_eq!(
+        duplicate["error"]["data"]["remediation"]["action"],
+        "read the current Application before choosing the next step"
+    );
+    assert_eq!(mcp.confirmations.len(), form_count);
+    let recovered = mcp.request(
+        501,
+        "tools/call",
+        json!({
+            "name": "canisend_application_show",
+            "arguments": {"application_id": application_id.as_str()}
+        }),
+    );
+    assert_eq!(
+        recovered["result"]["structuredContent"]["data"],
+        requirements["result"]["structuredContent"]["data"]
+    );
+
     let plan_preview = mcp.request(
         6,
         "tools/call",
