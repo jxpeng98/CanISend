@@ -959,3 +959,23 @@ the test uses the same `0ea764742c7f4be9e55921290c4bc1a353b898bc97ec7c82b48fafa4
 extracted binary recorded in the LF-C10 local validation. Actual two-Host user acceptance and the
 prescribed native/release matrix are still unperformed. Those missing evidence classes prevent
 claiming full LF-C10/11 qualification; automated fixture responses cannot replace them.
+
+
+### Local acceptance closeout and reusable simulated Host — 2026-09-07
+
+The owner confirmed that this next integration stage ends at local automated acceptance and
+requested a Host suitable for automated build tests. Reused the existing `McpProcess` protocol
+fixture rather than adding an Agent service or a second approval engine. A test-only
+`CANISEND_TEST_CLI_BINARY` override selects an absolute candidate executable for both the MCP
+server and CLI cross-checks; without it the existing Cargo-built executable remains the default.
+
+Fast CI already runs the full simulated Host suite. The native release workflow now additionally
+runs that suite once on the extracted Linux GNU candidate using its existing release-profile
+build cache. Scripted form responses and isolated fixture Workspaces stay in test code. No real
+Host session, model account or interactive consent is required for these automated tests.
+
+All six protocol tests pass against the exact local release archive's extracted binary, covering
+form acceptance/refusal/malformed capabilities, context checks, replay, interruption and recovery.
+CLI Clippy, formatting and source check pass. The guide documents the one-command override and
+retains the explicitly untested full elapsed-time form-timeout case. Local LF-C10/11 acceptance
+is complete under the clarified scope; real Host and native release qualification remain pending.

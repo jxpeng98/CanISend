@@ -29,6 +29,24 @@ fn temporary_root(label: &str) -> std::path::PathBuf {
     ))
 }
 
+// Test-only override: exercise the same simulated Host against exact candidate bytes.
+// This never changes production consent handling or connects to a user's Host session.
+fn test_binary() -> std::path::PathBuf {
+    let path = std::env::var_os("CANISEND_TEST_CLI_BINARY")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_canisend").into());
+    assert!(
+        path.is_absolute(),
+        "CANISEND_TEST_CLI_BINARY must be absolute"
+    );
+    assert!(
+        path.is_file(),
+        "test CLI binary does not exist: {}",
+        path.display()
+    );
+    path
+}
+
 struct McpProcess {
     child: Child,
     stdin: ChildStdin,
@@ -43,7 +61,7 @@ impl McpProcess {
     }
 
     fn start_with_application(workspace: &Path, application: Option<&str>) -> Self {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_canisend"));
+        let mut command = Command::new(test_binary());
         command.args([
             "--workspace",
             workspace.to_str().expect("UTF-8 fixture path"),
@@ -514,7 +532,7 @@ fn guarded_lifecycle(local_candidate: bool) {
         json!("confirmed")
     );
 
-    let cli_output = Command::new(env!("CARGO_BIN_EXE_canisend"))
+    let cli_output = Command::new(test_binary())
         .args([
             "--workspace",
             root.to_str().expect("UTF-8 fixture path"),
@@ -1632,7 +1650,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
     }
     drop(unbound);
     for invalid in ["", "unknown-application"] {
-        let result = Command::new(env!("CARGO_BIN_EXE_canisend"))
+        let result = Command::new(test_binary())
             .arg("--workspace")
             .arg(&root)
             .args(["mcp", "serve", "--application", invalid])

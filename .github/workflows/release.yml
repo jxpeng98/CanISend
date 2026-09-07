@@ -629,6 +629,17 @@ jobs:
             "${{ matrix.environment }}" \
             "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
 
+      - name: Exercise simulated Host against the extracted candidate
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          extracted="$RUNNER_TEMP/release-smoke-${{ matrix.target }}/extracted/canisend-$version-${{ matrix.target }}/canisend"
+          CANISEND_TEST_CLI_BINARY="$extracted" \
+            cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }} \
+            -p canisend-cli --locked --target x86_64-unknown-linux-gnu --test mcp_protocol
+
       - name: Download verified public Alpha.5 migration baseline
         if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
         env:

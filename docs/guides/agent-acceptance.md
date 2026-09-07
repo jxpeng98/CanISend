@@ -15,6 +15,24 @@ cargo test -p canisend-app --locked --lib approval::tests
 bash scripts/smoke_agent_v4_mcp.sh target/debug/canisend dist/agent-acceptance-run
 ```
 
+The `mcp_protocol` integration test is the simulated Host: it starts an isolated MCP process,
+answers native form requests with scripted True/False/decline/cancel/malformed responses, and
+verifies durable state and process-restart behavior. It needs no model account, interactive UI,
+network access, or manual clicks. The same suite can target an extracted local candidate:
+
+```sh
+CANISEND_TEST_CLI_BINARY=/absolute/path/to/extracted/canisend \
+  cargo test -p canisend-cli --locked --test mcp_protocol
+```
+
+The override exists only in test code and must name an absolute existing file. Both the MCP
+server and CLI cross-checks use it. Use a candidate built from compatible current source: the
+fixture deliberately compares the complete current tool contract. The build host needs Rust to
+compile the harness; the extracted consumer binary still needs no language runtime. Fast CI runs
+the default simulated Host; the release workflow additionally runs it once against the extracted
+Linux GNU candidate, reusing the release-profile build. Other native targets retain their archive
+smokes. These scripted responses are never user approval or actual Host UI qualification.
+
 The smoke destination must not exist. Choose a new directory for a subsequent run; do not erase
 an interactive Workspace to reuse its path. These commands use the existing test suites rather
 than introducing another runner. Fast CI already runs the protocol suite and the dual-Pack smoke.
