@@ -34,8 +34,10 @@ status `ready` alone does not establish a working MCP connection.
 
 1. Require `canisend.workspace/v4` and `canisend.agent/v4`. Stop before mutation when either
    identifier differs.
-2. Prefer the CanISend MCP adapter. Use the native `canisend` CLI only when it exposes the same
-   operation ID; the desktop App does not need to be open.
+2. Prefer MCP for operations in its discovered catalog. Use the native CLI for supported CLI-only
+   operations such as initialization, Profile Source import and Application creation, following
+   `--help` and the current candidate schema. Never substitute CLI execution for a denied MCP write;
+   the desktop App does not need to be open.
 3. Inspect Workspace status and health, then list Applications. Routine orientation must remain
    body-free.
 4. If an Application is selected, preserve its UUID, Pack ID, Pack version, Pack digest, revision,
@@ -44,6 +46,13 @@ status `ready` alone does not establish a working MCP connection.
    catalog, including every Deliverable kind and its minimum/maximum count.
 
 ## Build the applicant evidence base
+
+Import a supported Profile Source through `canisend --workspace PATH profile source import FILE
+--sensitivity private-local --confirm-private-read --json` only after the user authorizes that
+private read. This CLI flag asserts explicit consent; it is different from MCP's form request.
+Inspect `--help` for other sensitivity values and supported formats; do not treat the CLI import
+as a PDF/URL adapter. If conversion is necessary, use an available authorized tool and preserve
+provenance rather than inventing a CanISend import capability.
 
 Work from the user's supplied CV, profile or records. Extract concrete facts with source identity,
 exact quote and normalized byte span. Distinguish completed work, ongoing work and future intent;
@@ -67,14 +76,20 @@ request, retain the current stage and avoid restarting a completed application.
   Application without an explicit typed association. Use guarded `canisend_evidence_confirm_preview`
   and `canisend_evidence_confirm_commit` to confirm Evidence grounded in exact Workspace Profile Sources
   before proposing its separate Application association.
-- To create an Application, present the available Packs and require one exact selection. Preview
-  the title, Pack identity, and initial associations before asking for approval.
+- To create an Application, reuse the user's exact Pack choice or ask if unresolved. The current
+  MCP catalog has no Application-create tool. Read `canisend application create --help`, prepare
+  the current candidate with title, Pack-qualified metadata, source_text and source-backed initial
+  Requirements, then use `canisend --workspace PATH application create --pack PACK --candidate FILE
+  --json` within the user's authorization. Show the concrete request when approval is still
+  needed, but do not invent a native creation-preview tool. Read the returned Application and
+  exact Pack catalog before subsequent mutations; initial Requirements still need confirmation.
 - For recovery, inspect first. Explain stale revisions, denied consent, missing runtime, malformed
   output, restart, or integrity findings. Use only a CanISend backup, restore, or repair operation;
   never edit internal files.
 
 Guarded business mutations follow orient, propose, preview, request native confirmation, user
-approval, commit, and verify; use each operation's actual schema for other CLI operations. Keep token, digest, and expiry from the same actual successful preview;
+approval, commit, and verify; use each operation's actual schema for other CLI operations.
+Keep token, digest, and expiry from the same actual successful preview;
 use its opaque token once. On expiry, replay, restart, Pack mismatch, or stale revision, discard
 it and orient again. After denial, stop that operation; do not retry through another tool or CLI.
 Continue independently authorized inspection or diagnosis. A fresh preview is not renewed user
@@ -91,6 +106,6 @@ discover tool schemas again, and discard old previews.
 
 Verify the returned revision, snapshot digest, and available audit/artifact fields. Report absent
 receipt fields as absent; never invent an ID or stop solely because an optional field is missing.
-Continue the authorized workflow until complete or blocked by a specific unmet requirement. Never inspect or edit `.canisend`, SQLite, immutable Blobs, or
-managed projections directly. Never interpret readiness or export as permission to upload or
+Continue the authorized workflow until complete or blocked by a specific unmet requirement.
+Never inspect or edit `.canisend`, SQLite, immutable Blobs, or managed projections directly. Never interpret readiness or export as permission to upload or
 submit anything.

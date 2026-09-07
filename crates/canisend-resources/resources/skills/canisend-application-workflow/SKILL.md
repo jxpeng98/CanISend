@@ -20,7 +20,8 @@ Use `canisend-workspace` to initialize/connect if needed, require `canisend.work
 `canisend.agent/v4`, select the exact Pack, and read canonical Application state. Inspect the
 complete verified Pack catalog and dependencies. Pack stages guide business ordering; current
 CLI/MCP schemas determine available operations. A declared capability does not prove an adapter
-is callable. Never use an old prompt's job IDs or v2 candidate shape in a v4 request.
+is callable. Creation/Profile import may need the CLI; missing Source replacement or material-set
+change adapters are explicit limitations, not permission to improvise another write path. Never use an old prompt's job IDs or v2 candidate shape in a v4 request.
 
 ## Carry the journey through
 
@@ -44,7 +45,7 @@ refresh affected state rather than rerunning every unrelated stage.
 
 Read Application, Plan, Deliverable, review and export state to locate the first unmet dependency.
 If local candidate tasks exist, inspect their metadata before preparing another one. Use only the
-supported local-task handoff for bounded draft work; workers exchange candidate references, not
+supported local-task handoff for a valid initial material-set candidate; workers exchange candidate references, not
 approval tokens. The final reviewer refreshes the Application and exact candidate digest.
 
 After each durable change, retain returned IDs/revisions and re-read changed context. Summarize

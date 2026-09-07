@@ -27,10 +27,12 @@ to reach export, and do not require a separate approval for every non-mutating e
    Pack identity and digest, revision, and snapshot digest.
 2. Obtain private-read consent before reading Deliverable bodies. Inspect deterministic validation,
    evidence support, and Pack-qualified cross-Deliverable findings against that exact snapshot.
-3. Explain unresolved findings. The user may approve eligible dispositions; deterministic blockers
-   require correction and cannot be silently dismissed.
-4. Preview each disposition, call its guarded commit with `request_confirmation: true`, and
-   let the user answer the native form. Verify the returned revision and any returned audit receipt; report an absent receipt as absent.
+3. Explain unresolved findings and correct deterministic blockers before approval. The current
+   `canisend_review_disposition_preview` takes the Application revision and private-read request;
+   it reviews the current material set, not an individual finding ID or arbitrary waiver.
+4. Preview the current set's disposition and call `canisend_review_disposition_commit` with the
+   required private-read and `request_confirmation: true` fields from its actual schema. The user
+   answers. Verify the returned revision and any returned receipt; report an absent receipt as absent.
 
 ## Render and export locally
 
@@ -38,8 +40,9 @@ to reach export, and do not require a separate approval for every non-mutating e
    prepare local files.
 2. Request separate private-export consent with `request_private_export`. Preview the exact
    Deliverables, format, destination, replacement behavior, and artifact graph.
-3. Preserve user edits through CanISend's reconciliation path. Render only from authoritative
-   structured Deliverables, never from an edited managed projection.
+3. Preserve user edits. Render from authoritative Deliverables, never treat an edited projection
+   as already committed content. Discover a supported reconciliation/revision operation before
+   promising to import edits; if none is callable, preserve the files and report the limitation.
 4. Request native confirmation for the export preview with `request_confirmation: true`; only
    the user may approve. Verify every returned artifact digest and local path, and confirm that
    `submission_performed` is `false`.
@@ -47,7 +50,9 @@ to reach export, and do not require a separate approval for every non-mutating e
 ## Deliver and resume
 
 Inspect generated documents when a suitable local viewer/parser is available: missing sections,
-clipped text, blank pages, unresolved placeholders, bad glyphs and broken links. Report when only
+clipped text, blank pages, unresolved placeholders, bad glyphs and broken links. Read only the
+exported files within the granted private-data scope; export consent alone does not authorize
+sending them to an external viewer or model service. Report when only
 machine integrity checks were performed; a PDF hash does not prove visual correctness. Correct
 problems through authoritative Deliverables/templates and the supported reconciliation path,
 then render and verify again with the required consent.
@@ -61,5 +66,4 @@ loss or silently copying stale output. Portal submission remains the user's sepa
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
 are not user approval. After denial, stop the denied operation without retry or fallback;
-independent authorized checks may continue. On stale context, expiry,
-replay, or restart, discard the preview and re-orient. Never upload, log in to a portal, or submit.
+independent authorized checks may continue. On stale context, expiry, replay, or restart, discard the preview and re-orient. Never upload, log in to a portal, or submit.

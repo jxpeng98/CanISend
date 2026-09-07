@@ -116,3 +116,17 @@ Review outputs for source traceability, requirement coverage, audience-specific 
 cross-document consistency and explicit gaps. If visual document inspection is unavailable,
 report that limit. Neither a validated Skill manifest nor the dual-Pack smoke establishes these
 model-level outcomes automatically.
+
+### Current-surface review cases
+
+- A new Application request uses the supported CLI creation schema; it must not wait for a
+  nonexistent MCP creation preview. Missing Source replacement adapters are reported precisely.
+- The first academic draft contains the catalog-required cover letter and CV together. Once
+  drafts exist, a one-document edit uses revise rather than another initial draft commit.
+- Candidate reasoning happens before draft preview; `deliverable.audit` inspects persisted drafts
+  after commit, not an unsaved candidate. A Plan proposal must be confirmed before drafting.
+- Review disposition targets the current Application revision, not an invented finding/waiver ID.
+  Source text, private bodies and exported files remain within the relevant consent scope.
+
+These cases were checked against CLI/MCP parameter types and Store preconditions. They remain
+model behavior scenarios, not claims that a live model session has passed them.

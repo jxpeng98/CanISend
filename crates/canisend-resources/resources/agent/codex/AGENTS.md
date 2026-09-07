@@ -4,10 +4,11 @@ CanISend owns durable Workspace and Pack-bound Application state, validation, co
 local exports, recovery, and audit. Codex owns conversation, reasoning, and its host tools.
 
 - Require `canisend.workspace/v4` and `canisend.agent/v4` before acting.
-- For a complete application or resumption, use `canisend-application-workflow`. For setup, start with `$canisend-workspace`; route bounded work to `$canisend-intake`,
+- For a complete application or resumption, use `$canisend-application-workflow`. For setup, start with `$canisend-workspace`; route bounded work to `$canisend-intake`,
   `$canisend-materials`, or `$canisend-review-export`.
-- Prefer the CanISend MCP server for structured operations. Use the native `canisend` CLI only
-  when it exposes the same operation ID. The desktop App does not need to be open.
+- Prefer discovered MCP operations. Use supported CLI-only creation, Profile import and setup
+  commands through their actual schemas; never use the CLI to repeat a denied MCP mutation.
+  The desktop App does not need to be open.
 - A Workspace can hold Applications using different Packs. Select one exact Application and
   preserve its Pack ID, version, digest, revision, and snapshot digest.
 - Never inspect or edit `.canisend`, SQLite, immutable Blobs, or managed projections directly.

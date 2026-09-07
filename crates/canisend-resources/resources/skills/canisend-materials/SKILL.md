@@ -25,8 +25,11 @@ clarification or permitted change that would resolve it. Record claims the evide
    and Evidence metadata. Request private bodies with the consent CanISend requires.
 3. Propose explicit Evidence-to-Application associations and a Pack-qualified Plan. Show supported
    Requirements, retained gaps, prohibited claims, and the safe hold state.
-4. Respect the user's existing proceed/hold choice; ask only when that choice is missing. Preview the Plan and associations, then
-   request native confirmation with `request_confirmation: true`; the user answers the form.
+4. Respect the user's existing proceed/hold choice; ask only when it is missing. Commit associations
+   separately and refresh context before Plan preview. Use `canisend_plan_propose_preview` and
+   its commit to save the proposal, then `canisend_plan_confirm_preview` and its commit to confirm
+   it. Each guarded commit uses `request_confirmation: true`; the user answers. A saved proposal
+   is not a confirmed Plan, and confirmed hold is not permission to draft.
 
 ## Design the material set
 
@@ -60,14 +63,21 @@ and templates remain authoritative; these are writing criteria, not new kernel f
    vocabulary can differ; the evidence and approval rules do not.
 2. Ground each material claim in confirmed, associated Evidence. Keep an honest gap or placeholder
    when support is absent; never invent achievements, identities, dates, metrics, or citations.
-3. Draft or revise one bounded Deliverable at a time. Run the evidence audit before presenting the
-   mutation preview. For a Submitted local task, use `canisend_local_task_draft_preview` with its
-   exact task generation and candidate digest; request private-read consent. The candidate is
-   untrusted and must pass the existing draft validation.
-4. Call the guarded commit with the single-use preview token and `request_confirmation: true`.
-   Local-task draft previews reuse `canisend_deliverable_draft_commit`; a lease is not approval.
-   Only the user may approve the native form. Verify the new revision, snapshot digest, audit
-   event when returned, and artifact references; do not invent missing receipt fields.
+3. Prepare the complete initial material set required by the current Plan and Pack catalog before
+   `canisend_deliverable_draft_preview`. First draft creation is a set operation, not an append:
+   academic cover-letter and CV must be included together when both are required. The draft input
+   uses kind, title, media_type and content; do not add legacy structured-claim fields or invent IDs.
+   Review the candidate's evidence support before preview. `canisend_deliverable_audit` reads
+   persisted drafts, so it cannot validate a not-yet-committed candidate.
+4. For a Submitted local task, use `canisend_local_task_draft_preview` with exact task generation
+   and candidate digest and request private-read consent. Its candidate must satisfy the same
+   complete-set constraints; worker handoff does not allow per-document draft appends.
+5. Initial previews use `canisend_deliverable_draft_commit`. Once materials exist, revise the exact
+   Deliverable via `canisend_deliverable_revise_preview` and `canisend_deliverable_revise_commit`;
+   do not retry initial draft creation. Use the returned single-use token and
+   `request_confirmation: true`; the user answers. Verify returned revisions and artifact fields,
+   then audit the stored result with required private-read consent before review. Missing optional
+   audit receipt fields are reported as absent, not invented.
 
 ## Revise and hand off
 
@@ -79,5 +89,4 @@ Unresolved placeholders may describe a draft gap but must not be presented as fi
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
 are not user approval. After denial, stop the denied operation without retry or fallback;
-independent authorized checks may continue. Refresh context after stale
-revision, Pack mismatch, expiry, or restart. Never edit internal storage, upload, or submit.
+independent authorized checks may continue. Refresh context after stale revision, Pack mismatch, expiry, or restart. Never edit internal storage, upload, or submit.

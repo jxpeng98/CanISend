@@ -1072,3 +1072,29 @@ expectations passed. Earlier outputs remain diagnostic fixtures, not acceptance 
 The next step is a fresh distributable build and scenario-based actual model assessment when
 requested. Existing archives remain unchanged; scripted candidates do not establish writing
 quality, real Host approval, provider discovery or publication readiness.
+
+### Full Skills contract review — 2026-09-07
+
+Reviewed all five SKILL.md bodies, five OpenAI metadata files and three Host guides against the
+current CLI dispatch, MCP parameter types and Store preconditions. Fixed operational mismatches:
+
+- Workspace: CLI-only Application creation and Profile Source import no longer depend on an
+  invented MCP preview; distinguished explicit CLI private-read consent from MCP form requests.
+- Intake: current build has no standalone Source intake/association MCP tool; use creation input
+  and returned Sources, report missing replacement capability, and never recreate state silently.
+  Requirement extraction and confirmation are distinct; confirmation covers the exact current set.
+- Materials: proposal is not Plan confirmation; initial draft requires the complete catalog-valid
+  material set and only works before materialization. Existing Deliverables use revise. Candidate
+  reasoning precedes preview; the audit tool inspects stored drafts after commit.
+- Review/export: disposition applies to the current Application revision, not arbitrary finding
+  IDs or waivers; discover a callable reconciliation path and preserve private-data scope in viewers.
+- Workflow and Host guides: routing now agrees with CLI-only operations and material-set handoff;
+  no fallback to a denied write and no claims of unsupported Source/material-set update capability.
+
+Checks: all five frontmatter/UI pairs validate; every referenced MCP tool exists in the current
+40-tool catalog; 17 resource tests and source check pass. No runtime implementation changed.
+The inventory scanner reclassifies Materials' explicit catalog-required academic set example
+under academic-pack; updated its existing summary without adding a domain-specific API.
+Added current-surface behavioral cases to the existing acceptance guide. Logs/tool reference
+inventory are in `dist/all-skills-review/`. This is contract/content review, not a live-model
+behavior or writing-quality pass. Existing archives remain unchanged; rebuild before distribution.
