@@ -1408,15 +1408,17 @@ fn host_remove(
 fn host_executable(explicit: Option<PathBuf>, operation: &'static str) -> CommandResult<PathBuf> {
     explicit.map_or_else(
         || {
-            std::env::current_exe().map_err(|error| {
-                CommandFailure::new(
-                    operation,
-                    "io-failed",
-                    ErrorCode::ExternalIoFailed,
-                    format!("could not resolve the current CanISend executable: {error}"),
-                    true,
-                )
-            })
+            std::env::current_exe()
+                .and_then(fs::canonicalize)
+                .map_err(|error| {
+                    CommandFailure::new(
+                        operation,
+                        "io-failed",
+                        ErrorCode::ExternalIoFailed,
+                        format!("could not resolve the current CanISend executable: {error}"),
+                        true,
+                    )
+                })
         },
         Ok,
     )

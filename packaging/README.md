@@ -64,3 +64,28 @@ from the final signed archives. Those files, their scoped publication record, re
 The publication record authorizes only `github-release-assets` and explicitly leaves `external_index_submission`
 false. Submitting the recorded repository paths to a Homebrew tap, Scoop bucket, or `winget-pkgs` remains a separate
 maintainer action because it changes another repository and may require its own review or credentials.
+
+## Local Cargo and npm entrypoint verification
+
+Run from a source checkout with Rust, Node/npm, jq and cached Cargo dependencies:
+
+```console
+scripts/smoke_local_installers.sh dist/local-installers
+```
+
+The destination must be new. The script installs the CLI with `cargo install --path
+crates/canisend-cli --locked --offline --root ...`, stages the same native binary and license
+notices, creates a private platform-specific npm tarball with `npm pack`, and installs it into
+an isolated npm prefix. Both installed commands initialize a Workspace with all five Skills,
+run the existing simulated Host tests and Host setup lifecycle, then uninstall while preserving
+the fixture Workspaces. Logs and `result.json` remain in the output directory.
+
+This currently exercises a native Unix host (macOS or Linux). npm links directly to the native
+executable: there are no npm dependencies, lifecycle scripts, runtime downloads or JavaScript
+business logic. npm is offline and uses a test-local cache. Public package names, cross-platform
+npm dispatch, Windows shims and registry publication are deferred. The Cargo workspace remains
+`publish = false`; this verifies local source installation, not `cargo install` from crates.io.
+The private npm fixture is named `canisend-cli-local` and cannot be published by `npm publish`.
+
+See the [Cargo install reference](https://doc.rust-lang.org/cargo/commands/cargo-install.html)
+and [npm local tarball installation reference](https://docs.npmjs.com/cli/v11/commands/npm-install/).

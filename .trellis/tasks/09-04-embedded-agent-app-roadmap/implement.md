@@ -1098,3 +1098,26 @@ under academic-pack; updated its existing summary without adding a domain-specif
 Added current-surface behavioral cases to the existing acceptance guide. Logs/tool reference
 inventory are in `dist/all-skills-review/`. This is contract/content review, not a live-model
 behavior or writing-quality pass. Existing archives remain unchanged; rebuild before distribution.
+
+### Local Cargo/npm installation entrypoints — 2026-09-07
+
+Added `scripts/smoke_local_installers.sh NEW_OUTPUT_DIRECTORY`: offline Cargo path installation,
+private native npm tarball packing/install into an isolated prefix, exact installed-byte parity,
+Workspace initialization with five Skills, existing Host setup/removal smoke and six synthetic
+MCP protocol tests through each installed command. Uninstall preserves both fixture Workspaces.
+The fixture reuses native bundle staging, includes license notices, and has no npm dependencies,
+install scripts or runtime downloader. It currently supports native Unix hosts only.
+
+The first run exposed a macOS npm symlink-entry failure during automatic Host setup. Canonicalize
+only the inferred current executable in the shared CLI resolver; explicitly supplied symlinks
+still fail the existing application validation. Added a positive/negative binary regression.
+
+Checks passed on aarch64-apple-darwin: complete installer smoke in
+`dist/local-installers-fixed/` (result.json and per-channel logs), symlink regression, affected
+all-target Clippy, formatting, shell syntax and source check. Initial failed fixture remains in
+`dist/local-installers-ca47583/` as diagnostic evidence. Cargo reported an existing yanked
+chacha20 0.10.1 lockfile warning; installation succeeded with the unchanged locked dependencies.
+No package was published and no user installation prefix was modified. Cargo remains unpublished;
+the private npm fixture does not establish public package naming, multi-platform dispatch or
+Windows installation qualification. Next: expand channel/platform qualification only when requested;
+registry publication and real Host/model acceptance remain separate.

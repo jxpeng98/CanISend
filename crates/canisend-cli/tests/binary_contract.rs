@@ -1334,3 +1334,49 @@ fn workspace_init_installs_selected_skills_without_interactive_input() {
             .success()
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn symlink_entry_installs_skills_but_explicit_symlink_is_rejected() {
+    let root = TestDirectory::new("symlink-entry");
+    fs::create_dir_all(root.path()).unwrap();
+    let entry = root.path().join("canisend");
+    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_canisend"), &entry).unwrap();
+    let workspace = root.path().join("workspace");
+    let output = Command::new(&entry)
+        .args([
+            "--workspace",
+            workspace.to_str().unwrap(),
+            "workspace",
+            "init",
+            "--host",
+            "codex",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_json_output(output);
+    let output = Command::new(&entry)
+        .args([
+            "--workspace",
+            workspace.to_str().unwrap(),
+            "host",
+            "setup",
+            "--host",
+            "codex",
+            "--executable",
+            entry.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["error"]["code"], "input.invalid");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("non-symlink")
+    );
+}
