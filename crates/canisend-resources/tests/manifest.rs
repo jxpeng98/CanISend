@@ -387,7 +387,7 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
             manifest.task_resource_model_sha256,
             get(ResourceId::AgentV4TaskResourceModel).descriptor.sha256
         );
-        let expected_files = if host == AgentHost::Codex { 20 } else { 16 };
+        let expected_files = if host == AgentHost::Codex { 22 } else { 17 };
         assert_eq!(manifest.files.len(), expected_files);
         let skill_root = match host {
             AgentHost::Codex => ".agents/skills",
@@ -472,6 +472,13 @@ fn agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift() {
         ("canisend-review-export", vec!["review", "export"]),
     ]);
 
+    let workflow = String::from_utf8_lossy(get(ResourceId::SkillCanisendApplicationWorkflow).bytes);
+    for skill in expected.keys() {
+        assert!(
+            workflow.contains(skill),
+            "workflow does not route to {skill}"
+        );
+    }
     let mut coverage = BTreeMap::<String, usize>::new();
     for (skill, tasks) in &expected {
         let body = String::from_utf8_lossy(skills[skill]);
@@ -516,7 +523,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
 
     let installed = install_agent_skills(AgentHost::Codex, &root).expect("install skills");
     assert_eq!(installed.state, AgentSkillsInstallState::Installed);
-    assert_eq!(installed.files.len(), 8);
+    assert_eq!(installed.files.len(), 10);
     assert!(
         root.join(".agents/skills/canisend-workspace/SKILL.md")
             .is_file()
@@ -541,6 +548,38 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
 
     let unchanged = install_agent_skills(AgentHost::Codex, &root).expect("check skills");
     assert_eq!(unchanged.state, AgentSkillsInstallState::UpToDate);
+
+    // A prior four-Skill installation gains the workflow entrypoint on setup.
+    let mut four_skill_manifest = installed_manifest.clone();
+    four_skill_manifest.files.retain(|file| {
+        if file
+            .resource_id
+            .starts_with("skill.canisend-application-workflow")
+        {
+            fs::remove_file(root.join(&file.path)).unwrap();
+            false
+        } else {
+            true
+        }
+    });
+    assert_eq!(four_skill_manifest.files.len(), 8);
+    fs::write(
+        &installed.manifest_path,
+        serde_json::to_vec(&four_skill_manifest).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        inspect_agent_skills(AgentHost::Codex, &root).unwrap().state,
+        AgentSkillsStatusState::Incomplete
+    );
+    assert_eq!(
+        install_agent_skills(AgentHost::Codex, &root).unwrap().state,
+        AgentSkillsInstallState::Updated
+    );
+    assert!(
+        root.join(".agents/skills/canisend-application-workflow/SKILL.md")
+            .is_file()
+    );
 
     let managed_path = root.join(".agents/skills/canisend-intake/SKILL.md");
     let expected_bytes = fs::read(&managed_path).expect("embedded skill bytes");
@@ -574,7 +613,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
         upgrade_status.state,
         AgentSkillsStatusState::UpdateAvailable
     );
-    assert_eq!(upgrade_status.skills.len(), 4);
+    assert_eq!(upgrade_status.skills.len(), 5);
     let updated = install_agent_skills(AgentHost::Codex, &root).expect("upgrade skills");
     assert_eq!(updated.state, AgentSkillsInstallState::Updated);
     assert_ne!(fs::read(&managed_path).expect("updated skill"), old_bytes);
@@ -598,7 +637,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     fs::create_dir(&claude_root).expect("Claude root");
     let claude =
         install_agent_skills(AgentHost::Claude, &claude_root).expect("Claude skills install");
-    assert_eq!(claude.files.len(), 4);
+    assert_eq!(claude.files.len(), 5);
     assert!(
         claude_root
             .join(".claude/skills/canisend-workspace/SKILL.md")
@@ -623,7 +662,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     let removed =
         uninstall_agent_skills(AgentHost::Claude, &claude_root).expect("remove Claude skills");
     assert_eq!(removed.state, AgentSkillsUninstallState::Removed);
-    assert_eq!(removed.removed_files, 4);
+    assert_eq!(removed.removed_files, 5);
     assert!(!claude.manifest_path.exists());
     assert_eq!(
         inspect_agent_skills(AgentHost::Claude, &claude_root)

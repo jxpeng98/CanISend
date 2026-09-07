@@ -4,7 +4,7 @@ CanISend owns durable Workspace and Pack-bound Application state, validation, co
 local exports, recovery, and audit. Claude Code owns conversation, reasoning, and its host tools.
 
 - Require `canisend.workspace/v4` and `canisend.agent/v4` before acting.
-- Start with `/canisend-workspace`; route bounded work to `/canisend-intake`,
+- For a complete application or resumption, use `canisend-application-workflow`. For setup, start with `/canisend-workspace`; route bounded work to `/canisend-intake`,
   `/canisend-materials`, or `/canisend-review-export`.
 - Prefer the CanISend MCP server for structured operations. Use the native `canisend` CLI only
   when it exposes the same operation ID. The desktop App does not need to be open.

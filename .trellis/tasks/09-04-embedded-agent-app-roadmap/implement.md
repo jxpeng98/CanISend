@@ -1034,3 +1034,41 @@ under `dist/skills-upgrade-check/`.
 Next: rebuild the distributable candidate with these resources before Cargo/npm installation
 validation. Existing archives are unchanged. Real-model Skill selection, human Host acceptance,
 full power-loss/concurrent-install qualification and release publication are not claimed.
+
+### Whole-application Skills — 2026-09-07
+
+Owner clarified that Skills must support the complete application journey, beyond operational
+boundaries and upgrade guidance. Added `canisend-application-workflow` as the discoverable entry
+for outcome clarification, stage routing, resumption, local collaboration and final delivery.
+It composes the existing ten canonical tasks rather than adding a task kind or state store.
+
+Strengthened stage guidance for opportunity/constraint analysis, Profile-to-Evidence preparation,
+Requirement decomposition, explicit fit/gap reasoning, material-set planning, academic and generic
+writing criteria, scoped revision, substantive/cross-document review and export inspection.
+Retained native consent, provenance, exact context, user-edit protection and no-submission limits.
+Added end-to-end behavioral scenarios to the existing acceptance guide, explicitly separating
+model writing/selection quality from synthetic protocol tests.
+
+Integrated the fifth Skill into embedded declarations, all Host install/export/status/removal
+paths, starter routing and future generated release bindings. Historical release records remain
+unchanged. Regression coverage includes four-to-five Skill upgrades, canonical task ownership,
+Host pack parity, idempotency and modified-file protection. Actual check results follow below.
+
+Validation completed: 17 resource tests, the owning app Host-pack regression, 14 CLI binary tests,
+Host setup lifecycle smoke and the full dual-Pack MCP lifecycle smoke pass. Both local exports,
+exact reopen/restore and committed-candidate recovery pass with the updated binary. An actual
+old four-Skill installation updated to five Skills for Codex and Claude, repeated setup was
+unchanged, and both restored Application snapshots remained identical. All five frontmatter/UI
+metadata files validate; affected all-target Clippy, formatting, shell syntax and source check pass.
+
+The domain inventory now includes the Pack-conditional academic writing examples in the Materials
+Skill (kernel guidance, no domain-specific API change). Regenerated only the current package
+contract's resource-manifest binding (89 to 91 entries); no historical candidate evidence changed.
+Local evidence is retained in `dist/application-workflow-upgrade-check/`,
+`dist/application-workflow-host-check/` and `dist/application-workflow-business-check-final/`.
+Initial smoke attempts stopped on old four-Skill inventory assertions; updated exact five-Skill
+expectations passed. Earlier outputs remain diagnostic fixtures, not acceptance records.
+
+The next step is a fresh distributable build and scenario-based actual model assessment when
+requested. Existing archives remain unchanged; scripted candidates do not establish writing
+quality, real Host approval, provider discovery or publication readiness.

@@ -11,7 +11,7 @@ chooses its own Workflow Pack; the Workspace itself has no mode.
    only when you want these Skills available across projects in your user home directory.
 2. Run the MCP registration command returned by setup, then open this Workspace in the selected
    Host and reconnect/discover its tools. `host status` checks managed resources, not a live MCP
-   connection. Start with the `canisend-workspace` Skill.
+   connection. Use `canisend-application-workflow` for a complete application, or `canisend-workspace` for setup.
 3. Review and import `profile/profile-example.typ`, or your own Typst, Markdown, text, or JSON
    Profile Source through the CLI or Host. Use `canisend profile source import --help`.
 4. Select a Workflow Pack and create an Application; see `canisend application create --help`.

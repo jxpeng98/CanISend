@@ -221,6 +221,7 @@ jq -e \
     and $status.data.skills.state == "up-to-date"
     and $status.data.mcp_configuration_mutated == false
     and ($status.data.skills.skills | sort_by(.id)) == [
+      {"file_count": 2, "id": "canisend-application-workflow", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
       {"file_count": 2, "id": "canisend-intake", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
       {"file_count": 2, "id": "canisend-materials", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
       {"file_count": 2, "id": "canisend-review-export", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
@@ -233,13 +234,15 @@ jq -e \
     and $manifest.host == "codex"
     and ($manifest.task_resource_model_sha256 | test("^[0-9a-f]{64}$"))
     and $manifest.files == $setup.data.skills.files
-    and ($manifest.files | length) == 8
+    and ($manifest.files | length) == 10
     and ($manifest.files | all(.[];
       .resource_version == "4.0.0"
       and .size > 0
       and (.sha256 | test("^[0-9a-f]{64}$"))
     ))
     and ($manifest.files | map(.resource_id) | sort) == [
+      "skill.canisend-application-workflow",
+      "skill.canisend-application-workflow.openai",
       "skill.canisend-intake",
       "skill.canisend-intake.openai",
       "skill.canisend-materials",

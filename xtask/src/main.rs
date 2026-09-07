@@ -5576,6 +5576,7 @@ fn beta_readiness_v2_contracts(root: &Path) -> Result<Value, String> {
     );
     let mut skills = Vec::new();
     for id in [
+        "canisend-application-workflow",
         "canisend-intake",
         "canisend-materials",
         "canisend-review-export",

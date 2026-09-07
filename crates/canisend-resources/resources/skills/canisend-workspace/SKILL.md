@@ -43,6 +43,23 @@ status `ready` alone does not establish a working MCP connection.
    infer a Workspace mode. Read `canisend_application_pack_show` for the complete verified Pack
    catalog, including every Deliverable kind and its minimum/maximum count.
 
+## Build the applicant evidence base
+
+Work from the user's supplied CV, profile or records. Extract concrete facts with source identity,
+exact quote and normalized byte span. Distinguish completed work, ongoing work and future intent;
+keep dates, roles, contribution level and reported outcomes no stronger than the source supports.
+A user assertion can be a supplied source, not an invented independently verified credential.
+Resolve conflicting versions before confirming the contested fact; omit irrelevant personal data.
+
+Group reusable facts in Pack-compatible categories. Confirm Evidence through its actual schema,
+then associate only the selected Evidence with the Application. Imported Profile Sources alone
+are not confirmed Evidence, and a confirmed Workspace fact is not automatically Application input.
+For missing support, ask for the specific fact/record needed rather than requesting the entire
+profile again. Hand the confirmed references and unresolved gaps to `canisend-materials`.
+
+For an end-to-end request, use `canisend-application-workflow` to coordinate stages. For a narrow
+request, retain the current stage and avoid restarting a completed application.
+
 ## Perform the bounded task
 
 - For basic Profile or reusable Evidence, show current metadata, propose only source-grounded

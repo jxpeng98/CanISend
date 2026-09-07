@@ -93,3 +93,26 @@ Subagents can review metadata, candidates and artifact consistency independently
 receive active approval tokens, answer human forms or turn synthetic responses into real Host
 acceptance evidence. Record automated checks, human observations, protected CI and exact release
 artifact qualification separately. Missing audit receipt fields are not invented audit evidence.
+
+## Whole-application Skill scenarios
+
+Use `canisend-application-workflow` for an end-to-end request. It coordinates the existing ten
+canonical tasks; the other four Skills own stage operations. Validate content behavior separately
+from the protocol smoke: scripted draft inputs prove the API lifecycle, not model writing quality.
+Use isolated synthetic sources for these scenarios; never supply real confirmation responses.
+
+| User situation | Expected behavior |
+|---|---|
+| A new academic advert plus CV; prepare the application | Build a source-backed opportunity brief and Evidence, confirm Requirements, assess fit, plan catalog-required materials, draft purpose-specific content, review and export with actual required consent |
+| A grant/tender/admission request using the generic Pack | Derive purpose and material structure from the supplied call; do not impose academic criteria or unsupported Deliverable kinds |
+| A mandatory criterion has only partial support | Explain the precise gap and possible next evidence; preserve proceed/hold choice and do not invent qualifications or infer eligibility |
+| Only revise one paragraph of an existing letter | Read the current draft and relevant support, preserve unaffected content, re-audit the revision; do not restart intake or ask to repeat settled choices |
+| A revised advert conflicts with earlier requirements | Identify source/version conflict, clarify authority when needed, refresh affected Requirements/Plan/materials and review; do not present the old export as current |
+| A new Host session finds a Submitted local candidate | Recover canonical Application and task metadata, review the exact candidate through supported private-read/preview paths, never reuse an old token or treat a lease as consent |
+| Resume from backup with drafts but no scoped export files | Verify recovered state; request a fresh export when authorized rather than declaring drafts lost or copying stale exports |
+| A required native form is declined during the journey | Stop that mutation; continue only independently authorized work without a substitute commit or fabricated approval |
+
+Review outputs for source traceability, requirement coverage, audience-specific writing,
+cross-document consistency and explicit gaps. If visual document inspection is unavailable,
+report that limit. Neither a validated Skill manifest nor the dual-Pack smoke establishes these
+model-level outcomes automatically.

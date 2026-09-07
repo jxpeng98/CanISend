@@ -7,6 +7,20 @@ description: Ground a Pack-bound CanISend Application in reviewed Sources and Re
 
 This skill covers Agent v4 tasks `intake` and `requirements` for one exact Application.
 
+## Understand the opportunity
+
+Build a concise brief from the user's selected advert/call and supplied attachments: target
+organization/programme, role or funding purpose, intended reader, eligibility, mandatory versus
+preferred criteria, material list, submission format, length limits, deadline and timezone when
+stated. Keep exact Source references for each conclusion. Do not infer an unstated deadline,
+eligibility rule or document requirement from customary practice.
+
+Separate explicit requirements from your interpretation and unresolved contradictions. For two
+conflicting source versions, identify the difference and ask which applies when authority is
+unclear. Request a readable source if extraction is incomplete; do not treat absent parsed text
+as evidence that no requirement exists. Discovery or external research only occurs within the
+user's scope and through currently available tools; never invent a CanISend search command.
+
 ## Bind the Application
 
 1. Require `canisend.workspace/v4` and `canisend.agent/v4`.
@@ -28,9 +42,19 @@ This skill covers Agent v4 tasks `intake` and `requirements` for one exact Appli
 
 1. Extract only Pack-qualified Requirements supported by exact Source spans. Preserve ambiguity
    and missing information instead of inventing criteria, deadlines, identities, or facts.
-2. Let the user correct classification and wording before confirmation.
+2. Split compound requirements when their evidence or material coverage differs, preserving
+   qualifications and source meaning. Capture priority and category through the actual Pack
+   schema. Keep source constraints not represented by a field in the task brief or permitted Plan
+   constraints, not invented JSON properties. Let the user correct classification and wording.
 3. Preview the exact revision-bound proposal, request native confirmation, let the user approve,
    and verify the commit. Refresh Application context after every commit.
+
+## Hand off
+
+Give the Requirements and Source references to `canisend-materials`, with mandatory conditions,
+format constraints and unresolved ambiguity. If applicant facts are missing, use
+`canisend-workspace` for Profile Sources and Evidence; an advert is not proof of applicant ability.
+When source wording changes, refresh extraction/confirmation and identify affected plans/materials.
 
 Follow `canisend-workspace` for MCP consent fields and preview handling. `request_private_read`
 requests consent; it does not assert consent. After denial, stop the denied operation without retry or fallback;

@@ -22,11 +22,12 @@ modifying either the old files or authoritative Workspace state.
 
 ## Install the v4 host resources
 
-The desktop initialization and Agent setup journey installs four version-matched Skills from one
+CLI initialization with Host setup installs five version-matched Skills from one
 embedded, integrity-checked source:
 
 | Skill | Canonical Agent v4 tasks |
 | --- | --- |
+| `canisend-application-workflow` | End-to-end orchestration and resumption over the existing tasks |
 | `canisend-workspace` | orientation, Profile/Evidence, Application creation, recovery |
 | `canisend-intake` | Source intake and Requirements |
 | `canisend-materials` | fit/Plan and Deliverable drafting |

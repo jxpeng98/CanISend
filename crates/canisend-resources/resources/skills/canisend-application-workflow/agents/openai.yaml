@@ -1,0 +1,4 @@
+interface:
+  display_name: "CanISend Application Workflow"
+  short_description: "Prepare or resume an entire evidence-bound application"
+  default_prompt: "Use $canisend-application-workflow to continue this application from its current stage through reviewed local materials."

@@ -1049,7 +1049,7 @@ mod tests {
         .expect("install workflow skills");
         assert_eq!(installed.operation, "agent.skills.install");
         assert_eq!(installed.status, "installed");
-        assert_eq!(installed.data.files.len(), 8);
+        assert_eq!(installed.data.files.len(), 10);
         assert!(
             host_workspace
                 .join(".agents/skills/canisend-workspace/SKILL.md")
@@ -1071,7 +1071,7 @@ mod tests {
         assert_eq!(status.operation, "agent.skills.status");
         assert_eq!(status.status, "up-to-date");
         assert_eq!(status.data.state, AgentSkillsStatusState::UpToDate);
-        assert_eq!(status.data.skills.len(), 4);
+        assert_eq!(status.data.skills.len(), 5);
         let removed = Application::uninstall_agent_skills(&AgentSkillsInstallRequest {
             host: AgentHost::Codex,
             workspace: host_workspace.clone(),
@@ -1081,7 +1081,7 @@ mod tests {
         assert_eq!(removed.operation, "agent.skills.uninstall");
         assert_eq!(removed.status, "removed");
         assert_eq!(removed.data.state, AgentSkillsUninstallState::Removed);
-        assert_eq!(removed.data.removed_files, 8);
+        assert_eq!(removed.data.removed_files, 10);
 
         let pack_parent = temporary_root("packs");
         fs::create_dir(&pack_parent).expect("pack parent");
@@ -1096,7 +1096,7 @@ mod tests {
             assert_eq!(exported.data.manifest.host, host);
             assert_eq!(
                 exported.data.manifest.files.len(),
-                if host == AgentHost::Codex { 20 } else { 16 }
+                if host == AgentHost::Codex { 22 } else { 17 }
             );
             let exported_round_trip: ActionReceipt<AgentPackExportReadModel> =
                 serde_json::from_slice(
