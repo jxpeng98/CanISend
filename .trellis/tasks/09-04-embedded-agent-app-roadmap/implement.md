@@ -1121,3 +1121,30 @@ No package was published and no user installation prefix was modified. Cargo rem
 the private npm fixture does not establish public package naming, multi-platform dispatch or
 Windows installation qualification. Next: expand channel/platform qualification only when requested;
 registry publication and real Host/model acceptance remain separate.
+
+### Cargo/npm registry publication preparation — 2026-09-07
+
+Owner authorized actual publication plus tag automation. Enabled crates.io publication only for
+the eight CLI dependency crates; desktop and xtask remain private. All eight packages passed
+Cargo's multi-package `publish --dry-run --locked --allow-dirty`, including isolated package
+compilation. No uploads occurred. Existing locked chacha20 yanked warning remains.
+
+Added npm native-package staging for the five existing CLI targets and a thin `canisend-cli`
+launcher with exact optional dependency versions, libc selection, stdio and exit/signal handling.
+Two launcher tests cover platform dispatch and failures. A real macOS native package plus launcher
+was packed and installed locally; five-Skill init and six simulated Host tests passed. Other
+platform runtime installations are not yet verified in this slice. Package names are proposed
+pending owner confirmation; no npm package was uploaded.
+
+Added reusable `package-registries.yml`, called by the existing tag release workflow after
+verified public release success. It reuses verified assets, checks complete platform coverage,
+runs Cargo dry-run and Linux npm/Host checks, then publishes the dependency crates, npm native
+packages and CLI entry. Requires NPM_TOKEN/CARGO_REGISTRY_TOKEN Actions secrets. Workflow YAML,
+Node syntax, launcher tests and source check pass; the remote workflow has not run or been pushed.
+
+Publication remains blocked: npm whoami returned 401; no Cargo environment/file credential was
+found; GitHub authentication works but repository secret listing is empty. Full release check
+also fails on `provider dogfood Agent v4 contract binding is stale`; historical real-Host records
+were not rewritten. No tag, push or real registry publication occurred. Logs are retained in
+`dist/registry-preparation/`. Next: confirm package ownership/names, restore registry login and
+CI secrets, and obtain current candidate qualification before publishing exact immutable versions.

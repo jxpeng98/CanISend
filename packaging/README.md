@@ -83,9 +83,39 @@ the fixture Workspaces. Logs and `result.json` remain in the output directory.
 This currently exercises a native Unix host (macOS or Linux). npm links directly to the native
 executable: there are no npm dependencies, lifecycle scripts, runtime downloads or JavaScript
 business logic. npm is offline and uses a test-local cache. Public package names, cross-platform
-npm dispatch, Windows shims and registry publication are deferred. The Cargo workspace remains
-`publish = false`; this verifies local source installation, not `cargo install` from crates.io.
+npm dispatch, Windows shims and registry publication are deferred. The local smoke verifies source installation, not a download from crates.io;
+registry publication is a separate operation described below.
 The private npm fixture is named `canisend-cli-local` and cannot be published by `npm publish`.
 
 See the [Cargo install reference](https://doc.rust-lang.org/cargo/commands/cargo-install.html)
 and [npm local tarball installation reference](https://docs.npmjs.com/cli/v11/commands/npm-install/).
+
+## Registry release preparation
+
+The eight CLI dependency crates now allow crates.io publication; desktop and xtask remain private.
+Cargo 1.97 can dry-run and publish the complete dependency set together:
+
+```console
+cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend-cli
+```
+
+`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces `canisend-cli` and native
+`canisend-cli-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}` packages.
+The entry forwards arguments, exit status and stdio to an exact-version optional native dependency;
+there is no download script. Node >=22.14 is required for the npm launcher. A partial bundle set is
+usable for local tests only; publication CI requires all five platforms. Run
+`node --test packaging/npm/launcher.test.cjs` for platform dispatch and error handling checks.
+
+The existing annotated-tag native release workflow calls `package-registries.yml` only after
+`verify-published-release` succeeds. It verifies and reuses those release assets, dry-runs all
+Cargo packages, tests the installed Linux npm entry, then publishes Cargo followed by npm native
+packages and finally the npm entry. Prereleases use npm's `next` dist-tag; stable uses `latest`.
+A registry failure stops the job; partial publication is not rolled back or silently overwritten.
+Before retrying, inspect which immutable versions were uploaded and reconcile that exact set.
+
+Bootstrap requires valid local `npm login` / `cargo login` credentials and the Actions secrets
+`NPM_TOKEN` and `CARGO_REGISTRY_TOKEN` with publication rights for these packages. Never commit
+credentials. GitHub login alone does not authorize either registry. Trusted publishing can replace
+CI tokens once the initial packages and registry publisher bindings exist. Package names and first
+release ownership must be confirmed before the first upload. This source configuration is not
+proof of a successful registry publication or a successful remote workflow run.

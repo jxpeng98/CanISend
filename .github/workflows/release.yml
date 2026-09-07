@@ -1544,3 +1544,11 @@ jobs:
           path: ${{ runner.temp }}/public-release-verification.json
           if-no-files-found: error
           retention-days: 90
+
+  publish-cli-registries:
+    needs: [release-identity, verify-published-release]
+    if: needs.release-identity.outputs.mode == 'promote'
+    uses: ./.github/workflows/package-registries.yml
+    with:
+      tag: ${{ needs.release-identity.outputs.tag }}
+    secrets: inherit
