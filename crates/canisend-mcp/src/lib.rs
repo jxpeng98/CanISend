@@ -1102,7 +1102,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Preview explicit decisions for every current Requirement and issue a single-use approval token",
+        description = "Preview explicit decisions for every currently proposed Requirement, preserving existing decisions and showing downstream invalidation; issue a single-use approval token",
         annotations(
             title = "Preview Requirement decisions",
             read_only_hint = true,
@@ -1187,7 +1187,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Preview a Pack-qualified draft Plan after all Requirements have explicit decisions",
+        description = "Preview a new Pack-qualified draft Plan or rebuild a stale Plan after all Requirements have explicit decisions; preserve any existing material kinds and counts",
         annotations(
             title = "Preview a Plan proposal",
             read_only_hint = true,

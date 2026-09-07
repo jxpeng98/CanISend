@@ -59,8 +59,8 @@ or source content requires a supported correction path, not silently undoing exi
 3. Use `canisend_requirement_extract_preview` and its commit for proposed Requirements against
    the selected stored Source. Extraction is not confirmation. Re-read the current set, then use
    `canisend_requirement_confirm_preview` and its commit with `request_confirmation: true`.
-   Supply exactly one confirm/exclude decision for every current Requirement as required by the
-   schema; do not send only a changed subset. The user answers the form. Refresh context after
+   Supply exactly one confirm/exclude decision for every currently `proposed` Requirement;
+   leave already confirmed/excluded entries out of the request. The user answers the form. Refresh context after
    each commit; never silently exclude an unmet mandatory criterion to make the application fit.
 
 ## Correct an existing Requirement
@@ -74,10 +74,12 @@ call commit. Otherwise the user reviews the exact change through
 `canisend_requirement_revise_commit` with `request_confirmation: true`.
 
 Revision preserves identity and history, returns that Requirement to `proposed`, and clears its
-old confirmation. Other Requirement decisions remain intact. Re-read before continuing: the current
-confirmation adapter still requires an entirely proposed set without a Plan, and stale Plan
-replacement is not yet exposed. Report that bounded recovery gap for mixed decisions or existing
-downstream work; do not replay confirmation, erase the Plan, or recreate the Application.
+old confirmation. Other Requirement decisions remain intact. Re-read, then confirm/exclude exactly
+the currently proposed set through the existing confirmation preview/commit, even when a stale
+Plan exists. A previously excluded condition being reconsidered also invalidates the old Plan.
+Hand off to `canisend-materials` to rebuild that stale Plan and refresh the affected materials.
+If an older installed tool still rejects this recovery path, report the version/capability gap;
+do not replay confirmation, erase the Plan, or recreate the Application.
 
 ## Hand off
 

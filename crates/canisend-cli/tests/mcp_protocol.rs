@@ -1189,6 +1189,56 @@ fn guarded_lifecycle(local_candidate: bool) {
     assert!(displayed.contains("RequirementRevise"));
     assert!(displayed.contains(requirement_id.as_str()));
 
+    let original_manifest_path = root.join(&destination).join("render-manifest.json");
+    let original_manifest = fs::read(&original_manifest_path).unwrap();
+    let recovered_destination = format!("applications/{application_id}/exports/mcp-recovered");
+    for (index, (stage, mut arguments)) in [
+        ("requirement_confirm", json!({"decisions": [{"requirement_id": requirement_id, "decision": "confirm"}]})),
+        ("plan_propose", json!({"decision": "proceed", "deliverables": [{
+            "kind": "primary-document", "disposition": "required", "rationale": "Replanned after correction",
+            "constraints": [], "execution_mode": "host-agent"
+        }]})),
+        ("plan_confirm", json!({})),
+        ("deliverable_revise", json!({"deliverable_id": deliverable_id, "title": "Recovered material",
+            "media_type": "text/markdown", "content": "REGENERATED-AFTER-CORRECTION"})),
+        ("review_disposition", json!({"request_private_read": true})),
+        ("export_prepare", json!({"destination": recovered_destination, "request_private_export": true})),
+    ].into_iter().enumerate() {
+        arguments["application_id"] = json!(application_id.as_str());
+        arguments["expected_revision"] = json!(9 + index);
+        let preview = mcp.request(700 + index as u64 * 2, "tools/call", json!({
+            "name": format!("canisend_{stage}_preview"), "arguments": arguments
+        }));
+        let (token, digest) = mutation_preview_binding(&preview);
+        let mut commit = json!({"application_id": application_id.as_str(),
+            "preview_token": token, "preview_sha256": digest, "request_confirmation": true});
+        for flag in ["request_private_read", "request_private_export"] {
+            if let Some(value) = arguments.get(flag) { commit[flag] = value.clone(); }
+        }
+        let result = mcp.request(701 + index as u64 * 2, "tools/call", json!({
+            "name": format!("canisend_{stage}_commit"), "arguments": commit
+        }));
+        assert_eq!(result["result"]["isError"], false, "{stage}: {result}");
+        let data = &result["result"]["structuredContent"]["data"];
+        if stage != "export_prepare" {
+            assert_eq!(data["snapshot"]["application"]["revision"], json!(10 + index));
+            assert_eq!(data["snapshot"]["requirements"][1], accepted["snapshot"]["requirements"][1]);
+            assert_eq!(data["snapshot"]["plan"]["id"], accepted["snapshot"]["plan"]["id"]);
+            if index < 3 {
+                assert_eq!(data["snapshot"]["deliverables"], accepted["snapshot"]["deliverables"]);
+            }
+        } else {
+            assert_eq!(data["render"]["application_revision"], 14);
+            assert_eq!(data["render"]["submission_performed"], false);
+        }
+    }
+    assert_eq!(fs::read(original_manifest_path).unwrap(), original_manifest);
+    assert!(
+        root.join(recovered_destination)
+            .join("render-manifest.json")
+            .is_file()
+    );
+
     drop(mcp);
     fs::remove_dir_all(root).expect("remove workspace");
 }

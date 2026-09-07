@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use canisend_contracts::{
     ActorKind, ApplicationId, ApplicationLifecycleV3, ApplicationModelSnapshotV3, ConsentScope,
     DeliverableId, DeliverableRecordV3, DeliverableStateV3, OpportunityRecordV3, PlanId,
-    PlanRecordV3, PlanStateV3, RequirementRecordV3, Revision, SemanticValidate, Sha256Digest,
-    UtcTimestamp, WORKSPACE_V4_FORMAT, WorkflowPackItemId, validate_application_model_snapshot_v3,
+    PlanRecordV3, PlanStateV3, RequirementConfirmationV3, RequirementRecordV3, Revision,
+    SemanticValidate, Sha256Digest, UtcTimestamp, WORKSPACE_V4_FORMAT, WorkflowPackItemId,
+    validate_application_model_snapshot_v3,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -988,12 +989,23 @@ fn prepare_update(
         .collect::<BTreeSet<_>>();
 
     let mut stale_plan_ids = Vec::new();
+    // Reopening a decision or including a new criterion affects the Plan even
+    // when its old input list omitted that Requirement (for example, an exclusion).
+    let changes_decision_inputs = candidate.requirements.iter().any(|requirement| {
+        let previous = current_requirements
+            .get(&requirement.id)
+            .map(|item| item.confirmation);
+        (requirement.confirmation == RequirementConfirmationV3::Confirmed
+            && previous != Some(RequirementConfirmationV3::Confirmed))
+            || (requirement.confirmation == RequirementConfirmationV3::Proposed
+                && previous.is_some_and(|state| state != RequirementConfirmationV3::Proposed))
+    });
     if let (Some(current_plan), Some(candidate_plan)) = (&current.plan, candidate.plan.as_mut()) {
         let consumes_changed_requirement = current_plan
             .requirement_inputs
             .iter()
             .any(|reference| changed_requirement_ids.contains(&reference.id));
-        if consumes_changed_requirement
+        if (consumes_changed_requirement || changes_decision_inputs)
             && candidate_plan.revision == current_plan.revision
             && current_plan.state != PlanStateV3::Stale
         {
@@ -2175,6 +2187,74 @@ mod tests {
             )
             .expect("audit count");
         assert_eq!(audit_count, 2);
+    }
+
+    #[test]
+    fn requirement_decisions_invalidate_unlisted_inputs_without_staling_an_exclusion() {
+        for (previous, confirmation, affected) in [
+            (
+                RequirementConfirmationV3::Proposed,
+                RequirementConfirmationV3::Confirmed,
+                1,
+            ),
+            (
+                RequirementConfirmationV3::Proposed,
+                RequirementConfirmationV3::Excluded,
+                0,
+            ),
+            (
+                RequirementConfirmationV3::Excluded,
+                RequirementConfirmationV3::Proposed,
+                1,
+            ),
+        ] {
+            let mut fixture = TestDatabase::new("new-criterion");
+            activate(fixture.database());
+            let mut snapshot = confirmed_snapshot();
+            let mut added = snapshot.requirements[0].clone();
+            added.id = requirement_id(609);
+            added.confirmation = previous;
+            if previous == RequirementConfirmationV3::Proposed {
+                added.confirmed_by = None;
+                added.confirmed_at = None;
+            }
+            snapshot.requirements.push(added);
+            let application_id = snapshot.application.id.clone();
+            ApplicationModelRepository::new(fixture.database())
+                .create(
+                    snapshot.clone(),
+                    ActorKind::User,
+                    "create-generic-application",
+                )
+                .unwrap();
+            snapshot.application.revision = revision(2);
+            snapshot.application.updated_at = timestamp("2026-08-02T12:10:00Z");
+            let added = snapshot.requirements.last_mut().unwrap();
+            added.revision = revision(2);
+            added.confirmation = confirmation;
+            added.confirmed_by =
+                (confirmation != RequirementConfirmationV3::Proposed).then_some(ActorKind::User);
+            added.confirmed_at = (confirmation != RequirementConfirmationV3::Proposed)
+                .then(|| timestamp("2026-08-02T12:10:00Z"));
+            let preview = ApplicationModelRepository::new(fixture.database())
+                .preview_update(&application_id, revision(1), snapshot.clone())
+                .unwrap();
+            assert_eq!(preview.stale_plan_ids.len(), affected);
+            assert_eq!(preview.stale_deliverable_ids.len(), affected);
+            let committed = ApplicationModelRepository::new(fixture.database())
+                .commit(
+                    &application_id,
+                    revision(1),
+                    snapshot,
+                    ActorKind::User,
+                    "application-v4-requirement-confirm",
+                )
+                .unwrap();
+            assert_eq!(
+                committed.stored.snapshot_sha256,
+                preview.projected_snapshot_sha256
+            );
+        }
     }
 
     #[test]

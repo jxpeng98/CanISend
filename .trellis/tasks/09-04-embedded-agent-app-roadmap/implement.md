@@ -1250,7 +1250,7 @@ needed for the initial slice. Preserve the current qualified fixture and histori
 |---|---|---|---|
 | I1 | Read-only exact update-impact preview at the repository owner; use the same transition and invalidation rules as commit | Preview and commit agree on projected snapshot/digest and stale IDs; preview writes no head/history/audit; bad revision/identity/deletion fails; concurrent change invalidates the expected revision | Complete locally |
 | I2 | Typed single-Requirement revision with source/span checks, private-read scope and native preview/commit; expose through existing adapters with explicit schema changes | Retain Requirement identity, increment its revision, clear obsolete confirmation, stale only affected downstream work; no-op is read/completed; denial/replay preserve state | Complete locally (CLI/MCP; recovery remains I3) |
-| I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | Pending I2 |
+| I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | I3a recovery complete locally; I3b Source updates pending |
 | I4 | Dual-Pack end-to-end revision/recovery automation and updated Skills/CLI guidance; rebuild and perform one bounded real Host journey | Both Packs revise existing input through new consent to current materials/export; old revisions recoverable; conflicting writers and interrupted responses resolve from canonical state | Pending I2–I3 |
 
 Implementation notes: ApplicationModelRepository::prepare_update already owns Requirement-to-Plan
@@ -1323,3 +1323,45 @@ and existing-Plan guards remain; Intake guidance states this recovery limitation
 instructing another doomed confirmation. I2 is a bounded correction API, not acceptance of the
 complete iterative journey. No real Host consent, candidate evidence refresh, publication, tag,
 push or PR was performed; release and live-model qualification remain separate.
+
+
+I3a recovery completed locally — 2026-09-07: split I3 into independently verifiable recovery
+and Source-update work. This milestone closes the existing-input correction path from I2 through
+fresh material review/export. I3b still owns public Source revision/association updates; I3 as a
+whole and I4 dual-Pack/recovery acceptance are not complete.
+
+Requirement confirmation now decides exactly all currently proposed entries and preserves the
+identity, revision and decision of other entries. Empty completed sets, omitted proposals and
+attempts to overwrite existing decisions fail without a grant. Confirmation preview/commit share
+one validated candidate builder and the repository impact calculation. Plan proposal can rebuild
+only a stale Plan, keeping its UUID, advancing its revision, clearing old confirmation and binding
+current confirmed Requirements. Existing material kinds/counts must match; additions/removals fail
+with an explicit unsupported-change message. Draft Plan confirmation accepts existing stale
+materials, which remain unchanged until individual Deliverable revisions under the new Plan.
+Review and export remain blocked while those materials are stale. All typed mutations reject
+archived Applications before issuing a preview grant.
+
+Repository invalidation also handles decisions missing from the old Plan input list: reopening
+an excluded/confirmed decision or adding a newly confirmed criterion makes that Plan and its
+current outputs stale. Merely excluding an unconsumed proposal leaves unrelated inputs current.
+A focused positive/negative regression proves preview/commit parity for those cases. No manual
+stale transitions, unrestricted snapshot API, migration, additional tool or approval mechanism
+was introduced. Shared Store validation replaces duplicated commit-only checks.
+
+Checks passed: two focused Store impact tests; all seven Application mutation tests, extended
+through correction, partial confirmation, replan, material regeneration, review and export; an
+additional focused archived-Application regression; and the simulated MCP Host's generic lifecycle
+through the same recovery sequence. The protocol check verifies unchanged unrelated decisions,
+Plan identity, stale material preservation before regeneration and the original export manifest.
+Negative coverage includes missing/overwritten decisions, denied confirmation, premature Plan,
+unsupported material-set changes, stale review/export and archived mutation. Existing I2 replay
+and stale-grant assertions remain in the owning tests. Relevant all-target Clippy, formatting,
+diff checks and `xtask source check` pass. Logs: `/tmp/canisend-i3-{store,app,archive,mcp,clippy,source}.log`.
+Intake/Materials Skills, MCP descriptions and public behavior contracts now explain this path.
+No source schema/catalog inventory or active package binding changed.
+
+Next: I3b, a bounded Source-update preview/commit with exact revision/association impact, immutable
+bytes/history and explicit handling of shared Source references; then I4 dual-Pack iterative
+resumption acceptance. This run did not test new Source imports/replacements, the desktop recovery
+UI, real Host/model behavior, or a fresh native package. No real consent form, candidate evidence
+rewrite, publication, tag, push or PR was performed.

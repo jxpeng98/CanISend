@@ -822,24 +822,7 @@ impl Application {
                     impact.projected_snapshot.opportunity.revision.get()
                 ));
             }
-            if let Some(plan) = impact.projected_snapshot.plan.as_ref()
-                && impact.stale_plan_ids.contains(&plan.id)
-            {
-                changes.push(format!(
-                    "Mark Plan {} revision {} stale",
-                    plan.id,
-                    plan.revision.get()
-                ));
-            }
-            for deliverable in &impact.projected_snapshot.deliverables {
-                if impact.stale_deliverable_ids.contains(&deliverable.id) {
-                    changes.push(format!(
-                        "Mark Deliverable {} revision {} stale",
-                        deliverable.id,
-                        deliverable.revision.get()
-                    ));
-                }
-            }
+            append_stale_changes(&mut changes, &impact);
         }
         let unchanged = changes.is_empty();
         let mut receipt = mutation_preview(
@@ -865,17 +848,21 @@ impl Application {
         ActionReceipt<ApplicationMutationPreviewV4<ApplicationRequirementConfirmRequestV4>>,
         ApplicationError,
     > {
-        let (stored, context) = validate_mutation(root, application_id, |service, pack| {
-            service.validate_requirement_confirmation(pack, application_id, &request)
-        })?;
+        let pack = exact_pack(root, application_id)?;
+        let mut workspace = open_workspace_v4(root)?;
+        let (stored, impact) =
+            ApplicationMutationServiceV4::new(&mut workspace.database, &workspace.blobs)
+                .preview_requirement_confirmation(&pack, application_id, &request)?;
+        let mut changes = vec![format!(
+            "Decide {} proposed Requirement(s); preserve existing decisions",
+            request.decisions.len()
+        )];
+        append_stale_changes(&mut changes, &impact);
         mutation_preview(
             "requirement.confirm.preview",
-            context,
+            resource_context(&stored),
             request,
-            vec![format!(
-                "Decide {} current Requirement(s)",
-                stored.snapshot.requirements.len()
-            )],
+            changes,
         )
     }
 
@@ -887,18 +874,24 @@ impl Application {
         ActionReceipt<ApplicationMutationPreviewV4<ApplicationPlanProposeRequestV4>>,
         ApplicationError,
     > {
-        let (_, context) = validate_mutation(root, application_id, |service, pack| {
+        let (stored, context) = validate_mutation(root, application_id, |service, pack| {
             service.validate_plan_proposal(pack, application_id, &request)
         })?;
-        mutation_preview(
-            "plan.propose.preview",
-            context,
-            request.clone(),
-            vec![format!(
+        let change = match stored.snapshot.plan.as_ref() {
+            Some(plan) => format!(
+                "Rebuild stale Plan {} as draft revision {} with {} Deliverable selection(s); clear its prior confirmation and preserve stale material history",
+                plan.id,
+                plan.revision.get().checked_add(1).ok_or_else(
+                    || ApplicationError::InvalidInput("Plan revision overflow".to_owned())
+                )?,
+                request.deliverables.len()
+            ),
+            None => format!(
                 "Create one draft Plan with {} Deliverable selection(s)",
                 request.deliverables.len()
-            )],
-        )
+            ),
+        };
+        mutation_preview("plan.propose.preview", context, request, vec![change])
     }
 
     pub fn preview_plan_confirmation_v4(
@@ -1426,6 +1419,30 @@ where
     Ok((stored, context))
 }
 
+fn append_stale_changes(
+    changes: &mut Vec<String>,
+    impact: &canisend_store::ApplicationModelUpdatePreviewV3,
+) {
+    if let Some(plan) = impact.projected_snapshot.plan.as_ref()
+        && impact.stale_plan_ids.contains(&plan.id)
+    {
+        changes.push(format!(
+            "Mark Plan {} revision {} stale",
+            plan.id,
+            plan.revision.get()
+        ));
+    }
+    for deliverable in &impact.projected_snapshot.deliverables {
+        if impact.stale_deliverable_ids.contains(&deliverable.id) {
+            changes.push(format!(
+                "Mark Deliverable {} revision {} stale",
+                deliverable.id,
+                deliverable.revision.get()
+            ));
+        }
+    }
+}
+
 fn require_requirement_source_consent(
     root: &Path,
     reference: &canisend_contracts::ContentRevisionReferenceV3,
@@ -1737,6 +1754,48 @@ mod tests {
             .data;
         assert_eq!(after.snapshot.requirements[0].source_span.content, source);
         assert!(after.snapshot.opportunity.source_ids.contains(&source.id));
+        let archived = Application::archive_application(
+            &root,
+            other.snapshot.application.id.as_str(),
+            crate::ApplicationArchiveRequest {
+                expected_revision: other.snapshot.application.revision,
+                reason: "test-archive-before-confirm".to_owned(),
+            },
+        )
+        .unwrap()
+        .data
+        .stored;
+        let error = broker
+            .preview_requirement_confirmation(
+                &root,
+                &archived.snapshot.application.id,
+                ApplicationRequirementConfirmRequestV4 {
+                    expected_revision: archived.snapshot.application.revision,
+                    decisions: archived
+                        .snapshot
+                        .requirements
+                        .iter()
+                        .map(|item| {
+                            (
+                                item.id.clone(),
+                                canisend_store::RequirementDecisionV4::Confirm,
+                            )
+                        })
+                        .collect(),
+                },
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("archived Applications cannot be changed")
+        );
+        assert_eq!(
+            Application::application_model_v4(&root, archived.snapshot.application.id.as_str())
+                .unwrap()
+                .data,
+            archived
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -2457,6 +2516,7 @@ mod tests {
         let history = canisend_store::ApplicationModelRepository::new(&mut workspace.database)
             .history(&application_id)
             .unwrap();
+        drop(workspace);
         assert!(
             history
                 .iter()
@@ -2467,6 +2527,276 @@ mod tests {
                 .unwrap()
                 .data,
             after
+        );
+
+        let plan_request = |expected_revision| ApplicationPlanProposeRequestV4 {
+            expected_revision,
+            decision: item("proceed"),
+            deliverables: vec![ApplicationFlowPlannedDeliverableV3 {
+                kind: item("primary-document"),
+                disposition: PlannedDeliverableDispositionV3::Required,
+                rationale: "Reconsidered against corrected Requirements".to_owned(),
+                constraints: vec!["Use the corrected criterion".to_owned()],
+                execution_mode: Some(ExecutionMode::HostAgent),
+            }],
+        };
+        assert!(
+            broker
+                .preview_plan_proposal(
+                    &root,
+                    &application_id,
+                    plan_request(after.snapshot.application.revision)
+                )
+                .is_err()
+        );
+        let decisions = ApplicationRequirementConfirmRequestV4 {
+            expected_revision: after.snapshot.application.revision,
+            decisions: BTreeMap::from([(
+                changed.id.clone(),
+                canisend_store::RequirementDecisionV4::Confirm,
+            )]),
+        };
+        let mut overwrite = decisions.clone();
+        overwrite.decisions.insert(
+            after.snapshot.requirements[1].id.clone(),
+            canisend_store::RequirementDecisionV4::Exclude,
+        );
+        assert!(
+            broker
+                .preview_requirement_confirmation(&root, &application_id, overwrite)
+                .is_err()
+        );
+        let mut missing = decisions.clone();
+        missing.decisions.clear();
+        assert!(
+            broker
+                .preview_requirement_confirmation(&root, &application_id, missing)
+                .is_err()
+        );
+        let denied = broker
+            .preview_requirement_confirmation(&root, &application_id, decisions.clone())
+            .unwrap();
+        assert!(matches!(
+            broker.commit_requirement_confirmation(
+                &root,
+                &application_id,
+                &denied.preview_token,
+                &denied.preview.data.preview_sha256,
+                false
+            ),
+            Err(ApplicationMutationApprovalErrorV4::Denied)
+        ));
+        assert_eq!(
+            Application::application_model_v4(&root, application_id.as_str())
+                .unwrap()
+                .data,
+            after
+        );
+        let preview = broker
+            .preview_requirement_confirmation(&root, &application_id, decisions)
+            .unwrap();
+        let confirmed = broker
+            .commit_requirement_confirmation(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+            )
+            .unwrap()
+            .data;
+        assert_eq!(
+            confirmed.snapshot.requirements[1],
+            after.snapshot.requirements[1]
+        );
+        assert_eq!(confirmed.snapshot.plan, after.snapshot.plan);
+        assert_eq!(confirmed.snapshot.deliverables, after.snapshot.deliverables);
+
+        let mut unsupported = plan_request(confirmed.snapshot.application.revision);
+        let mut extra = unsupported.deliverables[0].clone();
+        extra.kind = item("supporting-document");
+        extra.disposition = PlannedDeliverableDispositionV3::Optional;
+        unsupported.deliverables.push(extra);
+        let error = broker
+            .preview_plan_proposal(&root, &application_id, unsupported)
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("materialized Deliverable kinds or counts is not supported")
+        );
+        let preview = broker
+            .preview_plan_proposal(
+                &root,
+                &application_id,
+                plan_request(confirmed.snapshot.application.revision),
+            )
+            .unwrap();
+        assert!(preview.preview.data.changes[0].contains("Rebuild stale Plan"));
+        let reproposed = broker
+            .commit_plan_proposal(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+            )
+            .unwrap()
+            .data;
+        assert_eq!(
+            reproposed.snapshot.plan.as_ref().unwrap().id,
+            confirmed.snapshot.plan.as_ref().unwrap().id
+        );
+        assert_eq!(
+            reproposed.snapshot.plan.as_ref().unwrap().state,
+            PlanStateV3::Draft
+        );
+        assert_eq!(reproposed.snapshot.plan.as_ref().unwrap().decided_by, None);
+        assert_eq!(
+            reproposed.snapshot.deliverables,
+            confirmed.snapshot.deliverables
+        );
+        let preview = broker
+            .preview_plan_confirmation(
+                &root,
+                &application_id,
+                ApplicationPlanConfirmRequestV4 {
+                    expected_revision: reproposed.snapshot.application.revision,
+                },
+            )
+            .unwrap();
+        let replanned = broker
+            .commit_plan_confirmation(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+            )
+            .unwrap()
+            .data;
+        assert_eq!(
+            replanned.snapshot.deliverables,
+            confirmed.snapshot.deliverables
+        );
+        assert!(
+            broker
+                .preview_review_disposition(
+                    &root,
+                    &application_id,
+                    ApplicationFlowApproveRequestV3 {
+                        expected_revision: replanned.snapshot.application.revision
+                    },
+                    Some(read_consent)
+                )
+                .is_err()
+        );
+        let recovered_destination = format!("applications/{application_id}/exports/recovered");
+        assert!(
+            broker
+                .preview_export_prepare(
+                    &root,
+                    &application_id,
+                    ApplicationFlowExportRequestV3::try_new(
+                        application_id.as_str(),
+                        replanned.snapshot.application.revision.get(),
+                        &recovered_destination
+                    )
+                    .unwrap(),
+                    Some(export_consent)
+                )
+                .is_err()
+        );
+        let preview = broker
+            .preview_deliverable_revision(
+                &root,
+                &application_id,
+                ApplicationDeliverableReviseRequestV4 {
+                    expected_revision: replanned.snapshot.application.revision,
+                    deliverable_id: deliverable_id.clone(),
+                    title: "Recovered draft".to_owned(),
+                    media_type: "text/markdown".to_owned(),
+                    content: "CORRECTED-DRAFT-BODY".to_owned(),
+                },
+            )
+            .unwrap();
+        let regenerated = broker
+            .commit_deliverable_revision(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+            )
+            .unwrap()
+            .data;
+        assert_eq!(regenerated.snapshot.deliverables[0].id, deliverable_id);
+        assert_eq!(
+            regenerated.snapshot.deliverables[0].plan.revision,
+            replanned.snapshot.plan.as_ref().unwrap().revision
+        );
+        let preview = broker
+            .preview_review_disposition(
+                &root,
+                &application_id,
+                ApplicationFlowApproveRequestV3 {
+                    expected_revision: regenerated.snapshot.application.revision,
+                },
+                Some(read_consent),
+            )
+            .unwrap();
+        let reviewed = broker
+            .commit_review_disposition(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+                Some(read_consent),
+            )
+            .unwrap()
+            .data;
+        let preview = broker
+            .preview_export_prepare(
+                &root,
+                &application_id,
+                ApplicationFlowExportRequestV3::try_new(
+                    application_id.as_str(),
+                    reviewed.snapshot.application.revision.get(),
+                    &recovered_destination,
+                )
+                .unwrap(),
+                Some(export_consent),
+            )
+            .unwrap();
+        let exported = broker
+            .commit_export_prepare(
+                &root,
+                &application_id,
+                &preview.preview_token,
+                &preview.preview.data.preview_sha256,
+                true,
+                Some(export_consent),
+            )
+            .unwrap();
+        assert_eq!(
+            exported.data.render.snapshot_sha256,
+            reviewed.snapshot_sha256
+        );
+        assert!(
+            root.join(recovered_destination)
+                .join("render-manifest.json")
+                .is_file()
+        );
+        let mut workspace = open_workspace_v4(&root).unwrap();
+        let history = canisend_store::ApplicationModelRepository::new(&mut workspace.database)
+            .history(&application_id)
+            .unwrap();
+        drop(workspace);
+        assert!(
+            history
+                .iter()
+                .any(|entry| entry.snapshot_sha256 == before.snapshot_sha256)
         );
 
         fs::remove_dir_all(root).expect("remove fixture");

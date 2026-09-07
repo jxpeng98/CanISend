@@ -31,6 +31,21 @@ clarification or permitted change that would resolve it. Record claims the evide
    it. Each guarded commit uses `request_confirmation: true`; the user answers. A saved proposal
    is not a confirmed Plan, and confirmed hold is not permission to draft.
 
+## Recover after an input correction
+
+Read the current Requirements, Plan and Deliverables. Return any proposed Requirements to
+`canisend-intake` for explicit decisions first. Reassess the fit and constraints, then use the
+existing Plan proposal preview/commit to rebuild a `stale` Plan with the same identity. Its old
+confirmation is cleared; confirm the new draft Plan through the normal native form.
+
+When materials already exist, preserve their kinds and counts in the new Plan. Adding/removing
+material kinds or changing counts is not supported by this recovery path; report that specific
+gap instead of deleting history. After Plan confirmation, update each stale material through
+Deliverable revision with its existing UUID and the latest Application revision. Read its old
+content only with the required consent, reassess it against the corrected inputs and Evidence,
+and retain only supported claims. Materials remain stale until updated and must pass review again
+before a fresh export. Old exports remain historical artifacts, not current application outputs.
+
 ## Design the material set
 
 Plan every required Pack kind, including catalog minimum counts, plus relevant optional kinds

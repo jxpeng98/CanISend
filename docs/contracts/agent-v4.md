@@ -129,6 +129,26 @@ Committed receipts contain the new revision, snapshot digest, audit-event identi
 artifact references. `submission_performed` must always be `false`; CanISend renders and exports
 but never uploads or submits an Application.
 
+## Bounded correction and recovery
+
+The CLI/MCP mutation facade confirms exactly the current `proposed` Requirement set, not every
+historical decision. Omitted proposals or attempts to overwrite a confirmed/excluded entry fail
+before a grant. Read the current set after every correction; an already completed decision does
+not need another commit. Requirement confirmation previews include repository-derived downstream
+invalidation when applicable.
+
+`requirement.revise` preserves the Requirement identity and returns changed content to proposed;
+unchanged content issues no mutation grant. After the proposed set is decided, `plan.propose`
+can rebuild a stale Plan with its existing UUID and next revision, fresh Requirement inputs and
+cleared confirmation. `plan.confirm` then confirms that draft while existing materials remain
+stale. Rebuilding requires the same materialized kinds/counts; unsupported material-set changes
+fail explicitly. Each Deliverable must be revised under the newly confirmed Plan, reviewed again
+and exported to a fresh destination. Historical revisions and exports remain intact.
+
+These are extensions of the existing preview/commit boundaries, with unchanged native consent,
+expected revision, single-use token and privacy checks. Source replacement/import for an existing
+Application remains a separate public-adapter development slice; recovery does not authorize it.
+
 ## Generated schemas and examples
 
 The source gate generates and verifies seven schemas under `schemas/agent/v4/`:

@@ -93,40 +93,42 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         request: &ApplicationRequirementConfirmRequestV4,
     ) -> Result<StoredApplicationModelV3, StoreError> {
         let current = self.current(pack, application_id, request.expected_revision)?;
-        if current.snapshot.requirements.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "at least one proposed Requirement is required".to_owned(),
-            ));
-        }
-        if current.snapshot.plan.is_some() || !current.snapshot.deliverables.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "Requirements cannot be decided after Plan or Deliverable creation".to_owned(),
-            ));
-        }
         let expected_ids = current
             .snapshot
             .requirements
             .iter()
+            .filter(|requirement| requirement.confirmation == RequirementConfirmationV3::Proposed)
             .map(|requirement| requirement.id.clone())
             .collect::<BTreeSet<_>>();
-        let decided_ids = request.decisions.keys().cloned().collect::<BTreeSet<_>>();
-        if expected_ids != decided_ids {
-            return Err(StoreError::InvalidInput(
-                "Requirement confirmation must decide every exact current Requirement once"
+        if expected_ids.is_empty() {
+            return Err(StoreError::ApplicationModelConflict(
+                "Requirement decisions are already committed; no proposed Requirements remain"
                     .to_owned(),
             ));
         }
-        if current
-            .snapshot
-            .requirements
-            .iter()
-            .any(|requirement| requirement.confirmation != RequirementConfirmationV3::Proposed)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "Requirement decisions are already committed".to_owned(),
+        let decided_ids = request.decisions.keys().cloned().collect::<BTreeSet<_>>();
+        if expected_ids != decided_ids {
+            return Err(StoreError::InvalidInput(
+                "Requirement confirmation must decide every exact proposed Requirement once; existing decisions cannot be overwritten".to_owned(),
             ));
         }
         Ok(current)
+    }
+
+    pub fn preview_requirement_confirmation(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationRequirementConfirmRequestV4,
+    ) -> Result<(StoredApplicationModelV3, ApplicationModelUpdatePreviewV3), StoreError> {
+        let current = self.validate_requirement_confirmation(pack, application_id, request)?;
+        let candidate = requirement_confirmation_candidate(&current, request)?;
+        let impact = ApplicationModelRepository::new(self.database).preview_update(
+            application_id,
+            request.expected_revision,
+            candidate,
+        )?;
+        Ok((current, impact))
     }
 
     pub fn validate_requirement_extraction(
@@ -198,11 +200,6 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         request: &ApplicationRequirementReviseRequestV4,
         current: &StoredApplicationModelV3,
     ) -> Result<Option<canisend_contracts::ApplicationModelSnapshotV3>, StoreError> {
-        if current.snapshot.application.lifecycle == ApplicationLifecycleV3::Archived {
-            return Err(StoreError::ApplicationModelConflict(
-                "archived Applications cannot be revised".to_owned(),
-            ));
-        }
         self.validate_requirement_source(
             pack,
             application_id,
@@ -263,11 +260,17 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         request: &ApplicationPlanProposeRequestV4,
     ) -> Result<StoredApplicationModelV3, StoreError> {
         let current = self.current(pack, application_id, request.expected_revision)?;
-        if current.snapshot.plan.is_some() || !current.snapshot.deliverables.is_empty() {
+        if current
+            .snapshot
+            .plan
+            .as_ref()
+            .is_some_and(|plan| plan.state != PlanStateV3::Stale)
+        {
             return Err(StoreError::ApplicationModelConflict(
-                "a Plan already exists for this Application".to_owned(),
+                "a current Plan already exists; only a stale Plan can be reproposed".to_owned(),
             ));
         }
+        require_stale_materials(&current)?;
         if current.snapshot.requirements.is_empty()
             || current
                 .snapshot
@@ -292,6 +295,29 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
             .map_err(|error| StoreError::InvalidInput(error.to_string()))?;
         crate::application_flow_v3::validate_plan_selection(&catalog, &request.deliverables)?;
+        if !current.snapshot.deliverables.is_empty() {
+            // Plans select kinds; existing material counts are preserved by retaining
+            // every Deliverable record, including multiple documents of the same kind.
+            let planned = request
+                .deliverables
+                .iter()
+                .filter(|item| {
+                    item.disposition != canisend_contracts::PlannedDeliverableDispositionV3::Omitted
+                })
+                .map(|item| catalog.kind_id(&item.kind))
+                .collect::<BTreeSet<_>>();
+            let materialized = current
+                .snapshot
+                .deliverables
+                .iter()
+                .map(|item| item.kind.clone())
+                .collect::<BTreeSet<_>>();
+            if planned != materialized {
+                return Err(StoreError::ApplicationModelConflict(
+                    "changing materialized Deliverable kinds or counts is not supported; preserve the existing material set when replanning".to_owned(),
+                ));
+            }
+        }
         Ok(current)
     }
 
@@ -302,11 +328,7 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         request: &ApplicationPlanConfirmRequestV4,
     ) -> Result<StoredApplicationModelV3, StoreError> {
         let current = self.current(pack, application_id, request.expected_revision)?;
-        if !current.snapshot.deliverables.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "a Plan cannot be confirmed after Deliverable creation".to_owned(),
-            ));
-        }
+        require_stale_materials(&current)?;
         let plan = current.snapshot.plan.as_ref().ok_or_else(|| {
             StoreError::ApplicationModelConflict(
                 "a proposed Plan is required before confirmation".to_owned(),
@@ -395,59 +417,8 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         application_id: &ApplicationId,
         request: ApplicationRequirementConfirmRequestV4,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
-        let current = self.current(pack, application_id, request.expected_revision)?;
-        if current.snapshot.requirements.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "at least one proposed Requirement is required".to_owned(),
-            ));
-        }
-        if current.snapshot.plan.is_some() || !current.snapshot.deliverables.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "Requirements cannot be decided after Plan or Deliverable creation".to_owned(),
-            ));
-        }
-        let expected_ids = current
-            .snapshot
-            .requirements
-            .iter()
-            .map(|requirement| requirement.id.clone())
-            .collect::<BTreeSet<_>>();
-        let decided_ids = request.decisions.keys().cloned().collect::<BTreeSet<_>>();
-        if expected_ids != decided_ids {
-            return Err(StoreError::InvalidInput(
-                "Requirement confirmation must decide every exact current Requirement once"
-                    .to_owned(),
-            ));
-        }
-        if current
-            .snapshot
-            .requirements
-            .iter()
-            .any(|requirement| requirement.confirmation != RequirementConfirmationV3::Proposed)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "Requirement decisions are already committed".to_owned(),
-            ));
-        }
-
-        let decided_at = now_utc()?;
-        let mut candidate = current.snapshot;
-        candidate.application.updated_at = decided_at.clone();
-        candidate.application.revision = next_revision(candidate.application.revision)?;
-        for requirement in &mut candidate.requirements {
-            requirement.confirmation = match request
-                .decisions
-                .get(&requirement.id)
-                .expect("exact decision set validated above")
-            {
-                RequirementDecisionV4::Confirm => RequirementConfirmationV3::Confirmed,
-                RequirementDecisionV4::Exclude => RequirementConfirmationV3::Excluded,
-            };
-            requirement.confirmed_by = Some(ActorKind::User);
-            requirement.confirmed_at = Some(decided_at.clone());
-            requirement.revision = next_revision(requirement.revision)?;
-        }
-        crate::application_v3::validate_snapshot(&candidate)?;
+        let current = self.validate_requirement_confirmation(pack, application_id, &request)?;
+        let candidate = requirement_confirmation_candidate(&current, &request)?;
         ApplicationModelRepository::new(self.database).commit(
             application_id,
             request.expected_revision,
@@ -522,36 +493,16 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         application_id: &ApplicationId,
         request: ApplicationPlanProposeRequestV4,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
-        let current = self.current(pack, application_id, request.expected_revision)?;
-        if current.snapshot.plan.is_some() || !current.snapshot.deliverables.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "a Plan already exists for this Application".to_owned(),
-            ));
-        }
-        if current.snapshot.requirements.is_empty()
-            || current
-                .snapshot
-                .requirements
-                .iter()
-                .any(|requirement| requirement.confirmation == RequirementConfirmationV3::Proposed)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "all Requirements require an explicit decision before Plan proposal".to_owned(),
-            ));
-        }
-        if !current
-            .snapshot
-            .requirements
-            .iter()
-            .any(|requirement| requirement.confirmation == RequirementConfirmationV3::Confirmed)
-        {
-            return Err(StoreError::ApplicationModelConflict(
-                "a Plan requires at least one confirmed Requirement".to_owned(),
-            ));
-        }
+        let current = self.validate_plan_proposal(pack, application_id, &request)?;
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
             .map_err(|error| StoreError::InvalidInput(error.to_string()))?;
-        crate::application_flow_v3::validate_plan_selection(&catalog, &request.deliverables)?;
+        let (plan_id, plan_revision) = match current.snapshot.plan.as_ref() {
+            Some(plan) => (plan.id.clone(), next_revision(plan.revision)?),
+            None => (
+                PlanId::try_new(generate_id()?.to_string())?,
+                Revision::try_new(1)?,
+            ),
+        };
 
         let updated_at = now_utc()?;
         let mut candidate = current.snapshot;
@@ -579,7 +530,7 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             })
             .collect();
         candidate.plan = Some(PlanRecordV3 {
-            id: PlanId::try_new(generate_id()?.to_string())?,
+            id: plan_id,
             application_id: application_id.clone(),
             pack: candidate.pack.clone(),
             state: PlanStateV3::Draft,
@@ -589,7 +540,7 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             blockers: Vec::new(),
             decided_by: None,
             decided_at: None,
-            revision: Revision::try_new(1)?,
+            revision: plan_revision,
         });
         crate::application_v3::validate_snapshot(&candidate)?;
         ApplicationModelRepository::new(self.database).commit(
@@ -607,12 +558,7 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         application_id: &ApplicationId,
         request: ApplicationPlanConfirmRequestV4,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
-        let current = self.current(pack, application_id, request.expected_revision)?;
-        if !current.snapshot.deliverables.is_empty() {
-            return Err(StoreError::ApplicationModelConflict(
-                "a Plan cannot be confirmed after Deliverable creation".to_owned(),
-            ));
-        }
+        let current = self.validate_plan_confirmation(pack, application_id, &request)?;
         let mut candidate = current.snapshot;
         let decided_at = now_utc()?;
         let plan = candidate.plan.as_mut().ok_or_else(|| {
@@ -647,8 +593,7 @@ impl<'a> ApplicationMutationServiceV4<'a> {
         application_id: &ApplicationId,
         request: ApplicationDeliverableReviseRequestV4,
     ) -> Result<ApplicationModelCommitResultV3, StoreError> {
-        let current = self.current(pack, application_id, request.expected_revision)?;
-        validate_deliverable_text(&request.title, &request.media_type, &request.content)?;
+        let current = self.validate_deliverable_revision(pack, application_id, &request)?;
         let digest =
             Sha256Digest::try_new(hex::encode(Sha256::digest(request.content.as_bytes())))?;
         let evidence_inputs = ApplicationAssociationServiceV4::new(self.database, self.blobs)
@@ -726,6 +671,11 @@ impl<'a> ApplicationMutationServiceV4<'a> {
                 expected_revision.get(),
                 current.snapshot.application.revision.get()
             )));
+        }
+        if current.snapshot.application.lifecycle == ApplicationLifecycleV3::Archived {
+            return Err(StoreError::ApplicationModelConflict(
+                "archived Applications cannot be changed".to_owned(),
+            ));
         }
         if current.snapshot.pack != pack_binding(pack) {
             return Err(StoreError::ApplicationModelConflict(
@@ -824,6 +774,43 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             requirements,
         )
     }
+}
+
+fn requirement_confirmation_candidate(
+    current: &StoredApplicationModelV3,
+    request: &ApplicationRequirementConfirmRequestV4,
+) -> Result<canisend_contracts::ApplicationModelSnapshotV3, StoreError> {
+    let decided_at = now_utc()?;
+    let mut candidate = current.snapshot.clone();
+    candidate.application.updated_at = decided_at.clone();
+    candidate.application.revision = next_revision(candidate.application.revision)?;
+    for requirement in &mut candidate.requirements {
+        let Some(decision) = request.decisions.get(&requirement.id) else {
+            continue;
+        };
+        requirement.confirmation = match decision {
+            RequirementDecisionV4::Confirm => RequirementConfirmationV3::Confirmed,
+            RequirementDecisionV4::Exclude => RequirementConfirmationV3::Excluded,
+        };
+        requirement.confirmed_by = Some(ActorKind::User);
+        requirement.confirmed_at = Some(decided_at.clone());
+        requirement.revision = next_revision(requirement.revision)?;
+    }
+    Ok(candidate)
+}
+
+fn require_stale_materials(current: &StoredApplicationModelV3) -> Result<(), StoreError> {
+    if current
+        .snapshot
+        .deliverables
+        .iter()
+        .any(|item| item.state != DeliverableStateV3::Stale)
+    {
+        return Err(StoreError::ApplicationModelConflict(
+            "existing Deliverables must be stale before rebuilding or confirming a Plan".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_deliverable_text(
