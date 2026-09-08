@@ -18,6 +18,7 @@ mod discovery;
 mod document;
 mod evidence;
 mod job;
+mod local_task_v4;
 mod matching;
 mod migration_v3;
 mod pack_migration_v3;
@@ -52,7 +53,7 @@ pub use application_mutation_v4::{
     ApplicationDeliverableReviseRequestV4, ApplicationMutationServiceV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    RequirementDecisionV4,
+    ApplicationRequirementReviseRequestV4, ApplicationSourceReviseRequestV4, RequirementDecisionV4,
 };
 pub use application_projection_v3::{
     APPLICATION_PROJECTION_FORMAT_V3, ApplicationLegacyProjectionV3,
@@ -61,7 +62,8 @@ pub use application_projection_v3::{
 };
 pub use application_v3::{
     ApplicationModelCommitResultV3, ApplicationModelRepository, ApplicationModelRevisionV3,
-    StoredApplicationModelV3, WORKSPACE_V3_FORMAT, WorkspaceV3AuthorityState,
+    ApplicationModelUpdatePreviewV3, StoredApplicationModelV3, WORKSPACE_V3_FORMAT,
+    WorkspaceV3AuthorityState,
 };
 pub use artifact::ArtifactService;
 pub use association_v4::{
@@ -84,6 +86,10 @@ pub use discovery::DiscoveryService;
 pub use document::DocumentService;
 pub use evidence::EvidenceService;
 pub use job::{JobService, NewSource};
+pub use local_task_v4::{
+    LOCAL_TASK_CANDIDATE_PURPOSE_V4, LOCAL_TASK_OPERATION_V4, LocalTaskDraftRequestV4,
+    LocalTaskServiceV4,
+};
 pub use matching::MatchService;
 pub use migration_v3::{
     ACADEMIC_JOB_PACK_ID, LEGACY_WORKSPACE_SCHEMA_VERSION, WORKSPACE_V3_MIGRATION_PREVIEW_FORMAT,

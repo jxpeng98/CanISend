@@ -957,9 +957,15 @@ mod tests {
         for host in &created.hosts {
             assert!(host.skills.manifest_path.is_file());
             assert!(!host.skills.files.is_empty());
-            assert_eq!(host.mcp.tools.len(), 36);
-            assert_eq!(host.mcp.read_only_tools.len(), 26);
-            assert_eq!(host.mcp.guarded_write_tools.len(), 10);
+            assert_eq!(host.mcp.tools, canisend_app::CANISEND_MCP_TOOLS);
+            assert_eq!(
+                host.mcp.read_only_tools,
+                canisend_app::CANISEND_MCP_READ_ONLY_TOOLS
+            );
+            assert_eq!(
+                host.mcp.guarded_write_tools,
+                canisend_app::CANISEND_MCP_GUARDED_WRITE_TOOLS
+            );
             assert_eq!(
                 host.mcp
                     .read_only_tools

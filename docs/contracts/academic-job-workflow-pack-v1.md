@@ -2,11 +2,11 @@
 
 **Pack ID:** `org.canisend.academic-job`
 
-**Pack version:** `1.0.0`
+**Pack version:** see the authoritative manifest below
 
 **Format:** `canisend.workflow-pack/v1`
 
-**Content digest:** `3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07`
+**Content digest:** see the authoritative manifest below
 
 **Authority:**
 `crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json`
@@ -67,3 +67,12 @@ outputs, execution modes, Evidence/Requirement taxonomy, fixed `DocumentKind` or
 cardinality, exact prompt/template inventory, validator bindings, capability references, locales,
 and v2→v3 golden migration. The former test-only two-stage Pack constructor has been removed, so
 these paths consume one checked-in manifest and resource set.
+
+## Bundled template updates
+
+CLI builds carry the current academic Pack plus historical complete bundles required by existing
+Applications. The current versions and source hashes are recorded in
+`release/modernpro-sources.json`; `scripts/sync_typst_templates.py` advances the current Pack and
+preserves its predecessor. New Applications select the current bundled Pack. Existing bindings
+continue to resolve by exact ID, version, and content digest, with ordinary byte-loader validation;
+CLI installation does not migrate or reapprove an Application.

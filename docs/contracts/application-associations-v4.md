@@ -51,6 +51,16 @@ Associations never float to a newer resource revision. When a Source or linked r
 the existing link is reported as stale and must be reviewed, unlinked, and explicitly rebound.
 Unrelated Applications and links remain current.
 
+The explicit `source.revise` Application operation updates an exclusively linked pasted-text
+Source and rebinds its association in the same SQLite transaction as the new Application snapshot.
+It requires a replacement draft for every Requirement using that exact Source revision, preserves
+Source/Requirement identities and old Blobs, and resets affected decisions to proposed. Preview
+lists downstream invalidation; commit recomputes it and rechecks exclusive ownership inside the
+transaction. A new association made after preview prevents the update. Shared Sources and
+file/URL Sources are rejected by this bounded public route. No-op input returns no mutation grant.
+A database failure rolls back Source metadata, association, Application and audit authority;
+immutable Blobs staged before the transaction may remain unreferenced for normal garbage collection.
+
 A linked Source cannot be deleted. After every Application link is explicitly removed, its Source
 metadata and Blob references may be deleted; immutable Blob garbage collection remains a separate
 bounded maintenance operation. Every associate, unlink, revision, and delete operation writes a

@@ -725,6 +725,79 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
     }
 }
 
+pub(crate) fn validate_exclusive_pasted_source(
+    connection: &Connection,
+    application_id: &ApplicationId,
+    reference: &ContentRevisionReferenceV3,
+) -> Result<WorkspaceSourceRevisionV4, StoreError> {
+    validate_current_source_association(connection, application_id, reference)?;
+    let record = load_source_revision(connection, &reference.id, reference.revision)?;
+    if record.kind != WorkspaceSourceKindV4::PastedText {
+        return Err(StoreError::InvalidInput(
+            "Source revision currently accepts pasted text only; file, PDF and URL updates need their original intake adapters".to_owned(),
+        ));
+    }
+    let storage = ApplicationStorage::detect(connection)?;
+    let count: i64 = connection.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM {} WHERE source_id = ?1",
+            storage.source_associations()
+        ),
+        [reference.id.as_str()],
+        |row| row.get(0),
+    )?;
+    if count != 1 {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Source is shared by multiple Applications; a single-Application revision cannot change their inputs".to_owned(),
+        ));
+    }
+    Ok(record)
+}
+
+pub(crate) fn revise_prepared_source_association(
+    transaction: &Transaction<'_>,
+    application_id: &ApplicationId,
+    expected: &ContentRevisionReferenceV3,
+    prepared: &PreparedWorkspaceSourceV4,
+) -> Result<(), StoreError> {
+    let old = validate_exclusive_pasted_source(transaction, application_id, expected)?;
+    let record = &prepared.record;
+    if record.id != expected.id
+        || record.revision.get().checked_sub(1) != Some(expected.revision.get())
+        || record.kind != old.kind
+        || record.locator != old.locator
+        || record.final_locator != old.final_locator
+        || record.redirect_chain != old.redirect_chain
+        || record.content_type != old.content_type
+        || record.privacy != old.privacy
+    {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Source revision identity or provenance differs".to_owned(),
+        ));
+    }
+    insert_source_revision(transaction, record, false)?;
+    transaction.execute(
+        "UPDATE workspace_source_v4_heads SET head_revision = ?2 WHERE source_id = ?1",
+        params![record.id.as_str(), to_i64(record.revision.get())?],
+    )?;
+    let storage = ApplicationStorage::detect(transaction)?;
+    transaction.execute(
+        &format!("UPDATE {} SET source_revision = ?3, source_sha256 = ?4, associated_at = ?5 WHERE application_id = ?1 AND source_id = ?2", storage.source_associations()),
+        params![application_id.as_str(), record.id.as_str(), to_i64(record.revision.get())?, record.normalized_sha256.as_str(), record.created_at.as_str()],
+    )?;
+    insert_source_blob_references(transaction, record)?;
+    insert_association_audit(
+        transaction,
+        &generate_id()?,
+        ActorKind::User,
+        "application-v4.source-revise",
+        &record.id,
+        Some(record.revision),
+        "application-source-revision",
+        &record.created_at,
+    )
+}
+
 pub(crate) fn prepare_source(
     blobs: &BlobStore,
     source: NewWorkspaceSourceV4,
@@ -869,6 +942,42 @@ fn insert_source_association(
             associated_at.as_str()
         ],
     )?;
+    Ok(())
+}
+
+/// Also used under the Application write transaction so unlink/replacement cannot race commit.
+pub(crate) fn validate_current_source_association(
+    connection: &Connection,
+    application_id: &ApplicationId,
+    reference: &ContentRevisionReferenceV3,
+) -> Result<(), StoreError> {
+    let storage = ApplicationStorage::detect(connection)?;
+    let matches: bool = connection.query_row(
+        &format!(
+            "SELECT EXISTS (
+            SELECT 1 FROM {} AS association
+            JOIN workspace_source_v4_heads AS head ON head.source_id = association.source_id
+            JOIN workspace_source_v4_revisions AS revision
+                ON revision.source_id = head.source_id AND revision.revision = head.head_revision
+            WHERE association.application_id = ?1 AND association.source_id = ?2
+                AND association.source_revision = ?3 AND head.head_revision = ?3
+                AND association.source_sha256 = ?4 AND revision.normalized_sha256 = ?4
+        )",
+            storage.source_associations()
+        ),
+        params![
+            application_id.as_str(),
+            reference.id.as_str(),
+            to_i64(reference.revision.get())?,
+            reference.sha256.as_str()
+        ],
+        |row| row.get(0),
+    )?;
+    if !matches {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Requirement Source association is missing, stale or differs from the exact revision/digest".to_owned(),
+        ));
+    }
     Ok(())
 }
 
@@ -1305,6 +1414,78 @@ mod tests {
             revision: source.revision,
             sha256: source.normalized_sha256.clone(),
         }
+    }
+
+    #[test]
+    fn requirement_commit_rechecks_source_association_after_preflight() {
+        let root = root("requirement-source-transaction");
+        let mut workspace = Workspace::init_v4(&root).unwrap();
+        let (generic_id, academic_id) = mixed_applications(&mut workspace);
+        for (application_id, unlink) in [(generic_id, false), (academic_id, true)] {
+            let before = crate::ApplicationModelRepository::new(&mut workspace.database)
+                .get(&application_id)
+                .unwrap();
+            let source = before.snapshot.requirements[0].source_span.content.clone();
+            let mut candidate = before.snapshot.clone();
+            candidate.application.revision = Revision::try_new(2).unwrap();
+            candidate.application.updated_at = now_utc().unwrap();
+            candidate.requirements[0].priority = RequirementPriorityV3::Recommended;
+            candidate.requirements[0].revision = Revision::try_new(2).unwrap();
+            validate_current_source_association(
+                workspace.database.connection(),
+                &application_id,
+                &source,
+            )
+            .unwrap();
+            let preview = crate::ApplicationModelRepository::new(&mut workspace.database)
+                .preview_update(
+                    &application_id,
+                    Revision::try_new(1).unwrap(),
+                    candidate.clone(),
+                )
+                .unwrap();
+            if unlink {
+                ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
+                    .unlink_source(&application_id, &source.id, ActorKind::User)
+                    .unwrap();
+            }
+            let audit_before: i64 = workspace
+                .database
+                .connection()
+                .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+                .unwrap();
+            let result = crate::ApplicationModelRepository::new(&mut workspace.database)
+                .commit_with_requirement_source(
+                    &application_id,
+                    Revision::try_new(1).unwrap(),
+                    candidate,
+                    ActorKind::User,
+                    "application-v4-requirement-revise",
+                    &source,
+                );
+            if unlink {
+                assert!(matches!(
+                    result,
+                    Err(StoreError::ApplicationAssociationConflict(_))
+                ));
+                let repository = crate::ApplicationModelRepository::new(&mut workspace.database);
+                assert_eq!(repository.get(&application_id).unwrap(), before);
+                assert_eq!(repository.history(&application_id).unwrap().len(), 1);
+                let audit_after: i64 = workspace
+                    .database
+                    .connection()
+                    .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(audit_before, audit_after);
+            } else {
+                assert_eq!(
+                    result.unwrap().stored.snapshot_sha256,
+                    preview.projected_snapshot_sha256
+                );
+            }
+        }
+        drop(workspace);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

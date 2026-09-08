@@ -22,10 +22,12 @@ mod discovery;
 mod document;
 mod dossier;
 mod error;
+mod evidence_v4;
 mod intake;
 mod intake_v4;
 mod job;
 mod local_intake_v4;
+mod local_task_v4;
 mod migration_v3;
 mod package;
 mod plan;
@@ -42,6 +44,11 @@ mod workflow;
 mod workflow_pack;
 mod workflow_pack_presentation;
 mod workspace;
+
+pub use evidence_v4::{
+    EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceApprovalPreviewV4,
+    EvidencePreviewReadModelV4,
+};
 
 pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
@@ -81,6 +88,7 @@ pub use application_flow_v3::{
 pub use application_mutations_v4::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationMutationApprovalPreviewV4, ApplicationMutationPreviewV4,
+    ApplicationRequirementRevisionPreviewV4, ApplicationSourceRevisionPreviewV4,
 };
 pub use application_resources_v4::{
     ApplicationResourceContextV4, DeliverableListReadModelV4, DeliverableShowReadModelV4,
@@ -116,7 +124,8 @@ pub use canisend_resources::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_
 pub use canisend_store::{
     ApplicationDeliverableReviseRequestV4, ApplicationPlanConfirmRequestV4,
     ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
-    ApplicationRequirementExtractRequestV4, RequirementDecisionV4,
+    ApplicationRequirementExtractRequestV4, ApplicationRequirementReviseRequestV4,
+    ApplicationSourceReviseRequestV4, RequirementDecisionV4,
 };
 pub use catalog::{
     InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,

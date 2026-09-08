@@ -15,12 +15,14 @@ use canisend_app::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    ApprovalBrokerError, ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4,
-    AssociationChangeV4, EvidenceAssociationPreviewRequestV4, PrivateExportConsent,
-    PrivateReadConsent, ProfileAssociationPreviewRequestV4, RequirementDecisionV4,
+    ApplicationRequirementReviseRequestV4, ApplicationSourceReviseRequestV4, ApprovalBrokerError,
+    ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
+    EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceAssociationPreviewRequestV4,
+    PrivateExportConsent, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
+    RequirementDecisionV4,
 };
 use canisend_contracts::{
-    ApplicationId, ContentRevisionReferenceV3, DeliverableId, ExecutionMode,
+    ApplicationId, ContentRevisionReferenceV3, DeliverableId, EvidenceProposalSet, ExecutionMode,
     PlannedDeliverableDispositionV3, RequirementId, RequirementPriorityV3, Revision, Sha256Digest,
     WorkflowPackItemId,
 };
@@ -84,6 +86,7 @@ pub struct CanISendMcpServer {
     application_id: Option<ApplicationId>,
     association_approvals: AssociationApprovalBrokerV4,
     mutation_approvals: ApplicationMutationApprovalBrokerV4,
+    evidence_approvals: EvidenceApprovalBrokerV4,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -147,18 +150,32 @@ pub struct EvidenceAssociationPreviewParameters {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct EvidenceConfirmPreviewParameters {
+    pub application_id: String,
+    pub profile_source: ContentRevisionReferenceV3,
+    pub proposals: EvidenceProposalSet,
+    #[schemars(
+        description = "Request separate native private-read consent for the selected Profile Source; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct AssociationCommitParameters {
     #[schemars(description = "CanISend Application ID bound to the preview")]
     pub application_id: String,
     #[schemars(description = "Opaque single-use preview token")]
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
-    #[schemars(description = "True only after the user explicitly approves this exact preview")]
-    pub approved: bool,
     #[schemars(
-        description = "True only after explicit consent to read the selected private input"
+        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
     )]
-    pub confirmed_private_read: bool,
+    pub request_confirmation: bool,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -200,8 +217,10 @@ pub struct RequirementExtractPreviewParameters {
     pub expected_revision: u64,
     pub source: ContentRevisionReferenceV3,
     pub requirements: Vec<RequirementExtractInput>,
-    #[schemars(description = "True only after explicit consent to read a private local Source")]
-    pub confirmed_private_read: bool,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -210,9 +229,41 @@ pub struct RequirementExtractCommitParameters {
     pub application_id: String,
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
-    pub approved: bool,
-    #[schemars(description = "True only after explicit consent to read a private local Source")]
-    pub confirmed_private_read: bool,
+    #[schemars(
+        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+    )]
+    pub request_confirmation: bool,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRevisePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub source: ContentRevisionReferenceV3,
+    pub text: String,
+    #[schemars(
+        description = "Exactly every existing Requirement linked to this Source, keyed by its unchanged ID. Byte spans must match the replacement text."
+    )]
+    pub requirements: BTreeMap<String, RequirementExtractInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequirementRevisePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub requirement_id: String,
+    pub source: ContentRevisionReferenceV3,
+    pub requirement: RequirementExtractInput,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -261,6 +312,19 @@ pub struct DeliverableDraftPreviewParameters {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct LocalTaskDraftPreviewParameters {
+    pub application_id: String,
+    pub task_id: String,
+    pub expected_generation: u64,
+    pub candidate_sha256: Sha256Digest,
+    #[schemars(
+        description = "Request native private-read consent for the exact stored candidate; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeliverableRevisePreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
@@ -276,8 +340,10 @@ pub struct ApplicationMutationCommitParameters {
     pub application_id: String,
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
-    #[schemars(description = "True only after explicit user approval of the exact preview")]
-    pub approved: bool,
+    #[schemars(
+        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+    )]
+    pub request_confirmation: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -285,9 +351,9 @@ pub struct ApplicationMutationCommitParameters {
 pub struct DeliverableAuditParameters {
     pub application_id: String,
     #[schemars(
-        description = "True only after explicit consent to read private Deliverable bodies"
+        description = "Request separate native private-read consent; this flag does not grant consent."
     )]
-    pub confirmed_private_read: bool,
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -295,9 +361,9 @@ pub struct DeliverableAuditParameters {
 pub struct ReviewInspectParameters {
     pub application_id: String,
     #[schemars(
-        description = "True only after explicit consent to read private Deliverable bodies"
+        description = "Request separate native private-read consent; this flag does not grant consent."
     )]
-    pub confirmed_private_read: bool,
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -306,9 +372,9 @@ pub struct ReviewDispositionPreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
     #[schemars(
-        description = "True only after explicit consent to read private Deliverable bodies"
+        description = "Request separate native private-read consent; this flag does not grant consent."
     )]
-    pub confirmed_private_read: bool,
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -317,8 +383,14 @@ pub struct ReviewDispositionCommitParameters {
     pub application_id: String,
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
-    pub approved: bool,
-    pub confirmed_private_read: bool,
+    #[schemars(
+        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+    )]
+    pub request_confirmation: bool,
+    #[schemars(
+        description = "Request separate native private-read consent; this flag does not grant consent."
+    )]
+    pub request_private_read: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -327,8 +399,10 @@ pub struct ExportPreparePreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
     pub destination: String,
-    #[schemars(description = "True only after explicit consent to export private artifacts")]
-    pub confirmed_private_export: bool,
+    #[schemars(
+        description = "Request separate native private-export consent; this flag does not grant consent."
+    )]
+    pub request_private_export: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -344,8 +418,14 @@ pub struct ExportPrepareCommitParameters {
     pub application_id: String,
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
-    pub approved: bool,
-    pub confirmed_private_export: bool,
+    #[schemars(
+        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+    )]
+    pub request_confirmation: bool,
+    #[schemars(
+        description = "Request separate native private-export consent; this flag does not grant consent."
+    )]
+    pub request_private_export: bool,
 }
 
 impl CanISendMcpServer {
@@ -400,8 +480,8 @@ impl CanISendMcpServer {
         };
         let properties = tool.input_schema.get("properties");
         let has = |field| properties.and_then(|value| value.get(field)).is_some();
-        let commit = has("approved");
-        if commit && arguments.get("approved") != Some(&Value::Bool(true)) {
+        let commit = has("request_confirmation");
+        if commit && arguments.get("request_confirmation") != Some(&Value::Bool(true)) {
             return Ok(()); // Explicit cancellation still consumes the existing preview.
         }
         if let Some(application_id) = arguments.get("application_id").and_then(Value::as_str) {
@@ -409,8 +489,8 @@ impl CanISendMcpServer {
         }
         let preview = if commit {
             let mut binding = arguments.clone();
-            binding.remove("confirmed_private_read");
-            binding.remove("confirmed_private_export");
+            binding.remove("request_private_read");
+            binding.remove("request_private_export");
             let parameters: ApplicationMutationCommitParameters =
                 serde_json::from_value(Value::Object(binding))
                     .map_err(|_| McpError::invalid_params("Invalid commit binding", None))?;
@@ -418,6 +498,10 @@ impl CanISendMcpServer {
             let kind = match request.name.as_ref() {
                 "canisend_requirement_extract_commit" => {
                     ApprovalKind::ApplicationRequirementExtraction
+                }
+                "canisend_source_revise_commit" => ApprovalKind::ApplicationSourceRevision,
+                "canisend_requirement_revise_commit" => {
+                    ApprovalKind::ApplicationRequirementRevision
                 }
                 "canisend_requirement_confirm_commit" => {
                     ApprovalKind::ApplicationRequirementConfirmation
@@ -430,6 +514,7 @@ impl CanISendMcpServer {
                 "canisend_export_prepare_commit" => ApprovalKind::ExportPrepare,
                 "canisend_profile_association_commit" => ApprovalKind::ProfileAssociation,
                 "canisend_evidence_association_commit" => ApprovalKind::EvidenceAssociation,
+                "canisend_evidence_confirm_commit" => ApprovalKind::EvidenceConfirmation,
                 _ => {
                     return Err(McpError::invalid_params(
                         "Tool has no trusted confirmation binding",
@@ -437,7 +522,15 @@ impl CanISendMcpServer {
                     ));
                 }
             };
-            let Json(preview) = if matches!(
+            let Json(preview) = if kind == ApprovalKind::EvidenceConfirmation {
+                let digest = parameters.preview_sha256.clone();
+                Self::evidence_result(self.evidence_approvals.confirmation_preview(
+                    self.workspace(),
+                    &application_id,
+                    &parameters.preview_token,
+                    &digest,
+                ))?
+            } else if matches!(
                 kind,
                 ApprovalKind::ProfileAssociation | ApprovalKind::EvidenceAssociation
             ) {
@@ -463,11 +556,11 @@ impl CanISendMcpServer {
         };
         for (flag, purpose) in [
             (
-                "confirmed_private_read",
+                "request_private_read",
                 "Read the selected private input and return it to this Host/provider",
             ),
             (
-                "confirmed_private_export",
+                "request_private_export",
                 "Read private content for the selected local export; never upload or submit",
             ),
         ] {
@@ -478,6 +571,9 @@ impl CanISendMcpServer {
                         matches!(
                             name.as_str(),
                             "application_id"
+                                | "task_id"
+                                | "expected_generation"
+                                | "candidate_sha256"
                                 | "source"
                                 | "profile_source"
                                 | "evidence"
@@ -529,6 +625,7 @@ impl CanISendMcpServer {
             application_id,
             association_approvals: AssociationApprovalBrokerV4::default(),
             mutation_approvals: ApplicationMutationApprovalBrokerV4::default(),
+            evidence_approvals: EvidenceApprovalBrokerV4::default(),
         })
     }
 
@@ -670,6 +767,23 @@ impl CanISendMcpServer {
         }
     }
 
+    fn evidence_result<T: Serialize>(
+        result: Result<T, EvidenceApprovalErrorV4>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        Self::mutation_result(result.map_err(|error| match error {
+            EvidenceApprovalErrorV4::Application(error) => {
+                ApplicationMutationApprovalErrorV4::Application(error)
+            }
+            EvidenceApprovalErrorV4::Approval(error) => {
+                ApplicationMutationApprovalErrorV4::Approval(error)
+            }
+            EvidenceApprovalErrorV4::Denied => ApplicationMutationApprovalErrorV4::Denied,
+            EvidenceApprovalErrorV4::BindingMismatch => {
+                ApplicationMutationApprovalErrorV4::BindingMismatch
+            }
+        }))
+    }
+
     fn revision(value: u64) -> Result<Revision, McpError> {
         Revision::try_new(value).map_err(|error| McpError::invalid_params(error.to_string(), None))
     }
@@ -795,6 +909,26 @@ impl CanISendMcpServer {
     }
 
     #[tool(
+        description = "Read the complete verified Pack manifest bound to this Application, including every Deliverable kind and minimum/maximum count",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_application_pack_show(
+        &self,
+        Parameters(parameters): Parameters<ApplicationParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::application_result(Application::application_pack_manifest_v4(
+            self.workspace(),
+            application_id.as_str(),
+        ))
+    }
+
+    #[tool(
         description = "List Pack-bound Requirements for one exact Application revision",
         annotations(
             title = "List Application Requirements",
@@ -876,14 +1010,14 @@ impl CanISendMcpServer {
                     requirements,
                 },
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
                     .then_some(PrivateReadConsent::granted_by_user()),
             ),
         )
     }
 
     #[tool(
-        description = "Commit approved exact Source-bound Requirement proposals; the preview token is single-use",
+        description = "Request native confirmation, then commit exact Source-bound Requirement proposals; the preview token is single-use",
         annotations(
             title = "Commit Requirement extraction",
             read_only_hint = false,
@@ -903,16 +1037,154 @@ impl CanISendMcpServer {
                 &application_id,
                 &parameters.preview_token,
                 &parameters.preview_sha256,
-                parameters.approved,
+                parameters.request_confirmation,
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
                     .then_some(PrivateReadConsent::granted_by_user()),
             ),
         )
     }
 
     #[tool(
-        description = "Preview explicit decisions for every current Requirement and issue a single-use approval token",
+        description = "Preview replacement text for one exclusively linked pasted-text Source, preserving Source and Requirement identities. Supply every affected Requirement with new byte spans. Shows downstream invalidation; unchanged input returns no token. Shared Sources, files, URLs and Requirement additions/removals are unsupported.",
+        annotations(
+            title = "Preview Source revision",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_source_revise_preview(
+        &self,
+        Parameters(parameters): Parameters<SourceRevisePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let requirements = parameters
+            .requirements
+            .into_iter()
+            .map(|(id, draft)| {
+                Ok((
+                    RequirementId::try_new(id)
+                        .map_err(|error| McpError::invalid_params(error.to_string(), None))?,
+                    ApplicationFlowRequirementDraftV3 {
+                        category: Self::pack_item(&draft.category)?,
+                        statement: draft.statement,
+                        priority: draft.priority,
+                        start_byte: draft.start_byte,
+                        end_byte: draft.end_byte,
+                    },
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, McpError>>()?;
+        Self::mutation_result(self.mutation_approvals.preview_source_revision(
+            self.workspace(),
+            &application_id,
+            ApplicationSourceReviseRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                source: parameters.source,
+                text: parameters.text,
+                requirements,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Request native confirmation, then atomically revise the pasted Source, rebind its Requirements and mark affected work stale. Preserve old Source bytes/history. The preview token is single-use; no-op requests need no commit.",
+        annotations(
+            title = "Commit Source revision",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_source_revise_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_source_revision(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.request_confirmation,
+        ))
+    }
+
+    #[tool(
+        description = "Preview a Source-bound correction to one existing Requirement and exact downstream stale revisions. Unchanged content returns preview.status=unchanged without an approval token.",
+        annotations(
+            title = "Preview Requirement revision",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_revise_preview(
+        &self,
+        Parameters(parameters): Parameters<RequirementRevisePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let requirement_id = RequirementId::try_new(parameters.requirement_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        let draft = parameters.requirement;
+        Self::mutation_result(
+            self.mutation_approvals.preview_requirement_revision(
+                self.workspace(),
+                &application_id,
+                ApplicationRequirementReviseRequestV4 {
+                    expected_revision: Self::revision(parameters.expected_revision)?,
+                    requirement_id,
+                    source: parameters.source,
+                    requirement: ApplicationFlowRequirementDraftV3 {
+                        category: Self::pack_item(&draft.category)?,
+                        statement: draft.statement,
+                        priority: draft.priority,
+                        start_byte: draft.start_byte,
+                        end_byte: draft.end_byte,
+                    },
+                },
+                parameters
+                    .request_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Request native confirmation, then revise one Requirement, clear its obsolete decision and stale affected downstream work; the preview token is single-use",
+        annotations(
+            title = "Commit Requirement revision",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_requirement_revise_commit(
+        &self,
+        Parameters(parameters): Parameters<RequirementExtractCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(
+            self.mutation_approvals.commit_requirement_revision(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &parameters.preview_sha256,
+                parameters.request_confirmation,
+                parameters
+                    .request_private_read
+                    .then_some(PrivateReadConsent::granted_by_user()),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Preview explicit decisions for every currently proposed Requirement, preserving existing decisions and showing downstream invalidation; issue a single-use approval token",
         annotations(
             title = "Preview Requirement decisions",
             read_only_hint = true,
@@ -952,7 +1224,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit explicitly approved Requirement decisions; the preview token is single-use",
+        description = "Request native confirmation, then commit Requirement decisions; the preview token is single-use",
         annotations(
             title = "Commit Requirement decisions",
             read_only_hint = false,
@@ -971,7 +1243,7 @@ impl CanISendMcpServer {
             &application_id,
             &parameters.preview_token,
             &parameters.preview_sha256,
-            parameters.approved,
+            parameters.request_confirmation,
         ))
     }
 
@@ -997,7 +1269,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Preview a Pack-qualified draft Plan after all Requirements have explicit decisions",
+        description = "Preview a new Pack-qualified draft Plan or rebuild a stale Plan after all Requirements have explicit decisions; preserve any existing material kinds and counts",
         annotations(
             title = "Preview a Plan proposal",
             read_only_hint = true,
@@ -1036,7 +1308,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit one approved draft Plan proposal; the preview token is single-use",
+        description = "Request native confirmation, then commit one draft Plan proposal; the preview token is single-use",
         annotations(
             title = "Commit a Plan proposal",
             read_only_hint = false,
@@ -1055,7 +1327,7 @@ impl CanISendMcpServer {
             &application_id,
             &parameters.preview_token,
             &parameters.preview_sha256,
-            parameters.approved,
+            parameters.request_confirmation,
         ))
     }
 
@@ -1084,7 +1356,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit explicit user confirmation of the current Plan; the preview token is single-use",
+        description = "Request native user confirmation of the current Plan, then commit only on acceptance; token is single-use",
         annotations(
             title = "Commit Plan confirmation",
             read_only_hint = false,
@@ -1103,7 +1375,7 @@ impl CanISendMcpServer {
             &application_id,
             &parameters.preview_token,
             &parameters.preview_sha256,
-            parameters.approved,
+            parameters.request_confirmation,
         ))
     }
 
@@ -1189,7 +1461,38 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit explicitly approved Deliverable drafts; the preview token is single-use",
+        description = "Read an exact submitted local task candidate after native private-read consent and preview it for the existing Deliverable draft commit",
+        annotations(
+            title = "Preview local task drafts",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_local_task_draft_preview(
+        &self,
+        Parameters(parameters): Parameters<LocalTaskDraftPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let task_id = canisend_contracts::EntityId::try_new(parameters.task_id)
+            .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        Self::mutation_result(
+            self.mutation_approvals.preview_local_task_draft(
+                self.workspace(),
+                &application_id,
+                &task_id,
+                parameters.expected_generation,
+                &parameters.candidate_sha256,
+                parameters
+                    .request_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Request native confirmation, then commit Deliverable drafts; the preview token is single-use",
         annotations(
             title = "Commit Deliverable drafts",
             read_only_hint = false,
@@ -1208,7 +1511,7 @@ impl CanISendMcpServer {
             &application_id,
             &parameters.preview_token,
             &parameters.preview_sha256,
-            parameters.approved,
+            parameters.request_confirmation,
         ))
     }
 
@@ -1243,7 +1546,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit one explicitly approved Deliverable revision; the preview token is single-use",
+        description = "Request native confirmation, then commit one Deliverable revision; the preview token is single-use",
         annotations(
             title = "Commit a Deliverable revision",
             read_only_hint = false,
@@ -1262,7 +1565,7 @@ impl CanISendMcpServer {
             &application_id,
             &parameters.preview_token,
             &parameters.preview_sha256,
-            parameters.approved,
+            parameters.request_confirmation,
         ))
     }
 
@@ -1285,7 +1588,7 @@ impl CanISendMcpServer {
             self.workspace(),
             &application_id,
             parameters
-                .confirmed_private_read
+                .request_private_read
                 .then(PrivateReadConsent::granted_by_user),
         ))
     }
@@ -1309,7 +1612,7 @@ impl CanISendMcpServer {
             self.workspace(),
             &application_id,
             parameters
-                .confirmed_private_read
+                .request_private_read
                 .then(PrivateReadConsent::granted_by_user),
         ))
     }
@@ -1337,14 +1640,14 @@ impl CanISendMcpServer {
                     expected_revision: Self::revision(parameters.expected_revision)?,
                 },
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
                     .then(PrivateReadConsent::granted_by_user),
             ),
         )
     }
 
     #[tool(
-        description = "Commit the exact approved review disposition; the preview token is single-use",
+        description = "Request native confirmation, then commit the exact review disposition; the preview token is single-use",
         annotations(
             title = "Commit review disposition",
             read_only_hint = false,
@@ -1364,16 +1667,16 @@ impl CanISendMcpServer {
                 &application_id,
                 &parameters.preview_token,
                 &parameters.preview_sha256,
-                parameters.approved,
+                parameters.request_confirmation,
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
                     .then(PrivateReadConsent::granted_by_user),
             ),
         )
     }
 
     #[tool(
-        description = "Preview one exact local-only export of approved Deliverables",
+        description = "Preview one exact local-only export of reviewed Deliverables",
         annotations(
             title = "Preview local export",
             read_only_hint = true,
@@ -1399,7 +1702,7 @@ impl CanISendMcpServer {
                 &application_id,
                 request,
                 parameters
-                    .confirmed_private_export
+                    .request_private_export
                     .then(PrivateExportConsent::granted_by_user),
             ),
         )
@@ -1449,7 +1752,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Render and write the exact approved local export; never upload or submit",
+        description = "Request native confirmation, then render and write the exact local export; never upload or submit",
         annotations(
             title = "Commit local export",
             read_only_hint = false,
@@ -1469,9 +1772,9 @@ impl CanISendMcpServer {
                 &application_id,
                 &parameters.preview_token,
                 &parameters.preview_sha256,
-                parameters.approved,
+                parameters.request_confirmation,
                 parameters
-                    .confirmed_private_export
+                    .request_private_export
                     .then(PrivateExportConsent::granted_by_user),
             ),
         )
@@ -1540,9 +1843,9 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit one explicitly approved Profile Source link preview; the token is single-use",
+        description = "Request native confirmation, then commit one Profile Source link preview; the token is single-use",
         annotations(
-            title = "Commit an approved Application Profile Source link change",
+            title = "Commit an Application Profile Source link change",
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false,
@@ -1560,9 +1863,9 @@ impl CanISendMcpServer {
                 &application_id,
                 &parameters.preview_token,
                 &parameters.preview_sha256,
-                parameters.approved,
+                parameters.request_confirmation,
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
                     .then(PrivateReadConsent::granted_by_user),
             ),
         )
@@ -1616,9 +1919,9 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Commit one explicitly approved Evidence link preview; the token is single-use",
+        description = "Request native confirmation, then commit one Evidence link preview; the token is single-use",
         annotations(
-            title = "Commit an approved Application Evidence link change",
+            title = "Commit an Application Evidence link change",
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false,
@@ -1636,9 +1939,65 @@ impl CanISendMcpServer {
                 &application_id,
                 &parameters.preview_token,
                 &parameters.preview_sha256,
-                parameters.approved,
+                parameters.request_confirmation,
                 parameters
-                    .confirmed_private_read
+                    .request_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Preview source-bound Workspace Evidence from the selected Profile Source; requests native private-read consent and does not confirm or associate Evidence",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_evidence_confirm_preview(
+        &self,
+        Parameters(parameters): Parameters<EvidenceConfirmPreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::evidence_result(
+            self.evidence_approvals.preview(
+                self.workspace(),
+                &application_id,
+                parameters.profile_source,
+                parameters.proposals,
+                parameters
+                    .request_private_read
+                    .then(PrivateReadConsent::granted_by_user),
+            ),
+        )
+    }
+
+    #[tool(
+        description = "Request native confirmation, then create the exact previewed Workspace Evidence; does not associate it with an Application",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_evidence_confirm_commit(
+        &self,
+        Parameters(parameters): Parameters<ReviewDispositionCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let digest = parameters.preview_sha256;
+        Self::evidence_result(
+            self.evidence_approvals.commit(
+                self.workspace(),
+                &application_id,
+                &parameters.preview_token,
+                &digest,
+                parameters.request_confirmation,
+                parameters
+                    .request_private_read
                     .then(PrivateReadConsent::granted_by_user),
             ),
         )
@@ -1647,9 +2006,10 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded association changes require preview, exact digest review, explicit approval and consent, and a single-use token. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request native forms; they never assert user approval. Only the actual native form response authorizes the selected scope. Never answer it for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {
+    // The router is entered only after native consent succeeds, or to consume a cancellation.
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
@@ -1660,11 +2020,11 @@ impl ServerHandler for CanISendMcpServer {
             if request
                 .arguments
                 .as_ref()
-                .is_some_and(|args| args.contains_key("approved"))
+                .is_some_and(|args| args.contains_key("request_confirmation"))
             {
                 let mut cancelled = request.clone();
                 if let Some(arguments) = cancelled.arguments.as_mut() {
-                    arguments.insert("approved".to_owned(), Value::Bool(false));
+                    arguments.insert("request_confirmation".to_owned(), Value::Bool(false));
                 }
                 let _ = Self::tool_router()
                     .call(ToolCallContext::new(self, cancelled, context))

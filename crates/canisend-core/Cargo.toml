@@ -7,10 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-publish.workspace = true
+publish = ["crates-io"]
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.2" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.5" }
 hex.workspace = true
 semver.workspace = true
 serde.workspace = true

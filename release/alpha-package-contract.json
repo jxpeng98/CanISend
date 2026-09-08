@@ -1,7 +1,7 @@
 {
   "schema": "canisend.alpha-package-contract/v3",
-  "version": "1.0.0-beta.2",
-  "tag": "v1.0.0-beta.2",
+  "version": "1.0.0-beta.5",
+  "tag": "v1.0.0-beta.5",
   "contracts": {
     "agent_protocol": "canisend.agent/v4",
     "migration_inventory": {
@@ -15,19 +15,19 @@
       "compatibility_pack_scope": "none",
       "format": "canisend.operation-registry/v4",
       "path": "crates/canisend-resources/resources/operations/v4/registry.json",
-      "sha256": "8780fd4e28e9361b0beddd19b269d3f4627af88256e07b4b98952e2281269834"
+      "sha256": "28459694a060e085dab78605b250e480af4174073ca4af61536b295049d483a9"
     },
     "resource_manifest": {
-      "entry_count": 89,
+      "entry_count": 91,
       "path": "crates/canisend-resources/resources/manifest.json",
-      "sha256": "5fb3a947dbaaedf2e399bc7d9eeb23dcc464b2687c5a8c488caaed87be543a62"
+      "sha256": "4fbe0a1d12ad6e52bd3e9038e189d32f322a881b59f952580d8dbd59f53394ce"
     },
     "workflow_pack_format": "canisend.workflow-pack/v1",
     "workflow_packs": [
       {
-        "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+        "content_digest": "38b9365c4403fb01c3f562226e81d102907a3e06afa6a81eff180932f6d74fa1",
         "id": "org.canisend.academic-job",
-        "version": "1.0.0"
+        "version": "1.0.1"
       },
       {
         "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
@@ -44,31 +44,31 @@
     "assets": [
       {
         "target": "aarch64-apple-darwin",
-        "file": "canisend-1.0.0-beta.2-aarch64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-beta.5-aarch64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-apple-darwin",
-        "file": "canisend-1.0.0-beta.2-x86_64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-beta.5-x86_64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-gnu",
-        "file": "canisend-1.0.0-beta.2-x86_64-unknown-linux-gnu.tar.gz"
+        "file": "canisend-1.0.0-beta.5-x86_64-unknown-linux-gnu.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-musl",
-        "file": "canisend-1.0.0-beta.2-x86_64-unknown-linux-musl.tar.gz"
+        "file": "canisend-1.0.0-beta.5-x86_64-unknown-linux-musl.tar.gz"
       },
       {
         "target": "x86_64-pc-windows-msvc",
-        "file": "canisend-1.0.0-beta.2-x86_64-pc-windows-msvc.zip"
+        "file": "canisend-1.0.0-beta.5-x86_64-pc-windows-msvc.zip"
       }
     ]
   },
   "desktop_macos": {
     "build_profile": "release-alpha",
     "target": "aarch64-apple-darwin",
-    "archive": "CanISend-1.0.0-beta.2-aarch64-apple-darwin.zip",
-    "dmg": "CanISend-1.0.0-beta.2-aarch64-apple-darwin.dmg",
+    "archive": "CanISend-1.0.0-beta.5-aarch64-apple-darwin.zip",
+    "dmg": "CanISend-1.0.0-beta.5-aarch64-apple-darwin.dmg",
     "archive_top_level": [
       "CanISend.app",
       "CanISend.app.manifest.json"
@@ -81,7 +81,11 @@
     "applications_link": "/Applications",
     "bundle": "CanISend.app",
     "unified_host_executable": "Contents/MacOS/canisend-gui",
-    "host_entry_modes": ["gui", "cli", "mcp"],
+    "host_entry_modes": [
+      "gui",
+      "cli",
+      "mcp"
+    ],
     "full_native_host_count": 1,
     "application_payload_budget_bytes": 75497472,
     "bundle_metadata": "Contents/Resources/BUNDLE.json",

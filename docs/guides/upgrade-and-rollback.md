@@ -74,15 +74,43 @@ canisend --workspace ./applications workspace check --json
 Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
 binary. It does not import unsupported Workspace v2/v3 state. Migration history, exact
 Application Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
-update the project Skills through the CLI and inspect the returned MCP registration command:
+inspect Skills with the new binary, then update the selected scope through the CLI:
 
 ```console
-canisend --workspace ./applications host setup --host codex --json
-canisend --workspace ./applications host status --host codex --json
+canisend --workspace ./applications host status --host codex --scope project --json
+canisend --workspace ./applications host setup --host codex --scope project --json
+canisend --workspace ./applications host status --host codex --scope project --json
 ```
 
 Use `--host claude` for Claude Code. If the executable moved, update the Host registration to the
 new verified path. Setup does not modify the Host's configuration or start a model session.
+
+Use the same scope used during installation (`--scope global` for user-wide Skills). Updating
+project Skills does not update another global copy; avoid duplicate copies that a Host might
+load together. `host status` compares installed manifests and actual bytes with the running
+binary, including changes within the same product version, and returns a state-specific next action.
+
+| Status | Action |
+|---|---|
+| `ready` | Resources match; reconnect after a binary/Skills update and rediscover tools |
+| `update-available` | Pause active tasks, then run setup with the new binary and same scope |
+| `incomplete` | Run setup to restore missing managed files and complete the update |
+| `user-modified` / `unmanaged` | Preserve custom files and review conflicts before setup |
+
+Setup checks all owned files before writing. It replaces files individually and writes the
+manifest last; this is not a transaction over the entire Skills directory. A stopped update can
+leave old, current or missing files. With the same new binary, inspect status and rerun setup;
+matching old-manifest or current bundled bytes can be reconciled, while custom bytes are refused.
+Malformed ownership manifests or unsupported resource formats need diagnosis, not forced edits.
+Keep custom guidance outside managed Skill files, and never change manifest hashes to bypass a
+conflict. Skills installation is not a workspace migration or a backup of customized Skills.
+
+After setup, restart/reconnect the Host, rediscover tool schemas and discard every old preview.
+Re-read Application revision and Pack identity before continuing. Use the new registration command
+if the executable moved. `ready` verifies resources, not provider connectivity or human approval.
+Replacing the executable alone does not replace installed Skills; using an older executable is
+not a guaranteed compatible Skills or Workspace rollback. Retain the matched old bundle and
+pre-upgrade backup; test rollback against a separate restored Workspace first.
 
 The CLI installs clean Agent v4 resources under `.agents/skills` for Codex or `.claude/skills`
 for Claude Code. Their ownership manifests are `.agents/canisend-agent-v4.json` and

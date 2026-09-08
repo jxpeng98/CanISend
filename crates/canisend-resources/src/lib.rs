@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+pub const ACADEMIC_JOB_WORKFLOW_PACK_HISTORY: &[u8] =
+    include_bytes!("../history/academic-job.json");
+
 pub const RESOURCE_VERSION: &str = "canisend.resources/v2";
 pub const AGENT_HOST_RESOURCE_FORMAT: &str = "canisend.agent-host-resources/v4";
 
@@ -964,7 +967,12 @@ pub fn uninstall_agent_skills(
     })
 }
 
-const AGENT_SKILLS: [(&str, &str, &str); 4] = [
+const AGENT_SKILLS: [(&str, &str, &str); 5] = [
+    (
+        "canisend-application-workflow",
+        "skill.canisend-application-workflow",
+        "skill.canisend-application-workflow.openai",
+    ),
     (
         "canisend-workspace",
         "skill.canisend-workspace",
@@ -993,7 +1001,8 @@ fn agent_skill_resource_paths(host: AgentHost) -> Vec<(&'static str, String)> {
         AgentHost::Claude => ".claude/skills",
         AgentHost::Generic => "skills",
     };
-    let mut resources = Vec::with_capacity(if host == AgentHost::Codex { 8 } else { 4 });
+    let mut resources =
+        Vec::with_capacity(AGENT_SKILLS.len() * if host == AgentHost::Codex { 2 } else { 1 });
     for (name, skill_id, openai_id) in AGENT_SKILLS {
         resources.push((skill_id, format!("{root}/{name}/SKILL.md")));
         if host == AgentHost::Codex {

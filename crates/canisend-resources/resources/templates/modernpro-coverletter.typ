@@ -4,8 +4,8 @@
 // Copyright (c) 2026
 // Author:  Academic Template Collective
 // License: MIT
-// Version: 1.0.0
-// Date:    2026-07-30
+// Version: 1.0.2
+// Date:    2026-09-04
 // Email:   maintainers@example.invalid
 ///////////////////////////////
 
@@ -60,14 +60,12 @@
 }
 
 #let _first-filled(values, default: none) = {
-  // CanISend compatibility patch: explicit configuration must precede the fallback.
-  let value = none
   for candidate in values {
-    if not is-filled(value) and is-filled(candidate) {
-      value = candidate
+    if is-filled(candidate) {
+      return candidate
     }
   }
-  if is-filled(value) { value } else { default }
+  return default
 }
 
 // A small set of rhythm presets keeps the public API simple while preserving
@@ -92,39 +90,39 @@
   )
 } else if preset == "relaxed" or preset == "spacious" {
   (
-    line-spacing: 0.8em,
+    line-spacing: 1em,
+    paragraph-spacing: 1.85em,
+    header-row-gap: 3.6pt,
+    header-rule-gap: 8pt,
+    header-content-gap: 14pt,
+    recipient-top-gap: 0.65em,
+    recipient-subject-gap: 1.4em,
+    subject-after-gap: 1.15em,
+    doc-title-top-gap: 0.65em,
+    doc-title-rule-gap: 0.55em,
+    doc-title-content-gap: 1.35em,
+    heading-1-before: 1.75em,
+    heading-1-after: 0.75em,
+    heading-2-before: 1.45em,
+    heading-2-after: 0.65em,
+  )
+} else {
+  (
+    line-spacing: 0.85em,
     paragraph-spacing: 1.55em,
     header-row-gap: 3pt,
     header-rule-gap: 7pt,
-    header-content-gap: 11pt,
+    header-content-gap: 12pt,
     recipient-top-gap: 0.5em,
     recipient-subject-gap: 1.15em,
     subject-after-gap: 0.95em,
     doc-title-top-gap: 0.5em,
     doc-title-rule-gap: 0.45em,
     doc-title-content-gap: 1.1em,
-    heading-1-before: 1.3em,
-    heading-1-after: 0.5em,
-    heading-2-before: 1.05em,
-    heading-2-after: 0.42em,
-  )
-} else {
-  (
-    line-spacing: 0.72em,
-    paragraph-spacing: 1.35em,
-    header-row-gap: 2.4pt,
-    header-rule-gap: 6pt,
-    header-content-gap: 10pt,
-    recipient-top-gap: 0.4em,
-    recipient-subject-gap: 0.95em,
-    subject-after-gap: 0.8em,
-    doc-title-top-gap: 0.4em,
-    doc-title-rule-gap: 0.36em,
-    doc-title-content-gap: 0.9em,
-    heading-1-before: 1.5em,
-    heading-1-after: 0.5em,
-    heading-2-before: 1.15em,
-    heading-2-after: 0.42em,
+    heading-1-before: 1.45em,
+    heading-1-after: 0.58em,
+    heading-2-before: 1.2em,
+    heading-2-after: 0.5em,
   )
 }
 
@@ -792,7 +790,7 @@
   }
 }
 // CanISend offline adapter. The package implementation above is copied from
-// @preview/modernpro-coverletter:1.0.0; this adapter projects the structured
+// @preview/modernpro-coverletter:1.0.2; this adapter projects the structured
 // document record without package imports, filesystem access, or system fonts.
 #let canisend_field(data, keys, fallback: none) = {
   let matches = data.fields.filter(field => keys.contains(field.key) and field.value != "")

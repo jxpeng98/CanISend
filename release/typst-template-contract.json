@@ -1,7 +1,7 @@
 {
   "schema": "canisend.typst-template-contract/v2",
   "contract_version": 2,
-  "baseline": "modernpro-universe-pinned-v2",
+  "baseline": "modernpro-source-pinned-v3",
   "renderer": {
     "typst_as_lib": "0.16.0",
     "typst_assets": "0.15.1",
@@ -107,9 +107,9 @@
       "fallback_for": [],
       "resource_id": "template.modernpro-coverletter",
       "path": "templates/modernpro-coverletter.typ",
-      "resource_version": "1.0.0",
-      "bytes": 27979,
-      "sha256": "2b1061732e83f7039cc8488f62c7d82cd91b52ca2ac499496cb953e075ecb493",
+      "resource_version": "1.0.2",
+      "bytes": 27820,
+      "sha256": "b5c9376178d93a24d301d52a5e1466089ba1d40ce22b010d5e55304207147c99",
       "font_contract": {
         "families": [
           "Libertinus Serif"
@@ -129,19 +129,15 @@
         ]
       },
       "upstream": {
-        "archive_sha256": "d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130",
-        "archive_url": "https://packages.typst.org/preview/modernpro-coverletter-1.0.0.tar.gz",
         "license": "MIT",
         "package": "modernpro-coverletter",
         "repository": "https://github.com/jxpeng98/typst-coverletter",
         "source_entrypoint": "modernpro-coverletter.typ",
-        "source_patches": [
-          {
-            "id": "prefer-explicit-configuration",
-            "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-          }
-        ],
-        "version": "1.0.0"
+        "source_commit": "1102c35febd62498a61daca0e9adacef8fc801e4",
+        "source_sha256": "25eaf3124fbdaef064d1e2599f80720fc9f0fc64bb6e86da58347153cbd4a33d",
+        "source_bytes": 24911,
+        "source_patches": [],
+        "version": "1.0.2"
       }
     },
     {
@@ -154,9 +150,9 @@
       "fallback_for": [],
       "resource_id": "template.modernpro-cv",
       "path": "templates/modernpro-cv.typ",
-      "resource_version": "2.0.0",
-      "bytes": 28548,
-      "sha256": "64595fc9dd942a2afcb7f1d87fa3d4a631859246f986d6ca88dde01a0c65d708",
+      "resource_version": "2.1.1",
+      "bytes": 30398,
+      "sha256": "ff503a90cfbd6b8a3dcc770abe99a6a8897839195aaa08460f7e01d490f8e149",
       "font_contract": {
         "families": [
           "Libertinus Serif"
@@ -179,19 +175,15 @@
         ]
       },
       "upstream": {
-        "archive_sha256": "1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0",
-        "archive_url": "https://packages.typst.org/preview/modernpro-cv-2.0.0.tar.gz",
         "license": "MIT",
         "package": "modernpro-cv",
         "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
         "source_entrypoint": "modernpro-cv.typ",
-        "source_patches": [
-          {
-            "id": "prefer-explicit-configuration",
-            "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-          }
-        ],
-        "version": "2.0.0"
+        "source_commit": "b20eecddd299b18003dca943375ebda8cfe01e81",
+        "source_sha256": "7ee59d8064a80f31e8557953faf4259cc6f7a523600804c9b1bddc6131c538e0",
+        "source_bytes": 28749,
+        "source_patches": [],
+        "version": "2.1.1"
       }
     }
   ]

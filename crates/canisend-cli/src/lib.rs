@@ -1,11 +1,12 @@
 #![forbid(unsafe_code)]
 
 mod app_adapter;
+mod local_task;
 
 use std::{
     ffi::OsString,
     fs,
-    io::IsTerminal,
+    io::{IsTerminal, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -73,6 +74,11 @@ pub fn public_clap_leaf_paths() -> Vec<String> {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Coordinate local workers and retain untrusted candidates without committing an Application.
+    LocalTask {
+        #[command(subcommand)]
+        command: local_task::LocalTaskCommand,
+    },
     /// Print native product and protocol versions.
     Version(OutputArgs),
     /// Check the native binary's embedded foundation.
@@ -195,10 +201,21 @@ enum ApplicationCommand {
     List(OutputArgs),
     /// Show one Pack-bound Application in the current Workspace v4.
     Show(ApplicationIdArgs),
+    /// Inspect the complete verified Pack bound to one Application.
+    Pack {
+        #[command(subcommand)]
+        command: ApplicationPackCommand,
+    },
     /// Archive one Application without deleting history or shared Workspace data.
     Archive(ApplicationArchiveArgs),
     /// Create a Pack-bound Application from a reviewed JSON request.
     Create(ApplicationCreateArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum ApplicationPackCommand {
+    /// Show the exact Pack Manifest, including all Deliverable minimum/maximum counts.
+    Show(ApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -360,6 +377,15 @@ struct WorkspaceBackupArgs {
 
 #[derive(Debug, Args)]
 struct WorkspaceInitArgs {
+    /// Install bundled Skills for this Host after creating the Workspace.
+    #[arg(long, value_enum, conflicts_with = "no_skills")]
+    host: Option<HostArgument>,
+    /// Skills location; project is the default when --host is supplied.
+    #[arg(long, value_enum, requires = "host")]
+    scope: Option<AgentSkillsScopeArgument>,
+    /// Skip the interactive Skills installation choice.
+    #[arg(long)]
+    no_skills: bool,
     #[command(flatten)]
     output: OutputArgs,
 }
@@ -490,6 +516,7 @@ struct HostRemoveArgs {
 impl Cli {
     fn explicit_json(&self) -> bool {
         match &self.command {
+            Command::LocalTask { command } => command.json(),
             Command::Version(output) | Command::Doctor(output) => output.json,
             Command::Mcp {
                 command: McpCommand::Serve { .. },
@@ -521,6 +548,9 @@ impl Cli {
             Command::Application { command } => match command {
                 ApplicationCommand::List(output) => output.json,
                 ApplicationCommand::Show(arguments) => arguments.output.json,
+                ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(arguments),
+                } => arguments.output.json,
                 ApplicationCommand::Archive(arguments) => arguments.output.json,
                 ApplicationCommand::Create(arguments) => arguments.output.json,
             },
@@ -792,6 +822,7 @@ fn render_unsupported_legacy_surface(surface: &str, json_output: bool) -> ExitCo
 fn execute(cli: Cli) -> CommandResult<CommandOutput> {
     let Cli { workspace, command } = cli;
     match command {
+        Command::LocalTask { command } => local_task::execute(workspace, command),
         Command::Version(_) => version(),
         Command::Doctor(_) => doctor(),
         Command::Mcp {
@@ -807,8 +838,8 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: ResourceCommand::List(_),
         } => resource_list(),
         Command::Workspace {
-            command: WorkspaceCommand::Init(_),
-        } => workspace_init(workspace),
+            command: WorkspaceCommand::Init(arguments),
+        } => workspace_init(workspace, arguments),
         Command::Workspace {
             command: WorkspaceCommand::Status(_),
         } => workspace_status(workspace),
@@ -830,6 +861,12 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
         Command::Application {
             command: ApplicationCommand::Show(arguments),
         } => application_show(workspace, &arguments.application),
+        Command::Application {
+            command:
+                ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(arguments),
+                },
+        } => application_pack_show(workspace, &arguments.application),
         Command::Application {
             command: ApplicationCommand::Archive(arguments),
         } => application_archive(workspace, arguments),
@@ -998,8 +1035,25 @@ fn resource_list() -> CommandResult<CommandOutput> {
     success("resource.list", "available", &data, human)
 }
 
-fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
+fn workspace_init(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkspaceInitArgs,
+) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
+    let selection = if let Some(host) = arguments.host {
+        Some((
+            host,
+            arguments.scope.unwrap_or(AgentSkillsScopeArgument::Project),
+        ))
+    } else if !arguments.no_skills
+        && !wants_json(arguments.output.json)
+        && std::io::stdin().is_terminal()
+        && std::io::stderr().is_terminal()
+    {
+        prompt_init_skills(&root)?
+    } else {
+        None
+    };
     let receipt = Application::initialize_workspace_v4_with_policy(
         &root,
         WorkspaceInitPolicy::PreserveExistingFiles,
@@ -1007,7 +1061,7 @@ fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutpu
     .map(|receipt| (receipt.data.path, receipt.data.status))
     .map_err(|error| app_adapter::failure("workspace.initialize.commit", error))?;
     let (path, data) = receipt;
-    success(
+    let mut output = success(
         "workspace.initialize.commit",
         "initialized",
         &data,
@@ -1017,7 +1071,78 @@ fn workspace_init(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutpu
             format!("Workspace format: {}", data.workspace_format),
             "Workflow Packs bind to individual Applications".to_owned(),
         ],
-    )
+    )?;
+    if let Some((host, scope)) = selection {
+        let setup = host_setup(Some(path.clone()), HostConfigurationArgs {
+            host, scope, executable: None, output: OutputArgs { json: arguments.output.json },
+        }).map_err(|mut failure| {
+            let message = format!("Workspace initialized at {}; Skills setup failed: {}. Use host setup to retry installation.", path.display(), failure.error.message);
+            failure.error.message.clone_from(&message);
+            failure.human = message;
+            failure
+        })?;
+        output.human.extend(setup.human);
+        output.response.data.as_mut().expect("initialization data")["host_setup"] =
+            setup.response.data.expect("host setup data");
+    } else {
+        let guidance = "Skills were not installed by this invocation. Run host setup --host codex (or claude); project scope uses <workspace>/.agents/skills or .claude/skills. Add --scope global for the corresponding directory in your home. Existing installations are preserved.";
+        output.response.next_actions.push(NextAction {
+            action: "host.setup".to_owned(),
+            description: guidance.to_owned(),
+        });
+    }
+    Ok(output)
+}
+
+fn prompt_init_skills(
+    root: &Path,
+) -> CommandResult<Option<(HostArgument, AgentSkillsScopeArgument)>> {
+    eprintln!("Optional Skills installation (MCP registration is a separate step):");
+    eprintln!("  1. Codex, project: {}/.agents/skills", root.display());
+    eprintln!(
+        "  2. Claude Code, project: {}/.claude/skills",
+        root.display()
+    );
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
+    if let Some(home) = home.as_ref() {
+        eprintln!(
+            "  3. Codex, user: {}/.agents/skills",
+            Path::new(home).display()
+        );
+        eprintln!(
+            "  4. Claude Code, user: {}/.claude/skills",
+            Path::new(home).display()
+        );
+    }
+    eprint!("  0. Skip [default]\nChoose [0-4]: ");
+    let read = || -> std::io::Result<String> {
+        std::io::stderr().flush()?;
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        Ok(answer)
+    };
+    let answer = read().map_err(|error| {
+        app_adapter::failure(
+            "workspace.initialize.commit",
+            ApplicationError::InvalidInput(error.to_string()),
+        )
+    })?;
+    let selection = match answer.trim() {
+        "" | "0" => None,
+        "1" => Some((HostArgument::Codex, AgentSkillsScopeArgument::Project)),
+        "2" => Some((HostArgument::Claude, AgentSkillsScopeArgument::Project)),
+        "3" if home.is_some() => Some((HostArgument::Codex, AgentSkillsScopeArgument::Global)),
+        "4" if home.is_some() => Some((HostArgument::Claude, AgentSkillsScopeArgument::Global)),
+        _ => {
+            return Err(app_adapter::failure(
+                "workspace.initialize.commit",
+                ApplicationError::InvalidInput(
+                    "Choose one of the listed Skills installation options".to_owned(),
+                ),
+            ));
+        }
+    };
+    Ok(selection)
 }
 
 fn workspace_status(workspace_path: Option<PathBuf>) -> CommandResult<CommandOutput> {
@@ -1132,6 +1257,7 @@ fn host_setup(
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
+    let skills_directory = skills.directory.clone();
     let registration = mcp
         .registration_command
         .as_deref()
@@ -1153,8 +1279,9 @@ fn host_setup(
                 arguments.scope.as_str(),
                 host.as_str()
             ),
+            format!("Skills directory: {}", skills_directory.display()),
             format!("MCP registration: {registration}"),
-            "Host MCP configuration was not modified automatically".to_owned(),
+            "Skills are installed; MCP connection has not been verified. Run the registration command, then reconnect the Host and discover its tools. Open the Workspace in the Host to discover project Skills.".to_owned(),
         ],
     )
 }
@@ -1197,7 +1324,7 @@ fn host_status(
         "mcp": mcp,
         "mcp_configuration_mutated": false,
     });
-    success(
+    let mut output = success(
         operation,
         status,
         &data,
@@ -1210,7 +1337,30 @@ fn host_status(
             "The response includes the deterministic MCP registration and verification commands"
                 .to_owned(),
         ],
-    )
+    )?;
+    let (action, advice) = match skills.state {
+        canisend_app::AgentSkillsStatusState::UpToDate => (
+            "host.reconnect",
+            "Resources match this binary. After an upgrade, reconnect the Host, rediscover tools and discard old previews. MCP connection has not been verified.",
+        ),
+        canisend_app::AgentSkillsStatusState::NotInstalled
+        | canisend_app::AgentSkillsStatusState::UpdateAvailable
+        | canisend_app::AgentSkillsStatusState::Incomplete => (
+            "host.setup",
+            "Install, update or repair bundled Skills using this binary and the same --workspace, --host and --scope. Pause active Host tasks first; setup preserves user-modified files. Then reconnect and rediscover tools.",
+        ),
+        canisend_app::AgentSkillsStatusState::UserModified
+        | canisend_app::AgentSkillsStatusState::Unmanaged => (
+            "host.review-conflicts",
+            "Preserve and review the conflicting Skills before setup. Do not edit the ownership manifest or force overwrite. Keep custom guidance outside managed files; resolve only the reviewed conflicts.",
+        ),
+    };
+    output.response.next_actions.push(NextAction {
+        action: action.to_owned(),
+        description: format!("{advice} Selected host: {}; scope: {}; directory: {}. If the executable moved, use the returned MCP registration command.",
+            host.as_str(), arguments.scope.as_str(), skills.directory.display()),
+    });
+    Ok(output)
 }
 
 fn host_remove(
@@ -1258,15 +1408,17 @@ fn host_remove(
 fn host_executable(explicit: Option<PathBuf>, operation: &'static str) -> CommandResult<PathBuf> {
     explicit.map_or_else(
         || {
-            std::env::current_exe().map_err(|error| {
-                CommandFailure::new(
-                    operation,
-                    "io-failed",
-                    ErrorCode::ExternalIoFailed,
-                    format!("could not resolve the current CanISend executable: {error}"),
-                    true,
-                )
-            })
+            std::env::current_exe()
+                .and_then(fs::canonicalize)
+                .map_err(|error| {
+                    CommandFailure::new(
+                        operation,
+                        "io-failed",
+                        ErrorCode::ExternalIoFailed,
+                        format!("could not resolve the current CanISend executable: {error}"),
+                        true,
+                    )
+                })
         },
         Ok,
     )
@@ -1307,17 +1459,93 @@ fn application_show(
     let stored = Application::application_model_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
-    success(
-        operation,
-        "current",
-        &stored,
-        vec![
-            format!("Application: {}", stored.snapshot.opportunity.title),
-            format!("Revision: {}", stored.snapshot.application.revision.get()),
-            format!("Requirements: {}", stored.snapshot.requirements.len()),
-            format!("Deliverables: {}", stored.snapshot.deliverables.len()),
-        ],
-    )
+    use canisend_contracts::RequirementConfirmationV3;
+    let count = |state| {
+        stored
+            .snapshot
+            .requirements
+            .iter()
+            .filter(|requirement| requirement.confirmation == state)
+            .count()
+    };
+    let proposed = count(RequirementConfirmationV3::Proposed);
+    let confirmed = count(RequirementConfirmationV3::Confirmed);
+    let excluded = count(RequirementConfirmationV3::Excluded);
+    let plan = stored.snapshot.plan.as_ref().map_or_else(
+        || "not created".to_owned(),
+        |plan| {
+            format!(
+                "{:?}; decision {}; {} blocker(s)",
+                plan.state,
+                plan.decision
+                    .as_ref()
+                    .map_or("not set", |decision| decision.as_str()),
+                plan.blockers.len()
+            )
+        },
+    );
+    // Navigation from current metadata, not permission or a claim of export readiness.
+    let (action, description) = if stored.snapshot.requirements.is_empty() || proposed > 0 {
+        (
+            "requirement.list",
+            "Review the current Requirements and decide only unfinished work through the Host",
+        )
+    } else if stored.snapshot.plan.is_none() {
+        (
+            "application.pack.show",
+            "Requirement decisions are complete; inspect the Pack catalog and associated Evidence before proposing a Plan",
+        )
+    } else if stored.snapshot.deliverables.is_empty() {
+        (
+            "plan.show",
+            "Inspect Plan state, decision and blockers; verify associated Evidence before preparing materials",
+        )
+    } else {
+        (
+            "deliverable.list",
+            "Inspect existing material states before revision or review; local export still requires current readiness and consent",
+        )
+    };
+    let mut human = vec![
+        format!("Application: {}", stored.snapshot.opportunity.title),
+        format!("Revision: {}", stored.snapshot.application.revision.get()),
+        format!("Requirements: {proposed} proposed; {confirmed} confirmed; {excluded} excluded"),
+        format!("Plan: {plan}"),
+        format!("Deliverables: {}", stored.snapshot.deliverables.len()),
+    ];
+    human.extend(stored.snapshot.deliverables.iter().map(|item| {
+        format!(
+            "  {}: {:?} (revision {})",
+            item.kind.as_str(),
+            item.state,
+            item.revision.get()
+        )
+    }));
+    let mut output = success(operation, "current", &stored, human)?;
+    output.response.next_actions.push(NextAction {
+        action: action.to_owned(),
+        description: description.to_owned(),
+    });
+    Ok(output)
+}
+
+fn application_pack_show(
+    workspace_path: Option<PathBuf>,
+    application_id: &str,
+) -> CommandResult<CommandOutput> {
+    let operation = "application.pack.show";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let manifest = Application::application_pack_manifest_v4(&root, application_id)
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    let mut human = vec![format!("Pack: {} {}", manifest.id, manifest.version)];
+    human.extend(manifest.deliverables.kinds.iter().map(|kind| {
+        format!(
+            "{}: minimum {}, maximum {}",
+            kind.id, kind.minimum, kind.maximum
+        )
+    }));
+    success(operation, "current", &manifest, human)
 }
 
 const MAX_APPLICATION_CANDIDATE_BYTES: u64 = 4 * 1024 * 1024;
@@ -1870,8 +2098,8 @@ mod tests {
     use clap::Parser;
 
     use super::{
-        AgentSkillsScopeArgument, ApplicationCommand, AssociationCommand, Cli, Command,
-        CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
+        AgentSkillsScopeArgument, ApplicationCommand, ApplicationPackCommand, AssociationCommand,
+        Cli, Command, CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
         ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
         public_clap_leaf_paths, unsupported_legacy_surface,
     };
@@ -1896,11 +2124,31 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 31);
+        assert_eq!(actual.len(), 39);
     }
 
     #[test]
     fn canonical_v4_commands_parse_and_legacy_paths_are_preflight_rejected() {
+        let pack = Cli::try_parse_from([
+            "canisend",
+            "application",
+            "pack",
+            "show",
+            "--application",
+            "019f3e88-6630-7000-8000-000000000001",
+            "--json",
+        ])
+        .expect("Application Pack show command");
+        assert!(pack.explicit_json());
+        assert!(matches!(
+            pack.command,
+            Command::Application {
+                command: ApplicationCommand::Pack {
+                    command: ApplicationPackCommand::Show(_)
+                }
+            }
+        ));
+
         let initialized = Cli::try_parse_from([
             "canisend",
             "--workspace",

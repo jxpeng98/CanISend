@@ -485,19 +485,19 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
         assert_eq!(setup["data"]["mcp"]["transport"], "stdio");
         assert_eq!(
             setup["data"]["mcp"]["tools"].as_array().map(Vec::len),
-            Some(36)
+            Some(canisend_app::CANISEND_MCP_TOOLS.len())
         );
         assert_eq!(
             setup["data"]["mcp"]["read_only_tools"]
                 .as_array()
                 .map(Vec::len),
-            Some(26)
+            Some(canisend_app::CANISEND_MCP_READ_ONLY_TOOLS.len())
         );
         assert_eq!(
             setup["data"]["mcp"]["guarded_write_tools"]
                 .as_array()
                 .map(Vec::len),
-            Some(10)
+            Some(canisend_app::CANISEND_MCP_GUARDED_WRITE_TOOLS.len())
         );
         assert_eq!(setup["data"]["mcp_configuration_mutated"], false);
         assert!(workspace.path().join(manifest).is_file());
@@ -517,6 +517,7 @@ fn workspace_v4_host_setup_status_and_remove_work_without_the_app() {
             host,
             "--json",
         ]);
+        assert_eq!(status["next_actions"][0]["action"], "host.reconnect");
         assert_eq!(status["operation"], "host.status");
         assert_eq!(status["status"], "ready");
         assert_eq!(status["data"]["scope"], "project");
@@ -744,6 +745,27 @@ fn workspace_v4_holds_generic_and_academic_applications_together() {
     assert_eq!(
         shown["data"]["snapshot"]["pack"]["id"],
         "org.canisend.academic-job"
+    );
+    assert_eq!(shown["next_actions"][0]["action"], "requirement.list");
+    let pack = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "pack",
+        "show",
+        "--application",
+        academic_id,
+        "--json",
+    ]);
+    assert_eq!(pack["operation"], "application.pack.show");
+    assert_eq!(
+        pack["data"],
+        serde_json::to_value(
+            canisend_app::built_in_academic_job_pack()
+                .expect("verified Pack")
+                .manifest()
+        )
+        .expect("Manifest JSON")
     );
 
     let generic_id = generic["data"]["stored"]["snapshot"]["application"]["id"]
@@ -1003,4 +1025,359 @@ fn create_application(workspace: &TestDirectory, pack: &str, candidate: &Path) -
         candidate.to_str().expect("candidate path is UTF-8"),
         "--json",
     ])
+}
+
+#[test]
+fn local_task_handoff_preserves_application_and_requires_private_read() {
+    let workspace = TestDirectory::new("local-task");
+    let inputs = TestDirectory::new("local-task-inputs");
+    let backup = TestDirectory::new("local-task-backup");
+    let restored = TestDirectory::new("local-task-restored");
+    fs::create_dir_all(inputs.path()).unwrap();
+    let application_candidate = inputs.path().join("application.json");
+    write_application_candidate(
+        &application_candidate,
+        "Synthetic local work",
+        "organization",
+        "Example Foundation",
+        "Provide a narrative.",
+        "format",
+    );
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let created = create_application(
+        &workspace,
+        "org.canisend.generic-application",
+        &application_candidate,
+    );
+    let application = created["data"]["stored"]["snapshot"]["application"]["id"]
+        .as_str()
+        .unwrap();
+    let before = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "show",
+        "--application",
+        application,
+        "--json",
+    ]);
+    let prepared = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "prepare",
+        "--application",
+        application,
+        "--expected-revision",
+        "1",
+        "--json",
+    ]);
+    assert_eq!(prepared["operation"], "local-task.prepare");
+    let task = prepared["data"]["id"].as_str().unwrap();
+    let generation = prepared["data"]["generation"].to_string();
+    let claimed = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "claim",
+        "--task",
+        task,
+        "--expected-generation",
+        &generation,
+        "--json",
+    ]);
+    let conflict = run(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "claim",
+        "--task",
+        task,
+        "--expected-generation",
+        &generation,
+        "--json",
+    ]);
+    assert!(!conflict.status.success());
+    let generation = claimed["data"]["generation"].to_string();
+    let lease = claimed["data"]["lease_id"].as_str().unwrap();
+    let candidate_path = inputs.path().join("candidate.json");
+    let candidate = serde_json::json!({"untrusted_text": "LOCAL-TASK-PRIVATE-SENTINEL"});
+    fs::write(&candidate_path, serde_json::to_vec(&candidate).unwrap()).unwrap();
+    let submitted = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "submit",
+        "--task",
+        task,
+        "--expected-generation",
+        &generation,
+        "--lease",
+        lease,
+        "--candidate",
+        candidate_path.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(submitted["operation"], "local-task.submit");
+    assert!(
+        !submitted
+            .to_string()
+            .contains("LOCAL-TASK-PRIVATE-SENTINEL")
+    );
+    let metadata = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "show",
+        "--task",
+        task,
+        "--json",
+    ]);
+    assert_eq!(metadata["data"], submitted["data"]);
+    let denied = run(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "candidate-show",
+        "--task",
+        task,
+        "--json",
+    ]);
+    assert!(!denied.status.success());
+    assert!(!String::from_utf8_lossy(&denied.stdout).contains("LOCAL-TASK-PRIVATE-SENTINEL"));
+    let read = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "candidate-show",
+        "--task",
+        task,
+        "--confirm-private-read",
+        "--json",
+    ]);
+    assert_eq!(read["data"], candidate);
+    let after = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "application",
+        "show",
+        "--application",
+        application,
+        "--json",
+    ]);
+    assert_eq!(before["data"], after["data"]);
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "backup",
+        backup.text(),
+        "--json",
+    ]);
+    run_json(&[
+        "workspace",
+        "restore",
+        backup.text(),
+        restored.text(),
+        "--json",
+    ]);
+    let restored_read = run_json(&[
+        "--workspace",
+        restored.text(),
+        "local-task",
+        "candidate-show",
+        "--task",
+        task,
+        "--confirm-private-read",
+        "--json",
+    ]);
+    assert_eq!(restored_read["data"], candidate);
+    let listed = run_json(&[
+        "--workspace",
+        restored.text(),
+        "local-task",
+        "list",
+        "--application",
+        application,
+        "--json",
+    ]);
+    assert_eq!(listed["data"][0], submitted["data"]);
+    assert!(!listed.to_string().contains("LOCAL-TASK-PRIVATE-SENTINEL"));
+    let generation = submitted["data"]["generation"].to_string();
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "cancel",
+        "--task",
+        task,
+        "--expected-generation",
+        &generation,
+        "--lease",
+        lease,
+        "--json",
+    ]);
+    let replay = run(&[
+        "--workspace",
+        workspace.text(),
+        "local-task",
+        "submit",
+        "--task",
+        task,
+        "--expected-generation",
+        &generation,
+        "--lease",
+        lease,
+        "--candidate",
+        candidate_path.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(!replay.status.success());
+}
+
+#[test]
+fn workspace_init_installs_selected_skills_without_interactive_input() {
+    let workspace = TestDirectory::new("init-skills");
+    let initialized = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    assert!(!workspace.path().join(".agents/skills").exists());
+    assert_eq!(initialized["next_actions"][0]["action"], "host.setup");
+    for (host, folder) in [("codex", ".agents"), ("claude", ".claude")] {
+        let workspace = TestDirectory::new(host);
+        let result = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "init",
+            "--host",
+            host,
+            "--scope",
+            "project",
+            "--json",
+        ]);
+        assert_eq!(result["data"]["host_setup"]["skills"]["state"], "installed");
+        assert_eq!(
+            result["data"]["host_setup"]["mcp_configuration_mutated"],
+            false
+        );
+        assert!(
+            workspace
+                .path()
+                .join(folder)
+                .join("skills/canisend-workspace/SKILL.md")
+                .is_file()
+        );
+    }
+    let workspace = TestDirectory::new("init-skills-conflict");
+    let modified = workspace
+        .path()
+        .join(".agents/skills/canisend-workspace/SKILL.md");
+    fs::create_dir_all(modified.parent().unwrap()).unwrap();
+    fs::write(&modified, "user-owned edit").unwrap();
+    let failure = run(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert!(!failure.status.success());
+    let response: Value = serde_json::from_slice(&failure.stdout).unwrap();
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Workspace initialized")
+    );
+    let status = run_json(&[
+        "--workspace",
+        workspace.text(),
+        "host",
+        "status",
+        "--host",
+        "codex",
+        "--json",
+    ]);
+    assert_eq!(status["next_actions"][0]["action"], "host.review-conflicts");
+    assert_eq!(fs::read_to_string(modified).unwrap(), "user-owned edit");
+    assert!(
+        run(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "check",
+            "--json"
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        !run(&["workspace", "init", "--host", "codex", "--no-skills"])
+            .status
+            .success()
+    );
+    assert!(
+        !run(&["workspace", "init", "--scope", "global"])
+            .status
+            .success()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_entry_installs_skills_but_explicit_symlink_is_rejected() {
+    let root = TestDirectory::new("symlink-entry");
+    fs::create_dir_all(root.path()).unwrap();
+    let entry = root.path().join("canisend");
+    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_canisend"), &entry).unwrap();
+    let workspace = root.path().join("workspace");
+    let output = Command::new(&entry)
+        .args([
+            "--workspace",
+            workspace.to_str().unwrap(),
+            "workspace",
+            "init",
+            "--host",
+            "codex",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_json_output(output);
+    let output = Command::new(&entry)
+        .args([
+            "--workspace",
+            workspace.to_str().unwrap(),
+            "host",
+            "setup",
+            "--host",
+            "codex",
+            "--executable",
+            entry.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["error"]["code"], "input.invalid");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("non-symlink")
+    );
 }

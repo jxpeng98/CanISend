@@ -20,9 +20,11 @@ env:
 
 jobs:
   desktop-ui:
+    # Paused during CLI-first delivery; set the repository variable to resume.
+    if: vars.CANISEND_ENABLE_DESKTOP_CI == 'true'
     name: desktop-ui
     runs-on: macos-15
-    timeout-minutes: 8
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/canisend-desktop
@@ -60,15 +62,51 @@ jobs:
       - name: Build production desktop UI
         run: pnpm build
 
-      - name: Upload production desktop UI
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Install pinned Rust toolchain for desktop maintenance
+        uses: dtolnay/rust-toolchain@1.97.0
         with:
-          name: canisend-desktop-ui-${{ github.sha }}
-          path: apps/canisend-desktop/dist
-          if-no-files-found: error
-          retention-days: 1
+          components: clippy
+
+      - name: Cache desktop maintenance build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: fast-ci-desktop-maintenance
+
+      - name: Keep native preview tooling out of production builds
+        shell: bash
+        working-directory: .
+        run: |
+          if cargo tree --locked -p canisend-gui -e normal | \
+            rg -Fq 'tauri-plugin-wdio-webdriver'; then
+            echo "Test-only WebDriver plugin leaked into the default desktop graph" >&2
+            exit 1
+          fi
+          if rg -Fq 'preview-qualification' .github/workflows/release.yml; then
+            echo "Native release workflow must not enable preview-qualification" >&2
+            exit 1
+          fi
+
+      - name: Check desktop Rust targets
+        working-directory: .
+        run: cargo clippy -p canisend-gui --all-targets --all-features --locked -- -D warnings
+
+      - name: Test desktop Rust adapter
+        working-directory: .
+        run: cargo test -p canisend-gui --locked
+
+      - name: Build desktop against its production UI
+        working-directory: .
+        run: cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol
+
+      - name: Check macOS desktop binary
+        working-directory: .
+        run: |
+          test -x ./target/debug/canisend-gui
+          file ./target/debug/canisend-gui | grep -q arm64
 
   browser-keyboard-accessibility:
+    # Paused during CLI-first delivery; set the repository variable to resume.
+    if: vars.CANISEND_ENABLE_DESKTOP_CI == 'true'
     name: browser-keyboard-accessibility
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -131,7 +169,7 @@ jobs:
         shell: bash
         run: |
           cargo metadata --no-deps --format-version 1 --locked | \
-            jq -e '.workspace_default_members == [.packages[] | select(.name == "canisend-cli") | .id]'
+            jq -e '.workspace_default_members == [.packages[] | select(.name == "canisend") | .id]'
           cargo tree --locked -e normal,build,dev --prefix none > "$RUNNER_TEMP/cli-dependencies.txt"
           if grep -Eq '^(canisend-gui|tauri(-[^ ]+)?|tao|wry|gtk[0-9]?(-sys)?|webkit2gtk(-sys)?) v' "$RUNNER_TEMP/cli-dependencies.txt"; then
             echo "Desktop dependency found in the default CLI build/test graph" >&2
@@ -142,7 +180,12 @@ jobs:
         run: cargo build --locked
 
       - name: Test core, Store, IO, CLI, and MCP contracts
-        run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp
+        run: cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp
+
+      - name: Reject mismatched native archive identities
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/test_native_archive_identity.sh "${{ matrix.binary }}"
 
       - name: Smoke Agent v4 host resources and MCP through the built CLI
         shell: bash
@@ -156,19 +199,12 @@ jobs:
 
   macos-quality:
     name: macos-quality
-    needs: desktop-ui
     runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-
-      - name: Download exact production desktop UI
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: canisend-desktop-ui-${{ github.sha }}
-          path: apps/canisend-desktop/dist
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -194,7 +230,7 @@ jobs:
       - name: Reject active Python product files
         shell: bash
         run: |
-          tracked="$(git ls-files '*.py' pyproject.toml uv.lock | grep -Ev '^(\.claude/hooks/|\.codex/hooks/|\.trellis/scripts/)' || true)"
+          tracked="$(git ls-files '*.py' pyproject.toml uv.lock | grep -Ev '^(\.claude/hooks/|\.codex/hooks/|\.trellis/scripts/|scripts/(sync_typst_templates|test_sync_typst_templates)\.py$)' || true)"
           if [[ -n "$tracked" ]]; then
             echo "Rust-native branch contains forbidden Python product files:" >&2
             echo "$tracked" >&2
@@ -204,24 +240,11 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Keep native preview tooling out of production builds
-        shell: bash
-        run: |
-          if cargo tree --locked -p canisend-gui -e normal | \
-            rg -Fq 'tauri-plugin-wdio-webdriver'; then
-            echo "Test-only WebDriver plugin leaked into the default desktop graph" >&2
-            exit 1
-          fi
-          if rg -Fq 'preview-qualification' .github/workflows/release.yml; then
-            echo "Native release workflow must not enable preview-qualification" >&2
-            exit 1
-          fi
-
       - name: Run relevant Clippy targets
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        run: cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings
 
-      - name: Check generated contracts, resources, and release invariants
-        run: cargo run -p xtask --locked -- release check
+      - name: Check generated contracts, resources, and source invariants
+        run: cargo run -p xtask --locked -- source check
 
       - name: Record quality timing
         if: always()
@@ -239,19 +262,12 @@ jobs:
 
   macos-tests:
     name: macos-tests
-    needs: desktop-ui
     runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-
-      - name: Download exact production desktop UI
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: canisend-desktop-ui-${{ github.sha }}
-          path: apps/canisend-desktop/dist
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
@@ -272,24 +288,17 @@ jobs:
           test "$(uname -s)" = "Darwin"
           test "$(uname -m)" = "arm64"
 
-      - name: Run complete Rust suite on macOS
-        run: cargo test --workspace --locked
+      - name: Run CLI and shared Rust suite on macOS
+        run: cargo test --workspace --exclude canisend-gui --locked
 
-      - name: Run generated property contracts
-        run: cargo test -p canisend-contracts --locked --test property_contract
-
-      - name: Build macOS development CLI and GUI
-        run: >-
-          cargo build --locked -p canisend-cli -p canisend-gui
-          --features canisend-gui/custom-protocol
+      - name: Build macOS development CLI
+        run: cargo build --locked -p canisend
 
       - name: Smoke macOS development CLI
         shell: bash
         run: |
           test -x ./target/debug/canisend
-          test -x ./target/debug/canisend-gui
           file ./target/debug/canisend | grep -q arm64
-          file ./target/debug/canisend-gui | grep -q arm64
           ./target/debug/canisend version --json
           ./target/debug/canisend doctor --json
           ./scripts/smoke_host_v4.sh \

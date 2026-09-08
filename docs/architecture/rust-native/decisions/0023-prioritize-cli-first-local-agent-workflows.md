@@ -58,3 +58,25 @@ The current request authorizes direction and stage closeout/integration, not all
 implementation, release publication, announcements, or support expansion. Resolve the exact merge
 target before changing branch ancestry. Review existing uncommitted work and apply exact freeze
 dispositions and required CI before claiming integration complete.
+
+## Development-flow amendment — 2026-09-07
+
+The owner requested removal of unnecessary development gates and repeated manual confirmation.
+The ordering above expresses code dependencies, not a requirement to finish human qualification
+before implementing the next slice. Automated single-Host protocol/lifecycle/resumption coverage
+is sufficient to start dependent coordination work; real Host acceptance remains required before
+qualifying the affected standalone or collaboration candidate.
+
+Use `xtask source check` for development and independent CLI CI without frontend prerequisites.
+Keep `xtask release check` as the complete candidate check, including exact human/artifact evidence
+and feature-freeze dispositions. Pending release evidence is neither a development lock nor a
+reason to rewrite historical records. Collect exact dispositions at qualification rather than
+requesting process approval after each implementation step. Product consent, private-data access,
+revision checks, audit, recovery and release publication authority are unchanged.
+
+The owner's local-integration clarification makes branches and PRs optional development tools.
+Reuse the current branch, merge completed work locally, and batch broader checks at meaningful
+milestones. Keep focused bug and trust/data-boundary regressions. Request external review only
+when needed; protected remote integration and release evidence keep their existing requirements.
+Local integration does not claim remote CI or publication, and does not authorize unrelated
+branch deletion, force pushes, or changing remote protections.

@@ -25,6 +25,7 @@ Run the target directly with:
 cargo test -p canisend-contracts --locked --test property_contract
 ```
 
-Both macOS fast CI and the Linux native-release source gate run that exact command as a named step. `xtask release
-check` requires the test file, this policy, both workflow steps, and the four property functions, so neither the
-development nor release quality boundary can silently regress to unit tests alone.
+macOS Fast CI includes this target in `cargo test --workspace --exclude canisend-gui --locked`;
+it does not run it again separately. The Linux native-release source gate retains the explicit
+command above. The property policy check requires the test file, this policy, both workflow
+commands, and all four property functions. Development and release both retain generated coverage.

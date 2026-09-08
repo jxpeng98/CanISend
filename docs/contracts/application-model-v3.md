@@ -135,6 +135,13 @@ When records exist, validation rejects:
 Semantic violations carry stable `application_v3.*` codes and JSON pointers. External aggregate
 candidates run generated JSON Schema validation before semantic validation.
 
+Repository updates mark a consuming Plan stale when its Requirement revision changes. Reopening
+a confirmed/excluded decision or introducing a newly confirmed criterion also invalidates the
+Plan, even when the previous input list omitted that Requirement. Excluding an unconsumed
+proposal alone does not invalidate unrelated Plan inputs. Materialized outputs become stale when
+their Plan changes; existing stale outputs retain the historical content and revision references
+until an explicit revision regenerates them under the current Plan.
+
 ## Schema registry
 
 The seven v3 schemas are generated deterministically from Rust types:

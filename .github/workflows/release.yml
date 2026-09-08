@@ -6,10 +6,15 @@ on:
       - "v1.0.0*"
   workflow_dispatch:
     inputs:
+      npm_only:
+        description: "Publish the macOS ARM64 CLI prerelease directly to npm next"
+        type: boolean
+        default: true
+        required: true
       tag:
         description: "Exact future tag to build once as a non-publishing candidate"
         required: true
-        default: "v1.0.0-beta.2"
+        default: "v1.0.0-beta.5"
       cache_epoch:
         description: "Body-free sccache namespace epoch used for cold/warm/invalidation measurement"
         required: true
@@ -29,6 +34,8 @@ concurrency:
 
 jobs:
   release-identity:
+    # Full native/GUI qualification remains paused during CLI-first delivery.
+    if: vars.CANISEND_ENABLE_FULL_RELEASE == 'true' && !inputs.npm_only
     name: release-identity
     runs-on: ubuntu-24.04
     outputs:
@@ -450,7 +457,7 @@ jobs:
       - name: Build native release binary
         run: >-
           cargo build --profile ${{ needs.release-identity.outputs.cargo_profile }}
-          --locked --target ${{ matrix.target }} -p canisend-cli
+          --locked --target ${{ matrix.target }} -p canisend
 
       - name: Resolve stage-selected native binary
         id: native_binary
@@ -542,7 +549,7 @@ jobs:
           CANISEND_PERFORMANCE_OUTPUT: ${{ runner.temp }}/canisend-performance.json
         run: >-
           cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }}
-          -p canisend-cli --locked
+          -p canisend --locked
           --target x86_64-unknown-linux-gnu
           --test performance_contract -- --ignored --nocapture
 
@@ -628,6 +635,17 @@ jobs:
             "${{ needs.release-identity.outputs.tag }}" \
             "${{ matrix.environment }}" \
             "$RUNNER_TEMP/documentation-uninstall-${{ matrix.target }}.json"
+
+      - name: Exercise simulated Host against the extracted candidate
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          version="${{ needs.release-identity.outputs.tag }}"
+          version="${version#v}"
+          extracted="$RUNNER_TEMP/release-smoke-${{ matrix.target }}/extracted/canisend-$version-${{ matrix.target }}/canisend"
+          CANISEND_TEST_CLI_BINARY="$extracted" \
+            cargo test --profile ${{ needs.release-identity.outputs.cargo_profile }} \
+            -p canisend --locked --target x86_64-unknown-linux-gnu --test mcp_protocol
 
       - name: Download verified public Alpha.5 migration baseline
         if: needs.release-identity.outputs.tag == 'v1.0.0-alpha.6'
@@ -1533,3 +1551,99 @@ jobs:
           path: ${{ runner.temp }}/public-release-verification.json
           if-no-files-found: error
           retention-days: 90
+
+  publish-cli-registries:
+    needs: [release-identity, verify-published-release]
+    if: needs.release-identity.outputs.mode == 'promote'
+    uses: ./.github/workflows/package-registries.yml
+    with:
+      tag: ${{ needs.release-identity.outputs.tag }}
+    secrets: inherit
+
+  publish-npm:
+    name: publish-npm-macos-arm64
+    if: github.event_name == 'workflow_dispatch' && inputs.npm_only
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.11.0 --ignore-scripts
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: npm-release-macos-arm64
+      - name: Validate main and exact prerelease identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(uname -m)" = arm64
+          version="$(cargo metadata --locked --no-deps --format-version 1 | jq -er '.packages[] | select(.name == "canisend") | .version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9.-]+$ ]]
+          test "$RELEASE_TAG" = "v$version"
+          echo "NPM_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Check CLI source and npm packaging
+        run: |
+          cargo run -p xtask --locked -- source check
+          node --test packaging/npm/launcher.test.cjs packaging/npm/pack.test.mjs
+      - name: Build and sign CLI
+        run: |
+          cargo build --release --locked -p canisend
+          codesign --force --sign - target/release/canisend
+          codesign --verify --strict target/release/canisend
+      - name: Package and qualify exact CLI bytes
+        run: |
+          set -euo pipefail
+          ./scripts/package_native_release.sh target/release/canisend aarch64-apple-darwin dist/npm-native
+          bundle="dist/npm-native/canisend-$NPM_RELEASE_VERSION-aarch64-apple-darwin"
+          git archive --format=tar.gz HEAD > "$bundle/SOURCE.tar.gz"
+          node packaging/npm/pack.mjs dist/npm-release "$bundle"
+          npm install --offline --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/npm-smoke" \
+            "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz"
+          installed="$RUNNER_TEMP/npm-smoke/node_modules/canisend"
+          cmp target/release/canisend "$installed/native/darwin-arm64/canisend"
+          cmp "$bundle/SOURCE.tar.gz" "$installed/SOURCE.tar.gz"
+          "$installed/canisend.cjs" version --json | jq -e --arg version "$NPM_RELEASE_VERSION" \
+            --arg revision "$(git rev-parse --short=12 HEAD)" '.data.version == $version and .data.git_revision == $revision'
+          CANISEND_TEST_CLI_BINARY="$installed/canisend.cjs" cargo test -p canisend --locked --test mcp_protocol
+          ./scripts/smoke_release_archive.sh \
+            "dist/npm-native/canisend-$NPM_RELEASE_VERSION-aarch64-apple-darwin.tar.gz" \
+            aarch64-apple-darwin "$RUNNER_TEMP/npm-archive-smoke" target/release/canisend
+          shasum -a 256 "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" > dist/npm-release/SHA256SUMS
+      - name: Retain the exact npm candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-candidate-${{ github.sha }}
+          path: |
+            dist/npm-release/*.tgz
+            dist/npm-release/SHA256SUMS
+            dist/npm-release/packages.json
+          if-no-files-found: error
+      - name: Publish to npm next using OIDC
+        run: npm publish "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" --access public --tag next --ignore-scripts --provenance
+      - name: Verify registry bytes and fresh installation
+        run: |
+          set -euo pipefail
+          npm view "canisend@$NPM_RELEASE_VERSION" dist --json > dist/npm-release/registry.json
+          expected="$(shasum "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" | awk '{print $1}')"
+          test "$(jq -r .shasum dist/npm-release/registry.json)" = "$expected"
+          test "$(npm view canisend dist-tags.next)" = "$NPM_RELEASE_VERSION"
+          npm install --ignore-scripts --no-audit --no-fund --cache "$RUNNER_TEMP/npm-registry-cache" \
+            --prefix "$RUNNER_TEMP/npm-registry" "canisend@$NPM_RELEASE_VERSION"
+          installed="$RUNNER_TEMP/npm-registry/node_modules/canisend"
+          cmp target/release/canisend "$installed/native/darwin-arm64/canisend"
+          cmp "dist/npm-native/canisend-$NPM_RELEASE_VERSION-aarch64-apple-darwin/SOURCE.tar.gz" "$installed/SOURCE.tar.gz"
+          "$installed/canisend.cjs" --workspace "$RUNNER_TEMP/npm-registry-workspace" workspace init --host codex --json
+          "$installed/canisend.cjs" --workspace "$RUNNER_TEMP/npm-registry-workspace" workspace check --json
+          echo "Published canisend@$NPM_RELEASE_VERSION to next (macOS ARM64)." >> "$GITHUB_STEP_SUMMARY"

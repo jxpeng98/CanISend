@@ -1,0 +1,80 @@
+name: publish-cli-registries
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      CARGO_REGISTRY_TOKEN:
+        required: true
+      NPM_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-registries-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Test unified npm packaging and native launcher dispatch
+        run: node --test packaging/npm/launcher.test.cjs packaging/npm/pack.test.mjs
+      - name: Validate tag and reuse verified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]
+          [[ "$(git cat-file -t "$RELEASE_TAG")" == tag ]]
+          [[ "$(git rev-parse "$RELEASE_TAG^{commit}")" == "$(git rev-parse HEAD)" ]]
+          mkdir -p dist/registry-assets dist/registry-bundles
+          gh release download "$RELEASE_TAG" --dir dist/registry-assets
+          cargo run -p xtask --locked -- release verify "$RELEASE_TAG" dist/registry-assets
+          version="${RELEASE_TAG#v}"
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-linux-musl; do
+            tar -xzf "dist/registry-assets/canisend-$version-$target.tar.gz" -C dist/registry-bundles
+          done
+          unzip -q "dist/registry-assets/canisend-$version-x86_64-pc-windows-msvc.zip" -d dist/registry-bundles
+          node packaging/npm/pack.mjs dist/npm-registry dist/registry-bundles/*
+          jq -e --arg version "$version" '.complete and .version == $version and .archives == ["canisend-" + $version + ".tgz"]' dist/npm-registry/packages.json
+      - name: Verify Cargo registry packages before any upload
+        run: cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+      - name: Verify installed npm entry and simulated Host
+        shell: bash
+        run: |
+          npm install --offline --ignore-scripts --omit=optional --no-audit --no-fund --prefix "$RUNNER_TEMP/npm-smoke" \
+            "dist/npm-registry/canisend-$(jq -r .version dist/npm-registry/packages.json).tgz"
+          binary="$RUNNER_TEMP/npm-smoke/node_modules/.bin/canisend"
+          "$binary" --workspace "$RUNNER_TEMP/npm-workspace" workspace init --host codex --json
+          CANISEND_TEST_CLI_BINARY="$binary" cargo test -p canisend --locked --test mcp_protocol
+      - name: Publish Cargo dependency closure
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+      - name: Publish the single canisend npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r .version dist/npm-registry/packages.json)"
+          channel=latest
+          if [[ "$version" == *-* ]]; then channel=next; fi
+          npm publish "dist/npm-registry/canisend-$version.tgz" --access public --tag "$channel" --ignore-scripts

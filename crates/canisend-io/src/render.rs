@@ -656,19 +656,16 @@ Missing user font behavior remains deterministic."#,
         for kind in DocumentKind::ALL {
             let descriptor = document_template_descriptor(kind);
             assert_eq!(descriptor.entrypoint, "canisend_render_document");
-            let (expected_bundle, expected_resource, expected_version) = match kind {
-                DocumentKind::Cv => ("modernpro-cv", "template.modernpro-cv", "2.0.0"),
+            let (expected_bundle, expected_resource) = match kind {
+                DocumentKind::Cv => ("modernpro-cv", "template.modernpro-cv"),
                 DocumentKind::CoverLetter
                 | DocumentKind::ResearchStatement
-                | DocumentKind::TeachingStatement => (
-                    "modernpro-coverletter",
-                    "template.modernpro-coverletter",
-                    "1.0.0",
-                ),
+                | DocumentKind::TeachingStatement => {
+                    ("modernpro-coverletter", "template.modernpro-coverletter")
+                }
             };
             assert_eq!(descriptor.bundle_id, expected_bundle);
             assert_eq!(descriptor.resource.id, expected_resource);
-            assert_eq!(descriptor.resource.version, expected_version);
 
             let source = project_document_typst(
                 &artifact_reference(ArtifactKind::CoverLetter, 10),

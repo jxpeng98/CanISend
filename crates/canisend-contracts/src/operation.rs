@@ -697,7 +697,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Cli)
                 .count(),
-            31
+            39
         );
         assert_eq!(
             bindings
@@ -711,8 +711,39 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            36
+            44
         );
+        for (operation, surfaces) in [
+            (
+                "application.pack.show",
+                vec![OperationSurface::Cli, OperationSurface::Mcp],
+            ),
+            ("evidence.confirm.preview", vec![OperationSurface::Mcp]),
+            ("evidence.confirm.commit", vec![OperationSurface::Mcp]),
+        ] {
+            assert_eq!(
+                bindings
+                    .iter()
+                    .filter(|binding| binding.operation.as_str() == operation)
+                    .map(|binding| binding.surface)
+                    .collect::<Vec<_>>(),
+                surfaces
+            );
+        }
+        let local_tasks = bindings
+            .iter()
+            .filter(|binding| binding.operation.as_str().starts_with("local-task."))
+            .collect::<Vec<_>>();
+        assert_eq!(local_tasks.len(), 8);
+        assert!(local_tasks.iter().all(|binding| {
+            binding.surface
+                == if binding.operation.as_str() == "local-task.draft.preview" {
+                    OperationSurface::Mcp
+                } else {
+                    OperationSurface::Cli
+                }
+                && binding.class == OperationClass::CanonicalLeaf
+        }));
         assert!(bindings.iter().all(|binding| {
             !matches!(
                 binding.leaf.as_str(),

@@ -175,41 +175,17 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 Path::new(output),
             )
         }
+        [area, command] if area == "source" && command == "check" => check_source(),
         [area, command] if area == "release" && command == "check" => {
-            check_schemas()?;
-            check_resources()?;
-            check_domain_coupling_inventory()?;
-            check_documentation()?;
-            check_release_notes_policy()?;
-            check_property_test_policy()?;
-            check_fuzz_policy()?;
-            check_internal_dependency_versions()?;
+            check_source()?;
             check_dependency_assurance()?;
-            check_rust_toolchain_alignment()?;
-            check_desktop_distribution_versions()?;
             check_provider_dogfood()?;
             check_beta_readiness()?;
             check_beta_contract_freeze()?;
             check_channel_candidates()?;
-            check_package_manager_qualification_policy()?;
-            check_upgrade_qualification_policy()?;
-            check_documentation_uninstall_policy()?;
-            check_signing_policy()?;
-            check_release_line_history()?;
-            check_stage_transition_policy()?;
-            check_support_policy()?;
             check_release_feedback()?;
             check_release_qualification()?;
-            check_release_status()?;
-            check_workspace_dependency_graph()?;
-            check_operation_registry()?;
-            check_approval_broker()?;
-            check_semantic_parity()?;
-            check_cli_gui_parity()?;
-            check_svelte_parity()?;
-            check_alpha_package_contract()?;
-            check_native_test_ownership()?;
-            check_release_contract()
+            check_release_status()
         }
         [area, command] if area == "dependencies" && command == "check" => {
             check_dependency_assurance()
@@ -434,11 +410,43 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             )
         }
         _ => Err(
-            "usage: cargo run -p xtask -- schemas <check|write> | <resources|docs> check | scope <check|inventory --json> | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
+            "usage: cargo run -p xtask -- schemas <check|write> | <source|resources|docs> check | scope <check|inventory --json> | desktop <parity|template-audit|profile-record TARGET CANDIDATE OPT_LEVEL LTO HOST OUTPUT|profile-summary RELEASE SIZE_S SIZE_Z SIZE_Z_FAT OUTPUT|size-record TARGET PROFILE FORMAT HOST PAYLOAD FRONTEND|- ARTIFACT|- OUTPUT> | \
              release <check|status --json|freeze-candidate|validate-tag TAG|verify-beta-readiness FILE|verify-feedback-candidate SNAPSHOT ROADMAP|prepare-stage TAG [--write]|activate-feature-freeze COMMIT [--write]|record-beta-qualification TAG RUN_ID ASSETS [--write]|record-rc-qualification TAG RUN_ID ASSETS [--write]|record-release-notes-qualification TAG ASSETS REVIEWER [--write]|record-upgrade-qualification FROM_TAG TO_TAG EVIDENCE [--write]|record-documentation-qualification TAG ASSETS EVIDENCE [--write]|record-package-qualification FROM_TAG TO_TAG EVIDENCE [--write]|sbom OUTPUT|assemble TAG COMMIT ARTIFACTS OUTPUT|verify TAG DIRECTORY|verify-candidate TAG COMMIT DIRECTORY|channels TAG ASSETS OUTPUT|bind-signing-evidence TAG TARGET EVIDENCE BINARY ARCHIVE|verify-package-candidates FROM_TAG FROM_ASSETS TO_TAG TO_ASSETS|verify-package-evidence FROM_TAG TO_TAG DIRECTORY|verify-upgrade-evidence FROM_TAG TO_TAG DIRECTORY|verify-documentation-evidence TAG ASSETS EVIDENCE>"
                 .to_owned(),
         ),
     }
+}
+
+// Development checks validate source contracts without claiming current human or artifact evidence.
+fn check_source() -> Result<(), String> {
+    check_schemas()?;
+    check_resources()?;
+    check_domain_coupling_inventory()?;
+    check_documentation()?;
+    check_release_notes_policy()?;
+    check_property_test_policy()?;
+    check_fuzz_policy()?;
+    check_internal_dependency_versions()?;
+    check_rust_toolchain_alignment()?;
+    check_desktop_distribution_versions()?;
+    check_package_manager_qualification_policy()?;
+    check_upgrade_qualification_policy()?;
+    check_documentation_uninstall_policy()?;
+    check_signing_policy()?;
+    check_release_line_history()?;
+    check_stage_transition_policy()?;
+    check_support_policy()?;
+    check_workspace_dependency_graph()?;
+    check_operation_registry()?;
+    check_approval_broker()?;
+    check_semantic_parity()?;
+    check_cli_gui_parity()?;
+    check_svelte_parity()?;
+    check_alpha_package_contract()?;
+    check_native_test_ownership()?;
+    check_release_contract()?;
+    println!("source: ok (release qualification is separate)");
+    Ok(())
 }
 
 fn check_schemas() -> Result<(), String> {
@@ -1273,6 +1281,38 @@ fn locked_package_version(package_name: &str) -> Result<String, String> {
         .to_owned())
 }
 
+fn modernpro_upstream(
+    name: &str,
+    descriptor: canisend_resources::ResourceDescriptor,
+) -> Result<Value, String> {
+    let pins: Value = serde_json::from_slice(
+        &fs::read(repository_root().join("release/modernpro-sources.json"))
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let pin = &pins[name];
+    let source = canisend_resources::get(
+        descriptor
+            .id
+            .parse()
+            .map_err(|error: canisend_resources::ResourceError| error.to_string())?,
+    )
+    .bytes;
+    let bytes = pin["source_bytes"]
+        .as_u64()
+        .and_then(|size| usize::try_from(size).ok())
+        .and_then(|size| source.get(..size))
+        .ok_or_else(|| format!("missing upstream source boundary for {name}"))?;
+    if pin["version"] != descriptor.version
+        || pin["package"] != name
+        || pin["license"] != "MIT"
+        || pin["source_sha256"] != hex::encode(Sha256::digest(bytes))
+    {
+        return Err(format!("upstream source identity differs for {name}"));
+    }
+    Ok(pin.clone())
+}
+
 fn typst_template_descriptor_value(
     descriptor: canisend_resources::ResourceDescriptor,
 ) -> Result<Value, String> {
@@ -1309,19 +1349,7 @@ fn typst_template_descriptor_value(
                 json!(["cv"]),
                 json!([]),
                 2,
-                json!({
-                    "archive_sha256": "1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0",
-                    "archive_url": "https://packages.typst.org/preview/modernpro-cv-2.0.0.tar.gz",
-                    "license": "MIT",
-                    "package": "modernpro-cv",
-                    "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
-                    "source_entrypoint": "modernpro-cv.typ",
-                    "source_patches": [{
-                        "id": "prefer-explicit-configuration",
-                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-                    }],
-                    "version": "2.0.0"
-                }),
+                modernpro_upstream("modernpro-cv", descriptor)?,
                 json!({
                     "families": ["Libertinus Serif"],
                     "inherits_renderer_default": false,
@@ -1335,19 +1363,7 @@ fn typst_template_descriptor_value(
                 json!(["cover-letter", "research-statement", "teaching-statement"]),
                 json!([]),
                 2,
-                json!({
-                    "archive_sha256": "d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130",
-                    "archive_url": "https://packages.typst.org/preview/modernpro-coverletter-1.0.0.tar.gz",
-                    "license": "MIT",
-                    "package": "modernpro-coverletter",
-                    "repository": "https://github.com/jxpeng98/typst-coverletter",
-                    "source_entrypoint": "modernpro-coverletter.typ",
-                    "source_patches": [{
-                        "id": "prefer-explicit-configuration",
-                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-                    }],
-                    "version": "1.0.0"
-                }),
+                modernpro_upstream("modernpro-coverletter", descriptor)?,
                 json!({
                     "families": ["Libertinus Serif"],
                     "inherits_renderer_default": false,
@@ -1388,7 +1404,7 @@ fn expected_typst_template_contract() -> Result<Value, String> {
     Ok(json!({
         "schema": TYPST_TEMPLATE_CONTRACT_SCHEMA,
         "contract_version": 2,
-        "baseline": "modernpro-universe-pinned-v2",
+        "baseline": "modernpro-source-pinned-v3",
         "renderer": {
             "typst_as_lib": locked_package_version("typst-as-lib")?,
             "typst_assets": locked_package_version("typst-assets")?,
@@ -1747,7 +1763,7 @@ fn domain_coupling_areas(path: &str, body: &str) -> BTreeSet<String> {
     if path.contains("/schemas/") && extension == "json" {
         areas.insert("schemas".to_owned());
     }
-    if path.contains("/resources/") {
+    if path.contains("/resources/") || path.starts_with("crates/canisend-resources/history/") {
         areas.insert("resources".to_owned());
     }
     if path.starts_with("apps/canisend-desktop/") || path.starts_with("crates/canisend-desktop/") {
@@ -1792,6 +1808,7 @@ fn classify_domain_coupling(
         return Ok("optional-adapter");
     }
     if path.contains("workflow-packs/org.canisend.academic-job")
+        || path == "crates/canisend-resources/history/academic-job.json"
         || path == "docs/contracts/academic-job-workflow-pack-v1.md"
         || path.contains("/skills/canisend-job-intake/")
         || path.ends_with("/prompts/job-parse.md")
@@ -2481,10 +2498,15 @@ fn check_property_test_policy() -> Result<(), String> {
         }
     }
 
-    let command = "cargo test -p canisend-contracts --locked --test property_contract";
-    for workflow in [
-        ".github/workflows/fast-ci.yml",
-        ".github/workflows/release.yml",
+    for (workflow, command) in [
+        (
+            ".github/workflows/fast-ci.yml",
+            "cargo test --workspace --exclude canisend-gui --locked",
+        ),
+        (
+            ".github/workflows/release.yml",
+            "cargo test -p canisend-contracts --locked --test property_contract",
+        ),
     ] {
         let path = root.join(workflow);
         let body = fs::read_to_string(&path)
@@ -5563,6 +5585,7 @@ fn beta_readiness_v2_contracts(root: &Path) -> Result<Value, String> {
     );
     let mut skills = Vec::new();
     for id in [
+        "canisend-application-workflow",
         "canisend-intake",
         "canisend-materials",
         "canisend-review-export",
@@ -6444,12 +6467,14 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "pnpm build",
                 "pnpm exec playwright install --with-deps chrome",
                 "pnpm test:accessibility",
-                "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
-                "cargo test --workspace --locked",
-                "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
-                "cargo test -p canisend-contracts --locked --test property_contract",
-                "cargo run -p xtask --locked -- release check",
-                "cargo build --locked -p canisend-cli -p canisend-gui --features canisend-gui/custom-protocol"
+                "cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings",
+                "cargo test --workspace --exclude canisend-gui --locked",
+                "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
+                "cargo run -p xtask --locked -- source check",
+                "cargo build --locked -p canisend",
+                "cargo clippy -p canisend-gui --all-targets --all-features --locked -- -D warnings",
+                "cargo test -p canisend-gui --locked",
+                "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol"
             ],
             "target_seconds_after_cache_warmup": 300,
             "windows_linux_native_tests": true,
@@ -6537,7 +6562,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         "extended_assurance": [
             {
                 "owner": "fast-ci/desktop-ui",
-                "scope": "Formatting, Svelte and TypeScript checks, unit tests, and production frontend build"
+                "scope": "Formatting, Svelte and TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build"
             },
             {
                 "owner": "fast-ci/browser-keyboard-accessibility",
@@ -6553,7 +6578,7 @@ fn check_native_test_ownership() -> Result<(), String> {
             },
             {
                 "owner": "fast-ci/macos-tests",
-                "scope": "macOS development workspace, recovery, rendering, CLI, and GUI"
+                "scope": "macOS CLI and shared Rust workspace, property contracts, recovery, and rendering; independent of desktop builds"
             },
             {
                 "owner": "native-release/source-and-native",
@@ -6624,15 +6649,15 @@ fn check_native_test_ownership() -> Result<(), String> {
         "Run Chrome keyboard, accessibility, and key-visual checks",
         "pnpm exec playwright install --with-deps chrome",
         "pnpm test:accessibility",
-        "Upload production desktop UI",
-        "Download exact production desktop UI",
-        "needs: desktop-ui",
-        "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
-        "cargo test --workspace --locked",
-        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
-        "cargo test -p canisend-contracts --locked --test property_contract",
-        "cargo run -p xtask --locked -- release check",
-        "cargo build --locked -p canisend-cli -p canisend-gui",
+        "Build desktop against its production UI",
+        "cargo clippy -p canisend-gui --all-targets --all-features --locked -- -D warnings",
+        "cargo test -p canisend-gui --locked",
+        "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol",
+        "cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings",
+        "cargo test --workspace --exclude canisend-gui --locked",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
+        "cargo run -p xtask --locked -- source check",
+        "cargo build --locked -p canisend",
         "--features canisend-gui/custom-protocol",
         "Smoke Agent v4 host resources and MCP through the built CLI",
         "./scripts/smoke_host_v4.sh",
@@ -6650,14 +6675,23 @@ fn check_native_test_ownership() -> Result<(), String> {
     }
     if fast_ci.matches("runs-on: macos-15").count() != 3 {
         return Err(
-            "fast CI must contain exactly three macOS jobs, including the shared desktop UI build"
+            "fast CI must contain exactly three macOS jobs, including independent desktop maintenance"
                 .to_owned(),
         );
     }
-    if fast_ci.matches("needs: desktop-ui").count() != 2 {
-        return Err(
-            "both macOS Rust jobs must consume the exact production desktop UI build".to_owned(),
-        );
+    for forbidden in [
+        "needs: desktop-ui",
+        "Download exact production desktop UI",
+        "cargo clippy --workspace --all-targets",
+        "cargo test --workspace --locked",
+        "cargo test -p canisend-contracts --locked --test property_contract",
+        "cargo run -p xtask --locked -- release check",
+    ] {
+        if fast_ci.contains(forbidden) {
+            return Err(format!(
+                "fast CI must keep CLI development independent of desktop and release gates: `{forbidden}`"
+            ));
+        }
     }
     let host_v4_smoke_path = root.join("scripts/smoke_host_v4.sh");
     let host_v4_smoke = fs::read_to_string(&host_v4_smoke_path)
@@ -6712,10 +6746,10 @@ fn check_native_test_ownership() -> Result<(), String> {
         "canisend_deliverable_draft_preview",
         "canisend_deliverable_draft_commit",
         "canisend_deliverable_audit",
-        "approved: false",
+        "request_confirmation: false",
         "workspace backup",
         "workspace restore",
-        "backup, restore, and reopen passed",
+        "exact reopen/restore, and export verification passed; automated fixture only",
         "MCP-V4-PROFILE-PRIVATE-SENTINEL",
         "MCP-V4-GENERIC-PRIVATE-SENTINEL",
         "MCP-V4-ACADEMIC-PRIVATE-SENTINEL",
@@ -6790,7 +6824,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         "runner: ubuntu-24.04",
         "runner: windows-2025",
         "uses: dtolnay/rust-toolchain@1.97.0",
-        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend-cli -p canisend-mcp",
+        "cargo test --locked -p canisend-core -p canisend-store -p canisend-io -p canisend -p canisend-mcp",
     ] {
         if !core_job.contains(required) {
             return Err(format!(
@@ -8094,8 +8128,8 @@ fn validate_approval_broker_sources(sources: ApprovalBrokerSources<'_>) -> Resul
     for required in [
         "AssociationApprovalBrokerV4",
         "preview_token",
-        "approved: bool",
-        "confirmed_private_read",
+        "request_confirmation: bool",
+        "request_private_read",
         "destructive_hint = true",
     ] {
         if !mcp.contains(required) {
@@ -8566,6 +8600,7 @@ fn validate_semantic_parity_policy(
         "application.export".to_owned(),
         "application.intake.commit".to_owned(),
         "evidence.association.commit".to_owned(),
+        "evidence.confirm.commit".to_owned(),
         "profile.association.commit".to_owned(),
         "requirement.extract.commit".to_owned(),
         "requirement.confirm.commit".to_owned(),
@@ -8603,6 +8638,7 @@ fn validate_semantic_parity_policy(
         "desktop-discovery".to_owned(),
         "desktop-workflow-rerun".to_owned(),
         "evidence-association".to_owned(),
+        "evidence-confirm".to_owned(),
         "profile-association".to_owned(),
         "requirement-extract".to_owned(),
         "requirement-confirm".to_owned(),
@@ -9408,13 +9444,13 @@ fn check_svelte_parity() -> Result<(), String> {
         let fast_ci = fs::read_to_string(root.join(".github/workflows/fast-ci.yml"))
             .map_err(|error| format!("cannot inspect fast CI for Svelte cutover: {error}"))?;
         for required in [
-            "Upload production desktop UI",
-            "Download exact production desktop UI",
-            "canisend-desktop-ui-${{ github.sha }}",
+            "Build production desktop UI",
+            "Build desktop against its production UI",
+            "cargo build --locked -p canisend-gui --features canisend-gui/custom-protocol",
         ] {
             if !fast_ci.contains(required) {
                 return Err(format!(
-                    "Svelte cutover fast CI is missing frontend handoff `{required}`"
+                    "Svelte cutover fast CI is missing desktop maintenance `{required}`"
                 ));
             }
         }
@@ -15304,7 +15340,7 @@ fn write_release_sbom(output: &Path) -> Result<(), String> {
         .iter()
         .filter_map(|node| node["id"].as_str().map(|id| (id.to_owned(), node)))
         .collect::<BTreeMap<_, _>>();
-    let root_ids = ["canisend-cli", "canisend-gui"]
+    let root_ids = ["canisend", "canisend-gui"]
         .into_iter()
         .map(|name| {
             packages
@@ -16566,6 +16602,108 @@ fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    // Validator input only: these local synthetic records are not release/user evidence.
+    fn synthetic_qualification_fixture(label: &str) -> (PathBuf, Value, Value) {
+        let repository = repository_root();
+        let root = std::env::temp_dir().join(format!(
+            "canisend-synthetic-qualification-{label}-{}",
+            std::process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).expect("remove old synthetic validator fixture");
+        }
+        fs::create_dir_all(&root).expect("create synthetic validator fixture");
+        let mut files = BTreeSet::new();
+        for relative in [
+            "crates/canisend-resources/resources/schemas",
+            "crates/canisend-resources/resources/skills",
+            "crates/canisend-store/migrations",
+        ] {
+            collect_relative_files(&repository, &repository.join(relative), &mut files)
+                .expect("collect current source contract inputs");
+        }
+        files.extend([
+            "crates/canisend-resources/resources/manifest.json",
+            "crates/canisend-resources/resources/operations/v4/registry.json",
+            "crates/canisend-resources/resources/agent/v4/task-resource-model.json",
+            "crates/canisend-resources/resources/workflow-packs/org.canisend.academic-job/manifest.json",
+            "crates/canisend-resources/resources/workflow-packs/org.canisend.generic-application/manifest.json",
+            "crates/canisend-store/src/database.rs",
+        ].into_iter().map(str::to_owned));
+        for relative in files {
+            let target = root.join(&relative);
+            fs::create_dir_all(target.parent().unwrap()).expect("create fixture input directory");
+            fs::copy(repository.join(relative), target).expect("copy source contract input");
+        }
+        let contracts = beta_readiness_v2_contracts(&root).expect("source bindings");
+        let alpha = Version::parse("1.0.0-alpha.10").expect("synthetic Alpha version");
+        write_pretty_json(
+            &root.join("release/alpha-package-contract.json"),
+            &json!({
+                "schema": alpha_package_contract_schema(&alpha).unwrap(),
+                "version": alpha.to_string(), "tag": format!("v{alpha}"),
+                "contracts": alpha_package_contract_bindings(&root).unwrap(),
+                "standalone_cli": {}, "desktop_macos": {}, "desktop_macos_intel": {},
+            }),
+        )
+        .expect("write synthetic package contract");
+        run_git(&root, &["init", "--initial-branch=main"])
+            .expect("initialize synthetic repository");
+        run_git(
+            &root,
+            &["config", "user.name", "Synthetic validator fixture"],
+        )
+        .unwrap();
+        run_git(&root, &["config", "user.email", "fixture@canisend.invalid"]).unwrap();
+        run_git(&root, &["add", "release/alpha-package-contract.json"]).unwrap();
+        run_git(
+            &root,
+            &["commit", "-m", "test: bind synthetic package input"],
+        )
+        .unwrap();
+        let commit = run_git_lines(&root, &["rev-parse", "HEAD"])
+            .unwrap()
+            .remove(0);
+        let note = "docs/notes/synthetic-validator-fixture.md";
+        fs::create_dir_all(root.join("docs/notes")).unwrap();
+        fs::write(
+            root.join(note),
+            "Synthetic validator input only; no provider run or human qualification occurred.\n",
+        )
+        .unwrap();
+        let scenarios = [
+            ("codex-cli-academic-requirement-preview-cancel", "org.canisend.academic-job"),
+            ("codex-cli-generic-requirement-preview-cancel", "org.canisend.generic-application"),
+        ].into_iter().map(|(id, pack)| json!({
+            "scenario_id": id, "host": "codex-cli", "host_version": "synthetic-validator-fixture",
+            "pack_id": pack, "operation": "requirement.confirm.preview-cancel",
+            "preview_status": "previewed", "status": "passed",
+            "requirement_state_before": "proposed", "requirement_state_after": "proposed",
+            "application_revision_before": 1, "application_revision_after": 1,
+            "mutation_performed": false, "submission_performed": false,
+        })).collect::<Vec<_>>();
+        let provider = json!({
+            "schema": PROVIDER_DOGFOOD_SCHEMA, "status": "passed",
+            "candidate": { "tag": format!("v{alpha}"), "source_commit": commit,
+                "release_run": 1, "artifact_id": 1,
+                "artifact_name": format!("canisend-v{alpha}-release-assets"),
+                "archive_sha256": "a".repeat(64), "binary_sha256": "b".repeat(64) },
+            "consent": {"content_scope": "synthetic-metadata-only", "provider_send": "explicitly-authorized",
+                "retained_private_content": false, "retained_secret_material": false},
+            "contracts": {"agent_protocol": contracts["agent_protocol"],
+                "resource_format": contracts["resource_format"],
+                "task_resource_model_sha256": contracts["task_resource_model_sha256"],
+                "workspace_format": contracts["workspace_format"]},
+            "evidence_note": {"path": note, "sha256": sha256_file(&root.join(note)).unwrap()},
+            "packs": contracts["workflow_packs"], "skills": contracts["skills"],
+            "scenarios": scenarios, "excluded_attempts": [],
+        });
+        write_pretty_json(&root.join("release/provider-dogfood.json"), &provider).unwrap();
+        let readiness = beta_readiness_fixture(&provider, &root);
+        write_pretty_json(&root.join("release/beta-readiness.json"), &readiness).unwrap();
+        (root, provider, readiness)
+    }
+
     fn beta_readiness_fixture(provider: &Value, root: &Path) -> Value {
         let blocker_classes = BETA_READINESS_BLOCKER_CLASSES
             .into_iter()
@@ -16827,8 +16965,7 @@ mod tests {
     }
 
     #[test]
-    fn dependency_assurance_binds_current_exceptions_and_rejects_stale_windows() {
-        check_dependency_assurance().expect("current dependency assurance");
+    fn dependency_exception_dates_reject_stale_windows() {
         let reviewed = Date::from_calendar_date(2026, Month::August, 3).expect("review date");
         let review_by = Date::from_calendar_date(2026, Month::August, 10).expect("review-by date");
         let expires = Date::from_calendar_date(2026, Month::August, 17).expect("expiry date");
@@ -17517,6 +17654,11 @@ mod tests {
     #[test]
     fn typst_template_contract_matches_embedded_latest_templates() {
         check_typst_template_contract().expect("latest Typst template contract");
+        let mut descriptor =
+            canisend_resources::get(canisend_resources::ResourceId::TemplateModernproCv).descriptor;
+        descriptor.version = "0.0.0";
+        assert!(modernpro_upstream("modernpro-cv", descriptor).is_err());
+        assert!(modernpro_upstream("unknown-template", descriptor).is_err());
     }
 
     #[test]
@@ -17762,16 +17904,24 @@ mod tests {
     }
 
     #[test]
-    fn beta_readiness_has_no_unresolved_alpha_blockers() {
-        check_beta_readiness().expect("Beta readiness ledger");
+    fn beta_readiness_rejects_unresolved_alpha_blockers() {
+        let (root, _, mut readiness) = synthetic_qualification_fixture("blockers");
+        let version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
+        validate_qualified_beta_readiness(&readiness, &root, &version)
+            .expect("synthetic clear baseline");
+        readiness["unresolved_release_blockers"] = json!(["synthetic-open-blocker"]);
+        assert!(validate_qualified_beta_readiness(&readiness, &root, &version).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn provider_dogfood_rejects_missing_stale_failed_or_private_records() {
-        let repository = repository_root();
-        let canonical_path = repository.join("release/provider-dogfood.json");
-        let canonical = validate_provider_dogfood_file(&canonical_path, &repository)
-            .expect("canonical provider dogfood record");
+        let (repository, _, _) = synthetic_qualification_fixture("provider");
+        let canonical = validate_provider_dogfood_file(
+            &repository.join("release/provider-dogfood.json"),
+            &repository,
+        )
+        .expect("synthetic provider validator baseline");
         assert!(validate_provider_dogfood_public_binding(&canonical, "v1.0.0-alpha.6").is_err());
         let fixture =
             std::env::temp_dir().join(format!("canisend-provider-dogfood-{}", std::process::id()));
@@ -17825,17 +17975,28 @@ mod tests {
             }
         });
         assert!(validate_provider_dogfood_readiness_binding(&canonical, &readiness).is_err());
+        // A genuine source-byte change must invalidate the previously valid record.
+        let skill = repository
+            .join("crates/canisend-resources/resources/skills/canisend-materials/SKILL.md");
+        let mut changed_skill = fs::read(&skill).expect("read fixture Skill");
+        changed_skill.extend_from_slice(b"\nSynthetic source drift.\n");
+        fs::write(skill, changed_skill).expect("change only fixture Skill bytes");
+        assert_eq!(
+            validate_provider_dogfood_file(
+                &repository.join("release/provider-dogfood.json"),
+                &repository
+            )
+            .expect_err("old evidence must remain stale after a source change"),
+            "provider dogfood Skill identity or digest is stale"
+        );
         fs::remove_dir_all(fixture).expect("remove provider dogfood fixture");
+        fs::remove_dir_all(repository).expect("remove synthetic provider inputs");
     }
 
     #[test]
     fn beta_readiness_v2_rejects_stale_private_false_or_blocked_records() {
-        let root = repository_root();
-        let provider =
-            validate_provider_dogfood_file(&root.join("release/provider-dogfood.json"), &root)
-                .expect("provider dogfood record");
+        let (root, _, readiness) = synthetic_qualification_fixture("readiness");
         let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("workspace version");
-        let readiness = beta_readiness_fixture(&provider, &root);
         validate_qualified_beta_readiness(&readiness, &root, &version)
             .expect("qualified Beta readiness fixture");
 
@@ -17863,16 +18024,13 @@ mod tests {
                 "{name} Beta readiness must fail"
             );
         }
+        fs::remove_dir_all(root).expect("remove synthetic readiness inputs");
     }
 
     #[test]
     fn beta_contract_freeze_v2_rejects_legacy_or_unbound_records() {
-        let root = repository_root();
+        let (root, _, readiness) = synthetic_qualification_fixture("freeze");
         let version = Version::parse(env!("CARGO_PKG_VERSION")).expect("active version");
-        let readiness: Value = serde_json::from_slice(
-            &fs::read(root.join("release/beta-readiness.json")).expect("Beta readiness record"),
-        )
-        .expect("Beta readiness JSON");
         let alpha_version = Version::parse(
             readiness["alpha_release"]["tag"]
                 .as_str()
@@ -17897,7 +18055,7 @@ mod tests {
         );
         assert_eq!(
             freeze["contracts"]["skills"].as_array().map(Vec::len),
-            Some(4)
+            Some(5)
         );
         assert_eq!(
             freeze["contracts"]["migration_inventory"]["through"],
@@ -17977,6 +18135,7 @@ mod tests {
             validate_beta_transition_authorities(&root, &version, &stale_readiness, &freeze)
                 .is_err()
         );
+        fs::remove_dir_all(root).expect("remove synthetic freeze inputs");
     }
 
     #[test]
@@ -20807,8 +20966,8 @@ mod tests {
         let registry = OperationRegistry::built_in().expect("operation registry");
         let current = validate_semantic_parity_policy(&policy, &registry, &root)
             .expect("current semantic parity policy");
-        assert_eq!(current.shared_operations, 38);
-        assert_eq!(current.preview_pairs, 14);
+        assert_eq!(current.shared_operations, 39);
+        assert_eq!(current.preview_pairs, 15);
         assert!(!current.uncovered_bindings.is_empty());
 
         let mut missing_shared = policy.clone();

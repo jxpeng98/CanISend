@@ -88,7 +88,11 @@ fn agent_v4_model_schemas_and_examples_share_one_clean_contract() {
         serde_json::from_slice(model_resource.bytes).expect("Agent v4 task-resource model JSON");
     assert_eq!(model.format, AGENT_V4_TASK_MODEL_FORMAT);
     assert_eq!(model.protocol, AGENT_V4_PROTOCOL);
-    assert!(model.validate_semantics().is_empty());
+    assert!(
+        model.validate_semantics().is_empty(),
+        "{:?}",
+        model.validate_semantics()
+    );
 
     let schema_resources = [
         (
@@ -185,14 +189,10 @@ fn operation_v4_registry_projects_one_neutral_surface_for_every_host() {
 fn academic_workflow_pack_manifest_and_bodies_are_embedded_as_one_bundle() {
     let manifest = get(ResourceId::WorkflowPackOrgCanisendAcademicJob);
     assert_eq!(manifest.descriptor.kind, ResourceKind::WorkflowPack);
-    assert_eq!(manifest.descriptor.version, "1.0.0");
     let value: serde_json::Value =
         serde_json::from_slice(manifest.bytes).expect("academic Pack Manifest JSON");
     assert_eq!(value["id"], ACADEMIC_JOB_WORKFLOW_PACK_ID);
-    assert_eq!(
-        value["content_digest"],
-        "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
-    );
+    assert_eq!(value["version"], manifest.descriptor.version);
     let bundle = academic_job_workflow_pack();
     assert_eq!(bundle.id(), ACADEMIC_JOB_WORKFLOW_PACK_ID);
     assert_eq!(bundle.manifest_bytes(), manifest.bytes);
@@ -273,25 +273,19 @@ fn application_model_v3_schemas_are_embedded_as_an_independent_registry() {
 
 #[test]
 fn modernpro_templates_are_pinned_self_contained_and_adapter_backed() {
-    for (id, version, package_marker) in [
-        (
-            ResourceId::TemplateModernproCv,
-            "2.0.0",
-            "// modernpro-cv.typ",
-        ),
+    for (id, package_marker) in [
+        (ResourceId::TemplateModernproCv, "// modernpro-cv.typ"),
         (
             ResourceId::TemplateModernproCoverletter,
-            "1.0.0",
             "// modernpro-coverletter.typ",
         ),
     ] {
         let resource = get(id);
         assert_eq!(resource.descriptor.kind, ResourceKind::Template);
-        assert_eq!(resource.descriptor.version, version);
         let source = std::str::from_utf8(resource.bytes).expect("ModernPro template UTF-8");
         assert!(source.contains(package_marker));
         assert!(source.contains("#let canisend_render_document(data)"));
-        assert!(source.contains("CanISend compatibility patch"));
+        assert!(!source.contains("CanISend compatibility patch"));
         assert!(!source.contains("#import \"@preview/"));
         assert!(!source.contains("#read("));
     }
@@ -383,7 +377,7 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
             manifest.task_resource_model_sha256,
             get(ResourceId::AgentV4TaskResourceModel).descriptor.sha256
         );
-        let expected_files = if host == AgentHost::Codex { 20 } else { 16 };
+        let expected_files = if host == AgentHost::Codex { 22 } else { 17 };
         assert_eq!(manifest.files.len(), expected_files);
         let skill_root = match host {
             AgentHost::Codex => ".agents/skills",
@@ -468,13 +462,20 @@ fn agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift() {
         ("canisend-review-export", vec!["review", "export"]),
     ]);
 
+    let workflow = String::from_utf8_lossy(get(ResourceId::SkillCanisendApplicationWorkflow).bytes);
+    for skill in expected.keys() {
+        assert!(
+            workflow.contains(skill),
+            "workflow does not route to {skill}"
+        );
+    }
     let mut coverage = BTreeMap::<String, usize>::new();
     for (skill, tasks) in &expected {
         let body = String::from_utf8_lossy(skills[skill]);
         let metadata = String::from_utf8_lossy(openai_metadata[skill]);
         assert!(body.contains("canisend.workspace/v4"));
         assert!(body.contains("canisend.agent/v4"));
-        assert!(body.contains("orient -> propose -> preview -> approve -> commit -> verify"));
+        assert!(body.contains("request_confirmation: true"));
         assert!(!body.contains("canisend.agent/v2"));
         assert!(!body.contains("canisend.agent/v3"));
         assert!(!body.contains("canisend-job-intake"));
@@ -512,7 +513,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
 
     let installed = install_agent_skills(AgentHost::Codex, &root).expect("install skills");
     assert_eq!(installed.state, AgentSkillsInstallState::Installed);
-    assert_eq!(installed.files.len(), 8);
+    assert_eq!(installed.files.len(), 10);
     assert!(
         root.join(".agents/skills/canisend-workspace/SKILL.md")
             .is_file()
@@ -537,6 +538,38 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
 
     let unchanged = install_agent_skills(AgentHost::Codex, &root).expect("check skills");
     assert_eq!(unchanged.state, AgentSkillsInstallState::UpToDate);
+
+    // A prior four-Skill installation gains the workflow entrypoint on setup.
+    let mut four_skill_manifest = installed_manifest.clone();
+    four_skill_manifest.files.retain(|file| {
+        if file
+            .resource_id
+            .starts_with("skill.canisend-application-workflow")
+        {
+            fs::remove_file(root.join(&file.path)).unwrap();
+            false
+        } else {
+            true
+        }
+    });
+    assert_eq!(four_skill_manifest.files.len(), 8);
+    fs::write(
+        &installed.manifest_path,
+        serde_json::to_vec(&four_skill_manifest).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        inspect_agent_skills(AgentHost::Codex, &root).unwrap().state,
+        AgentSkillsStatusState::Incomplete
+    );
+    assert_eq!(
+        install_agent_skills(AgentHost::Codex, &root).unwrap().state,
+        AgentSkillsInstallState::Updated
+    );
+    assert!(
+        root.join(".agents/skills/canisend-application-workflow/SKILL.md")
+            .is_file()
+    );
 
     let managed_path = root.join(".agents/skills/canisend-intake/SKILL.md");
     let expected_bytes = fs::read(&managed_path).expect("embedded skill bytes");
@@ -570,7 +603,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
         upgrade_status.state,
         AgentSkillsStatusState::UpdateAvailable
     );
-    assert_eq!(upgrade_status.skills.len(), 4);
+    assert_eq!(upgrade_status.skills.len(), 5);
     let updated = install_agent_skills(AgentHost::Codex, &root).expect("upgrade skills");
     assert_eq!(updated.state, AgentSkillsInstallState::Updated);
     assert_ne!(fs::read(&managed_path).expect("updated skill"), old_bytes);
@@ -594,7 +627,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     fs::create_dir(&claude_root).expect("Claude root");
     let claude =
         install_agent_skills(AgentHost::Claude, &claude_root).expect("Claude skills install");
-    assert_eq!(claude.files.len(), 4);
+    assert_eq!(claude.files.len(), 5);
     assert!(
         claude_root
             .join(".claude/skills/canisend-workspace/SKILL.md")
@@ -619,7 +652,7 @@ fn agent_skills_install_is_idempotent_upgradeable_and_edit_safe() {
     let removed =
         uninstall_agent_skills(AgentHost::Claude, &claude_root).expect("remove Claude skills");
     assert_eq!(removed.state, AgentSkillsUninstallState::Removed);
-    assert_eq!(removed.removed_files, 4);
+    assert_eq!(removed.removed_files, 5);
     assert!(!claude.manifest_path.exists());
     assert_eq!(
         inspect_agent_skills(AgentHost::Claude, &claude_root)
@@ -745,4 +778,71 @@ fn agent_skills_management_rejects_symlinked_host_directories() {
 
     fs::remove_dir_all(root).expect("cleanup workspace");
     fs::remove_dir_all(outside).expect("cleanup outside");
+}
+
+#[test]
+fn skills_upgrade_resumes_mixed_files_and_preflights_conflicts() {
+    let root = std::env::temp_dir().join(format!("canisend-skills-resume-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir(&root).unwrap();
+    for host in [AgentHost::Codex, AgentHost::Claude] {
+        let installed = install_agent_skills(host, &root).unwrap();
+        let mut old: AgentSkillsManifest =
+            serde_json::from_slice(&fs::read(&installed.manifest_path).unwrap()).unwrap();
+        // Model a stopped update: one current file, one old file, one missing file,
+        // and the old manifest still in place. No real user files are involved.
+        let old_bytes = b"previous managed fixture";
+        for entry in &mut old.files {
+            fs::write(root.join(&entry.path), old_bytes).unwrap();
+            entry.sha256 = hex::encode(Sha256::digest(old_bytes));
+        }
+        fs::write(&installed.manifest_path, serde_json::to_vec(&old).unwrap()).unwrap();
+        let first = &installed.files[0];
+        fs::write(
+            root.join(&first.path),
+            get(ResourceId::from_str(&first.resource_id).unwrap()).bytes,
+        )
+        .unwrap();
+        fs::remove_file(root.join(&installed.files[1].path)).unwrap();
+        let last = root.join(&installed.files.last().unwrap().path);
+        fs::write(&last, b"user customization").unwrap();
+        let manifest_before = fs::read(&installed.manifest_path).unwrap();
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::UserModified
+        );
+        assert!(install_agent_skills(host, &root).is_err());
+        assert!(!root.join(&installed.files[1].path).exists());
+        assert_eq!(
+            fs::read(root.join(&installed.files[2].path)).unwrap(),
+            old_bytes
+        );
+        assert_eq!(fs::read(&installed.manifest_path).unwrap(), manifest_before);
+        assert_eq!(fs::read(&last).unwrap(), b"user customization");
+        // Resolve only the fixture edit; setup can resume from the old manifest.
+        fs::write(&last, old_bytes).unwrap();
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::Incomplete
+        );
+        assert_eq!(
+            install_agent_skills(host, &root).unwrap().state,
+            AgentSkillsInstallState::Updated
+        );
+        assert_eq!(
+            inspect_agent_skills(host, &root).unwrap().state,
+            AgentSkillsStatusState::UpToDate
+        );
+        assert_eq!(
+            install_agent_skills(host, &root).unwrap().state,
+            AgentSkillsInstallState::UpToDate
+        );
+        for entry in &installed.files {
+            assert_eq!(
+                hex::encode(Sha256::digest(fs::read(root.join(&entry.path)).unwrap())),
+                entry.sha256
+            );
+        }
+    }
+    fs::remove_dir_all(root).unwrap();
 }

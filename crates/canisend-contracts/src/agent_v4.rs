@@ -84,7 +84,12 @@ impl AgentTaskKindV4 {
     #[must_use]
     pub const fn operation_prefixes(self) -> &'static [&'static str] {
         match self {
-            Self::Orientation => &["workspace.status", "application.list", "application.show"],
+            Self::Orientation => &[
+                "workspace.status",
+                "application.list",
+                "application.show",
+                "application.pack.show",
+            ],
             Self::ProfileEvidence => &[
                 "profile.",
                 "evidence.list",
@@ -99,7 +104,7 @@ impl AgentTaskKindV4 {
                 "source.show",
             ],
             Self::ApplicationCreate => &["application.create."],
-            Self::Requirements => &["requirement."],
+            Self::Requirements => &["requirement.", "source.revise."],
             Self::FitPlan => &["plan.", "evidence.association."],
             Self::Drafting => &["deliverable."],
             Self::Review => &["review."],
@@ -698,6 +703,40 @@ mod tests {
                 snapshot_sha256: digest('b'),
             }),
         }
+    }
+
+    #[test]
+    fn source_revision_belongs_only_to_requirements() {
+        for operation in ["source.revise.preview", "source.revise.commit"] {
+            let owners = AgentTaskKindV4::ALL
+                .into_iter()
+                .filter(|task| task.accepts_operation(operation))
+                .collect::<Vec<_>>();
+            assert_eq!(owners, vec![AgentTaskKindV4::Requirements]);
+        }
+        assert!(!AgentTaskKindV4::Requirements.accepts_operation("source.intake.commit"));
+    }
+
+    #[test]
+    fn orientation_can_read_an_exact_application_pack_without_authorizing_mutation() {
+        let mut request = AgentTaskRequestV4 {
+            protocol: AgentProtocolV4::V4,
+            task_id: id(3),
+            task: AgentTaskKindV4::Orientation,
+            operation: OperationId::try_new("application.pack.show").expect("operation"),
+            context: context(),
+            resources: Vec::new(),
+            requested_consents: Vec::new(),
+        };
+        assert!(request.validate_semantics().is_empty());
+        assert!(!AgentTaskKindV4::Orientation.accepts_operation("application.archive.commit"));
+        request.context.application = None;
+        assert!(
+            request
+                .validate_semantics()
+                .iter()
+                .any(|violation| { violation.code == "agent_v4.application_context_required" })
+        );
     }
 
     #[test]

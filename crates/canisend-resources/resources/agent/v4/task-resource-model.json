@@ -6,7 +6,7 @@
     {
       "task": "orientation",
       "description": "Inspect Workspace health, Packs, Applications, and the next bounded action without reading private bodies.",
-      "operation_prefixes": ["workspace.status", "application.list", "application.show"],
+      "operation_prefixes": ["workspace.status", "application.list", "application.show", "application.pack.show"],
       "mutation": false,
       "phases": ["orient", "verify"],
       "workspace_only_allowed": true
@@ -38,7 +38,7 @@
     {
       "task": "requirements",
       "description": "Propose, correct, and confirm Source-grounded Requirements.",
-      "operation_prefixes": ["requirement."],
+      "operation_prefixes": ["requirement.", "source.revise."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": false

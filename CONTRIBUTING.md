@@ -24,23 +24,30 @@ pnpm, frontend build, or desktop webview SDK. Default tests cover the CLI packag
 crate is the domain facade and remains a CLI dependency.
 
 Desktop development is an explicit selection (`-p canisend-gui`) with its existing frontend and
-platform prerequisites; follow [the desktop guide](docs/guides/desktop-gui.md). Full-workspace CI
-continues to build and test the desktop. Existing Linux/Windows core CI additionally checks the
+platform prerequisites; follow [the desktop guide](docs/guides/desktop-gui.md). Independent desktop CI
+continues to build and test the desktop. CLI quality/tests do not wait for that build.
+Existing Linux/Windows core CI additionally checks the
 CLI-only default selection and dependency graph, builds it without frontend steps, and runs the
 existing CLI/Host/MCP tests. These source checks do not qualify standalone release packages.
 
 ## Minimum sufficient checks
 
-Choose the smallest row that owns the change. Do not run every row for every edit.
+Choose the smallest row that owns the change. Batch checks at a completed feature, contract change,
+substantial integration or candidate milestone; do not run every row after every edit or commit.
+Keep a focused regression during bug diagnosis and for consent/data-integrity changes.
 
-| Change | Local check before commit | Higher owner |
+| Change | Local milestone check | Higher owner |
 |---|---|---|
 | Prose or historical note only | `git diff --check` | Documentation/source gate when the file is active release truth |
 | Rust leaf behavior | affected test or test filter, `cargo fmt --all -- --check`, affected-package Clippy | Fast CI runs the workspace suite |
-| Shared contract, schema, resource, CI, or release metadata | smallest affected test plus `cargo run -p xtask --locked -- release check` once on the final PR head | Fast CI |
+| Shared contract, schema, resource, CI, or release metadata | smallest affected test plus `cargo run -p xtask --locked -- source check` once at the integration milestone | Fast CI when synchronized |
 | Desktop behavior | affected pnpm test/check plus production build only when bundling changed | Fast CI accessibility and macOS lanes |
 | Package/runtime behavior | exact affected package smoke | Native candidate workflow |
 | Release candidate | no ad hoc local matrix | Build-once native and public-verification workflows |
+
+`source check` validates source contracts; `release check` additionally requires current release
+qualification, human evidence and freeze dispositions. Run the latter when qualifying a candidate
+or changing its validator. Pending human acceptance does not block ordinary implementation.
 
 One invariant has one primary test owner. Other adapters receive a wiring/parity smoke, not copies of
 the same business-rule test. A trust-boundary, consent, data-loss, recovery, or release-integrity
@@ -61,9 +68,16 @@ unplanned end-user runtime.
 
 ## Changes and tracking
 
-Update the Rust-native roadmap when a tracked task is completed. Add a dated note for phase transitions, dependency
-decisions, material risks, and release evidence. Commits use Conventional Commits and should represent one auditable
-milestone.
+Reuse the current local branch and make meaningful Conventional Commits. Create another branch or
+worktree only for conflicting parallel work or a risky experiment. Merge completed branches locally,
+prefer fast-forward where possible, and avoid repeating checks when the tested content is unchanged.
+
+PRs are not routine development gates. Use one when external review is requested or protected remote
+integration requires it, grouping a coherent milestone. Local commits and merges do not imply a push,
+remote CI success or release qualification. Preserve existing remote protections.
+
+Update the existing roadmap/checklist once at a milestone with actual checks and the next step;
+do not create separate task, branch, PR or bookkeeping commits for each small change.
 
 ## Project control
 

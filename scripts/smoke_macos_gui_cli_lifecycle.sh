@@ -10,7 +10,7 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 cd "$repo_root"
 
-cargo build -p canisend-cli --release --locked
+cargo build -p canisend --release --locked
 
 source_cli="$repo_root/target/release/canisend"
 if [[ ! -f "$source_cli" || -L "$source_cli" ]]; then

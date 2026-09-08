@@ -32,10 +32,12 @@ if [[ ! -f "$binary" || -L "$binary" ]]; then
   exit 1
 fi
 
+command -v jq >/dev/null
 version_json="$("$binary" version --json)"
-version="$(printf '%s' "$version_json" | sed -E 's/^.*"version":"([^"]+)".*$/\1/')"
-if [[ -z "$version" || "$version" == "$version_json" ]]; then
-  echo "native package: could not read product version from binary" >&2
+if ! version="$(printf '%s' "$version_json" | jq -er --arg target "$target" '
+  select(.ok == true and .operation == "product.version" and .data.target == $target)
+  | .data.version | select(type == "string" and length > 0)')"; then
+  echo "native package: binary product version or build target does not match $target" >&2
   exit 1
 fi
 
@@ -65,7 +67,7 @@ if [[ "$archive_extension" == "zip" ]]; then
 else
   (
     cd "$output"
-    tar -czf "$archive_name" "$bundle_name"
+    COPYFILE_DISABLE=1 tar -czf "$archive_name" "$bundle_name"
   )
 fi
 

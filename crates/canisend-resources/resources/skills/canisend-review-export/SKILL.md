@@ -7,28 +7,63 @@ description: Review, render, package, and export evidence-bound CanISend Deliver
 
 This skill covers Agent v4 tasks `review` and `export` for one exact Application.
 
+## Review substance and consistency
+
+Compare the entire material set with the confirmed Requirements and Plan. Check whether each
+mandatory criterion is addressed, each factual claim has the right Evidence and its wording does
+not overstate that evidence. Separate deterministic failures from editorial recommendations.
+Check relevance, specificity, readable structure, repetition and whether the intended audience
+can find the argument. A passing validator is not a judgement of persuasive quality.
+
+Cross-check names, dates, roles, publication status, metrics and future/completed work across
+materials. Check the source-backed length, language and format constraints. Route missing facts
+to `canisend-workspace`, source ambiguity to `canisend-intake`, and content or Plan revisions to
+`canisend-materials`; refresh affected review state after a change. Never dismiss a blocker merely
+to reach export, and do not require a separate approval for every non-mutating editorial comment.
+
 ## Review the current snapshot
 
 1. Require `canisend.workspace/v4` and `canisend.agent/v4`, then bind the exact Application UUID,
    Pack identity and digest, revision, and snapshot digest.
 2. Obtain private-read consent before reading Deliverable bodies. Inspect deterministic validation,
    evidence support, and Pack-qualified cross-Deliverable findings against that exact snapshot.
-3. Explain unresolved findings. The user may approve eligible dispositions; deterministic blockers
-   require correction and cannot be silently dismissed.
-4. Preview each disposition, obtain approval for that exact digest, commit its single-use token,
-   and verify the returned revision and audit receipt.
+3. Explain unresolved findings and correct deterministic blockers before approval. The current
+   `canisend_review_disposition_preview` takes the Application revision and private-read request;
+   it reviews the current material set, not an individual finding ID or arbitrary waiver.
+4. Preview the current set's disposition and call `canisend_review_disposition_commit` with the
+   required private-read and `request_confirmation: true` fields from its actual schema. The user
+   answers. Verify the returned revision and any returned receipt; report an absent receipt as absent.
 
 ## Render and export locally
 
 1. Re-orient after review and require current readiness. Readiness means only that CanISend may
    prepare local files.
-2. Obtain separate private-export consent. Preview the exact Deliverables, format, destination,
-   replacement behavior, and artifact graph.
-3. Preserve user edits through CanISend's reconciliation path. Render only from authoritative
-   structured Deliverables, never from an edited managed projection.
-4. Commit the approved export preview and verify every returned artifact digest and local path.
-   Confirm that `submission_performed` is `false`.
+2. Request separate private-export consent with `request_private_export`. Preview the exact
+   Deliverables, format, destination, replacement behavior, and artifact graph.
+3. Preserve user edits. Render from authoritative Deliverables, never treat an edited projection
+   as already committed content. Discover a supported reconciliation/revision operation before
+   promising to import edits; if none is callable, preserve the files and report the limitation.
+4. Request native confirmation for the export preview with `request_confirmation: true`; only
+   the user may approve. Verify every returned artifact digest and local path, and confirm that
+   `submission_performed` is `false`.
 
-All writes follow `orient -> propose -> preview -> approve -> commit -> verify`. On stale context,
-expiry, replay, consent denial, or restart, discard the preview and begin again. Never upload,
-log in to a portal, or submit an Application.
+## Deliver and resume
+
+Inspect generated documents when a suitable local viewer/parser is available: missing sections,
+clipped text, blank pages, unresolved placeholders, bad glyphs and broken links. Read only the
+exported files within the granted private-data scope; export consent alone does not authorize
+sending them to an external viewer or model service. Report when only
+machine integrity checks were performed; a PDF hash does not prove visual correctness. Correct
+problems through authoritative Deliverables/templates and the supported reconciliation path,
+then render and verify again with the required consent.
+
+Deliver the actual local paths, document inventory, verification results and remaining limitations.
+Distinguish draft, reviewed and exported states; never call a hold Plan a finished application.
+If materials or sources change after export, use a fresh review/readiness check and export rather
+than treating old files as current. Restored Workspace drafts can be authoritative while scoped
+export directories are absent; inspect first and request a fresh export instead of declaring data
+loss or silently copying stale output. Portal submission remains the user's separate action.
+
+Follow `canisend-workspace` for MCP consent fields and preview handling. Confirmation requests
+are not user approval. After denial, stop the denied operation without retry or fallback;
+independent authorized checks may continue. On stale context, expiry, replay, or restart, discard the preview and re-orient. Never upload, log in to a portal, or submit.

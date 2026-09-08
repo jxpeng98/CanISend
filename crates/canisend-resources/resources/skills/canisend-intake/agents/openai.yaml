@@ -1,5 +1,5 @@
 interface:
   display_name: "CanISend Intake"
-  short_description: "Create Applications and ground their requirements"
+  short_description: "Interpret sources and confirm Application requirements"
   brand_color: "#2563EB"
-  default_prompt: "Use $canisend-intake to create or continue the bounded intake for this Application."
+  default_prompt: "Use $canisend-intake to interpret this opportunity and confirm its source-grounded Requirements."

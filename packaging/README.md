@@ -64,3 +64,60 @@ from the final signed archives. Those files, their scoped publication record, re
 The publication record authorizes only `github-release-assets` and explicitly leaves `external_index_submission`
 false. Submitting the recorded repository paths to a Homebrew tap, Scoop bucket, or `winget-pkgs` remains a separate
 maintainer action because it changes another repository and may require its own review or credentials.
+
+## Local Cargo and npm entrypoint verification
+
+Run from a source checkout with Rust, Node/npm, jq and cached Cargo dependencies:
+
+```console
+scripts/smoke_local_installers.sh dist/local-installers
+```
+
+The destination must be new. The script installs the CLI with `cargo install --path
+crates/canisend-cli --locked --offline --root ...`, stages the same native binary and license
+notices, creates a private platform-specific npm tarball with `npm pack`, and installs it into
+an isolated npm prefix. Both installed commands initialize a Workspace with all five Skills,
+run the existing simulated Host tests and Host setup lifecycle, then uninstall while preserving
+the fixture Workspaces. Logs and `result.json` remain in the output directory.
+
+This currently exercises a native Unix host (macOS or Linux). npm links directly to the native
+executable: there are no npm dependencies, lifecycle scripts, runtime downloads or JavaScript
+business logic. npm is offline and uses a test-local cache. Public package names, cross-platform
+npm dispatch, Windows shims and registry publication are deferred. The local smoke verifies source installation, not a download from crates.io;
+registry publication is a separate operation described below.
+The private npm fixture is named `canisend-local` and cannot be published by `npm publish`.
+
+See the [Cargo install reference](https://doc.rust-lang.org/cargo/commands/cargo-install.html)
+and [npm local tarball installation reference](https://docs.npmjs.com/cli/v11/commands/npm-install/).
+
+## Registry release preparation
+
+The eight CLI dependency crates now allow crates.io publication; desktop and xtask remain private.
+Cargo 1.97 can dry-run and publish the complete dependency set together:
+
+```console
+cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+```
+
+`node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces one `canisend` package with
+the supplied binaries in `native/{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}`.
+The entry forwards arguments, exit status and stdio to the matching embedded executable; there
+are no dependencies or download scripts. Node >=22.14 is required for the npm launcher. A partial
+bundle set declares its actual targets for local tests and owner-authorized testing publications;
+publication CI requires all five platforms in the same archive. All users download that archive,
+including the other platforms' binaries. Run
+`node --test packaging/npm/launcher.test.cjs packaging/npm/pack.test.mjs` for packaging and dispatch checks.
+
+The existing annotated-tag native release workflow calls `package-registries.yml` only after
+`verify-published-release` succeeds. It verifies and reuses those release assets, dry-runs all
+Cargo packages, tests the installed Linux npm entry, then publishes Cargo followed by the single
+`canisend` npm package. Prereleases use npm's `next` dist-tag; stable uses `latest`.
+A registry failure stops the job; partial publication is not rolled back or silently overwritten.
+Before retrying, inspect which immutable versions were uploaded and reconcile that exact set.
+
+Bootstrap requires valid local `npm login` / `cargo login` credentials and the Actions secrets
+`NPM_TOKEN` and `CARGO_REGISTRY_TOKEN` with publication rights for these packages. Never commit
+credentials. GitHub login alone does not authorize either registry. Trusted publishing can replace
+CI tokens once the initial packages and registry publisher bindings exist. Package names and first
+release ownership must be confirmed before the first upload. This source configuration is not
+proof of a successful registry publication or a successful remote workflow run.

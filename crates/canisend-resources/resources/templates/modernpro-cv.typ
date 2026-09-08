@@ -4,8 +4,8 @@
 // Copyright (c) 2026
 // Author:  Academic Template Collective
 // License: MIT
-// Version: 2.0.0
-// Date:    2026-07-30
+// Version: 2.1.1
+// Date:    2026-09-06
 // Email:   maintainers@example.invalid
 ///////////////////////////////
 
@@ -35,17 +35,19 @@
   contact-icon-size: 7.6pt,
   contact-icon-width: 9pt,
   contact-icon-gap: 4pt,
+  photo-width: 16mm,
+  photo-height: 20mm,
 
-  section-gap: 1.08em,
-  section-content-gap: 0.7em,
-  item-gap: 0.98em,
-  entry-row-gap: 0.58em,
-  description-gap: 0.66em,
-  header-row-gap: 2.4pt,
-  header-rule-gap: 6pt,
-  header-content-gap: 10pt,
-  body-leading: 0.66em,
-  list-spacing: 0.3em,
+  section-gap: 1.3em,
+  section-content-gap: 0.85em,
+  item-gap: 1.2em,
+  entry-row-gap: 0.7em,
+  description-gap: 0.78em,
+  header-row-gap: 3pt,
+  header-rule-gap: 7pt,
+  header-content-gap: 12pt,
+  body-leading: 0.55em,
+  list-spacing: 0.78em,
   rule-stroke: 0.4pt,
   section-tracking: 0.08em,
 )
@@ -62,21 +64,21 @@
     header-row-gap: 1.8pt,
     header-rule-gap: 4.8pt,
     header-content-gap: 7pt,
-    body-leading: 0.58em,
-    list-spacing: 0.2em,
+    body-leading: 0.42em,
+    list-spacing: 0.48em,
   )
 } else if preset == "relaxed" or preset == "spacious" {
   (
-    section-gap: 1.3em,
-    section-content-gap: 0.82em,
-    item-gap: 1.2em,
-    entry-row-gap: 0.68em,
-    description-gap: 0.76em,
-    header-row-gap: 3pt,
-    header-rule-gap: 7pt,
-    header-content-gap: 11pt,
-    body-leading: 0.74em,
-    list-spacing: 0.32em,
+    section-gap: 1.6em,
+    section-content-gap: 1.05em,
+    item-gap: 1.5em,
+    entry-row-gap: 0.88em,
+    description-gap: 0.96em,
+    header-row-gap: 3.6pt,
+    header-rule-gap: 8pt,
+    header-content-gap: 14pt,
+    body-leading: 0.68em,
+    list-spacing: 0.95em,
   )
 } else {
   (
@@ -116,14 +118,12 @@
 }
 
 #let _first-filled(values, default: none) = {
-  // CanISend compatibility patch: explicit configuration must precede the fallback.
-  let value = none
   for candidate in values {
-    if not is-filled(value) and is-filled(candidate) {
-      value = candidate
+    if is-filled(candidate) {
+      return candidate
     }
   }
-  if is-filled(value) { value } else { default }
+  return default
 }
 
 // A smaller date set beside a larger title aligns on cap-height by default,
@@ -131,17 +131,16 @@
 // restores a shared baseline and survives a title that wraps.
 #let _cap-shift(style) = 0.7 * (style.item-title-size - style.small-size)
 
-// Structural gaps are explicit, which drops the weak paragraph and block
-// spacing next to them. Every vertical distance therefore comes from exactly
-// one rhythm token rather than stacking on Typst's defaults.
+// Structural gaps are weak so an entry's trailing gap and the following
+// section gap collapse to the larger value instead of stacking.
 #let sectionsep = context {
   let style = cv-style.get()
-  v(style.section-gap)
+  v(style.section-gap, weak: true)
 }
 
 #let subsectionsep = context {
   let style = cv-style.get()
-  v(style.item-gap)
+  v(style.item-gap, weak: true)
 }
 
 // Section headings (Education, Experience, etc). Case, weight, colour, and the
@@ -257,7 +256,7 @@
 
 #let _entry-finish() = context {
   let style = cv-style.get()
-  v(style.item-gap)
+  v(style.item-gap, weak: true)
 }
 
 // Education part
@@ -384,7 +383,7 @@
       text(style.body-size, fill: style.text)[#label],
       align(right, text(style.small-size, fill: style.muted)[#date]),
     )
-    v(style.entry-row-gap)
+    v(style.entry-row-gap, weak: true)
   }
 }
 
@@ -428,8 +427,21 @@
 
 #let reference-list = references
 
+// Paths constructed inside an imported package are confined to that package.
+// Require callers to resolve bibliography resources in their own document with
+// `path("bib.bib")`, or to pass raw bytes, before crossing the package boundary.
+#let _is-portable-bibliography-source(source) = if type(source) == array {
+  source.all(item => type(item) == path or type(item) == bytes)
+} else {
+  type(source) == path or type(source) == bytes
+}
+
 // Publications
 #let publication(path, styletype) = {
+  assert(
+    _is-portable-bibliography-source(path),
+    message: "publication source must be created in the calling document with path(\"bib.bib\"), or supplied as raw bytes",
+  )
   context {
     let style = cv-style.get()
     set text(style.body-size, fill: style.text)
@@ -523,7 +535,7 @@
       )
     } else {
       grid(
-        columns: 1fr,
+        columns: auto,
         row-gutter: style.header-row-gap,
         ..contacts.map(contact => align(right, _contact-label(contact, style))),
       )
@@ -624,6 +636,7 @@
     (accent, _option(theme, "accent", none)),
     default: default-cv-style.accent,
   )
+  let resolved-photo = _option(profile, "photo", none)
 
   let style = (
     text: _option(theme, "text", default-cv-style.text),
@@ -654,6 +667,8 @@
       "contact-icon-gap",
       _option(theme, "contact-icon-gap", default-cv-style.contact-icon-gap),
     ),
+    photo-width: _option(theme, "photo-width", default-cv-style.photo-width),
+    photo-height: _option(theme, "photo-height", default-cv-style.photo-height),
     footer-size: _option(theme, "footer-size", default-cv-style.footer-size),
     reference-size: _option(theme, "reference-size", default-cv-style.reference-size),
     section-gap: _option(layout, "section-gap", _option(theme, "section-gap", rhythm.section-gap)),
@@ -681,6 +696,7 @@
     role: _option-any(profile, ("role", "headline", "position"), none),
     address: _option(profile, "address", address),
     contacts: _option(profile, "contacts", contacts),
+    photo: resolved-photo,
     lastupdated: as-bool(_option-any(options, ("lastupdated", "last-updated"), lastupdated)),
     pagecount: as-bool(_option-any(options, ("pagecount", "page-count"), pagecount)),
     date: resolved-date,
@@ -688,7 +704,11 @@
     column-gutter: _option(layout, "column-gutter", 1.8em),
     contact-layout: _option(layout, "contact-layout", "stacked"),
     preset: resolved-preset,
-    header-height: _option(layout, "header-height", 17mm),
+    header-height: _option(
+      layout,
+      "header-height",
+      if is-filled(resolved-photo) { style.photo-height } else { 17mm },
+    ),
     header-ascent: _option(layout, "header-ascent", 0.8em),
   )
 }
@@ -736,24 +756,68 @@
   } else {
     contact-stack(cfg.contacts)
   }
+  let has-photo = is-filled(cfg.photo)
+  let photo-frame = if has-photo {
+    box(
+      width: style.photo-width,
+      height: style.photo-height,
+      inset: 0pt,
+      clip: true,
+    )[
+      #align(center + horizon, cfg.photo)
+    ]
+  }
+  let identity-block = grid(
+    columns: 1fr,
+    row-gutter: style.header-row-gap,
+    ..identity,
+  )
+  let header-content = if has-photo and cfg.contact-layout == "rail" {
+    let utility = if contact-block == none { [] } else { contact-block }
+    grid(
+      columns: (1fr, auto),
+      column-gutter: 1.4em,
+      align: horizon,
+      align(left + horizon, identity-block),
+      align(right + horizon, grid(
+        columns: (auto, auto),
+        column-gutter: 1em,
+        align: horizon,
+        utility,
+        photo-frame,
+      )),
+    )
+  } else if has-photo {
+    grid(
+      columns: (1fr, auto),
+      column-gutter: 1.4em,
+      align: top,
+      [
+        #identity-block
+        #if contact-block != none {
+          v(style.header-row-gap)
+          align(left, contact-display(cfg.contacts))
+        }
+      ],
+      align(right + top, photo-frame),
+    )
+  } else {
+    grid(
+      columns: (1.08fr, 1fr),
+      column-gutter: 1.4em,
+      align: bottom,
+      identity-block,
+      align(right + bottom, [
+        #if contact-block != none {
+          contact-block
+        }
+      ]),
+    )
+  }
 
   block(breakable: false)[
     #block(height: cfg.header-height, breakable: false)[
-      #align(bottom, grid(
-        columns: (1.08fr, 1fr),
-        column-gutter: 1.4em,
-        align: bottom,
-        grid(
-          columns: 1fr,
-          row-gutter: style.header-row-gap,
-          ..identity,
-        ),
-        align(right + bottom, [
-          #if contact-block != none {
-            contact-block
-          }
-        ]),
-      ))
+      #align(bottom, header-content)
     ]
     #v(style.header-rule-gap)
     #line(length: 100%, stroke: style.rule-stroke + style.accent)
@@ -945,7 +1009,7 @@
   [],
 )
 // CanISend offline adapter. The package implementation above is copied from
-// @preview/modernpro-cv:2.0.0; this adapter projects the structured document
+// @preview/modernpro-cv:2.1.1; this adapter projects the structured document
 // record without package imports, filesystem access, or system-font lookup.
 #let canisend_field(data, keys, fallback: none) = {
   let matches = data.fields.filter(field => keys.contains(field.key) and field.value != "")

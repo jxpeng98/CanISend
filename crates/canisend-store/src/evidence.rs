@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use canisend_contracts::{
-    ActorKind, ArtifactKind, ArtifactReference, CandidateValidationError, ContractViolation,
-    EntityId, EvidenceCatalogRecord, EvidenceRecord, Revision, Sha256Digest, UtcTimestamp,
+    ActorKind, ApplicationId, ArtifactKind, ArtifactReference, CandidateValidationError,
+    ContentRevisionReferenceV3, ContractViolation, EntityId, EvidenceCatalogRecord,
+    EvidenceProposalSet, EvidenceRecord, Revision, Sha256Digest, UtcTimestamp,
     validate_external_candidate,
 };
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -23,6 +24,125 @@ impl<'a> EvidenceService<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore) -> Self {
         Self { database, blobs }
+    }
+
+    /// Prepare one source-bound Workspace catalog without writing authority or blobs.
+    pub fn prepare_v4(
+        &self,
+        profile_source: &ContentRevisionReferenceV3,
+        proposals: &EvidenceProposalSet,
+    ) -> Result<EvidenceCatalogRecord, StoreError> {
+        if proposals.proposals.is_empty()
+            || proposals.proposals.len() > 1_000
+            || canonical_json_bytes(&serde_json::to_value(proposals)?)?.len() > 256 * 1024
+        {
+            return Err(StoreError::InvalidInput(
+                "Evidence proposals require 1–1000 items within 256 KiB".to_owned(),
+            ));
+        }
+        let catalog = EvidenceCatalogRecord {
+            id: generate_id()?,
+            profile_revision: proposals.profile_revision,
+            items: proposals
+                .proposals
+                .iter()
+                .map(|proposal| {
+                    Ok(EvidenceRecord {
+                        id: generate_id()?,
+                        kind: proposal.kind,
+                        summary: proposal.summary.clone(),
+                        source_quote: proposal.source_quote.clone(),
+                        source_span: proposal.source_span.clone(),
+                        confirmed: true,
+                        excluded: false,
+                        sensitivity: proposal.sensitivity,
+                        revision: Revision::try_new(1)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, StoreError>>()?,
+            revision: Revision::try_new(1)?,
+        };
+        validate_workspace_catalog(
+            self.database.connection(),
+            self.blobs,
+            profile_source,
+            &catalog,
+        )?;
+        Ok(catalog)
+    }
+
+    /// Persist the exact approved catalog; no Job or legacy workflow is created.
+    pub fn confirm_v4(
+        &mut self,
+        profile_source: &ContentRevisionReferenceV3,
+        catalog: &EvidenceCatalogRecord,
+        application_id: &ApplicationId,
+        application_revision: Revision,
+        application_snapshot: &Sha256Digest,
+    ) -> Result<ArtifactReference, StoreError> {
+        let transaction = self.database.immediate_transaction()?;
+        let current: Option<(i64, String)> = transaction.query_row(
+            "SELECT head.head_revision, revision.snapshot_sha256 FROM application_v4_heads AS head
+             JOIN application_v4_revisions AS revision ON revision.application_id = head.application_id
+                AND revision.revision = head.head_revision WHERE head.application_id = ?1",
+            params![application_id.as_str()], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional()?;
+        if current
+            != Some((
+                to_i64(application_revision.get())?,
+                application_snapshot.to_string(),
+            ))
+        {
+            return Err(StoreError::InvalidInput(
+                "Application approval context changed".to_owned(),
+            ));
+        }
+        validate_workspace_catalog(&transaction, self.blobs, profile_source, catalog)?;
+        let bytes = canonical_json_bytes(&serde_json::to_value(catalog)?)?;
+        let digest = self.blobs.put_bytes(&bytes)?;
+        let size = self.blobs.verify(&digest, DEFAULT_MAX_BLOB_BYTES)?;
+        let created_at = now_utc()?;
+        transaction.execute(
+            "INSERT INTO artifacts(id, kind, head_revision, stale, created_at)
+             VALUES (?1, 'evidence-catalog', 1, 0, ?2)",
+            params![catalog.id.as_str(), created_at.as_str()],
+        )?;
+        transaction.execute(
+            "INSERT INTO artifact_revisions(artifact_id, revision, sha256, size, actor, reason, created_at)
+             VALUES (?1, 1, ?2, ?3, 'user', 'confirm Workspace Evidence', ?4)",
+            params![catalog.id.as_str(), digest.as_str(), to_i64(size)?, created_at.as_str()],
+        )?;
+        transaction.execute(
+            "INSERT INTO blob_references(sha256, owner_type, owner_id, owner_revision, created_at)
+             VALUES (?1, 'artifact', ?2, 1, ?3)",
+            params![digest.as_str(), catalog.id.as_str(), created_at.as_str()],
+        )?;
+        let source = &catalog.items[0].source_span.source;
+        insert_dependency(&transaction, &catalog.id, catalog.revision, source)?;
+        persist_evidence_items(
+            &transaction,
+            catalog,
+            &catalog.id,
+            catalog.revision,
+            false,
+            &created_at,
+        )?;
+        insert_audit(
+            &transaction,
+            &generate_id()?,
+            "evidence.confirm",
+            &catalog.id,
+            catalog.revision,
+            "confirm source-bound Workspace Evidence",
+            &created_at,
+        )?;
+        transaction.commit()?;
+        Ok(ArtifactReference {
+            id: catalog.id.clone(),
+            revision: catalog.revision,
+            sha256: digest,
+            kind: ArtifactKind::EvidenceCatalog,
+        })
     }
 
     pub fn proposed(&self, job_id: &EntityId) -> Result<EvidenceCatalogRecord, StoreError> {
@@ -576,6 +696,95 @@ fn next_revision(revision: Revision) -> Result<Revision, StoreError> {
             .ok_or_else(|| StoreError::Invariant("revision overflow".to_owned()))?,
     )
     .map_err(StoreError::from)
+}
+
+fn validate_workspace_catalog(
+    connection: &Connection,
+    blobs: &BlobStore,
+    selected: &ContentRevisionReferenceV3,
+    catalog: &EvidenceCatalogRecord,
+) -> Result<(), StoreError> {
+    let value = serde_json::to_value(catalog)?;
+    if canonical_json_bytes(&value)?.len() > 256 * 1024 {
+        return Err(StoreError::InvalidInput(
+            "Evidence catalog exceeds 256 KiB".to_owned(),
+        ));
+    }
+    validate_catalog(&value)?;
+    ensure_confirmed(catalog)?;
+    if catalog.revision.get() != 1
+        || catalog
+            .items
+            .iter()
+            .any(|item| item.revision.get() != 1 || item.excluded)
+    {
+        return Err(StoreError::InvalidInput(
+            "new Evidence must be confirmed, included and revision 1".to_owned(),
+        ));
+    }
+    let row: Option<(i64, String, String, i64, String, i64)> = connection
+        .query_row(
+            "SELECT source.revision, source.sha256, source.normalized_artifact_id,
+                source.normalized_artifact_revision, source.sensitivity, metadata.profile_revision
+         FROM profile_source_revisions AS source
+         JOIN workspace_metadata AS metadata ON metadata.singleton = 1
+         WHERE source.source_id = ?1 ORDER BY source.revision DESC LIMIT 1",
+            params![selected.id.as_str()],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((revision, digest, normalized_id, normalized_revision, sensitivity, profile_revision)) =
+        row
+    else {
+        return Err(StoreError::InvalidInput(
+            "Profile Source does not exist".to_owned(),
+        ));
+    };
+    if revision != to_i64(selected.revision.get())?
+        || digest != selected.sha256.as_str()
+        || profile_revision != to_i64(catalog.profile_revision.get())?
+    {
+        return Err(StoreError::InvalidInput(
+            "Profile Source or profile revision changed".to_owned(),
+        ));
+    }
+    let source = &catalog.items[0].source_span.source;
+    let current_artifact: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM artifacts WHERE id = ?1 AND head_revision = ?2
+         AND stale = 0 AND kind = 'source-normalized-text')",
+        params![normalized_id, normalized_revision],
+        |row| row.get(0),
+    )?;
+    if !current_artifact
+        || source.id.as_str() != normalized_id
+        || to_i64(source.revision.get())? != normalized_revision
+        || source.kind != ArtifactKind::SourceNormalizedText
+        || catalog
+            .items
+            .iter()
+            .any(|item| item.source_span.source != *source)
+    {
+        return Err(StoreError::InvalidInput(
+            "Evidence must reference the selected normalized Profile Source".to_owned(),
+        ));
+    }
+    for item in &catalog.items {
+        if enum_name(item.sensitivity)? != sensitivity {
+            return Err(StoreError::InvalidInput(
+                "Evidence privacy must match its Profile Source".to_owned(),
+            ));
+        }
+    }
+    validate_source_spans(connection, blobs, std::slice::from_ref(source), catalog)
 }
 
 fn validate_source_spans(

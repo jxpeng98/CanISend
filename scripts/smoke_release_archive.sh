@@ -16,6 +16,7 @@ source "$script_dir/lib/native_paths.sh"
 archive="$(canisend_absolute_path "$archive")"
 smoke_root="$(canisend_absolute_path "$smoke_root")"
 expected_binary="$(canisend_absolute_path "$expected_binary")"
+command -v jq >/dev/null
 if [[ $# -eq 7 ]]; then
   qualification=true
   tag="$5"
@@ -117,10 +118,52 @@ grep -q '"operation":"product.version"' "$bundle/RELEASE.json"
 grep -q '"version":"' "$bundle/RELEASE.json"
 
 "$executable" version --json > "$smoke_root/version.json"
+if ! jq -e --arg target "$target" '
+  .ok == true and .operation == "product.version" and .data.target == $target
+' "$smoke_root/version.json" >/dev/null; then
+  echo "release smoke: executable build target does not match $target" >&2
+  exit 1
+fi
+if ! jq -e --slurpfile observed "$smoke_root/version.json" '
+  .ok == true and .operation == "product.version" and .data == $observed[0].data
+' "$bundle/RELEASE.json" >/dev/null; then
+  echo "release smoke: RELEASE.json differs from the executable identity" >&2
+  exit 1
+fi
 "$executable" doctor --json > "$smoke_root/doctor.json"
 grep -q '"python_required":false' "$smoke_root/doctor.json"
 grep -q '"embedded_typst":"verified"' "$smoke_root/doctor.json"
 grep -q '"runtime_package_downloads":false' "$smoke_root/doctor.json"
+
+# Only the consumer process is isolated; the shell harness keeps its own tools.
+consumer_home="$smoke_root/consumer-home"
+consumer_cwd="$smoke_root/consumer-cwd"
+consumer_workspace="$smoke_root/consumer-workspace"
+mkdir -p "$consumer_home" "$consumer_cwd"
+consumer() (
+  cd "$consumer_cwd"
+  if [[ -n "${SystemRoot:-}" ]]; then
+    env -i HOME="$consumer_home" USERPROFILE="$consumer_home" PATH= \
+      TMPDIR="$consumer_home" TEMP="$consumer_home" TMP="$consumer_home" \
+      SystemRoot="$SystemRoot" "$executable" "$@"
+  else
+    env -i HOME="$consumer_home" USERPROFILE="$consumer_home" PATH= \
+      TMPDIR="$consumer_home" TEMP="$consumer_home" TMP="$consumer_home" \
+      "$executable" "$@"
+  fi
+)
+consumer version --json > "$smoke_root/consumer-version.json"
+consumer doctor --json > "$smoke_root/consumer-doctor.json"
+consumer --workspace "$consumer_workspace" workspace init --json > "$smoke_root/consumer-init.json"
+consumer --workspace "$consumer_workspace" workspace check --json > "$smoke_root/consumer-check.json"
+for result in version doctor init check; do
+  jq -e '.ok == true' "$smoke_root/consumer-$result.json" >/dev/null
+done
+jq -e --slurpfile observed "$smoke_root/version.json" \
+  '.data == $observed[0].data' "$smoke_root/consumer-version.json" >/dev/null
+grep -q '"python_required":false' "$smoke_root/consumer-doctor.json"
+grep -q '"embedded_typst":"verified"' "$smoke_root/consumer-doctor.json"
+grep -q '"runtime_package_downloads":false' "$smoke_root/consumer-doctor.json"
 
 "$script_dir/smoke_documented_quickstart.sh" "$executable" "$smoke_root/documented-workflow"
 "$script_dir/smoke_host_v4.sh" "$executable" "$smoke_root/host-v4-workflow"
