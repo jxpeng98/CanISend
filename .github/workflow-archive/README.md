@@ -1,7 +1,7 @@
 # Paused workflow snapshots
 
 The owner paused nonessential Actions on 2026-09-08 during CLI-first delivery.
-Only Fast CI and dependency assurance remain enabled as repository workflows;
+The initial pause retained only Fast CI and dependency assurance as repository workflows;
 GitHub's managed Dependency Graph is also retained. Fast CI's desktop and browser
 jobs require `CANISEND_ENABLE_DESKTOP_CI=true` (currently false).
 
@@ -31,7 +31,8 @@ are not discovered as Actions workflows.
    `desktop-platform-qualification.yml` and `intel-gui-compile.yml` if needed.
 4. Enabling a scheduled workflow restores its schedule. Formal publication still
    requires every existing release and artifact gate; the pause does not qualify
-   any candidate. The npm trusted publisher remains bound to `release.yml`, whose
-   disabling also pauses that publishing route.
+   any candidate. The npm trusted publisher remains bound to `release.yml`, which now has a separate npm-only CLI path. The owner subsequently authorized
+   re-enabling that path; full native/GUI release remains gated by
+   `CANISEND_ENABLE_FULL_RELEASE=true`. The archived release definition remains unchanged.
 
 Verify the snapshot with `cd .github/workflow-archive/2026-09-08 && shasum -a 256 -c SHA256SUMS`.

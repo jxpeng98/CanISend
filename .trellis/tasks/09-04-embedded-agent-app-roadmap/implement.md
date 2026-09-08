@@ -1623,3 +1623,24 @@ Acceptance: snapshot hashes and original-byte comparison, YAML parsing, diff che
 and remote workflow-state inventory. Continue PR #230 for the Fast CI desktop gate;
 existing source checks passed before this snapshot-only change. Remote CI and merge
 remain separate acceptance facts, not implied by archival or workflow disabling.
+
+### Merge and direct npm release — 2026-09-08
+
+Owner requested merging the CLI milestone and enabling direct npm publication through
+`release.yml`. A mandatory macOS contract test still expected 40 MCP bindings; the
+registry and other inventories correctly contain 44. Its focused regression and
+formatting pass after correcting that count. The expired dependency review remains
+reported separately; no exception date or protection rule is changed.
+
+Add a manually dispatched, main-only npm prerelease job in the trusted publisher's
+existing workflow filename. Reuse native packaging, archive lifecycle smoke, npm
+packaging tests, and exact MCP checks; include the matching source archive and embedded
+templates. Publish only the supplied macOS ARM64 platform to `next` with OIDC, then
+compare registry/native/source bytes and initialize a fresh Workspace. Original full
+release jobs require an explicit full-release variable and `npm_only=false`; GUI,
+Cargo, and GitHub release publication remain paused by default.
+
+Local evidence: MCP inventory regression, formatting, source gate, three npm tests,
+workflow YAML and shell syntax, job permissions/route assertions, and diff check pass.
+Next: required PR checks, normal merge, enable only the new npm release route and run
+it on main; record the actual registry result without claiming formal qualification.

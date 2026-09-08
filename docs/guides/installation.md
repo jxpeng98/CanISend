@@ -239,3 +239,30 @@ not deleted automatically. Delete them and their backups only after making an ex
 Opening a workspace with a new binary may apply an append-only Rust-era migration. Follow the complete
 [upgrade, rollback, and uninstall guide](upgrade-and-rollback.md); rolling back the executable does not downgrade an
 already migrated workspace.
+
+### Maintainer: publish the npm testing CLI
+
+The GitHub Actions `release.yml` workflow has an independent, main-only npm path.
+It builds the current macOS ARM64 CLI, packages its embedded templates and exact
+source archive, verifies the installed bytes and native lifecycle, and publishes
+one `canisend` prerelease to `next`. Other platforms and stable `latest` publication
+are outside this path. It does not publish Cargo packages or a GitHub Release.
+
+The npm Trusted Publisher must allow direct `npm publish` for GitHub owner
+`jxpeng98`, repository `CanISend`, workflow `release.yml`, with no environment.
+The workflow uses OIDC (`id-token: write`), Node 24, and npm 11.11.0; no `NPM_TOKEN`
+is required. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+
+After merging the intended source version to main, enable the workflow and run:
+
+```sh
+gh workflow enable release.yml
+gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.5
+```
+
+Use the exact prerelease version in `Cargo.toml`. Each published version is
+immutable; a subsequent source change requires a new version. The workflow retains
+the candidate tarball and checksums, then verifies registry bytes and a fresh
+Workspace installation. Full native/GUI release remains paused unless explicitly
+restored with `CANISEND_ENABLE_FULL_RELEASE=true` and `npm_only=false`; its original
+qualification gates still apply. npm testing distribution is not full qualification.
