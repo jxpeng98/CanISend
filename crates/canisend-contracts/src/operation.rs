@@ -711,7 +711,7 @@ mod tests {
                 .iter()
                 .filter(|binding| binding.surface == OperationSurface::Mcp)
                 .count(),
-            40
+            44
         );
         for (operation, surfaces) in [
             (
