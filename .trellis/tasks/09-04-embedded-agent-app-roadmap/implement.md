@@ -1486,3 +1486,20 @@ Full release qualification still reports historical provider-dogfood/current Age
 all five retained evidence files remain byte-identical. The single-package npm request is complete.
 Next independent development remains I3b; broader native/Host qualification and CI activation retain
 their existing scope.
+
+### npm package README refresh — 2026-09-08
+
+Owner requested necessary installation guidance in the published package README, edited with
+humanizer's faithful, idiomatic and restrained English style. Update the existing packer text
+and root README: version checks, supplied platforms, Rust/native versus Node launcher behavior,
+Workspace and five Skills, explicit MCP registration/reconnection, application scope, privacy,
+backup and upgrade, stale command resolution, license and corresponding source. Preserve actual
+platform/version interpolation and all product consent/evidence controls.
+
+Checks: all three existing npm packaging/dispatch tests pass; the actual local tarball README
+matches its rendered preview, has no unresolved template escapes, lists only the supplied target,
+and retains identical native bytes. Preview: `dist/npm-readme-preview-20260908/canisend/README.md`;
+verification: `dist/npm-readme-preview-20260908/readme-verification.json`. This is a documentation
+preview using Beta.4 bytes, not a new release. Existing publication archives are unchanged.
+Next publication must use a new version to deliver this README through npm. No Rust tests, native
+rebuild, registry mutation, version bump, or GitHub integration is needed for this wording change.

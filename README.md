@@ -29,13 +29,22 @@ The npm testing release `canisend@1.0.0-beta.4` is available for **macOS Apple S
 
 ```sh
 npm install -g canisend@next
+canisend version
 canisend --workspace ./applications workspace init --host codex
 ```
 
-One package includes the native CLI, both Packs, five Skills, and the corresponding source archive;
-there are no platform dependencies or installation-time downloads. Other
-npm platforms and Cargo publication are pending. This locally verified registry distribution is
-separate from the fully qualified checkpoints below.
+The npm launcher needs Node.js 22.14 or newer. One package includes the compiled Rust CLI,
+both Packs, five Skills, and the corresponding source archive. It needs no Rust toolchain,
+platform-package dependencies, or extra binary downloads. Other npm platforms and Cargo
+publication are pending. This locally verified testing distribution is separate from the
+fully qualified checkpoints below.
+
+Initialization installs the Codex Skills in `./applications/.agents/skills` and prints an MCP
+registration command. Run that command, then open the Workspace in Codex and reconnect to load
+the tools. MCP runs the Rust executable directly; `node_modules` in its path is npm's storage
+location. After an upgrade, run `canisend --workspace ./applications host setup --host codex`
+and update the MCP registration if its executable path has changed. Back up the Workspace
+before upgrading. `next` tracks testing releases and can differ from the default `latest` tag.
 
 The checked-in source version is `1.0.0-beta.4`. The latest publicly qualified checkpoint is `v1.0.0-beta.1`
 ([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1)), built once from
