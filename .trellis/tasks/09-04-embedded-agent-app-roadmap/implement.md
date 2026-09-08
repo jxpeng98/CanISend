@@ -1577,3 +1577,16 @@ Add the narrow prefix to the shared task contract and embedded model, retain int
 and update exact smoke counts. Rebuild the candidate/source archive after the fix; earlier
 Beta.5 preflight bytes are not publication bytes. The previously failing resource-registry
 semantic test is an acceptance check for this fix.
+
+Final candidate: source `b24545cad0eb7d6ad8b6060e3f9d09ddc1a21f4d`, macOS ARM64,
+`dist/npm-beta5/npm/canisend-1.0.0-beta.5.tgz` (26,206,000 bytes), SHA-256
+`41c2f6a0c6dbfa044db17ebbe241b1dae837b044bb40ad7fa6fda0f3cb9d255b`.
+Source and Clippy gates, 17 resource tests, task-ownership regression, three npm tests, seven
+exact-binary MCP tests, signing, isolated npm installation, and complete archive lifecycle smoke
+passed. The smoke's explicit tool-name list now includes the two source-revision tools. The
+source archive and native bytes match the installed package. Publication dry-run passed.
+Full qualification is not claimed: the retained dependency advisory review expired on 2026-09-07,
+and historical real-Host gates remain separate. No exception date or qualified record was changed.
+Publication currently awaits npm browser reauthentication after `npm whoami` returned E401.
+Next: publish this exact tarball with `--tag next`, independently install from npm, and compare
+registry digest, native/source bytes, template versions, and Workspace/Skills initialization.

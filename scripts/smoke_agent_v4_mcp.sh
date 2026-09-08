@@ -486,6 +486,8 @@ if ! jq -s -e '
     "canisend_review_disposition_commit",
     "canisend_review_disposition_preview",
     "canisend_review_inspect",
+    "canisend_source_revise_commit",
+    "canisend_source_revise_preview",
     "canisend_workspace_check",
     "canisend_workspace_status"
   ]) and
