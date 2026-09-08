@@ -1557,3 +1557,15 @@ Source gate reports 44 MCP leaves and no new dependency or migration. No version
 publication, remote CI run or real Host acceptance is claimed. Next: I4 dual-Pack complete Source-change-to-new-export
 acceptance using these supported operations; shared/file/URL revision requires its own bounded
 intake/provenance design. Human candidate qualification remains separate from this local milestone.
+
+### npm Beta.5 publication — 2026-09-08
+
+Owner authorized publishing the new CLI. Reuse the local `next` single-package macOS ARM64
+distribution exception, include ModernPro CV 2.1.1 and coverletter 1.0.2, source-revision support,
+and the current installation README. Preserve historical release/Host qualification records.
+The general sequential-stage command requires a qualified active Beta; this bounded npm source
+iteration reuses the prior Beta.4 controlled source-version update without altering that gate.
+Acceptance: source check, release build, signed native archive smoke, local npm install and
+resource/Workspace checks, then npm publication and fresh registry-byte verification.
+Evidence destination: `dist/npm-beta5/`. npm credentials currently need browser reauthentication.
+Next: validate the candidate before login and publication; no GitHub/Cargo release is claimed.

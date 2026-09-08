@@ -10,11 +10,11 @@ repository.workspace = true
 publish = ["crates-io"]
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.4" }
-canisend-core = { path = "../canisend-core", version = "=1.0.0-beta.4" }
-canisend-io = { path = "../canisend-io", version = "=1.0.0-beta.4" }
-canisend-resources = { path = "../canisend-resources", version = "=1.0.0-beta.4" }
-canisend-store = { path = "../canisend-store", version = "=1.0.0-beta.4" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.5" }
+canisend-core = { path = "../canisend-core", version = "=1.0.0-beta.5" }
+canisend-io = { path = "../canisend-io", version = "=1.0.0-beta.5" }
+canisend-resources = { path = "../canisend-resources", version = "=1.0.0-beta.5" }
+canisend-store = { path = "../canisend-store", version = "=1.0.0-beta.5" }
 getrandom.workspace = true
 hex.workspace = true
 semver.workspace = true
@@ -27,7 +27,7 @@ thiserror.workspace = true
 winreg.workspace = true
 
 [dev-dependencies]
-canisend-io = { path = "../canisend-io", version = "=1.0.0-beta.4", features = ["test-loopback"] }
+canisend-io = { path = "../canisend-io", version = "=1.0.0-beta.5", features = ["test-loopback"] }
 rusqlite.workspace = true
 
 [lints]
