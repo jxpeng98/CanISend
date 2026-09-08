@@ -18055,7 +18055,7 @@ mod tests {
         );
         assert_eq!(
             freeze["contracts"]["skills"].as_array().map(Vec::len),
-            Some(4)
+            Some(5)
         );
         assert_eq!(
             freeze["contracts"]["migration_inventory"]["through"],

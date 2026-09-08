@@ -1644,3 +1644,9 @@ Local evidence: MCP inventory regression, formatting, source gate, three npm tes
 workflow YAML and shell syntax, job permissions/route assertions, and diff check pass.
 Next: required PR checks, normal merge, enable only the new npm release route and run
 it on main; record the actual registry result without claiming formal qualification.
+
+The next complete remote suite exposed one additional stale fixture: the freeze
+regression expected four Skills rather than the five currently shipped. The other
+90 xtask tests passed. Correct only the cardinality assertion; retain all malformed,
+legacy, and unbound freeze rejection cases. Linux, Windows, and macOS quality gates
+passed on `15fb346`; the corrected head still needs its own required CI run.
