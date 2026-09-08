@@ -1607,3 +1607,19 @@ workflows as outside explicit GUI/App scope; those workflows remain unchanged. F
 still require their GUI evidence, and no publication or qualification is claimed here.
 Next: synchronize the existing local CLI milestone and this workflow change to main, verify
 GitHub job selection, and obtain explicit owner scope before pausing non-desktop workflows.
+
+### Confirmed nonessential workflow pause — 2026-09-08
+
+The owner explicitly confirmed pausing release, fuzz, upgrade, and package-manager
+workflows, and requested archival for later reuse. Disable those workflows plus the
+obsolete Rust spike through GitHub, retaining Fast CI and dependency assurance.
+Save exact snapshots of eight current workflow files and the last historical Rust
+spike in `.github/workflow-archive/2026-09-08/`, with hashes and restoration guidance.
+Keep original definitions at validator-owned paths; the reusable registry workflow
+has no independent trigger and its release caller is disabled. No release check,
+qualification record, or dependency exception is relaxed.
+
+Acceptance: snapshot hashes and original-byte comparison, YAML parsing, diff check,
+and remote workflow-state inventory. Continue PR #230 for the Fast CI desktop gate;
+existing source checks passed before this snapshot-only change. Remote CI and merge
+remain separate acceptance facts, not implied by archival or workflow disabling.

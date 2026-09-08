@@ -1,0 +1,150 @@
+name: intel-gui-compile
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intel-gui-compile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  intel-gui-compile:
+    name: intel-gui-compile
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26.5.0
+          cache: pnpm
+          cache-dependency-path: apps/canisend-desktop/pnpm-lock.yaml
+
+      - name: Build locked production desktop UI
+        run: |
+          pnpm --dir apps/canisend-desktop install --frozen-lockfile
+          pnpm --dir apps/canisend-desktop build
+
+      - name: Install pinned Rust target
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: scheduled-intel-gui
+          cache-targets: false
+
+      - name: Install pinned sccache
+        id: sccache_install
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        with:
+          version: "v0.16.0"
+          disable_annotations: true
+
+      - name: Enable scheduled Intel compiler cache with fallback
+        id: sccache_config
+        env:
+          CANISEND_SCCACHE_INSTALL_OUTCOME: ${{ steps.sccache_install.outcome }}
+        shell: bash
+        run: >-
+          ./scripts/configure_sccache.sh
+          canisend-v1-rust-1.97.0-x86_64-apple-darwin-release-gui-default
+
+      - name: Start scheduled compiler cache measurement
+        id: sccache_timing_start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Intel GUI release-profile regression
+        run: >-
+          cargo build --release --locked --target x86_64-apple-darwin
+          -p canisend-gui --features canisend-gui/custom-protocol
+
+      - name: Record scheduled Intel compiler cache statistics
+        shell: bash
+        run: |
+          completed_epoch="$(date +%s)"
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          ./scripts/write_sccache_stats.sh \
+            "$GITHUB_SHA" \
+            scheduled-intel-gui \
+            x86_64-apple-darwin \
+            release \
+            canisend-gui-default \
+            canisend-v1-rust-1.97.0-x86_64-apple-darwin-release-gui-default \
+            "${{ steps.sccache_timing_start.outputs.epoch }}" \
+            "$completed_epoch" \
+            "$completed_at" \
+            "$RUNNER_TEMP/sccache-stats/CanISend-x86_64-apple-darwin-gui.json"
+
+      - name: Record non-publishing Intel compilation evidence
+        shell: bash
+        run: |
+          binary="target/x86_64-apple-darwin/release/canisend-gui"
+          test -f "$binary"
+          test "$(lipo -archs "$binary")" = "x86_64"
+          version="$(
+            cargo metadata --locked --no-deps --format-version 1 \
+              | jq -er '.packages[] | select(.name == "canisend-gui") | .version'
+          )"
+          evidence="$RUNNER_TEMP/intel-gui-compilation.json"
+          jq -n \
+            --arg version "$version" \
+            --arg source_commit "$GITHUB_SHA" \
+            --arg sha256 "$(shasum -a 256 "$binary" | awk '{print $1}')" \
+            --arg completed_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            --argjson size "$(stat -f '%z' "$binary")" \
+            --argjson github_run_id "$GITHUB_RUN_ID" \
+            '{
+              schema: "canisend.scheduled-macos-gui-compilation/v1",
+              record: "scheduled-desktop-macos-intel-compile-only",
+              target: "x86_64-apple-darwin",
+              environment: "macos-15-intel",
+              version: $version,
+              source_commit: $source_commit,
+              binary: {
+                file: "canisend-gui",
+                architecture: "x86_64",
+                profile: "release",
+                sha256: $sha256,
+                size: $size
+              },
+              github_run_id: $github_run_id,
+              checks: {
+                locked_build: true,
+                release_profile: true,
+                target_architecture: true,
+                scheduled_regression: true,
+                release_manifest_evidence: false,
+                archive_published: false,
+                native_runtime_qualified: false,
+                support_claim: false,
+                no_publication: true
+              },
+              completed_at: $completed_at
+            }' > "$evidence"
+
+      - name: Upload body-free scheduled evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scheduled-intel-gui-compilation-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/intel-gui-compilation.json
+            ${{ runner.temp }}/sccache-stats/*.json
+          if-no-files-found: error
+          retention-days: 30
