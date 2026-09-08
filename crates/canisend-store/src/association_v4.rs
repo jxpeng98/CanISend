@@ -725,6 +725,79 @@ impl<'a> ApplicationAssociationServiceV4<'a> {
     }
 }
 
+pub(crate) fn validate_exclusive_pasted_source(
+    connection: &Connection,
+    application_id: &ApplicationId,
+    reference: &ContentRevisionReferenceV3,
+) -> Result<WorkspaceSourceRevisionV4, StoreError> {
+    validate_current_source_association(connection, application_id, reference)?;
+    let record = load_source_revision(connection, &reference.id, reference.revision)?;
+    if record.kind != WorkspaceSourceKindV4::PastedText {
+        return Err(StoreError::InvalidInput(
+            "Source revision currently accepts pasted text only; file, PDF and URL updates need their original intake adapters".to_owned(),
+        ));
+    }
+    let storage = ApplicationStorage::detect(connection)?;
+    let count: i64 = connection.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM {} WHERE source_id = ?1",
+            storage.source_associations()
+        ),
+        [reference.id.as_str()],
+        |row| row.get(0),
+    )?;
+    if count != 1 {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Source is shared by multiple Applications; a single-Application revision cannot change their inputs".to_owned(),
+        ));
+    }
+    Ok(record)
+}
+
+pub(crate) fn revise_prepared_source_association(
+    transaction: &Transaction<'_>,
+    application_id: &ApplicationId,
+    expected: &ContentRevisionReferenceV3,
+    prepared: &PreparedWorkspaceSourceV4,
+) -> Result<(), StoreError> {
+    let old = validate_exclusive_pasted_source(transaction, application_id, expected)?;
+    let record = &prepared.record;
+    if record.id != expected.id
+        || record.revision.get().checked_sub(1) != Some(expected.revision.get())
+        || record.kind != old.kind
+        || record.locator != old.locator
+        || record.final_locator != old.final_locator
+        || record.redirect_chain != old.redirect_chain
+        || record.content_type != old.content_type
+        || record.privacy != old.privacy
+    {
+        return Err(StoreError::ApplicationAssociationConflict(
+            "Source revision identity or provenance differs".to_owned(),
+        ));
+    }
+    insert_source_revision(transaction, record, false)?;
+    transaction.execute(
+        "UPDATE workspace_source_v4_heads SET head_revision = ?2 WHERE source_id = ?1",
+        params![record.id.as_str(), to_i64(record.revision.get())?],
+    )?;
+    let storage = ApplicationStorage::detect(transaction)?;
+    transaction.execute(
+        &format!("UPDATE {} SET source_revision = ?3, source_sha256 = ?4, associated_at = ?5 WHERE application_id = ?1 AND source_id = ?2", storage.source_associations()),
+        params![application_id.as_str(), record.id.as_str(), to_i64(record.revision.get())?, record.normalized_sha256.as_str(), record.created_at.as_str()],
+    )?;
+    insert_source_blob_references(transaction, record)?;
+    insert_association_audit(
+        transaction,
+        &generate_id()?,
+        ActorKind::User,
+        "application-v4.source-revise",
+        &record.id,
+        Some(record.revision),
+        "application-source-revision",
+        &record.created_at,
+    )
+}
+
 pub(crate) fn prepare_source(
     blobs: &BlobStore,
     source: NewWorkspaceSourceV4,

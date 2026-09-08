@@ -88,7 +88,7 @@ pub use application_flow_v3::{
 pub use application_mutations_v4::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationMutationApprovalPreviewV4, ApplicationMutationPreviewV4,
-    ApplicationRequirementRevisionPreviewV4,
+    ApplicationRequirementRevisionPreviewV4, ApplicationSourceRevisionPreviewV4,
 };
 pub use application_resources_v4::{
     ApplicationResourceContextV4, DeliverableListReadModelV4, DeliverableShowReadModelV4,
@@ -125,7 +125,7 @@ pub use canisend_store::{
     ApplicationDeliverableReviseRequestV4, ApplicationPlanConfirmRequestV4,
     ApplicationPlanProposeRequestV4, ApplicationRequirementConfirmRequestV4,
     ApplicationRequirementExtractRequestV4, ApplicationRequirementReviseRequestV4,
-    RequirementDecisionV4,
+    ApplicationSourceReviseRequestV4, RequirementDecisionV4,
 };
 pub use catalog::{
     InspectionCatalogReadModel, ResourceCatalogExportReadModel, ResourceCatalogExportRequest,

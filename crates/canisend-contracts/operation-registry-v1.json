@@ -48,7 +48,9 @@
     {"id": "requirement.extract.preview", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "requirement.extract.commit", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "requirement.revise.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "source.revise.preview", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "requirement.revise.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
+    {"id": "source.revise.commit", "class": "canonical-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "requirement.confirm.preview", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "requirement.confirm.commit", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
     {"id": "plan.show", "class": "shared-leaf", "status": "implemented", "pack_scope": "any"},
@@ -203,7 +205,7 @@
       "default_status": "implemented",
       "default_pack_scope": "any",
       "leaves": [
-        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_application_pack_show", "canisend_local_task_draft_preview", "canisend_evidence_confirm_preview", "canisend_evidence_confirm_commit", "canisend_profile_source_list", "canisend_profile_association_list", "canisend_profile_association_preview", "canisend_profile_association_commit", "canisend_evidence_association_list", "canisend_evidence_association_preview", "canisend_evidence_association_commit", "canisend_requirement_list", "canisend_requirement_show", "canisend_requirement_extract_preview", "canisend_requirement_extract_commit", "canisend_requirement_revise_preview", "canisend_requirement_revise_commit", "canisend_requirement_confirm_preview", "canisend_requirement_confirm_commit", "canisend_plan_show", "canisend_plan_propose_preview", "canisend_plan_propose_commit", "canisend_plan_confirm_preview", "canisend_plan_confirm_commit", "canisend_deliverable_list", "canisend_deliverable_show", "canisend_deliverable_draft_preview", "canisend_deliverable_draft_commit", "canisend_deliverable_revise_preview", "canisend_deliverable_revise_commit", "canisend_deliverable_audit", "canisend_review_inspect", "canisend_review_disposition_preview", "canisend_review_disposition_commit", "canisend_export_list", "canisend_export_show", "canisend_export_prepare_preview", "canisend_export_prepare_commit"
+        "canisend_workspace_status", "canisend_workspace_check", "canisend_application_list", "canisend_application_show", "canisend_application_pack_show", "canisend_local_task_draft_preview", "canisend_evidence_confirm_preview", "canisend_evidence_confirm_commit", "canisend_profile_source_list", "canisend_profile_association_list", "canisend_profile_association_preview", "canisend_profile_association_commit", "canisend_evidence_association_list", "canisend_evidence_association_preview", "canisend_evidence_association_commit", "canisend_requirement_list", "canisend_requirement_show", "canisend_requirement_extract_preview", "canisend_requirement_extract_commit", "canisend_requirement_revise_preview", "canisend_source_revise_preview", "canisend_requirement_revise_commit", "canisend_source_revise_commit", "canisend_requirement_confirm_preview", "canisend_requirement_confirm_commit", "canisend_plan_show", "canisend_plan_propose_preview", "canisend_plan_propose_commit", "canisend_plan_confirm_preview", "canisend_plan_confirm_commit", "canisend_deliverable_list", "canisend_deliverable_show", "canisend_deliverable_draft_preview", "canisend_deliverable_draft_commit", "canisend_deliverable_revise_preview", "canisend_deliverable_revise_commit", "canisend_deliverable_audit", "canisend_review_inspect", "canisend_review_disposition_preview", "canisend_review_disposition_commit", "canisend_export_list", "canisend_export_show", "canisend_export_prepare_preview", "canisend_export_prepare_commit"
       ],
       "bindings": [
         {"leaf": "canisend_workspace_status", "operation": "workspace.status", "pack_scope": "any"},
@@ -226,7 +228,9 @@
         ,{"leaf": "canisend_requirement_extract_preview", "operation": "requirement.extract.preview", "pack_scope": "any"}
         ,{"leaf": "canisend_requirement_extract_commit", "operation": "requirement.extract.commit", "pack_scope": "any"}
         ,{"leaf": "canisend_requirement_revise_preview", "operation": "requirement.revise.preview", "pack_scope": "any"}
+        ,{"leaf": "canisend_source_revise_preview", "operation": "source.revise.preview", "pack_scope": "any"}
         ,{"leaf": "canisend_requirement_revise_commit", "operation": "requirement.revise.commit", "pack_scope": "any"}
+        ,{"leaf": "canisend_source_revise_commit", "operation": "source.revise.commit", "pack_scope": "any"}
         ,{"leaf": "canisend_plan_show", "operation": "plan.show", "pack_scope": "any"}
         ,{"leaf": "canisend_deliverable_list", "operation": "deliverable.list", "pack_scope": "any"}
         ,{"leaf": "canisend_deliverable_show", "operation": "deliverable.show", "pack_scope": "any"}

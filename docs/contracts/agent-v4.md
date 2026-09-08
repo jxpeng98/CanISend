@@ -146,8 +146,18 @@ fail explicitly. Each Deliverable must be revised under the newly confirmed Plan
 and exported to a fresh destination. Historical revisions and exports remain intact.
 
 These are extensions of the existing preview/commit boundaries, with unchanged native consent,
-expected revision, single-use token and privacy checks. Source replacement/import for an existing
-Application remains a separate public-adapter development slice; recovery does not authorize it.
+expected revision, single-use token and privacy checks.
+
+`source.revise.preview` / `.commit` are callable through MCP for a pasted-text Source exclusively
+associated with the selected Application. The request binds its current Source reference, exact
+Application revision, new text, and every existing Requirement using that Source. New text and
+validated spans advance the Source, association and Application atomically; affected Requirements
+return to proposed and dependent work becomes stale through the same repository calculation.
+Old Source bytes, revisions and exports remain available. Identical text and interpretation return
+`unchanged` without a grant. A changed interpretation of identical text uses `requirement.revise`.
+Shared Sources, file/URL revisions, new Source imports and Requirement additions/removals remain
+outside this bounded operation. There is no direct `source revise` CLI subcommand or Tauri binding;
+the implemented surface inventory owns callable bindings.
 
 ## Generated schemas and examples
 

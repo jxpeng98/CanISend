@@ -20,8 +20,8 @@ Use `canisend-workspace` to initialize/connect if needed, require `canisend.work
 `canisend.agent/v4`, select the exact Pack, and read canonical Application state. Inspect the
 complete verified Pack catalog and dependencies. Pack stages guide business ordering; current
 CLI/MCP schemas determine available operations. A declared capability does not prove an adapter
-is callable. Creation/Profile import may need the CLI; missing Source replacement or material-set
-change adapters are explicit limitations, not permission to improvise another write path. Never use an old prompt's job IDs or v2 candidate shape in a v4 request.
+is callable. Creation/Profile import may need the CLI; pasted Source revision follows `canisend-intake`.
+Shared/file/URL Source revision and material-set change adapter gaps are explicit limitations, not permission to improvise another write path. Never use an old prompt's job IDs or v2 candidate shape in a v4 request.
 
 ## Carry the journey through
 

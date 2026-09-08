@@ -53,6 +53,15 @@ pub struct ApplicationRequirementReviseRequestV4 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ApplicationSourceReviseRequestV4 {
+    pub expected_revision: Revision,
+    pub source: ContentRevisionReferenceV3,
+    pub text: String,
+    pub requirements: BTreeMap<RequirementId, ApplicationFlowRequirementDraftV3>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationPlanProposeRequestV4 {
     pub expected_revision: Revision,
     pub decision: WorkflowPackItemId,
@@ -84,6 +93,169 @@ impl<'a> ApplicationMutationServiceV4<'a> {
     #[must_use]
     pub fn new(database: &'a mut Database, blobs: &'a BlobStore) -> Self {
         Self { database, blobs }
+    }
+
+    pub fn preview_source_revision(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationSourceReviseRequestV4,
+    ) -> Result<
+        (
+            StoredApplicationModelV3,
+            Option<ApplicationModelUpdatePreviewV3>,
+        ),
+        StoreError,
+    > {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        let (_, candidate) =
+            self.source_revision_candidate(pack, application_id, request, &current)?;
+        let impact = candidate
+            .map(|candidate| {
+                ApplicationModelRepository::new(self.database).preview_update(
+                    application_id,
+                    request.expected_revision,
+                    candidate,
+                )
+            })
+            .transpose()?;
+        Ok((current, impact))
+    }
+
+    pub fn revise_source(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: ApplicationSourceReviseRequestV4,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        let current = self.current(pack, application_id, request.expected_revision)?;
+        let (source, candidate) =
+            self.source_revision_candidate(pack, application_id, &request, &current)?;
+        let candidate = candidate.ok_or_else(|| {
+            StoreError::ApplicationModelConflict(
+                "Source already matches; no commit is needed".to_owned(),
+            )
+        })?;
+        // Validate the complete impact before staging immutable source bytes.
+        ApplicationModelRepository::new(self.database).preview_update(
+            application_id,
+            request.expected_revision,
+            candidate.clone(),
+        )?;
+        let prepared = crate::association_v4::prepare_source(
+            self.blobs,
+            source,
+            request.source.id.clone(),
+            next_revision(request.source.revision)?,
+        )?;
+        ApplicationModelRepository::new(self.database).commit_source_revision(
+            application_id,
+            request.expected_revision,
+            candidate,
+            &request.source,
+            &prepared,
+        )
+    }
+
+    fn source_revision_candidate(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        application_id: &ApplicationId,
+        request: &ApplicationSourceReviseRequestV4,
+        current: &StoredApplicationModelV3,
+    ) -> Result<
+        (
+            crate::NewWorkspaceSourceV4,
+            Option<canisend_contracts::ApplicationModelSnapshotV3>,
+        ),
+        StoreError,
+    > {
+        let source = crate::association_v4::validate_exclusive_pasted_source(
+            self.database.connection(),
+            application_id,
+            &request.source,
+        )?;
+        let required_ids = current
+            .snapshot
+            .requirements
+            .iter()
+            .filter(|item| item.source_span.content.id == request.source.id)
+            .map(|item| item.id.clone())
+            .collect::<BTreeSet<_>>();
+        if required_ids.is_empty() || required_ids != request.requirements.keys().cloned().collect()
+        {
+            return Err(StoreError::InvalidInput(
+                "Source revision must provide exactly every existing Requirement linked to this Source; additions and removals are not supported".to_owned(),
+            ));
+        }
+        if current.snapshot.requirements.iter().any(|item| {
+            item.source_span.content.id == request.source.id
+                && item.source_span.content != request.source
+        }) {
+            return Err(StoreError::ApplicationAssociationConflict(
+                "Requirements must reference the current exact Source revision before replacement"
+                    .to_owned(),
+            ));
+        }
+        crate::application_flow_v3::validate_source_and_requirements(
+            pack,
+            &request.text,
+            &request.requirements.values().cloned().collect::<Vec<_>>(),
+        )?;
+        let digest =
+            Sha256Digest::try_new(format!("{:x}", Sha256::digest(request.text.as_bytes())))?;
+        let source_input = crate::NewWorkspaceSourceV4 {
+            kind: source.kind,
+            locator: source.locator,
+            final_locator: source.final_locator,
+            redirect_chain: source.redirect_chain,
+            content_type: source.content_type,
+            original_bytes: request.text.as_bytes().to_vec(),
+            normalized_text: request.text.clone(),
+            privacy: source.privacy,
+        };
+        if digest == request.source.sha256 {
+            let unchanged = current.snapshot.requirements.iter().all(|item| {
+                request.requirements.get(&item.id).is_none_or(|draft| {
+                    item.category == draft.category
+                        && item.statement == draft.statement
+                        && item.priority == draft.priority
+                        && item.source_span.start_byte == draft.start_byte
+                        && item.source_span.end_byte == draft.end_byte
+                })
+            });
+            if !unchanged {
+                return Err(StoreError::InvalidInput(
+                    "Source text is unchanged; use Requirement revision to correct its interpretation".to_owned(),
+                ));
+            }
+            return Ok((source_input, None));
+        }
+        let reference = ContentRevisionReferenceV3 {
+            id: request.source.id.clone(),
+            revision: next_revision(request.source.revision)?,
+            sha256: digest,
+        };
+        let mut candidate = current.snapshot.clone();
+        for item in &mut candidate.requirements {
+            if let Some(draft) = request.requirements.get(&item.id) {
+                item.category = draft.category.clone();
+                item.statement = draft.statement.clone();
+                item.priority = draft.priority;
+                item.source_span = ContentSpanV3 {
+                    content: reference.clone(),
+                    start_byte: draft.start_byte,
+                    end_byte: draft.end_byte,
+                };
+                item.revision = next_revision(item.revision)?;
+                item.confirmation = RequirementConfirmationV3::Proposed;
+                item.confirmed_by = None;
+                item.confirmed_at = None;
+            }
+        }
+        candidate.application.revision = next_revision(candidate.application.revision)?;
+        candidate.application.updated_at = now_utc()?;
+        Ok((source_input, Some(candidate)))
     }
 
     pub fn validate_requirement_confirmation(

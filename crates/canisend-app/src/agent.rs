@@ -71,7 +71,7 @@ pub const CANISEND_MCP_V2_GUARDED_WRITE_TOOLS: [&str; 4] = [
     "canisend_task_prepare",
 ];
 
-pub const CANISEND_MCP_TOOLS: [&str; 42] = [
+pub const CANISEND_MCP_TOOLS: [&str; 44] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -112,11 +112,13 @@ pub const CANISEND_MCP_TOOLS: [&str; 42] = [
     "canisend_review_disposition_commit",
     "canisend_review_disposition_preview",
     "canisend_review_inspect",
+    "canisend_source_revise_commit",
+    "canisend_source_revise_preview",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 30] = [
+pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 31] = [
     "canisend_application_list",
     "canisend_application_pack_show",
     "canisend_application_show",
@@ -145,11 +147,12 @@ pub const CANISEND_MCP_READ_ONLY_TOOLS: [&str; 30] = [
     "canisend_requirement_show",
     "canisend_review_disposition_preview",
     "canisend_review_inspect",
+    "canisend_source_revise_preview",
     "canisend_workspace_check",
     "canisend_workspace_status",
 ];
 
-pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 12] = [
+pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 13] = [
     "canisend_deliverable_draft_commit",
     "canisend_deliverable_revise_commit",
     "canisend_evidence_association_commit",
@@ -162,6 +165,7 @@ pub const CANISEND_MCP_GUARDED_WRITE_TOOLS: [&str; 12] = [
     "canisend_requirement_extract_commit",
     "canisend_requirement_revise_commit",
     "canisend_review_disposition_commit",
+    "canisend_source_revise_commit",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

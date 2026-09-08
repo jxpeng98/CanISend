@@ -216,8 +216,8 @@ fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
         .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect::<Vec<_>>();
     assert_eq!(names, CANISEND_MCP_TOOLS);
-    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 30);
-    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 12);
+    assert_eq!(CANISEND_MCP_READ_ONLY_TOOLS.len(), 31);
+    assert_eq!(CANISEND_MCP_GUARDED_WRITE_TOOLS.len(), 13);
     for tool in tools {
         let name = tool["name"].as_str().expect("tool name");
         let read_only = CANISEND_MCP_READ_ONLY_TOOLS.contains(&name);
@@ -1244,6 +1244,127 @@ fn guarded_lifecycle(local_candidate: bool) {
 }
 
 #[test]
+fn source_revision_survives_host_restart_in_both_packs() {
+    for (pack, category) in [
+        (GENERIC_APPLICATION_WORKFLOW_PACK_ID, "format"),
+        (canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID, "qualification"),
+    ] {
+        let root = temporary_root("source-revision");
+        Application::initialize_workspace_v4(&root).unwrap();
+        let created = Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new(pack).unwrap(),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: "Synthetic source revision".to_owned(),
+                    opportunity_metadata: if pack == canisend_app::ACADEMIC_JOB_WORKFLOW_PACK_ID {
+                        std::collections::BTreeMap::from([(
+                            WorkflowPackItemId::try_new("institution").unwrap(),
+                            canisend_contracts::ApplicationFieldValueV3::ShortText(
+                                "Fixture University".to_owned(),
+                            ),
+                        )])
+                    } else {
+                        Default::default()
+                    },
+                    application_metadata: Default::default(),
+                    source_text: "Provide a narrative.".to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: WorkflowPackItemId::try_new(category).unwrap(),
+                        statement: "Provide a narrative.".to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: 20,
+                    }],
+                },
+            },
+        )
+        .unwrap()
+        .data
+        .stored;
+        let id = &created.snapshot.application.id;
+        let requirement = &created.snapshot.requirements[0];
+        let mut request = json!({"name": "canisend_source_revise_preview", "arguments": {
+            "application_id": id, "expected_revision": 1, "source": requirement.source_span.content,
+            "text": "Provide a current narrative.", "requirements": {
+                (requirement.id.as_str()): {"category": category, "statement": "Provide a current narrative.",
+                    "priority": "mandatory", "start_byte": 0, "end_byte": "Provide a current narrative.".len()}
+            }
+        }});
+        let mut mcp = McpProcess::start(&root);
+        mcp.initialize();
+        for approve in [false, true] {
+            let preview = mcp.request(2, "tools/call", request.clone());
+            let (token, digest) = mutation_preview_binding(&preview);
+            // Isolated test Host responses never stand in for real user consent.
+            mcp.confirmation = Some(json!({"action": "accept", "content": {"confirm": approve}}));
+            let commit = json!({"name": "canisend_source_revise_commit", "arguments": {
+                "application_id": id, "preview_token": token, "preview_sha256": digest,
+                "request_confirmation": true
+            }});
+            let result = mcp.request(3, "tools/call", commit.clone());
+            if approve {
+                assert_eq!(
+                    result["result"]["structuredContent"]["operation"], "source.revise.commit",
+                    "{result}"
+                );
+                let count = mcp.confirmations.len();
+                let replay = mcp.request(4, "tools/call", commit);
+                assert!(replay["error"].is_object() || replay["result"]["isError"] == true);
+                assert_eq!(mcp.confirmations.len(), count);
+            } else {
+                assert_eq!(
+                    result["error"]["data"]["code"],
+                    "consent.host-confirmation-required"
+                );
+                assert_eq!(
+                    Application::application_model_v4(&root, id.as_str())
+                        .unwrap()
+                        .data,
+                    created
+                );
+            }
+        }
+        assert_eq!(mcp.confirmations.len(), 2);
+        let form = mcp.confirmations.last().unwrap().to_string();
+        assert!(form.contains("SourceRevise"));
+        assert!(form.contains(requirement.id.as_str()));
+        drop(mcp);
+        let current = Application::application_model_v4(&root, id.as_str())
+            .unwrap()
+            .data;
+        assert_eq!(current.snapshot.application.revision.get(), 2);
+        assert_eq!(current.snapshot.requirements[0].id, requirement.id);
+        assert_eq!(
+            current.snapshot.requirements[0]
+                .source_span
+                .content
+                .revision
+                .get(),
+            2
+        );
+        let mut mcp = McpProcess::start(&root);
+        mcp.initialize();
+        request["arguments"]["expected_revision"] = json!(2);
+        request["arguments"]["source"] =
+            json!(current.snapshot.requirements[0].source_span.content);
+        let unchanged = mcp.request(2, "tools/call", request);
+        assert_eq!(
+            unchanged["result"]["structuredContent"]["preview"]["status"], "unchanged",
+            "{unchanged}"
+        );
+        assert!(
+            unchanged["result"]["structuredContent"]
+                .get("preview_token")
+                .is_none()
+        );
+        assert!(mcp.confirmations.is_empty());
+        drop(mcp);
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
 fn serves_v4_reads_guarded_association_writes_and_refuses_legacy_tools() {
     let root = temporary_root("calls");
     let profile_source = temporary_root("calls-profile-source").with_extension("md");
@@ -1733,7 +1854,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
                 "start_byte": 0, "end_byte": 7},
             "proposals": {"profile_revision": 1, "proposals": []},
             "decision": "fixture", "title": "fixture", "media_type": "text/plain",
-            "content": "fixture", "destination": "exports/fixture"
+            "content": "fixture", "text": "fixture", "destination": "exports/fixture"
         });
         let mut scoped_count = 0;
         for (index, tool) in tools.iter().enumerate() {
@@ -1745,10 +1866,15 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
                 .map(|key| {
                     (
                         key.clone(),
-                        samples
-                            .get(key)
-                            .unwrap_or_else(|| panic!("missing typed fixture for {key}"))
-                            .clone(),
+                        if key == "requirements" && tool["name"] == "canisend_source_revise_preview"
+                        {
+                            json!({})
+                        } else {
+                            samples
+                                .get(key)
+                                .unwrap_or_else(|| panic!("missing typed fixture for {key}"))
+                                .clone()
+                        },
                     )
                 })
                 .collect::<serde_json::Map<_, _>>();
@@ -1786,7 +1912,7 @@ fn application_binding_covers_every_tool_and_preserves_unbound_discovery() {
             );
             assert!(!response.to_string().contains("PRIVATE-TITLE"));
         }
-        assert_eq!(scoped_count, 38);
+        assert_eq!(scoped_count, 40);
         let own = mcp.request(
             100,
             "tools/call",

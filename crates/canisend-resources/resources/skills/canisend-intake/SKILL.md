@@ -1,6 +1,6 @@
 ---
 name: canisend-intake
-description: Ground a Pack-bound CanISend Application in reviewed Sources and Requirements. Use for URLs, PDFs, local files, pasted text, source associations, requirement extraction, requirement correction, or requirement confirmation in any application domain.
+description: Ground a Pack-bound CanISend Application in reviewed Sources and Requirements. Use for URLs, PDFs, local files, pasted text, source associations, source revision, requirement extraction, requirement correction, or requirement confirmation in any application domain.
 ---
 
 # CanISend Intake
@@ -80,6 +80,23 @@ Plan exists. A previously excluded condition being reconsidered also invalidates
 Hand off to `canisend-materials` to rebuild that stale Plan and refresh the affected materials.
 If an older installed tool still rejects this recovery path, report the version/capability gap;
 do not replay confirmation, erase the Plan, or recreate the Application.
+
+## Revise a pasted Source
+
+When `canisend_source_revise_preview` is available, revise an existing pasted-text Source with
+its exact current reference, Application revision, replacement text, and a `requirements` map
+keyed by every existing Requirement UUID using that Source. Supply each replacement category,
+statement, priority and UTF-8 byte span; retain identities and check all criteria against the new
+text. This bounded path requires a Source linked to only this Application. File/URL revisions,
+shared Sources, and adding/removing Requirements are not supported by this operation.
+
+An unchanged preview issues no token. Otherwise inspect the exact Source and affected
+Requirement/Plan/material revisions, then request `canisend_source_revise_commit` with
+`request_confirmation: true`; the user answers the form. The approved transaction advances the
+Source and its association together, preserves old bytes/history, and returns affected
+Requirements to proposed. Re-read canonical state and follow the existing confirmation and stale
+Plan/material recovery above. After a restart or conflict, read the current Source reference and
+Application before preparing another change; never replay a saved token.
 
 ## Hand off
 

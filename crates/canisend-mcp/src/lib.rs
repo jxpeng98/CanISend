@@ -15,8 +15,8 @@ use canisend_app::{
     ApplicationMutationApprovalBrokerV4, ApplicationMutationApprovalErrorV4,
     ApplicationPlanConfirmRequestV4, ApplicationPlanProposeRequestV4,
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
-    ApplicationRequirementReviseRequestV4, ApprovalBrokerError, ApprovalKind,
-    AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
+    ApplicationRequirementReviseRequestV4, ApplicationSourceReviseRequestV4, ApprovalBrokerError,
+    ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
     EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceAssociationPreviewRequestV4,
     PrivateExportConsent, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
     RequirementDecisionV4,
@@ -237,6 +237,19 @@ pub struct RequirementExtractCommitParameters {
         description = "Request separate native private-read consent; this flag does not grant consent."
     )]
     pub request_private_read: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRevisePreviewParameters {
+    pub application_id: String,
+    pub expected_revision: u64,
+    pub source: ContentRevisionReferenceV3,
+    pub text: String,
+    #[schemars(
+        description = "Exactly every existing Requirement linked to this Source, keyed by its unchanged ID. Byte spans must match the replacement text."
+    )]
+    pub requirements: BTreeMap<String, RequirementExtractInput>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -486,6 +499,7 @@ impl CanISendMcpServer {
                 "canisend_requirement_extract_commit" => {
                     ApprovalKind::ApplicationRequirementExtraction
                 }
+                "canisend_source_revise_commit" => ApprovalKind::ApplicationSourceRevision,
                 "canisend_requirement_revise_commit" => {
                     ApprovalKind::ApplicationRequirementRevision
                 }
@@ -1029,6 +1043,74 @@ impl CanISendMcpServer {
                     .then_some(PrivateReadConsent::granted_by_user()),
             ),
         )
+    }
+
+    #[tool(
+        description = "Preview replacement text for one exclusively linked pasted-text Source, preserving Source and Requirement identities. Supply every affected Requirement with new byte spans. Shows downstream invalidation; unchanged input returns no token. Shared Sources, files, URLs and Requirement additions/removals are unsupported.",
+        annotations(
+            title = "Preview Source revision",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_source_revise_preview(
+        &self,
+        Parameters(parameters): Parameters<SourceRevisePreviewParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        let requirements = parameters
+            .requirements
+            .into_iter()
+            .map(|(id, draft)| {
+                Ok((
+                    RequirementId::try_new(id)
+                        .map_err(|error| McpError::invalid_params(error.to_string(), None))?,
+                    ApplicationFlowRequirementDraftV3 {
+                        category: Self::pack_item(&draft.category)?,
+                        statement: draft.statement,
+                        priority: draft.priority,
+                        start_byte: draft.start_byte,
+                        end_byte: draft.end_byte,
+                    },
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, McpError>>()?;
+        Self::mutation_result(self.mutation_approvals.preview_source_revision(
+            self.workspace(),
+            &application_id,
+            ApplicationSourceReviseRequestV4 {
+                expected_revision: Self::revision(parameters.expected_revision)?,
+                source: parameters.source,
+                text: parameters.text,
+                requirements,
+            },
+        ))
+    }
+
+    #[tool(
+        description = "Request native confirmation, then atomically revise the pasted Source, rebind its Requirements and mark affected work stale. Preserve old Source bytes/history. The preview token is single-use; no-op requests need no commit.",
+        annotations(
+            title = "Commit Source revision",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    fn canisend_source_revise_commit(
+        &self,
+        Parameters(parameters): Parameters<ApplicationMutationCommitParameters>,
+    ) -> Result<Json<McpStructuredOutput>, McpError> {
+        let application_id = self.parse_application_id(&parameters.application_id)?;
+        Self::mutation_result(self.mutation_approvals.commit_source_revision(
+            self.workspace(),
+            &application_id,
+            &parameters.preview_token,
+            &parameters.preview_sha256,
+            parameters.request_confirmation,
+        ))
     }
 
     #[tool(

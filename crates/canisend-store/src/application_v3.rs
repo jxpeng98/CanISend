@@ -74,6 +74,10 @@ enum ApplicationMutation<'a> {
     Commit,
     Archive,
     RequirementSource(&'a canisend_contracts::ContentRevisionReferenceV3),
+    SourceRevision {
+        expected: &'a canisend_contracts::ContentRevisionReferenceV3,
+        prepared: &'a PreparedWorkspaceSourceV4,
+    },
     LocalTaskDraft {
         request: &'a crate::LocalTaskDraftRequestV4,
         blobs: &'a crate::BlobStore,
@@ -371,6 +375,24 @@ impl<'a> ApplicationModelRepository<'a> {
         )
     }
 
+    pub(crate) fn commit_source_revision(
+        &mut self,
+        application_id: &ApplicationId,
+        expected_revision: Revision,
+        candidate: ApplicationModelSnapshotV3,
+        expected: &canisend_contracts::ContentRevisionReferenceV3,
+        prepared: &PreparedWorkspaceSourceV4,
+    ) -> Result<ApplicationModelCommitResultV3, StoreError> {
+        self.commit_internal(
+            application_id,
+            expected_revision,
+            candidate,
+            ActorKind::User,
+            "application-v4-source-revise",
+            ApplicationMutation::SourceRevision { expected, prepared },
+        )
+    }
+
     pub(crate) fn commit_with_requirement_source(
         &mut self,
         application_id: &ApplicationId,
@@ -482,6 +504,14 @@ impl<'a> ApplicationModelRepository<'a> {
                 source,
             )?;
         }
+        if let ApplicationMutation::SourceRevision { expected, prepared } = mutation {
+            crate::association_v4::revise_prepared_source_association(
+                &transaction,
+                application_id,
+                expected,
+                prepared,
+            )?;
+        }
         let local_task = match mutation {
             ApplicationMutation::LocalTaskDraft { request, blobs } => {
                 Some(crate::local_task_v4::validate_draft_request(
@@ -544,12 +574,14 @@ impl<'a> ApplicationModelRepository<'a> {
                     ApplicationStorage::V3,
                     ApplicationMutation::Commit
                     | ApplicationMutation::RequirementSource(_)
+                    | ApplicationMutation::SourceRevision { .. }
                     | ApplicationMutation::LocalTaskDraft { .. },
                 ) => "application-v3.commit",
                 (
                     ApplicationStorage::V4,
                     ApplicationMutation::Commit
                     | ApplicationMutation::RequirementSource(_)
+                    | ApplicationMutation::SourceRevision { .. }
                     | ApplicationMutation::LocalTaskDraft { .. },
                 ) => "application-v4.commit",
                 (ApplicationStorage::V3, ApplicationMutation::Archive) => "application-v3.archive",

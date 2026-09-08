@@ -35,6 +35,7 @@ pub enum ApprovalKind {
     ApplicationRequirementConfirmation,
     ApplicationRequirementExtraction,
     ApplicationRequirementRevision,
+    ApplicationSourceRevision,
     DeliverableDraft,
     DeliverableRevision,
     DiscoveryImport,

@@ -1250,7 +1250,7 @@ needed for the initial slice. Preserve the current qualified fixture and histori
 |---|---|---|---|
 | I1 | Read-only exact update-impact preview at the repository owner; use the same transition and invalidation rules as commit | Preview and commit agree on projected snapshot/digest and stale IDs; preview writes no head/history/audit; bad revision/identity/deletion fails; concurrent change invalidates the expected revision | Complete locally |
 | I2 | Typed single-Requirement revision with source/span checks, private-read scope and native preview/commit; expose through existing adapters with explicit schema changes | Retain Requirement identity, increment its revision, clear obsolete confirmation, stale only affected downstream work; no-op is read/completed; denial/replay preserve state | Complete locally (CLI/MCP; recovery remains I3) |
-| I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | I3a recovery complete locally; I3b Source updates pending |
+| I3 | Explicit Source revision/association updates and usable re-confirm/replan/revise paths after invalidation | Keep original bytes and lineage; preserve unaffected Evidence/drafts; do not auto-approve revised content or reuse stale exports; unsupported material-set changes are explicit | I3a and bounded I3b pasted-text updates complete locally; shared/file/URL updates remain |
 | I4 | Dual-Pack end-to-end revision/recovery automation and updated Skills/CLI guidance; rebuild and perform one bounded real Host journey | Both Packs revise existing input through new consent to current materials/export; old revisions recoverable; conflicting writers and interrupted responses resolve from canonical state | Pending I2–I3 |
 
 Implementation notes: ApplicationModelRepository::prepare_update already owns Requirement-to-Plan
@@ -1503,3 +1503,57 @@ verification: `dist/npm-readme-preview-20260908/readme-verification.json`. This 
 preview using Beta.4 bytes, not a new release. Existing publication archives are unchanged.
 Next publication must use a new version to deliver this README through npm. No Rust tests, native
 rebuild, registry mutation, version bump, or GitHub integration is needed for this wording change.
+
+
+### Operational advantages: bounded I3b — 2026-09-08
+
+Owner requested that the product's practical advantages become concrete, traceable and consistent
+capabilities. Reuse the iterative Application plan and existing Rust/SQLite/Blob/MCP boundaries.
+This milestone implements Source correction for one existing Application; it does not introduce
+another workflow store, scheduler, approval mechanism or release qualification stage.
+
+| Advantage | Observable capability and acceptance | Runnable evidence | Scope |
+|---|---|---|---|
+| Fewer omissions after input changes | Preview names the Source revision/digest and affected Requirement, Plan and Deliverable identities; approved Source/association/Application changes commit together; dependent work becomes stale and cannot be exported as current | `guarded_mutations_split_requirements_plan_and_deliverables_without_replay` in `crates/canisend-app/src/application_mutations_v4.rs` | Existing generic recovery fixture, extended through Source correction after reviewed export |
+| Less repeated work when continuing | Same Source/interpretation returns `unchanged` without a grant; fresh state after Host restart retains IDs and completed changes; denial/replay/conflict does not create another revision | `source_revision_survives_host_restart_in_both_packs` in `crates/canisend-cli/tests/mcp_protocol.rs` | Synthetic generic and academic MCP Hosts, separate False and fresh True requests |
+| Traceable materials and inputs | Retain old Source bytes/digest and Application history; preserve material contents when marking them stale; malformed requests and transaction failure cannot leave partial Source, association, Application or audit authority | `source_revision_preserves_history_and_rolls_back_partial_writes` in `crates/canisend-app/src/application_mutations_v4.rs`, plus the recovery fixture above | Isolated temporary Workspace, invalid spans/digests/set, rejected grant, competing preview, injected SQLite failure and post-preview shared association |
+
+Implemented `canisend_source_revise_preview` and `canisend_source_revise_commit`. Supply the exact
+current Application revision, associated Source reference, replacement pasted text and a map of
+every existing Requirement using that Source, keyed by its unchanged ID. Validate the Pack and
+UTF-8 spans before staging immutable bytes. Commit rechecks exclusive Source association inside
+the same transaction as the Application revision. Reuse the existing native form and single-use
+Broker; no production confirmation response is synthesized. All affected Requirements return to
+proposed and follow I3a's existing confirm/replan/material-review recovery.
+
+The first public adapter is MCP (served by the CLI); no direct `source revise` CLI command is
+claimed. File/PDF/URL and shared Source updates, Requirement addition/removal, and material-set
+changes remain explicit limitations. Pasted text is supplied directly; this route does not fetch
+or reread the original file/URL. A rejected database transaction may leave unreferenced immutable
+staged Blobs for ordinary garbage collection, but no partial authoritative revision or audit.
+
+Intake and Workflow Skills, Agent v4/association contracts, operation catalogs and the active
+package operation digest are synchronized. Historical release receipts/ledgers are unchanged.
+The private-file fixture also verifies that this route cannot relabel a local-file Source as
+pasted text. All 44 MCP tools remain covered by the Application binding inventory.
+
+Validation commands (local source acceptance):
+
+- `cargo test -p canisend-app --lib --locked --offline source_revision_preserves_history`
+- `cargo test -p canisend-app --lib --locked --offline guarded_mutations_split_requirements_plan_and_deliverables_without_replay`
+- `cargo test -p canisend-app --lib --locked --offline requirement_extraction_requires_consent_for_private_local_source_reads`
+- `cargo test -p canisend --test mcp_protocol --locked --offline` (7 cases; after the inventory
+  fixture correction, rerun its `application_binding_covers_every_tool` case)
+- Changed-crate all-target Clippy with `-D warnings`, formatting and `git diff --check`.
+- `cargo run -p xtask --locked --offline -- source check`.
+- Skill Creator `quick_validate.py` on the two edited Skills, using the repository `.venv`
+  because system/bundled Python lacks PyYAML.
+
+Results: all three focused Application checks pass; all seven MCP protocol cases pass across the
+suite run and the focused inventory-fixture rerun. Changed-crate all-target Clippy, final App
+Clippy, formatting, diff check, both Skill validators and the final source gate pass. The macOS
+App test linker emitted its large unwind-section warning; no test failed after fixture fixes.
+Source gate reports 44 MCP leaves and no new dependency or migration. No version bump, registry
+publication, remote CI run or real Host acceptance is claimed. Next: I4 dual-Pack complete Source-change-to-new-export
+acceptance using these supported operations; shared/file/URL revision requires its own bounded
+intake/provenance design. Human candidate qualification remains separate from this local milestone.
