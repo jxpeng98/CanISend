@@ -1590,3 +1590,20 @@ and historical real-Host gates remain separate. No exception date or qualified r
 Publication currently awaits npm browser reauthentication after `npm whoami` returned E401.
 Next: publish this exact tarball with `--tag next`, independently install from npm, and compare
 registry digest, native/source bytes, template versions, and Workspace/Skills initialization.
+
+### CLI-first CI pause — 2026-09-08
+
+Owner requested pausing GUI/App Actions and retaining essential CLI automation. Fast CI's
+desktop UI and browser accessibility jobs now require `CANISEND_ENABLE_DESKTOP_CI=true`;
+the repository variable is false. GitHub's native workflow disable control pauses
+`desktop-platform-qualification.yml` and `intel-gui-compile.yml` without deleting their recipes.
+CLI Linux/Windows tests, macOS quality/tests, and shared Application-layer tests stay enabled.
+The Python product-file guard explicitly allows the two reviewed template maintenance scripts.
+
+Validation: YAML parsing and assertions confirm desktop gating and independent CLI jobs;
+`cargo run -p xtask --locked -- source check` and `git diff --check` pass locally.
+The automatic approval review rejected broader disabling of release/fuzz/upgrade/package-manager
+workflows as outside explicit GUI/App scope; those workflows remain unchanged. Formal releases
+still require their GUI evidence, and no publication or qualification is claimed here.
+Next: synchronize the existing local CLI milestone and this workflow change to main, verify
+GitHub job selection, and obtain explicit owner scope before pausing non-desktop workflows.
