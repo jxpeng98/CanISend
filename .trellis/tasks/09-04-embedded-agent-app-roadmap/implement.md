@@ -1569,3 +1569,11 @@ Acceptance: source check, release build, signed native archive smoke, local npm 
 resource/Workspace checks, then npm publication and fresh registry-byte verification.
 Evidence destination: `dist/npm-beta5/`. npm credentials currently need browser reauthentication.
 Next: validate the candidate before login and publication; no GitHub/Cargo release is claimed.
+
+Candidate preflight found two omissions from the preceding source-revision slice: Host smoke
+counts still expected 42/30/12 instead of 44/31/13, and the declared Requirements task omitted
+`source.revise.` even though the operation registry assigned both revision phases to that task.
+Add the narrow prefix to the shared task contract and embedded model, retain intake isolation,
+and update exact smoke counts. Rebuild the candidate/source archive after the fix; earlier
+Beta.5 preflight bytes are not publication bytes. The previously failing resource-registry
+semantic test is an acceptance check for this fix.

@@ -104,7 +104,7 @@ impl AgentTaskKindV4 {
                 "source.show",
             ],
             Self::ApplicationCreate => &["application.create."],
-            Self::Requirements => &["requirement."],
+            Self::Requirements => &["requirement.", "source.revise."],
             Self::FitPlan => &["plan.", "evidence.association."],
             Self::Drafting => &["deliverable."],
             Self::Review => &["review."],
@@ -703,6 +703,18 @@ mod tests {
                 snapshot_sha256: digest('b'),
             }),
         }
+    }
+
+    #[test]
+    fn source_revision_belongs_only_to_requirements() {
+        for operation in ["source.revise.preview", "source.revise.commit"] {
+            let owners = AgentTaskKindV4::ALL
+                .into_iter()
+                .filter(|task| task.accepts_operation(operation))
+                .collect::<Vec<_>>();
+            assert_eq!(owners, vec![AgentTaskKindV4::Requirements]);
+        }
+        assert!(!AgentTaskKindV4::Requirements.accepts_operation("source.intake.commit"));
     }
 
     #[test]

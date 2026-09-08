@@ -38,7 +38,7 @@
     {
       "task": "requirements",
       "description": "Propose, correct, and confirm Source-grounded Requirements.",
-      "operation_prefixes": ["requirement."],
+      "operation_prefixes": ["requirement.", "source.revise."],
       "mutation": true,
       "phases": ["orient", "propose", "preview", "approve", "commit", "verify"],
       "workspace_only_allowed": false
