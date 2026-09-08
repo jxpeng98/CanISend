@@ -1281,6 +1281,38 @@ fn locked_package_version(package_name: &str) -> Result<String, String> {
         .to_owned())
 }
 
+fn modernpro_upstream(
+    name: &str,
+    descriptor: canisend_resources::ResourceDescriptor,
+) -> Result<Value, String> {
+    let pins: Value = serde_json::from_slice(
+        &fs::read(repository_root().join("release/modernpro-sources.json"))
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let pin = &pins[name];
+    let source = canisend_resources::get(
+        descriptor
+            .id
+            .parse()
+            .map_err(|error: canisend_resources::ResourceError| error.to_string())?,
+    )
+    .bytes;
+    let bytes = pin["source_bytes"]
+        .as_u64()
+        .and_then(|size| usize::try_from(size).ok())
+        .and_then(|size| source.get(..size))
+        .ok_or_else(|| format!("missing upstream source boundary for {name}"))?;
+    if pin["version"] != descriptor.version
+        || pin["package"] != name
+        || pin["license"] != "MIT"
+        || pin["source_sha256"] != hex::encode(Sha256::digest(bytes))
+    {
+        return Err(format!("upstream source identity differs for {name}"));
+    }
+    Ok(pin.clone())
+}
+
 fn typst_template_descriptor_value(
     descriptor: canisend_resources::ResourceDescriptor,
 ) -> Result<Value, String> {
@@ -1317,19 +1349,7 @@ fn typst_template_descriptor_value(
                 json!(["cv"]),
                 json!([]),
                 2,
-                json!({
-                    "archive_sha256": "1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0",
-                    "archive_url": "https://packages.typst.org/preview/modernpro-cv-2.0.0.tar.gz",
-                    "license": "MIT",
-                    "package": "modernpro-cv",
-                    "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
-                    "source_entrypoint": "modernpro-cv.typ",
-                    "source_patches": [{
-                        "id": "prefer-explicit-configuration",
-                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-                    }],
-                    "version": "2.0.0"
-                }),
+                modernpro_upstream("modernpro-cv", descriptor)?,
                 json!({
                     "families": ["Libertinus Serif"],
                     "inherits_renderer_default": false,
@@ -1343,19 +1363,7 @@ fn typst_template_descriptor_value(
                 json!(["cover-letter", "research-statement", "teaching-statement"]),
                 json!([]),
                 2,
-                json!({
-                    "archive_sha256": "d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130",
-                    "archive_url": "https://packages.typst.org/preview/modernpro-coverletter-1.0.0.tar.gz",
-                    "license": "MIT",
-                    "package": "modernpro-coverletter",
-                    "repository": "https://github.com/jxpeng98/typst-coverletter",
-                    "source_entrypoint": "modernpro-coverletter.typ",
-                    "source_patches": [{
-                        "id": "prefer-explicit-configuration",
-                        "reason": "Honor the configured embedded font before the unavailable upstream fallback"
-                    }],
-                    "version": "1.0.0"
-                }),
+                modernpro_upstream("modernpro-coverletter", descriptor)?,
                 json!({
                     "families": ["Libertinus Serif"],
                     "inherits_renderer_default": false,
@@ -1396,7 +1404,7 @@ fn expected_typst_template_contract() -> Result<Value, String> {
     Ok(json!({
         "schema": TYPST_TEMPLATE_CONTRACT_SCHEMA,
         "contract_version": 2,
-        "baseline": "modernpro-universe-pinned-v2",
+        "baseline": "modernpro-source-pinned-v3",
         "renderer": {
             "typst_as_lib": locked_package_version("typst-as-lib")?,
             "typst_assets": locked_package_version("typst-assets")?,
@@ -1755,7 +1763,7 @@ fn domain_coupling_areas(path: &str, body: &str) -> BTreeSet<String> {
     if path.contains("/schemas/") && extension == "json" {
         areas.insert("schemas".to_owned());
     }
-    if path.contains("/resources/") {
+    if path.contains("/resources/") || path.starts_with("crates/canisend-resources/history/") {
         areas.insert("resources".to_owned());
     }
     if path.starts_with("apps/canisend-desktop/") || path.starts_with("crates/canisend-desktop/") {
@@ -1800,6 +1808,7 @@ fn classify_domain_coupling(
         return Ok("optional-adapter");
     }
     if path.contains("workflow-packs/org.canisend.academic-job")
+        || path == "crates/canisend-resources/history/academic-job.json"
         || path == "docs/contracts/academic-job-workflow-pack-v1.md"
         || path.contains("/skills/canisend-job-intake/")
         || path.ends_with("/prompts/job-parse.md")
@@ -17645,6 +17654,11 @@ mod tests {
     #[test]
     fn typst_template_contract_matches_embedded_latest_templates() {
         check_typst_template_contract().expect("latest Typst template contract");
+        let mut descriptor =
+            canisend_resources::get(canisend_resources::ResourceId::TemplateModernproCv).descriptor;
+        descriptor.version = "0.0.0";
+        assert!(modernpro_upstream("modernpro-cv", descriptor).is_err());
+        assert!(modernpro_upstream("unknown-template", descriptor).is_err());
     }
 
     #[test]

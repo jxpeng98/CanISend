@@ -123,3 +123,60 @@ macOS, Windows, and Linux execution is configured to produce reviewable evidence
   for the CLI-only Linux musl archive
 - previewed PDF SHA-256 equals the exported PDF SHA-256 for every document kind
 - no runtime Typst CLI, Node.js, system-font discovery, package download, or network dependency
+
+## CLI template synchronization — 2026-09-08
+
+Scope: synchronize the owner's local ModernPro CV 2.1.1 and coverletter 1.0.2 sources, preserve
+existing exact Pack bindings, and make the same update reproducible for future CLI builds.
+The earlier Phase 2 archive identities above remain historical provenance.
+
+- [x] Vendor the current source entrypoints byte-for-byte and retain the offline adapters.
+- [x] Remove the superseded configuration patch; pin source commits, byte counts and SHA-256.
+- [x] Advance the academic Pack to 1.0.1 and retain complete 1.0.0 bytes in the binary.
+- [x] Verify synchronization, current rendering, historical exact resolution, and the source gate.
+
+Before building a CLI release after changing the upstream templates, run:
+
+```sh
+python3 scripts/sync_typst_templates.py /path/to/Typst-CV-Resume /path/to/typst-coverletter
+python3 scripts/sync_typst_templates.py /path/to/Typst-CV-Resume /path/to/typst-coverletter --check
+cargo run -p xtask --locked -- source check
+```
+
+The synchronization command reads local sources without downloading packages. It updates template
+bytes, resource versions, Pack resource hashes and digest, source pins, and the release template
+contract and current package bindings together. Changed template bytes advance the Pack patch version and archive its previous
+complete bundle. Repeating the command on identical inputs changes nothing. Review the diff and
+run the focused renderer and historical registry tests before packaging the CLI.
+
+Cargo embeds current templates and historical Packs in every new binary. Installing the upgraded
+CLI therefore updates its available templates without a separate Typst installation or template
+download. New academic Applications use the current Pack; existing Applications resolve their
+original version and digest, preserving approved artifacts and exports. A binary upgrade does not
+implicitly approve migration or rewrite existing Applications. User-exported template copies are
+snapshots; export a fresh resource catalog when a current standalone copy is needed.
+
+This source update does not publish a CLI release or claim an exact native candidate qualification.
+Evidence:
+
+- `python3 -m unittest discover -s scripts -p test_sync_typst_templates.py`: passed; upgrade,
+  read-only drift detection, idempotence, retained history, invalid input, and modified-resource rejection.
+- Synchronization `--check` against both local repositories: passed.
+- `cargo test -p canisend-io --locked --lib render::tests`: 11 passed, including all four document
+  kinds, deterministic PDF bytes, escaped inputs, and zero-warning current-template fixtures.
+- `cargo test -p canisend-app --locked --lib workflow_pack::tests`: 7 passed, including original
+  Application reopen without mutation, exact historical resources, and substituted-digest rejection.
+- `cargo test -p xtask --locked --bin xtask typst_template_contract_matches_embedded_latest_templates`:
+  passed, including missing source pin and version mismatch rejection.
+- Affected-package Clippy with all targets and denied warnings, formatting, and `xtask source check`:
+  passed. Source bindings were refreshed; historical release qualification records were preserved.
+- Built the development CLI and copied it to an isolated temporary directory. `doctor --json`
+  verified embedded rendering without downloads; `resource list --json` reported CV 2.1.1,
+  coverletter 1.0.2, and academic Pack 1.0.1 with the expected resource hashes. This was a development
+  binary smoke, not a release-profile size or native archive qualification.
+- The complete resource test target passed 16/17. The unrelated existing
+  `operation_v4_registry_projects_one_neutral_surface_for_every_host` semantic assertion also fails
+  in an isolated archive of the unchanged HEAD; it is not claimed as passing.
+
+Next: include these resources in the next authorized CLI candidate, address the existing operation
+registry test failure separately, and run the candidate's normal packaged-binary qualification.

@@ -189,14 +189,10 @@ fn operation_v4_registry_projects_one_neutral_surface_for_every_host() {
 fn academic_workflow_pack_manifest_and_bodies_are_embedded_as_one_bundle() {
     let manifest = get(ResourceId::WorkflowPackOrgCanisendAcademicJob);
     assert_eq!(manifest.descriptor.kind, ResourceKind::WorkflowPack);
-    assert_eq!(manifest.descriptor.version, "1.0.0");
     let value: serde_json::Value =
         serde_json::from_slice(manifest.bytes).expect("academic Pack Manifest JSON");
     assert_eq!(value["id"], ACADEMIC_JOB_WORKFLOW_PACK_ID);
-    assert_eq!(
-        value["content_digest"],
-        "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
-    );
+    assert_eq!(value["version"], manifest.descriptor.version);
     let bundle = academic_job_workflow_pack();
     assert_eq!(bundle.id(), ACADEMIC_JOB_WORKFLOW_PACK_ID);
     assert_eq!(bundle.manifest_bytes(), manifest.bytes);
@@ -277,25 +273,19 @@ fn application_model_v3_schemas_are_embedded_as_an_independent_registry() {
 
 #[test]
 fn modernpro_templates_are_pinned_self_contained_and_adapter_backed() {
-    for (id, version, package_marker) in [
-        (
-            ResourceId::TemplateModernproCv,
-            "2.0.0",
-            "// modernpro-cv.typ",
-        ),
+    for (id, package_marker) in [
+        (ResourceId::TemplateModernproCv, "// modernpro-cv.typ"),
         (
             ResourceId::TemplateModernproCoverletter,
-            "1.0.0",
             "// modernpro-coverletter.typ",
         ),
     ] {
         let resource = get(id);
         assert_eq!(resource.descriptor.kind, ResourceKind::Template);
-        assert_eq!(resource.descriptor.version, version);
         let source = std::str::from_utf8(resource.bytes).expect("ModernPro template UTF-8");
         assert!(source.contains(package_marker));
         assert!(source.contains("#let canisend_render_document(data)"));
-        assert!(source.contains("CanISend compatibility patch"));
+        assert!(!source.contains("CanISend compatibility patch"));
         assert!(!source.contains("#import \"@preview/"));
         assert!(!source.contains("#read("));
     }

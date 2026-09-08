@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+pub const ACADEMIC_JOB_WORKFLOW_PACK_HISTORY: &[u8] =
+    include_bytes!("../history/academic-job.json");
+
 pub const RESOURCE_VERSION: &str = "canisend.resources/v2";
 pub const AGENT_HOST_RESOURCE_FORMAT: &str = "canisend.agent-host-resources/v4";
 

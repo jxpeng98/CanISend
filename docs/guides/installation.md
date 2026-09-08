@@ -225,6 +225,11 @@ cargo build --release --locked
 
 ## Upgrade and uninstall
 
+Typst templates and fonts are embedded in the CLI. Replacing the executable also updates the
+available built-in templates; there is no separate template installation. New academic Applications
+use the current bundled template Pack. Existing Applications keep their exact historical Pack,
+approved documents, and exports. Exported template files are snapshots and are not overwritten.
+
 Before replacing a binary, run `workspace check` and create a verified backup for each important workspace. Replace
 only the executable and bundled notices; never copy a new binary into `.canisend/`.
 

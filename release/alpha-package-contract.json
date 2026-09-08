@@ -20,14 +20,14 @@
     "resource_manifest": {
       "entry_count": 91,
       "path": "crates/canisend-resources/resources/manifest.json",
-      "sha256": "63bc1ee2590753d3d65a2438b517841e5ef81a0e679e0a67a11f455f99eeaa80"
+      "sha256": "4fbe0a1d12ad6e52bd3e9038e189d32f322a881b59f952580d8dbd59f53394ce"
     },
     "workflow_pack_format": "canisend.workflow-pack/v1",
     "workflow_packs": [
       {
-        "content_digest": "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07",
+        "content_digest": "38b9365c4403fb01c3f562226e81d102907a3e06afa6a81eff180932f6d74fa1",
         "id": "org.canisend.academic-job",
-        "version": "1.0.0"
+        "version": "1.0.1"
       },
       {
         "content_digest": "ffe269ae905b7fac851d82719f989876c7d310216b12922be6a5dd1aff67b321",
@@ -81,7 +81,11 @@
     "applications_link": "/Applications",
     "bundle": "CanISend.app",
     "unified_host_executable": "Contents/MacOS/canisend-gui",
-    "host_entry_modes": ["gui", "cli", "mcp"],
+    "host_entry_modes": [
+      "gui",
+      "cli",
+      "mcp"
+    ],
     "full_native_host_count": 1,
     "application_payload_budget_bytes": 75497472,
     "bundle_metadata": "Contents/Resources/BUNDLE.json",

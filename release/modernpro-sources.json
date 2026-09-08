@@ -1,0 +1,24 @@
+{
+  "modernpro-cv": {
+    "license": "MIT",
+    "package": "modernpro-cv",
+    "repository": "https://github.com/jxpeng98/Typst-CV-Resume",
+    "source_entrypoint": "modernpro-cv.typ",
+    "source_commit": "b20eecddd299b18003dca943375ebda8cfe01e81",
+    "source_sha256": "7ee59d8064a80f31e8557953faf4259cc6f7a523600804c9b1bddc6131c538e0",
+    "source_bytes": 28749,
+    "source_patches": [],
+    "version": "2.1.1"
+  },
+  "modernpro-coverletter": {
+    "license": "MIT",
+    "package": "modernpro-coverletter",
+    "repository": "https://github.com/jxpeng98/typst-coverletter",
+    "source_entrypoint": "modernpro-coverletter.typ",
+    "source_commit": "1102c35febd62498a61daca0e9adacef8fc801e4",
+    "source_sha256": "25eaf3124fbdaef064d1e2599f80720fc9f0fc64bb6e86da58347153cbd4a33d",
+    "source_bytes": 24911,
+    "source_patches": [],
+    "version": "1.0.2"
+  }
+}

@@ -63,7 +63,52 @@ pub fn built_in_workflow_pack_registry() -> Result<WorkflowPackRegistry, Applica
             .insert(load_built_in_pack(expected_id, embedded)?)
             .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
     }
+    for pack in historical_academic_packs()? {
+        registry
+            .insert(pack)
+            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    }
     Ok(registry)
+}
+
+fn historical_academic_packs() -> Result<Vec<VerifiedWorkflowPackBundle>, ApplicationError> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ArchivedPack {
+        manifest: String,
+        resources: std::collections::BTreeMap<canisend_contracts::SafeRelativePath, String>,
+    }
+    let history: Vec<ArchivedPack> =
+        serde_json::from_slice(canisend_resources::ACADEMIC_JOB_WORKFLOW_PACK_HISTORY)
+            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+    history
+        .into_iter()
+        .map(|pack| {
+            let verified = WorkflowPackByteLoader::verify(
+                pack.manifest.as_bytes(),
+                pack.resources
+                    .into_iter()
+                    .map(|(path, body)| (path, body.into_bytes()))
+                    .collect(),
+                WorkflowPackOrigin::BuiltIn,
+                &WorkflowPackRuntime::parse(
+                    env!("CARGO_PKG_VERSION"),
+                    "3.0.0-alpha.1",
+                    "3.0.0-alpha.1",
+                )
+                .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?,
+                &WorkflowPackCapabilityRegistry::built_in(),
+            )
+            .map_err(|error| ApplicationError::ResourceIntegrity(error.to_string()))?;
+            let bundle = verified.into_bundle();
+            if bundle.snapshot().id().as_str() != ACADEMIC_JOB_WORKFLOW_PACK_ID {
+                return Err(ApplicationError::ResourceIntegrity(
+                    "historical Pack identity differs".to_owned(),
+                ));
+            }
+            Ok(bundle)
+        })
+        .collect()
 }
 
 fn load_built_in_pack(
@@ -537,12 +582,66 @@ mod tests {
     }
 
     #[test]
+    fn template_upgrade_reopens_an_application_with_its_original_pack() {
+        let root =
+            std::env::temp_dir().join(format!("canisend-template-upgrade-{}", std::process::id()));
+        Application::initialize_workspace_v4(&root).expect("new isolated workspace");
+        let old = historical_academic_packs().expect("history").remove(0);
+        let created = {
+            let mut workspace = crate::application::open_workspace_v4(&root).expect("workspace");
+            canisend_store::ApplicationFlowServiceV3::new(
+                &mut workspace.database,
+                &workspace.blobs,
+                &root,
+            )
+            .create(
+                &old,
+                crate::ApplicationFlowCreateRequestV3 {
+                    title: "Synthetic pre-upgrade application".to_owned(),
+                    opportunity_metadata: BTreeMap::from([(
+                        WorkflowPackItemId::try_new("institution").expect("field"),
+                        ApplicationFieldValueV3::ShortText("Example University".to_owned()),
+                    )]),
+                    application_metadata: Default::default(),
+                    source_text: "Supported teaching.".to_owned(),
+                    requirements: vec![crate::ApplicationFlowRequirementDraftV3 {
+                        category: old.manifest().requirements.categories[0].id.clone(),
+                        statement: "Supported teaching.".to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: 19,
+                    }],
+                },
+            )
+            .expect("seed original binary's Pack binding")
+            .stored
+        };
+        let id = created.snapshot.application.id.as_str();
+        assert_eq!(
+            Application::application_pack_manifest_v4(&root, id)
+                .expect("new binary resolves historical Pack")
+                .data,
+            *old.manifest()
+        );
+        assert_eq!(
+            Application::application_model_v4(&root, id)
+                .expect("reopen original application")
+                .data,
+            created
+        );
+        std::fs::remove_dir_all(root).expect("remove isolated fixture");
+    }
+
+    #[test]
     fn built_in_registry_resolves_academic_and_generic_packs_exactly() {
         let academic = built_in_academic_job_pack().expect("academic Pack");
         let generic = built_in_generic_application_pack().expect("generic Pack");
         let registry = built_in_workflow_pack_registry().expect("built-in registry");
 
-        assert_eq!(registry.len(), 2);
+        assert_eq!(
+            registry.len(),
+            2 + historical_academic_packs().expect("history").len()
+        );
         for pack in [&academic, &generic] {
             assert!(registry.contains_exact(
                 pack.snapshot().id(),
@@ -550,6 +649,36 @@ mod tests {
                 pack.snapshot().content_digest(),
             ));
         }
+        let history = historical_academic_packs().expect("verified historical Packs");
+        let old = history
+            .iter()
+            .find(|pack| pack.snapshot().version().as_str() == "1.0.0")
+            .expect("pre-upgrade academic Pack remains bundled");
+        assert_eq!(
+            old.snapshot().content_digest().as_str(),
+            "3baa6d1a3ddf057ba1e5aaf02d8cabb037366b3651f5566bfcf2b2bb166a8d07"
+        );
+        for pack in &history {
+            let resolved = registry
+                .resolve_exact(
+                    pack.snapshot().id(),
+                    pack.snapshot().version(),
+                    pack.snapshot().content_digest(),
+                )
+                .expect("old binding still resolves after upgrade");
+            assert_eq!(resolved.resources(), pack.resources());
+            assert!(
+                registry
+                    .resolve_exact(
+                        pack.snapshot().id(),
+                        pack.snapshot().version(),
+                        academic.snapshot().content_digest()
+                    )
+                    .is_err(),
+                "never substitute latest bytes for old binding"
+            );
+        }
+        assert_ne!(academic.snapshot().version(), old.snapshot().version());
     }
 
     const fn pack_output(kind: ArtifactKind) -> WorkflowPackStageOutput {

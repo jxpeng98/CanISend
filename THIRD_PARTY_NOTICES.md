@@ -32,17 +32,19 @@ licenses.
 
 ## Embedded ModernPro templates
 
-- `modernpro-cv` 2.0.0 by Academic Template Collective: MIT. The embedded source is based on the versioned Typst
-  Universe archive with SHA-256
-  `1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0`.
-- `modernpro-coverletter` 1.0.0 by Academic Template Collective: MIT. The embedded source is based on the versioned
-  Typst Universe archive with SHA-256
-  `d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130`.
+- `modernpro-cv` and `modernpro-coverletter` by Academic Template Collective: MIT.
+  Current local upstream versions, source commits, and exact source SHA-256 values are pinned in
+  `release/modernpro-sources.json` and `release/typst-template-contract.json`.
+- Historical academic workflow Packs retain their complete original template and prompt bytes in
+  `crates/canisend-resources/history/academic-job.json` to preserve existing Application bindings.
+  The initial retained templates are ModernPro CV 2.0.0 and coverletter 1.0.0, from Typst Universe
+  archives with SHA-256 `1d108f538571e804f96b59dc1f3c0b0e0dc275b3eb35c6368fd7cc89775851f0`
+  and `d3c5e8031e8a74ab4ae6e3163b0f37d6ecebc972dd7a4b3b41fc99ff07585130`, respectively.
 
-The CanISend copies add an offline structured-data adapter and a bounded configuration-precedence
-fix so the selected embedded font wins over an unavailable upstream fallback. They use the already
-embedded Libertinus font assets. Optional contact icons remain data-driven, so no additional icon
-package or font is bundled.
+The CanISend copies append an offline structured-data adapter and use the already embedded
+Libertinus font assets. Current upstream sources include the configuration-precedence fix;
+only historical copies retain CanISend's original bounded patch. Optional contact icons remain
+data-driven, so no additional icon package or font is bundled.
 
 Copyright (c) 2023 Academic Template Collective
 
