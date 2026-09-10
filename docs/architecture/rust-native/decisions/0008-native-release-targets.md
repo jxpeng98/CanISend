@@ -22,7 +22,11 @@ The initial release matrix is:
 
 GitHub Release archives, SHA-256 checksums, SBOM, provenance, licenses, and a signed release manifest are the first
 distribution mechanism. Homebrew and Scoop/WinGet follow after archive installation and update behavior are proven.
-PyPI is not used for the Rust product.
+The original release scope excluded PyPI. On 2026-09-10 the owner authorized Cargo and
+PyPI testing distributions independently of full native qualification. PyPI carries native
+CLI wheels built with Maturin's binary binding; it does not restore the historical Python
+implementation or add a Python runtime dependency to the executable. The initial wheel
+target is Apple Silicon macOS. Other targets require their own package and installation checks.
 
 Every packaged target runs version, doctor, workspace initialization, agent capabilities, local advert import,
 synthetic task completion, host asset export, and offline embedded PDF rendering.

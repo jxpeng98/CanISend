@@ -42,6 +42,13 @@ See [installation](../../../docs/guides/installation.md) for the current invocat
 Only supplied platforms may be declared; this route does not qualify the full Beta
 matrix, publish Cargo/GitHub releases, or renew dependency exceptions.
 
+On 2026-09-10 the owner separately authorized Cargo and PyPI testing publication.
+Use Cargo's dependency-ordered publishing for the eight public CLI crates. The main-only
+`pypi_only` path in `release.yml` builds a native macOS ARM64 wheel and uses the existing
+`pypi` environment and OIDC binding. It leaves the Python product implementation retired.
+Verify registry bytes and installation before recording publication as complete; the same
+full-qualification and dependency-exception limits apply.
+
 Fast CI and dependency assurance remain active. GUI checks and archived extended
 workflows remain paused under the owner's decision; see
 [workflow archive](../../../.github/workflow-archive/README.md) before restoring them.

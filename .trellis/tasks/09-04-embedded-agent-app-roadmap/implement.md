@@ -1879,3 +1879,21 @@ local candidate bytes remain unchanged; no real Workspace, global CLI or Host wa
 README, installation, release notes and current release records now describe the published
 package. Next: integrate this documentation-only publication record through protected CI.
 The updated publication projections pass the source gate and `git diff --check`.
+
+### Cargo and PyPI testing channels — 2026-09-10
+
+The owner authorized publication through locally authenticated Cargo and PyPI. All eight
+Cargo packages at source `d59984438c1a34e12743398b0d0ad0a5a953836d` passed locked packaging
+and independent build verification. The first five uploaded successfully; crates.io's new-crate
+rate limit delayed the remaining three. Exact candidate archives and hashes are retained in
+`dist/cargo-beta6-publication/`. Registry completion and installation remain pending.
+
+PyPI had no Rust packaging configuration. Added Maturin binary-wheel metadata and two small
+build/install scripts, with the version inherited from Cargo and GPL/third-party notices plus
+corresponding source included. The local `1.0.0b6` macOS ARM64 wheel passed strict Twine
+metadata validation, native signature, version/source identity, doctor, fresh Workspace and
+all nine existing MCP protocol tests. Bash syntax, workflow YAML/routing and source checks
+passed. `release.yml` now has an independent main-only PyPI route using the retained `pypi`
+environment/OIDC publisher, with artifact retention and exact registry-byte comparison.
+Protected CI, PyPI upload and registry installation remain pending. Full native/GUI and actual
+Host qualification remain outside this scope; no dependency exception was renewed.
