@@ -1807,3 +1807,18 @@ improvement was not in that executable. Next: build a fresh local Beta.6 npm/nat
 from this implementation commit, validate its exact installed bytes, and reconnect the Host
 with the newer binary. This does not claim that the screenshot's actual registered MCP command
 has been inspected, that an existing user session was upgraded, or that npm/remote CI is complete.
+
+Local candidate completed from `6cf9e8f101576ce8bd23ea587cb310322c1df7bb`:
+`dist/npm-beta6-evidence-approval/npm/canisend-1.0.0-beta.6.tgz`, 26,142,858 bytes,
+SHA-256 `d5ae1940df0b4e93ca724e281d584fd28796af8ab25b3bd75750b3b0b12c8aba`.
+The signed macOS ARM64 native archive and offline npm installation retain the exact
+built binary; the npm source archive matches the implementation commit. All 9 MCP
+protocol tests pass against that installed package, including the one-form Evidence
+journey. Native archive installation/uninstall, documented dual-Pack workflow,
+project/global Host lifecycle, guarded MCP workflow and backup/restore pass. Isolated
+Beta.4-to-Beta.6 Codex/Claude upgrades install exact current Skill bytes and preserve
+user-modified files by refusing overwrite. `candidate.json`, `checks/` and
+`INSTALL-LOCAL.md` in the candidate directory retain identity, checks and activation
+steps. Earlier candidates remain unchanged. Next: install/register/reconnect in the
+actual Host for interactive acceptance; protected integration and npm publication
+remain pending. No real Workspace, global CLI or current Host session was changed.
