@@ -153,6 +153,12 @@ opaque, process-bounded preview token. A mismatch, denial, expiry, replay, stale
 Pack, wrong Workspace, or host restart fails without mutation and requires a new preview where
 applicable.
 
+Native confirmation messages render the Broker-owned preview as labeled text with real
+paragraph breaks, placing proposed changes before reference details. This presentation does
+not alter request values, digests, single-use tokens or the machine-readable tool result.
+Hosts present result summaries and requested document text as readable prose or Markdown;
+raw envelopes and escaped JSON strings are not the default user-facing response.
+
 Committed receipts contain the new revision, snapshot digest, audit-event identity, and typed
 artifact references. `submission_performed` must always be `false`; CanISend renders and exports
 but never uploads or submits an Application.

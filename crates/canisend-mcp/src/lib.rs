@@ -46,6 +46,69 @@ const MAX_APPLICATION_ID_BYTES: usize = 128;
 const MAX_SESSION_INPUT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_TOOL_RESULT_BYTES: usize = 2 * 1024 * 1024;
 
+/// Render trusted preview/display data; never decode strings a second time or change
+/// the Broker-owned values used for commit validation.
+fn readable_fields(value: &Value) -> String {
+    fn render(value: &Value, label: &str, depth: usize, output: &mut String) {
+        let indent = "  ".repeat(depth);
+        match value {
+            Value::Object(fields) if !fields.is_empty() => {
+                if !label.is_empty() {
+                    output.push_str(&format!("{indent}{label}:\n"));
+                }
+                let mut fields = fields.iter().collect::<Vec<_>>();
+                fields.sort_by_key(|(key, _)| match key.as_str() {
+                    "changes" | "title" => 0,
+                    "request" | "catalog" | "kind" => 1,
+                    "content" | "text" => 2,
+                    _ => 3,
+                });
+                let child_depth = depth + usize::from(!label.is_empty());
+                for (key, value) in fields {
+                    let label = match key.as_str() {
+                        "request" => "Proposed change".to_owned(),
+                        "context" => "Reference details".to_owned(),
+                        "preview_sha256" => "Preview fingerprint (SHA-256)".to_owned(),
+                        "sha256" => "SHA-256".to_owned(),
+                        _ => {
+                            let mut words = key.replace('_', " ");
+                            if let Some(first) = words.get_mut(..1) {
+                                first.make_ascii_uppercase();
+                            }
+                            words
+                        }
+                    };
+                    render(value, &label, child_depth, output);
+                }
+            }
+            Value::Array(items) if !items.is_empty() => {
+                output.push_str(&format!("{indent}{label}:\n"));
+                for (index, item) in items.iter().enumerate() {
+                    render(item, &format!("{}", index + 1), depth + 1, output);
+                }
+            }
+            Value::String(text) if text.contains('\n') => {
+                // Keep paragraphs and literal backslashes exactly as supplied.
+                output.push_str(&format!("{indent}{label}:\n\n{text}\n\n"));
+            }
+            _ => {
+                let text = match value {
+                    Value::String(text) => text.clone(),
+                    Value::Bool(true) => "Yes".to_owned(),
+                    Value::Bool(false) => "No".to_owned(),
+                    Value::Null => "Not set".to_owned(),
+                    Value::Array(_) | Value::Object(_) => "None".to_owned(),
+                    Value::Number(number) => number.to_string(),
+                };
+                output.push_str(&format!("{indent}{label}: {text}\n"));
+            }
+        }
+    }
+    let mut output = String::new();
+    render(value, "", 0, &mut output);
+    output
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(transparent)]
 struct McpStructuredOutput(Value);
@@ -469,13 +532,13 @@ impl CanISendMcpServer {
                 "title": "Auto approve routine work for this application for up to 60 minutes"
             });
             message.push_str(&format!(
-                "\n\nOptional Auto approval: allow this Host to read this application's private content and update its requirements, plan, drafts and reviews for up to 60 minutes in this MCP connection. New private Sources, exports and unsupported operations still ask. Switching applications, denial, explicit cancellation or reconnecting clears the grant. Leave unchecked to approve only this request.\nAutomatic approval scope: {}",
-                serde_json::json!(scope),
+                "\n\nOptional Auto approval: allow this Host to read this application's private content and update its requirements, plan, drafts and reviews for up to 60 minutes in this MCP connection. New private Sources, exports and unsupported operations still ask. Switching applications, denial, explicit cancellation or reconnecting clears the grant. Leave unchecked to approve only this request.\n\nAutomatic approval scope:\n{}",
+                readable_fields(&serde_json::json!(scope)),
             ));
             if let Some(source) = profile_source {
                 message.push_str(&format!(
-                    "\nInclude this exact Profile Source in Auto approval: {}. This allows reading it in this Host/provider, adding validated source-backed facts to the shared Evidence catalog, and managing its Profile/Evidence links for this Application. This extension adds only this Source; other Sources require their own grant. Other Applications are not included. Adding a Source does not extend an active grant's expiry.",
-                    serde_json::json!(source),
+                    "\nInclude this exact Profile Source in Auto approval:\n{}\nThis allows reading it in this Host/provider, adding validated source-backed facts to the shared Evidence catalog, and managing its Profile/Evidence links for this Application. This extension adds only this Source; other Sources require their own grant. Other Applications are not included. Adding a Source does not extend an active grant's expiry.",
+                    readable_fields(&serde_json::json!(source)),
                 ));
             }
         }
@@ -754,9 +817,21 @@ impl CanISendMcpServer {
                 .collect::<BTreeMap<_, _>>();
             let subjects = serde_json::json!(subjects);
             let selected = preview.as_ref().unwrap_or(&subjects);
+            // Pending mutation/association enums wrap the exact display payload once.
+            let selected = selected
+                .as_object()
+                .filter(|fields| fields.len() == 1)
+                .and_then(|fields| fields.values().next())
+                .and_then(|value| value.get("preview"))
+                .unwrap_or(selected);
+            let title = tool
+                .annotations
+                .as_ref()
+                .and_then(|annotations| annotations.title.as_deref())
+                .unwrap_or(request.name.as_ref());
             Self::authorize_with_host(context, format!(
-                "Approve this request? No submission is performed.\nPermissions: {}.\nWorkspace: {}\nOperation: {}\nExact request: {}",
-                purposes.join("; "), self.workspace().display(), request.name, selected,
+                "{title}\n\nApprove this request? No submission is performed.\n\nPermissions:\n- {}\n\nWorkspace: {}\n\n{}",
+                purposes.join("\n- "), self.workspace().display(), readable_fields(selected),
             ), auto_scope, profile_source.as_ref(), session).await?
         };
         // A pending form cannot transfer a grant to a replaced Workspace or Pack.
@@ -2189,7 +2264,7 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request authorization; they never assert user approval. The user may opt into Auto approval in a native form for routine work on one Application in this connection for up to 60 minutes. The user can include exact Profile Source revisions for their reads, source-backed Evidence and Application links. New Sources and exports still ask; one form combines an operation's requested read/write permissions. Invalid previews do not revoke an otherwise valid grant. Response _meta canisend/approval reports the mode and whether standing permission was used. False request_confirmation cancels the preview and revokes Auto approval. Never answer a form for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Present results and requested document text as readable prose or Markdown with real paragraphs; use JSON internally and show raw envelopes only when requested. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request authorization; they never assert user approval. The user may opt into Auto approval in a native form for routine work on one Application in this connection for up to 60 minutes. The user can include exact Profile Source revisions for their reads, source-backed Evidence and Application links. New Sources and exports still ask; one form combines an operation's requested read/write permissions. Invalid previews do not revoke an otherwise valid grant. Response _meta canisend/approval reports the mode and whether standing permission was used. False request_confirmation cancels the preview and revokes Auto approval. Never answer a form for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {
     // The router is entered only after user authorization, or to consume a cancellation.
@@ -2286,9 +2361,40 @@ mod tests {
 
     use canisend_app::{Application, CANISEND_MCP_TOOLS};
 
-    use super::CanISendMcpServer;
+    use super::{CanISendMcpServer, readable_fields};
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
+
+    #[test]
+    fn confirmation_text_preserves_paragraphs_and_literal_characters() {
+        let body = "研究计划 — \"Evidence\"\n\nFirst paragraph.\n\nLiteral \\n and C:\\notes must stay literal.";
+        let preview = serde_json::json!({
+            "request": {"content": body, "title": "Research statement", "expected_revision": 8},
+            "changes": ["Replace the draft; review will be stale"],
+            "profile_source": {"id": "fixture-source", "revision": 2, "sha256": "a".repeat(64)},
+            "submission_performed": false, "optional": null
+        });
+        let before = preview.clone();
+        let rendered = readable_fields(&preview);
+        assert!(rendered.contains(&format!("Content:\n\n{body}\n\n")));
+        assert!(
+            rendered.find("Title: Research statement").unwrap()
+                < rendered.find("Content:").unwrap()
+        );
+        for expected in [
+            "Replace the draft; review will be stale",
+            "Expected revision: 8",
+            "Id: fixture-source",
+            "Revision: 2",
+            "Submission performed: No",
+            "Optional: Not set",
+        ] {
+            assert!(rendered.contains(expected), "{rendered}");
+        }
+        assert!(rendered.contains(&"a".repeat(64)));
+        assert!(!rendered.contains("\"content\":"));
+        assert_eq!(preview, before);
+    }
 
     fn temporary_root(label: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(

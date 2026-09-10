@@ -21,7 +21,7 @@
   {"id":"prompt.document-review","kind":"prompt","path":"prompts/document-review.md","version":"2.0.0"},
   {"id":"skill.canisend-application-workflow","kind":"agent","path":"skills/canisend-application-workflow/SKILL.md","version":"4.0.1"},
   {"id":"skill.canisend-application-workflow.openai","kind":"agent","path":"skills/canisend-application-workflow/agents/openai.yaml","version":"4.0.0"},
-  {"id":"skill.canisend-workspace","kind":"agent","path":"skills/canisend-workspace/SKILL.md","version":"4.0.3"},
+  {"id":"skill.canisend-workspace","kind":"agent","path":"skills/canisend-workspace/SKILL.md","version":"4.0.4"},
   {"id":"skill.canisend-workspace.openai","kind":"agent","path":"skills/canisend-workspace/agents/openai.yaml","version":"4.0.1"},
   {"id":"skill.canisend-intake","kind":"agent","path":"skills/canisend-intake/SKILL.md","version":"4.0.2"},
   {"id":"skill.canisend-intake.openai","kind":"agent","path":"skills/canisend-intake/agents/openai.yaml","version":"4.0.1"},

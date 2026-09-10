@@ -1822,3 +1822,23 @@ user-modified files by refusing overwrite. `candidate.json`, `checks/` and
 steps. Earlier candidates remain unchanged. Next: install/register/reconnect in the
 actual Host for interactive acceptance; protected integration and npm publication
 remain pending. No real Workspace, global CLI or current Host session was changed.
+
+### Readable confirmation content — 2026-09-10
+
+The owner's screenshot shows a native consent form displaying the serialized request,
+including escaped paragraph breaks and internal JSON keys. The shared MCP form now
+renders the exact Broker-owned values as labeled text: operation title, permissions,
+changes and proposed content precede reference details. Auto approval scope and Source
+references use the same renderer. Strings are not decoded twice or rewritten, and
+commit digests, tokens, validation, authorization and structured results are unchanged.
+The server instruction and shared Workspace Skill require readable conversational
+results and document paragraphs; the Skill advances to 4.0.4 with its manifest projection.
+
+Validation: the renderer regression covers paragraphs, Unicode, quotes, literal
+backslashes and reference values without mutating the preview. All 9 MCP protocol tests
+pass, including a multiline revision displayed intact in the real protocol form, exact
+fingerprint binding, token omission, denial, replay and the prior single-form workflow.
+All 17 resource tests, the Skill validator, formatting, affected MCP/CLI Clippy and
+source check pass. Next: build a separate local candidate containing both usability
+fixes and validate its installed binary; retain the earlier candidate's identity.
+This does not claim actual Host visual acceptance, remote CI or npm publication.

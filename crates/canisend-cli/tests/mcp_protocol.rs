@@ -1336,6 +1336,9 @@ fn guarded_lifecycle(local_candidate: bool) {
     assert!(audit.to_string().contains(draft_body));
 
     let revised_body = "PRIVATE-MCP-DELIVERABLE-V2";
+    let revised_content = format!(
+        "{revised_body}\n\nResearch statement — \"Evidence\"\n\nSecond paragraph. Literal \\n stays literal."
+    );
     let revision_preview = mcp.request(
         14,
         "tools/call",
@@ -1347,7 +1350,7 @@ fn guarded_lifecycle(local_candidate: bool) {
                 "deliverable_id": deliverable_id,
                 "title": "Revised primary document",
                 "media_type": "text/markdown",
-                "content": revised_body
+                "content": revised_content
             }
         }),
     );
@@ -1369,6 +1372,15 @@ fn guarded_lifecycle(local_candidate: bool) {
         revised["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"],
         json!(7)
     );
+    let displayed = mcp.confirmations.last().unwrap()["message"]
+        .as_str()
+        .unwrap();
+    assert!(displayed.contains("Title: Revised primary document"));
+    assert!(displayed.contains(&format!("Content:\n\n{revised_content}\n\n")));
+    assert!(displayed.contains(&digest));
+    assert!(!displayed.contains(&token));
+    assert!(!displayed.contains("\"expected_revision\":"));
+    assert!(!displayed.contains("\\\"Evidence\\\""));
     let replay = mcp.request(
         16,
         "tools/call",
@@ -1639,7 +1651,7 @@ fn guarded_lifecycle(local_candidate: bool) {
     assert_eq!(accepted["snapshot"]["plan"]["state"], "stale");
     assert_eq!(accepted["snapshot"]["deliverables"][0]["state"], "stale");
     let displayed = mcp.confirmations.last().unwrap().to_string();
-    assert!(displayed.contains("RequirementRevise"));
+    assert!(displayed.contains("Commit Requirement revision"));
     assert!(displayed.contains(requirement_id.as_str()));
 
     let original_manifest_path = root.join(&destination).join("render-manifest.json");
@@ -1780,7 +1792,7 @@ fn source_revision_survives_host_restart_in_both_packs() {
         }
         assert_eq!(mcp.confirmations.len(), 2);
         let form = mcp.confirmations.last().unwrap().to_string();
-        assert!(form.contains("SourceRevise"));
+        assert!(form.contains("Commit Source revision"));
         assert!(form.contains(requirement.id.as_str()));
         drop(mcp);
         let current = Application::application_model_v4(&root, id.as_str())
