@@ -1712,3 +1712,16 @@ The first local package also passed fresh npm installation, native/source byte c
 and real Beta.5-to-Beta.6 managed upgrades for Codex and Claude. Both Hosts refuse edited
 Skills without changing any managed files. Rebuild the final candidate from the commit
 including the smoke correction; keep the first attempt separate from its final hashes.
+
+Final local candidate: `1.0.0-beta.6`, source
+`b78c22e6c9b5a0f347f80e5255e9a9db9dd217e0`, macOS ARM64 only. The npm tarball at
+`dist/npm-beta6/npm/canisend-1.0.0-beta.6.tgz` is 26,113,760 bytes, SHA-256
+`c001567706d92a2fe3151d64ebcf79b6d9e956f35203ddecebf103c4b46f744c`.
+Fresh installation, exact native/source archive comparison, documented dual-Pack flow,
+project/global Host lifecycle, guarded MCP lifecycle, reopen/restore, export verification,
+uninstall/workspace retention and both Hosts' managed/customized upgrade cases pass.
+`dist/npm-beta6/candidate.json` and `checks/` retain the results; the earlier local attempt
+is superseded under `dist/npm-beta6-initial/`. This evidence-only update does not change
+the candidate source identity above. Local npm preparation is ready; protected CI,
+real-Host/full native qualification and publication are not claimed. Next: integrate
+through protected CI, then use the authorized main-only npm release route.
