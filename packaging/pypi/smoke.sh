@@ -19,4 +19,4 @@ version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
 for file in LICENSE THIRD_PARTY_NOTICES.md TYPST-ASSETS-LICENSE TYPST-ASSETS-NOTICE SOURCE.tar.gz; do
   test -s "$venv/share/canisend/$file"
 done
-tar -tzf "$venv/share/canisend/SOURCE.tar.gz" | rg '^crates/canisend-resources/resources/templates/' > /dev/null
+tar -tzf "$venv/share/canisend/SOURCE.tar.gz" | grep '^crates/canisend-resources/resources/templates/' > /dev/null
