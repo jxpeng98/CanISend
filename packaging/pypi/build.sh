@@ -12,6 +12,7 @@ mkdir "$data" # Refuse to overwrite an existing staging directory.
 trap 'rm -rf "$data"' EXIT
 notices="$data/data/share/canisend"
 mkdir -p "$notices"
+cargo fetch --locked
 typst_notice="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -path '*/typst-assets-0.15.1/NOTICE' -print -quit)"
 test -n "$typst_notice"
 cp LICENSE THIRD_PARTY_NOTICES.md "$notices/"
