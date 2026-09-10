@@ -140,8 +140,8 @@ source under `share/canisend`. Build from a committed checkout. The smoke checks
 signature, source identity, doctor, a fresh Workspace, embedded Skills and bundled notices.
 CI also runs the existing MCP protocol regression against the wheel-installed executable.
 
-The existing PyPI Trusted Publisher must identify `jxpeng98/CanISend`, workflow `release.yml`,
-environment `pypi`. Dispatch from main with `pypi_only=true`, `npm_only=false` and the exact
+The existing PyPI Trusted Publisher must identify `jxpeng98/CanISend` and workflow `release.yml`;
+if it restricts the environment, use `pypi`. Dispatch from main with `pypi_only=true`, `npm_only=false` and the exact
 Cargo prerelease tag. This path builds, verifies and retains one macOS ARM64 wheel, uploads
 through OIDC, then downloads and compares PyPI bytes before a second isolated installation.
 Other wheel platforms and full native/GUI qualification remain deferred.
