@@ -121,3 +121,27 @@ credentials. GitHub login alone does not authorize either registry. Trusted publ
 CI tokens once the initial packages and registry publisher bindings exist. Package names and first
 release ownership must be confirmed before the first upload. This source configuration is not
 proof of a successful registry publication or a successful remote workflow run.
+
+## PyPI native CLI wheel
+
+`packaging/pypi/pyproject.toml` uses Maturin's `bin` binding to install the Rust executable
+directly on PATH. The version comes from Cargo (`1.0.0-beta.6` becomes `1.0.0b6`).
+No Python API, runtime wrapper or install-time binary download is added.
+
+On Apple Silicon macOS, install Maturin 1.15.0 in a build environment and run:
+
+```sh
+bash packaging/pypi/build.sh dist/pypi
+bash packaging/pypi/smoke.sh dist/pypi /tmp/canisend-wheel-smoke
+```
+
+The build includes the GPL and third-party notices plus `git archive HEAD` corresponding
+source under `share/canisend`. Build from a committed checkout. The smoke checks native
+signature, source identity, doctor, a fresh Workspace, embedded Skills and bundled notices.
+CI also runs the existing MCP protocol regression against the wheel-installed executable.
+
+The existing PyPI Trusted Publisher must identify `jxpeng98/CanISend`, workflow `release.yml`,
+environment `pypi`. Dispatch from main with `pypi_only=true`, `npm_only=false` and the exact
+Cargo prerelease tag. This path builds, verifies and retains one macOS ARM64 wheel, uploads
+through OIDC, then downloads and compares PyPI bytes before a second isolated installation.
+Other wheel platforms and full native/GUI qualification remain deferred.

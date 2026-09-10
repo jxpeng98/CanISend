@@ -12,6 +12,7 @@
 /fuzz/corpus/
 /dist/
 /build/
+/packaging/pypi/canisend.data/
 /apps/*/dist/
 /apps/*/node_modules/
 /apps/*/playwright-report/

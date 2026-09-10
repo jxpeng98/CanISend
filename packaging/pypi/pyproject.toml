@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin==1.15.0"]
+build-backend = "maturin"
+
+[project]
+name = "canisend"
+dynamic = ["version"]
+description = "Evidence-bound application preparation CLI"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+readme = { text = "CanISend prepares applications in a local Workspace. This package installs the native Rust CLI, with embedded templates and Agent Skills. Run `canisend version`, then `canisend --workspace ./applications workspace init --host codex`. See https://github.com/jxpeng98/CanISend for setup and upgrade instructions. The current wheel supports Apple Silicon macOS. License notices and corresponding source are installed under share/canisend. This is a CLI distribution, not the historical Python API.", content-type = "text/markdown" }
+
+[project.urls]
+Repository = "https://github.com/jxpeng98/CanISend"
+
+[tool.maturin]
+manifest-path = "../../crates/canisend-cli/Cargo.toml"
+bindings = "bin"
+locked = true
+data = "canisend.data"

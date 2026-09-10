@@ -60,8 +60,13 @@ Registry readback also reports `latest` pointing to this first version. The vers
 npm platform is macOS ARM64. Future CI should publish a new version rather than attempt to
 overwrite these immutable registry packages.
 
-PyPI and TestPyPI are not release channels for the Rust product. A source build, local GUI preview,
-or manually dispatched candidate is not a published release.
+On 2026-09-10 the owner authorized Cargo and PyPI testing publication. Cargo distributes
+the eight-crate CLI dependency closure at `1.0.0-beta.6`; PyPI preparation uses Maturin
+to build the native macOS ARM64 CLI as `1.0.0b6`. The independent `pypi_only` path in
+`release.yml` builds and checks an exact wheel, publishes through the existing `pypi`
+environment using OIDC, then verifies registry bytes and installation. TestPyPI remains
+unused. A source build or prepared workflow is not proof of publication; registry readback
+and exact-package checks determine channel status.
 
 ## Supported public package scope
 
