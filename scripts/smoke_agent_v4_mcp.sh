@@ -189,12 +189,15 @@ printf '%s\n' \
   --host codex \
   --executable "$registered_binary" \
   --json > "$smoke_root/codex-status.json"
+"$binary" resource list --json > "$smoke_root/resources.json"
 
 jq -e \
+  --slurpfile resources "$smoke_root/resources.json" \
   --slurpfile setup "$smoke_root/codex-setup.json" \
   --slurpfile repeat "$smoke_root/codex-setup-repeat.json" \
   --slurpfile status "$smoke_root/codex-status.json" '
     . as $manifest |
+    ($resources[0].data.resources | INDEX(.id)) as $catalog |
     ($setup[0]) as $setup |
     ($repeat[0]) as $repeat |
     ($status[0]) as $status |
@@ -220,13 +223,16 @@ jq -e \
     and $status.data.scope == "project"
     and $status.data.skills.state == "up-to-date"
     and $status.data.mcp_configuration_mutated == false
-    and ($status.data.skills.skills | sort_by(.id)) == [
-      {"file_count": 2, "id": "canisend-application-workflow", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
-      {"file_count": 2, "id": "canisend-intake", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
-      {"file_count": 2, "id": "canisend-materials", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
-      {"file_count": 2, "id": "canisend-review-export", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"},
-      {"file_count": 2, "id": "canisend-workspace", "installed_file_count": 2, "resource_version": "4.0.0", "state": "up-to-date"}
+    and ($status.data.skills.skills | map(del(.resource_version)) | sort_by(.id)) == [
+      {"file_count": 2, "id": "canisend-application-workflow", "installed_file_count": 2, "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-intake", "installed_file_count": 2, "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-materials", "installed_file_count": 2, "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-review-export", "installed_file_count": 2, "state": "up-to-date"},
+      {"file_count": 2, "id": "canisend-workspace", "installed_file_count": 2, "state": "up-to-date"}
     ]
+    and ($status.data.skills.skills | all(.[];
+      .resource_version == $catalog["skill." + .id].version
+    ))
     and $manifest.format == "canisend.agent-host-resources/v4"
     and $manifest.protocol == "canisend.agent/v4"
     and $manifest.workspace_format == "canisend.workspace/v4"
@@ -236,7 +242,9 @@ jq -e \
     and $manifest.files == $setup.data.skills.files
     and ($manifest.files | length) == 10
     and ($manifest.files | all(.[];
-      .resource_version == "4.0.0"
+      .resource_version == $catalog[.resource_id].version
+      and .size == $catalog[.resource_id].size
+      and .sha256 == $catalog[.resource_id].sha256
       and .size > 0
       and (.sha256 | test("^[0-9a-f]{64}$"))
     ))

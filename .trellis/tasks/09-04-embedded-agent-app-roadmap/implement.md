@@ -1701,3 +1701,14 @@ workflow YAML, instruction links and preserved-history/template/archive checks p
 and lifecycle evidence will be recorded under `dist/npm-beta6/`; next is readiness review,
 then protected CI and an authorized publication run. Dependency exception review and
 full native/real-Host gates stay separate.
+
+Exact-package review found one remaining fixed-version test assumption: the MCP smoke
+required every Skill file to be 4.0.0. It now compares installed versions, sizes and hashes
+with the binary's resource catalog, retaining the exact five-Skill IDs and v4 protocol.
+Current resources pass; mismatched version/hash fixtures fail. The guarded dual-Pack
+MCP lifecycle, reopen/restore and export smoke passes with this correction.
+
+The first local package also passed fresh npm installation, native/source byte comparison,
+and real Beta.5-to-Beta.6 managed upgrades for Codex and Claude. Both Hosts refuse edited
+Skills without changing any managed files. Rebuild the final candidate from the commit
+including the smoke correction; keep the first attempt separate from its final hashes.
