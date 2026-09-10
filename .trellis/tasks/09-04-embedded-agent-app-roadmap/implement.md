@@ -1842,3 +1842,15 @@ All 17 resource tests, the Skill validator, formatting, affected MCP/CLI Clippy 
 source check pass. Next: build a separate local candidate containing both usability
 fixes and validate its installed binary; retain the earlier candidate's identity.
 This does not claim actual Host visual acceptance, remote CI or npm publication.
+
+Local macOS ARM64 candidate completed from `5af7243bebfcde05ee809a39fd0b683a3f5bbca8`:
+`dist/npm-beta6-readable-confirmations/npm/canisend-1.0.0-beta.6.tgz`, 26,154,790 bytes,
+SHA-256 `b150ac4e0c24d15ca3baa4380f87bb46fa6ea7a8a96a5ec97756e86c771e9922`.
+The offline npm installation matches the signed binary and archived source exactly.
+All 9 MCP tests pass against the installed package, including readable multiline
+confirmation and Source-grant reuse. Native lifecycle, dual-Pack/recovery/MCP smokes,
+Beta.4-to-Beta.6 Codex/Claude upgrades and customization preservation pass. Identity,
+logs and installation/reconnection steps are retained in `candidate.json`, `checks/`
+and `INSTALL-LOCAL.md`. Earlier packages remain unchanged. Actual Host visual
+acceptance, protected CI and publication remain pending; the real Workspace, global
+installation and running Host have not been changed.
