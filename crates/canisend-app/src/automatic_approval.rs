@@ -4,6 +4,7 @@ use std::{
 };
 
 use canisend_contracts::{ApplicationId, ContentRevisionReferenceV3};
+use canisend_store::{EvidenceService, ProfileService};
 use serde::Serialize;
 
 use crate::{Application, ApplicationError, ApprovalKind, ApprovalScope};
@@ -18,6 +19,27 @@ pub struct AutomaticApprovalScopeV4 {
 }
 
 impl AutomaticApprovalScopeV4 {
+    /// Identify the exact imported Profile Source without returning private Evidence bodies.
+    pub fn profile_source_for_evidence(
+        &self,
+        evidence: &ContentRevisionReferenceV3,
+    ) -> Result<Option<ContentRevisionReferenceV3>, ApplicationError> {
+        let mut workspace = crate::application::open_workspace_v4(&self.workspace.workspace)?;
+        let normalized = EvidenceService::new(&mut workspace.database, &workspace.blobs)
+            .source_reference_v4(evidence)?;
+        Ok(
+            ProfileService::new(&mut workspace.database, &workspace.blobs)
+                .list_sources()?
+                .into_iter()
+                .find(|source| source.normalized_text == normalized)
+                .map(|source| ContentRevisionReferenceV3 {
+                    id: source.id,
+                    revision: source.revision,
+                    sha256: source.original.sha256,
+                }),
+        )
+    }
+
     /// Newly selected Sources need individual authorization before joining routine work.
     pub fn includes_requirement_source(
         &self,
@@ -60,7 +82,7 @@ pub enum AutomaticApprovalActionV4 {
 }
 
 impl AutomaticApprovalActionV4 {
-    /// New, shared-data and export operations require individual consent by default.
+    /// Profile/Evidence operations additionally require an explicitly granted Source revision.
     #[must_use]
     pub fn is_routine(self) -> bool {
         match self {
@@ -76,6 +98,9 @@ impl AutomaticApprovalActionV4 {
                     | ApprovalKind::DeliverableDraft
                     | ApprovalKind::DeliverableRevision
                     | ApprovalKind::ReviewDisposition
+                    | ApprovalKind::EvidenceConfirmation
+                    | ApprovalKind::EvidenceAssociation
+                    | ApprovalKind::ProfileAssociation
             ),
         }
     }
@@ -85,16 +110,30 @@ impl AutomaticApprovalActionV4 {
 #[derive(Debug, Default)]
 pub struct AutomaticApprovalSessionV4 {
     grant: Option<(AutomaticApprovalScopeV4, Instant)>,
+    profile_sources: Vec<ContentRevisionReferenceV3>,
 }
 
 impl AutomaticApprovalSessionV4 {
     /// Call only after a trusted UI has accepted the standing grant's explicit scope.
     pub fn grant_by_user(&mut self, scope: AutomaticApprovalScopeV4) {
         self.grant = Some((scope, Instant::now() + AUTOMATIC_APPROVAL_TTL));
+        self.profile_sources.clear();
+    }
+
+    pub fn include_profile_source_by_user(&mut self, source: ContentRevisionReferenceV3) {
+        if self.grant.is_some() && !self.profile_sources.contains(&source) {
+            self.profile_sources.push(source);
+        }
+    }
+
+    #[must_use]
+    pub fn profile_sources(&self) -> &[ContentRevisionReferenceV3] {
+        &self.profile_sources
     }
 
     pub fn revoke(&mut self) {
         self.grant = None;
+        self.profile_sources.clear();
     }
 
     /// A scope switch or expiry permanently clears the grant, even if revisited later.
@@ -133,11 +172,26 @@ mod tests {
         let mut session = AutomaticApprovalSessionV4::default();
         assert!(session.remaining(&scope).is_none());
         session.grant_by_user(scope.clone());
+        let source = ContentRevisionReferenceV3 {
+            id: EntityId::try_new("019f2f55-7c00-7000-8000-000000000005").unwrap(),
+            revision: canisend_contracts::Revision::try_new(1).unwrap(),
+            sha256: Sha256Digest::try_new("3".repeat(64)).unwrap(),
+        };
+        assert!(session.profile_sources().is_empty());
+        let expiry = session.grant.as_ref().unwrap().1;
+        session.include_profile_source_by_user(source.clone());
+        session.include_profile_source_by_user(source.clone());
+        assert_eq!(session.profile_sources(), std::slice::from_ref(&source));
+        assert_eq!(session.grant.as_ref().unwrap().1, expiry);
+        let mut revised_source = source;
+        revised_source.sha256 = Sha256Digest::try_new("4".repeat(64)).unwrap();
+        assert!(!session.profile_sources().contains(&revised_source));
         assert!(session.remaining(&scope).unwrap() <= AUTOMATIC_APPROVAL_TTL);
         let mut changed = scope.clone();
         changed.application_id =
             ApplicationId::try_new("019f2f55-7c00-7000-8000-000000000003").unwrap();
         assert!(session.remaining(&changed).is_none());
+        assert!(session.profile_sources().is_empty());
         assert!(session.remaining(&scope).is_none());
         changed = scope.clone();
         changed.workspace.workspace_id =
@@ -156,10 +210,14 @@ mod tests {
         assert!(AutomaticApprovalActionV4::PrivateApplicationRead.is_routine());
         assert!(AutomaticApprovalActionV4::Mutation(ApprovalKind::DeliverableDraft).is_routine());
         for kind in [
-            ApprovalKind::ExportPrepare,
             ApprovalKind::EvidenceConfirmation,
             ApprovalKind::EvidenceAssociation,
             ApprovalKind::ProfileAssociation,
+        ] {
+            assert!(AutomaticApprovalActionV4::Mutation(kind).is_routine());
+        }
+        for kind in [
+            ApprovalKind::ExportPrepare,
             ApprovalKind::DiscoveryImport,
             ApprovalKind::WorkflowRerun,
         ] {

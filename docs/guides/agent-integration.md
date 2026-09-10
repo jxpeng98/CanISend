@@ -87,19 +87,21 @@ cannot enable it. Real Codex/other Host acceptance remains a separate LF-C05 gat
 
 At commit, CanISend retrieves the exact preview from its current process-local Broker, checks the
 Application/Pack/revision/digest binding, then checks the user's standing grant or requests a
-native form through `elicitation/create`. Shared Profile/Evidence access and changes, newly
-selected Sources and exports always ask individually. Routine private reads and content changes
-can use the scoped grant. An accepted `{"confirm": true}` grants only the current request;
+native form through `elicitation/create`. One form combines the exact operation's read and write
+permissions. Profile/Evidence forms can include the selected Profile Source in Auto approval;
+its later reads, confirmed facts and links for this Application then run without further prompts.
+Other Sources need their own grant, and exports still ask. An accepted `{"confirm": true}` grants only the current request;
 the optional `auto_approve: true` response enables delegation. Decline, cancel, malformed response, transport
 failure, a two-minute response timeout or missing form capability refuses it. A refused commit
 uses the existing token cancellation path. Commit rechecks canonical state after confirmation;
 concurrent edits, expiry, replay and process restart never turn a previous preview into authority.
 Tokens must not be handed to another Host session. Resume canonical records and preview again.
 
-Auto approval expires after 60 minutes and clears on scope change, denial, failed authorization,
+Auto approval expires after 60 minutes and clears on scope change or denial,
 explicit cancellation or reconnect. To return to individual prompts, ask the Host to cancel a
 pending preview with `request_confirmation: false`, or reconnect. Tool-result
-`_meta["canisend/approval"]` reports the mode, scope and remaining time. Hosts should continue
+`_meta["canisend/approval"]` reports the mode, scope, granted `profile_sources` and remaining time.
+Invalid/stale previews remain unusable but do not erase a valid standing grant. Hosts should continue
 within the grant without adding conversational approval prompts; missing facts still need the
 user's input. See the [exact scope and exclusions](../contracts/agent-v4.md#mcp-confirmation-requests).
 
@@ -258,7 +260,7 @@ ship in the Agent v4 export pack. The Codex pack has 20 files; Claude and generi
 
 An Agent may propose Requirements, Evidence relationships, Plans, Deliverables, and review
 findings, and perform routine decisions under the user's optional Auto approval grant. The user
-retains control over delegation, shared facts and associations, provider/network access, exports,
+retains control over delegation and Source selection, provider/network access, exports,
 final artifact acceptance and submission outside CanISend. No tool, Skill, receipt, export, or readiness state authorizes login,
 upload, portal automation, or submission. Every export receipt confirms that
 `submission_performed` is `false`.

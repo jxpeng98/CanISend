@@ -1780,3 +1780,30 @@ linker reports its existing large unwind-section warning; execution passes.
 Next: protected integration and a fresh CI-built npm candidate including this feature. The earlier
 local Beta.6 tarball from b78c22e6 predates this implementation and is not relabelled. Publication,
 actual interactive Host acceptance and full native qualification are not claimed by these checks.
+
+### Evidence approval friction — 2026-09-10
+
+The owner supplied a four-group Evidence workflow with repeated private-read and commit prompts.
+The previous allowlist excluded all shared Profile/Evidence operations, and commit separately
+requested each permission. This follow-up lets the user include an exact Profile Source revision
+in the existing Application/session grant. Its reads, source-backed Evidence confirmation and
+Profile/Evidence links reuse that grant; other Sources still need explicit opt-in. Provenance
+comes from the exact immutable Evidence catalog and digest through the Store/application facade.
+Source additions do not renew the grant's lifetime. Each manual request now lists its combined
+read/export/write permissions in one form. Invalid/stale previews remain rejected without
+revoking valid standing authority; user denial, cancellation, scope changes, expiry and reconnect
+still revoke it. No tool, schema, dependency, persisted format, external access or submission was added.
+
+Validation: 9 MCP protocol tests pass, including four Evidence confirmation/association pairs
+plus the Profile link with one Source-grant form, one-form manual commits, invalid quotes and
+digests, new-Source denial, cancellation and stale/replayed previews. The shared-policy test,
+17 resource integration tests, Skill validation, formatting, affected Store/app/MCP/CLI Clippy
+and source check pass. Host guides and the shared Workspace Skill advance to 4.0.3; the package
+resource-manifest digest is synchronized. Historical artifacts and other template/Pack versions
+remain untouched. The app test retains the existing linker unwind-section warning and passes.
+
+The default local command still reports Beta.4 (2886c3c6a652), so the earlier local source
+improvement was not in that executable. Next: build a fresh local Beta.6 npm/native candidate
+from this implementation commit, validate its exact installed bytes, and reconnect the Host
+with the newer binary. This does not claim that the screenshot's actual registered MCP command
+has been inspected, that an existing user session was upgraded, or that npm/remote CI is complete.

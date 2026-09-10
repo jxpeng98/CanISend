@@ -102,3 +102,21 @@ remain the user's decisions. No external tool, network, upload or submission aut
 The change leaves Agent/Workspace v4 payloads and stored formats intact; optional form and MCP
 metadata fields carry the choice and status. Simulated protocol coverage is distinct from actual
 Host acceptance and qualification of a newly built release artifact.
+
+## Approval-friction follow-up — 2026-09-10
+
+The owner's four-group Evidence workflow demonstrated that excluding all Profile/Evidence work
+left repeated confirmations in the main journey. Prospectively, an eligible form may explicitly
+include one exact imported Profile Source revision in the connection's existing Application grant.
+This permits reading that Source, adding validated facts to the shared Evidence catalog and
+managing their Profile/Evidence associations for this Application. Evidence provenance resolves
+through its exact immutable catalog, item digest and normalized Source reference. An ungranted
+Source requires its own opt-in; extending a grant never renews its lifetime. No Workspace-wide,
+cross-Application or future-Source permission follows from that choice.
+
+Each operation presents all of its requested private-read/export and mutation permissions in one
+form. Each required scope must still be requested and authorized; one UI response can grant the
+declared combination. Exports and unsupported actions remain individually authorized. Stale or
+invalid previews fail without clearing a valid standing grant, so recovery does not restart the
+approval sequence. Scope changes, rejected forms, explicit cancellation, expiry and reconnect
+still revoke it. Tool schemas, single-use tokens, factual validation and immutable history remain.

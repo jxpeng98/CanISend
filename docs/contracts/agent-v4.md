@@ -32,23 +32,31 @@ For routine work, the form also offers an optional, unchecked `auto_approve` boo
 user's accepted `{"confirm":true,"auto_approve":true}` form response establishes standing
 permission. It covers one canonical Workspace path/UUID, Application UUID and exact Pack
 ID/version/digest in this MCP connection for up to 60 minutes. Switching scope, rejecting a form,
-explicit cancellation, failed authorization, expiry or reconnecting clears it. Model tool inputs
+explicit cancellation, expiry or reconnecting clears it. Invalid or stale previews fail without
+clearing an otherwise valid grant. Model tool inputs
 cannot enable it; unknown response fields and non-boolean values remain invalid.
 
 The repository allowlist covers Application-private reads, Requirement extraction/revision/
 confirmation, exclusive pasted Source revision, Plan proposal/confirmation, drafting/revision
 and review disposition. Source operations qualify only for exact Source references already used
-by current Requirements. Shared Profile/Evidence access and associations, Evidence confirmation,
-exports, newly selected Sources and unrecognized operations still require individual forms.
+by current Requirements. A Profile/Evidence form can additionally grant one exact Profile Source
+ID/revision/digest. Its private reads, source-backed Evidence confirmation and Profile/Evidence
+associations for this Application then reuse that grant, including facts newly confirmed from
+the same Source. Evidence provenance is resolved from its immutable catalog and digest, never
+from a model-supplied origin. Adding another Source requires explicit opt-in and does not extend
+the active grant's expiry. Ungranted Sources, exports and unrecognized operations still ask.
 The grant does not authorize external Host tools, network access or submission.
 
 `request_private_read` and `request_private_export` still request separate consent scopes; neither
-flag grants permission. An applicable standing grant can satisfy routine private reads and
-mutations. Private export always needs its own form. Every mutation still needs its exact current
+flag grants permission. One form lists all requested permissions for the exact operation, so a
+commit that needs private access and a content change asks once. An applicable standing grant
+can satisfy routine private reads and mutations. Private export remains individually authorized.
+Every mutation still needs its exact current
 preview, revision, digest and single-use token; standing permission does not bypass validation.
 
 Application-scoped tool results expose body-free `_meta["canisend/approval"]`: `mode` (`ask` or
-`auto`), `automatic` (whether this call used standing permission), `scope`, and `remaining_seconds`.
+`auto`), `automatic` (whether this call used standing permission), `scope`, `profile_sources` (the
+explicitly granted Source references), and `remaining_seconds`.
 This connection metadata is not persisted in business receipts. Existing `user` confirmation
 fields identify the user's authorization, including delegation; they do not prove individual
 human inspection of each automatic decision. Hosts should preserve that distinction in reports.
@@ -67,8 +75,8 @@ it does not expose user Source or Deliverable bodies.
 `canisend_evidence_confirm_preview` accepts an exact imported ProfileSource reference and an
 `EvidenceProposalSet`. Quotes must match byte ranges in that source's normalized artifact;
 source digests, Profile revision and sensitivity are checked before a preview is issued.
-`canisend_evidence_confirm_commit` requests native confirmation of that exact catalog, with
-separate private-read consent when required. It creates Workspace Evidence without changing
+`canisend_evidence_confirm_commit` requests authorization of that exact catalog and its required
+private read in one form, or uses the Source grant. It creates Workspace Evidence without changing
 the Application or automatically associating Evidence. Use the existing guarded association
 tools afterward. Changed source/context, denial and replay cannot commit the saved preview.
 

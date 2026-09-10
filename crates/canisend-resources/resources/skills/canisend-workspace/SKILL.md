@@ -27,11 +27,13 @@ use CLI `--help` for CLI-only operations. A task-model entry is not proof of a c
   The user's native form may enable optional Auto approval for routine work on one Application
   and exact Pack in this connection for up to 60 minutes. Read `_meta["canisend/approval"]` for
   mode, scope and remaining time; continue within that grant without extra approval questions.
-  Shared Profile/Evidence access and changes, new Requirement Sources and exports still ask
-  individually. Preview/revision/token checks always apply. Never answer a form for the user
+  A Profile/Evidence form can also include its exact Source in `profile_sources`. Reuse that
+  grant for source-backed facts and their links; group related facts in one proposal when useful.
+  New private Sources and exports still ask. One native form combines a commit's required read
+  and write permissions. Preview/revision/token checks always apply. Never answer a form for the user
   or claim that an automatic decision received individual human review.
   To stop Auto approval, cancel a preview with `request_confirmation: false` or reconnect;
-  scope changes, denial, failed authorization and expiry also clear it.
+  scope changes, denial and expiry also clear it. Stale/invalid previews do not revoke a valid grant.
   Legacy `approved`/`confirmed_private_read`/`confirmed_private_export` fields are rejected.
 - A denial stops that operation; do not retry it through the CLI or another tool.
   Independent authorized work may continue. Routine CLI setup and creation follow their

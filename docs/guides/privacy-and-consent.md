@@ -47,11 +47,14 @@ The CLI MCP form optionally offers **Auto approval** for routine work on the sel
 It is off by default. The user's accepted grant covers private Application reads and routine local
 changes for up to 60 minutes in that connection, bound to the canonical Workspace path/UUID,
 Application UUID and exact Pack. Requirement Source reads qualify only for references already
-used by current Requirements. Shared Profile/Evidence reads and changes, newly selected Sources,
-exports and unknown operations still ask individually. The Host/provider may see private content
+used by current Requirements. An additional Source grant covers an exact imported Profile Source
+revision, its private reads, adding source-backed facts to shared Workspace Evidence, and managing
+its Profile/Evidence associations for this Application. Other Sources require their own grant;
+exports and unknown operations still ask. One form combines the requested read/write permissions
+of a single operation. The Host/provider may see private content
 returned by authorized reads; the grant does not extend to other Host tools or provider-send tasks.
-Switching scope, rejecting a form, explicit cancellation, failed authorization, expiry or reconnect
-clears it. See [Agent v4](../contracts/agent-v4.md#mcp-confirmation-requests) for response metadata
+Switching scope, rejecting a form, explicit cancellation, expiry or reconnect
+clears it; rejected stale/invalid previews do not clear a valid grant. See [Agent v4](../contracts/agent-v4.md#mcp-confirmation-requests) for response metadata
 and the distinction between delegated authorization and individual human review.
 
 External-host handoff is the recommended desktop integration. Codex or Claude owns its session, transcript, search,

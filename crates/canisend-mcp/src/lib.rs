@@ -443,6 +443,7 @@ impl CanISendMcpServer {
         context: &RequestContext<RoleServer>,
         mut message: String,
         auto_scope: Option<&AutomaticApprovalScopeV4>,
+        profile_source: Option<&ContentRevisionReferenceV3>,
     ) -> Result<bool, McpError> {
         let denied = || {
             McpError::invalid_params(
@@ -468,9 +469,15 @@ impl CanISendMcpServer {
                 "title": "Auto approve routine work for this application for up to 60 minutes"
             });
             message.push_str(&format!(
-                "\n\nOptional Auto approval: allow this Host to read this application's private content and update its requirements, plan, drafts and reviews for up to 60 minutes in this MCP connection. Shared Profile/Evidence access and changes, exports, and other operations still need individual approval. Switching applications, denial, explicit cancellation or reconnecting clears the grant. Leave unchecked to approve only this request.\nAutomatic approval scope: {}",
+                "\n\nOptional Auto approval: allow this Host to read this application's private content and update its requirements, plan, drafts and reviews for up to 60 minutes in this MCP connection. New private Sources, exports and unsupported operations still ask. Switching applications, denial, explicit cancellation or reconnecting clears the grant. Leave unchecked to approve only this request.\nAutomatic approval scope: {}",
                 serde_json::json!(scope),
             ));
+            if let Some(source) = profile_source {
+                message.push_str(&format!(
+                    "\nInclude this exact Profile Source in Auto approval: {}. This allows reading it in this Host/provider, adding validated source-backed facts to the shared Evidence catalog, and managing its Profile/Evidence links for this Application. This extension adds only this Source; other Sources require their own grant. Other Applications are not included. Adding a Source does not extend an active grant's expiry.",
+                    serde_json::json!(source),
+                ));
+            }
         }
         let requested_schema = serde_json::from_value(schema)
             .map_err(|_| McpError::internal_error("Invalid confirmation schema", None))?;
@@ -499,15 +506,24 @@ impl CanISendMcpServer {
         context: &RequestContext<RoleServer>,
         message: String,
         auto_scope: Option<&AutomaticApprovalScopeV4>,
+        profile_source: Option<&ContentRevisionReferenceV3>,
         session: &mut AutomaticApprovalSessionV4,
     ) -> Result<bool, McpError> {
-        if auto_scope.is_some_and(|scope| session.remaining(scope).is_some()) {
+        let active = auto_scope.is_some_and(|scope| session.remaining(scope).is_some());
+        if active && profile_source.is_none_or(|source| session.profile_sources().contains(source))
+        {
             return Ok(true);
         }
-        if Self::confirm_with_host(context, message, auto_scope).await?
-            && let Some(scope) = auto_scope
-        {
-            session.grant_by_user(scope.clone());
+        let accepted = Self::confirm_with_host(context, message, auto_scope, profile_source)
+            .await
+            .inspect_err(|_| session.revoke())?;
+        if accepted && let Some(scope) = auto_scope {
+            if session.remaining(scope).is_none() {
+                session.grant_by_user(scope.clone());
+            }
+            if let Some(source) = profile_source {
+                session.include_profile_source_by_user(source.clone());
+            }
         }
         Ok(false)
     }
@@ -542,6 +558,7 @@ impl CanISendMcpServer {
             | "canisend_local_task_draft_preview"
             | "canisend_deliverable_audit"
             | "canisend_review_inspect"
+            | "canisend_evidence_confirm_preview"
             | "canisend_review_disposition_preview" => {
                 Some(AutomaticApprovalActionV4::PrivateApplicationRead)
             }
@@ -617,6 +634,47 @@ impl CanISendMcpServer {
         };
         let mut auto_scope =
             scope.filter(|_| action.is_some_and(AutomaticApprovalActionV4::is_routine));
+        let profile_source = match request.name.as_ref() {
+            "canisend_evidence_confirm_preview" => arguments.get("profile_source").cloned(),
+            "canisend_evidence_confirm_commit" => preview
+                .as_ref()
+                .and_then(|value| value.get("profile_source"))
+                .cloned(),
+            "canisend_profile_association_commit" => preview
+                .as_ref()
+                .and_then(|value| value.pointer("/Profile/preview/request/profile_source"))
+                .cloned(),
+            "canisend_evidence_association_commit" => {
+                let evidence = preview
+                    .as_ref()
+                    .and_then(|value| value.pointer("/Evidence/preview/request/evidence"))
+                    .cloned()
+                    .and_then(|value| {
+                        serde_json::from_value::<ContentRevisionReferenceV3>(value).ok()
+                    });
+                match (scope, evidence) {
+                    (Some(scope), Some(evidence)) => scope
+                        .profile_source_for_evidence(&evidence)
+                        .map_err(|error| McpError::invalid_params(error.to_string(), None))?
+                        .map(|source| serde_json::json!(source)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+        .and_then(|value| serde_json::from_value::<ContentRevisionReferenceV3>(value).ok());
+        let needs_profile_source = request.name == "canisend_evidence_confirm_preview"
+            || matches!(
+                action,
+                Some(AutomaticApprovalActionV4::Mutation(
+                    ApprovalKind::EvidenceConfirmation
+                        | ApprovalKind::EvidenceAssociation
+                        | ApprovalKind::ProfileAssociation
+                ))
+            );
+        if needs_profile_source && profile_source.is_none() {
+            auto_scope = None; // Missing provenance never becomes a general shared-data grant.
+        }
         let source_operation = match request.name.as_ref() {
             "canisend_requirement_extract_preview" | "canisend_requirement_extract_commit" => {
                 Some("RequirementExtract")
@@ -652,7 +710,7 @@ impl CanISendMcpServer {
                 auto_scope = None;
             }
         }
-        let mut automatic = false;
+        let mut purposes = Vec::new();
         for (flag, purpose) in [
             (
                 "request_private_read",
@@ -664,45 +722,50 @@ impl CanISendMcpServer {
             ),
         ] {
             if has(flag) && arguments.get(flag) == Some(&Value::Bool(true)) {
-                let subjects = arguments
-                    .iter()
-                    .filter(|(name, _)| {
-                        matches!(
-                            name.as_str(),
-                            "application_id"
-                                | "task_id"
-                                | "expected_generation"
-                                | "candidate_sha256"
-                                | "source"
-                                | "profile_source"
-                                | "evidence"
-                                | "deliverable_id"
-                                | "requirement_id"
-                                | "destination"
-                        )
-                    })
-                    .collect::<BTreeMap<_, _>>();
-                let subjects = serde_json::json!(subjects);
-                let selected = preview.as_ref().unwrap_or(&subjects);
-                automatic |= Self::authorize_with_host(context, format!(
-                    "{purpose}. This consent does not approve a content change.\nWorkspace: {}\nOperation: {}\nSelected inputs: {}",
-                    self.workspace().display(), request.name,
-                    selected,
-                ), auto_scope.filter(|_| flag == "request_private_read"), session).await?;
+                purposes.push(purpose);
+                if flag == "request_private_export" {
+                    auto_scope = None;
+                }
             }
         }
-        if let Some(preview) = preview {
-            automatic |= Self::authorize_with_host(context, format!(
-                "Approve this exact local change? No submission is performed.\nOperation: {}\nExact change: {}",
-                request.name, preview,
-            ), auto_scope, session).await?;
+        if commit {
+            purposes.push("Save this exact local change");
         }
+        let automatic = if purposes.is_empty() {
+            false
+        } else {
+            let subjects = arguments
+                .iter()
+                .filter(|(name, _)| {
+                    matches!(
+                        name.as_str(),
+                        "application_id"
+                            | "task_id"
+                            | "expected_generation"
+                            | "candidate_sha256"
+                            | "source"
+                            | "profile_source"
+                            | "evidence"
+                            | "deliverable_id"
+                            | "requirement_id"
+                            | "destination"
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            let subjects = serde_json::json!(subjects);
+            let selected = preview.as_ref().unwrap_or(&subjects);
+            Self::authorize_with_host(context, format!(
+                "Approve this request? No submission is performed.\nPermissions: {}.\nWorkspace: {}\nOperation: {}\nExact request: {}",
+                purposes.join("; "), self.workspace().display(), request.name, selected,
+            ), auto_scope, profile_source.as_ref(), session).await?
+        };
         // A pending form cannot transfer a grant to a replaced Workspace or Pack.
         if let Some(scope) = scope {
             let current =
                 AutomaticApprovalScopeV4::for_application(self.workspace(), &scope.application_id)
                     .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
             if current != *scope {
+                session.revoke();
                 return Err(McpError::invalid_params(
                     "Approval scope changed; retry from current state",
                     None,
@@ -2126,7 +2189,7 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request authorization; they never assert user approval. The user may opt into Auto approval in a native form for routine work on one Application in this connection for up to 60 minutes. Shared Profile/Evidence access and changes and exports always require individual forms. Response _meta canisend/approval reports the mode and whether standing permission was used. False request_confirmation cancels the preview and revokes Auto approval. Never answer a form for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request authorization; they never assert user approval. The user may opt into Auto approval in a native form for routine work on one Application in this connection for up to 60 minutes. The user can include exact Profile Source revisions for their reads, source-backed Evidence and Application links. New Sources and exports still ask; one form combines an operation's requested read/write permissions. Invalid previews do not revoke an otherwise valid grant. Response _meta canisend/approval reports the mode and whether standing permission was used. False request_confirmation cancels the preview and revokes Auto approval. Never answer a form for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {
     // The router is entered only after user authorization, or to consume a cancellation.
@@ -2172,7 +2235,9 @@ impl ServerHandler for CanISendMcpServer {
         let automatic = match authorization {
             Ok(automatic) => automatic,
             Err(error) => {
-                session.revoke();
+                if scope.is_none() || context.ct.is_cancelled() {
+                    session.revoke();
+                }
                 // Reuse the owning cancellation path; do not leave a declined commit reusable.
                 if request
                     .arguments
@@ -2203,6 +2268,7 @@ impl ServerHandler for CanISendMcpServer {
                     "mode": if remaining.is_some() { "auto" } else { "ask" },
                     "automatic": automatic,
                     "scope": scope,
+                    "profile_sources": session.profile_sources(),
                     "remaining_seconds": remaining.map(|ttl| ttl.as_secs()),
                 }),
             );

@@ -20,7 +20,7 @@
     "resource_manifest": {
       "entry_count": 91,
       "path": "crates/canisend-resources/resources/manifest.json",
-      "sha256": "85161e656baf123882f05f05a8d21342c3b79bf42c3a084c20862e35ac432daa"
+      "sha256": "67e0bfceab600105bc2559ba6d0d3bb487e62846d05353da6bedddba64c30693"
     },
     "workflow_pack_format": "canisend.workflow-pack/v1",
     "workflow_packs": [
