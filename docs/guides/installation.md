@@ -13,7 +13,7 @@ canisend version
 canisend doctor
 ```
 
-`next` currently provides `1.0.0-beta.5`; the default `latest` tag may be older. This package
+`next` currently provides `1.0.0-beta.6`; the default `latest` tag may be older. This package
 includes the compiled CLI, templates, Skills and corresponding source. It needs no Rust or
 Python installation. Other npm platforms are not yet supplied.
 

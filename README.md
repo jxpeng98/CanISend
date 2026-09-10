@@ -29,7 +29,7 @@ canisend version
 canisend doctor
 ```
 
-`next` currently provides **1.0.0-beta.5**; the default `latest` tag may be older.
+`next` currently provides **1.0.0-beta.6**; the default `latest` tag may be older.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
 ### Download a binary — macOS, Linux or Windows
@@ -98,11 +98,12 @@ See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.6`, prepared locally but not published.
+The checked-in source version is `1.0.0-beta.6`, published on npm `next` for macOS ARM64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process
 and associate its evidence without repeated prompts. New private sources and exports still ask;
 reconnecting returns to individual prompts. See [approval modes](docs/guides/agent-integration.md#connect-the-mcp-adapter).
+Manual requests combine their permissions in one form, with readable text and normal paragraphs.
 The latest publicly qualified checkpoint is `v1.0.0-beta.1`; npm testing releases are a
 separate channel. CLI development is active; GUI work and full native qualification are paused.
 See [release status](RELEASE.md) for exact versions, artifacts and remaining gates.

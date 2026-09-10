@@ -36,8 +36,8 @@ full candidate qualification, freeze, dependency and actual Host requirements.
 
 The owner authorized npm testing prereleases independently of full native qualification.
 Since 2026-09-08, `release.yml` can build from main and publish macOS ARM64 to `next`
-through npm OIDC, then verify registry bytes and a fresh installation. Beta.5 succeeded
-in run `34285066117` from `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`.
+through npm OIDC, then verify registry bytes and a fresh installation. Beta.6 succeeded
+in run `34533668709` from `e9ba8ea7364dbad152482db7ba99a45a0273007d`.
 See [installation](../../../docs/guides/installation.md) for the current invocation.
 Only supplied platforms may be declared; this route does not qualify the full Beta
 matrix, publish Cargo/GitHub releases, or renew dependency exceptions.
