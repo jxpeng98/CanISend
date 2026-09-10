@@ -26,6 +26,41 @@ impl<'a> EvidenceService<'a> {
         Self { database, blobs }
     }
 
+    /// Resolve provenance from the exact immutable Evidence revision, not its mutable head.
+    pub fn source_reference_v4(
+        &self,
+        evidence: &ContentRevisionReferenceV3,
+    ) -> Result<ArtifactReference, StoreError> {
+        let (id, revision, sha256): (String, i64, String) = self.database.connection().query_row(
+            "SELECT revision.artifact_id, revision.artifact_revision, artifact.sha256
+             FROM evidence_revisions AS revision JOIN artifact_revisions AS artifact
+               ON artifact.artifact_id = revision.artifact_id AND artifact.revision = revision.artifact_revision
+             WHERE revision.evidence_id = ?1 AND revision.revision = ?2 AND revision.sha256 = ?3",
+            params![evidence.id.as_str(), to_i64(evidence.revision.get())?, evidence.sha256.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        let catalog = load_catalog(
+            self.blobs,
+            &ArtifactReference {
+                id: EntityId::try_new(id)?,
+                revision: Revision::try_new(to_u64(revision)?)?,
+                sha256: Sha256Digest::try_new(sha256)?,
+                kind: ArtifactKind::EvidenceCatalog,
+            },
+        )?;
+        let item = catalog
+            .items
+            .into_iter()
+            .find(|item| item.id == evidence.id && item.revision == evidence.revision)
+            .ok_or_else(|| StoreError::ApplicationAssociationNotFound(evidence.id.to_string()))?;
+        if item_digest(&item)? != evidence.sha256 {
+            return Err(StoreError::ApplicationAssociationConflict(
+                "Evidence content differs from its revision digest".to_owned(),
+            ));
+        }
+        Ok(item.source_span.source)
+    }
+
     /// Prepare one source-bound Workspace catalog without writing authority or blobs.
     pub fn prepare_v4(
         &self,

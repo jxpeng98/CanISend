@@ -1650,3 +1650,207 @@ regression expected four Skills rather than the five currently shipped. The othe
 90 xtask tests passed. Correct only the cardinality assertion; retain all malformed,
 legacy, and unbound freeze rejection cases. Linux, Windows, and macOS quality gates
 passed on `15fb346`; the corrected head still needs its own required CI run.
+
+### Agent instruction review and Beta.6 preparation — 2026-09-10
+
+Scope: review repository guidance first, simplify shipped Host guides/Skills second,
+then review the result for routing, consent, recovery and installation consistency.
+Prepare the next npm CLI candidate without claiming publication or full qualification.
+
+Audit decisions:
+
+- Remove 52 tracked Claude/Trellis adapter files (339,653 bytes): their hooks still
+  injected a task/dispatch workflow that the owner had already removed. Keep retained
+  `.trellis/` project records and user-local/global settings; Git preserves the adapters.
+- Root AGENTS and project control shrink from 1,691 to 644 words. Add a small CLAUDE
+  entrypoint referring to the same AGENTS file, instead of reintroducing hooks.
+- Keep the five stable, distinct Skill entrypoints. Merge shared state/consent/retry
+  rules into Workspace and link stage Skills to that installed sibling. Skill text
+  drops from 4,590 to 2,088 words; Host guides from 718 to 368 words. These are text
+  measurements, not claims of measured model accuracy or usage improvements.
+- Clarify actual adapter limits, complete-set drafting, unchanged previews, read-before-
+  retry and modified-file preservation. Discover schemas per connection/version change
+  and refresh affected state rather than replaying the whole workflow. Guide/changed
+  Skill resources use 4.0.1 while the v4 protocol and resource layout remain unchanged.
+- No standalone Host plugin exists. Retain the native MCP server and five Skills;
+  desktop Tauri plugins remain scoped to the paused GUI. Older v2 prompts remain exact
+  Pack-bound artifacts, outside v4 Host packs; no Pack digest or history is changed.
+- Correct stale publication projections: Beta.5 succeeded through OIDC at main
+  `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`, run `34285066117`. Prepare Beta.6 using
+  the established bounded source-version update, preserving historical qualification.
+
+Second-pass review covered: new setup versus existing work; direct stage selection;
+partial versus complete initial drafting; denial versus unknown commit outcome;
+Requirement/Source correction and stale downstream state; modified Skills during an
+upgrade; missing exports after restore. No external user form was answered. The resource
+suite also verifies actual exported sibling links for Codex, Claude and generic packs,
+existing managed upgrades, and refusal to overwrite user edits. Review is a local
+instruction/schema walkthrough, not independent real-Host acceptance.
+
+The domain keyword inventory still covers 189 files. Removing the literal `cover-letter`
+from explanatory Skill text changes one resource classification/family count; the checked
+inventory projection is refreshed without claiming a kernel architecture change.
+The documentation checker no longer requires fixed AGENTS paragraphs; it verifies the
+shared instruction entrypoints and scope-guide links. The assurance guide remains the
+optional detail owner. Python guards retain only maintenance-script exceptions, and
+release notes distinguish the npm candidate from paused desktop/full-matrix policy.
+
+Source check, five Skill frontmatter checks, 17 resource integration tests, the focused
+documentation regression, three npm packaging tests, Rust formatting/affected Clippy,
+workflow YAML, instruction links and preserved-history/template/archive checks pass. Exact-package installation/upgrade
+and lifecycle evidence will be recorded under `dist/npm-beta6/`; next is readiness review,
+then protected CI and an authorized publication run. Dependency exception review and
+full native/real-Host gates stay separate.
+
+Exact-package review found one remaining fixed-version test assumption: the MCP smoke
+required every Skill file to be 4.0.0. It now compares installed versions, sizes and hashes
+with the binary's resource catalog, retaining the exact five-Skill IDs and v4 protocol.
+Current resources pass; mismatched version/hash fixtures fail. The guarded dual-Pack
+MCP lifecycle, reopen/restore and export smoke passes with this correction.
+
+The first local package also passed fresh npm installation, native/source byte comparison,
+and real Beta.5-to-Beta.6 managed upgrades for Codex and Claude. Both Hosts refuse edited
+Skills without changing any managed files. Rebuild the final candidate from the commit
+including the smoke correction; keep the first attempt separate from its final hashes.
+
+Final local candidate: `1.0.0-beta.6`, source
+`b78c22e6c9b5a0f347f80e5255e9a9db9dd217e0`, macOS ARM64 only. The npm tarball at
+`dist/npm-beta6/npm/canisend-1.0.0-beta.6.tgz` is 26,113,760 bytes, SHA-256
+`c001567706d92a2fe3151d64ebcf79b6d9e956f35203ddecebf103c4b46f744c`.
+Fresh installation, exact native/source archive comparison, documented dual-Pack flow,
+project/global Host lifecycle, guarded MCP lifecycle, reopen/restore, export verification,
+uninstall/workspace retention and both Hosts' managed/customized upgrade cases pass.
+`dist/npm-beta6/candidate.json` and `checks/` retain the results; the earlier local attempt
+is superseded under `dist/npm-beta6-initial/`. This evidence-only update does not change
+the candidate source identity above. Local npm preparation is ready; protected CI,
+real-Host/full native qualification and publication are not claimed. Next: integrate
+through protected CI, then use the authorized main-only npm release route.
+
+### README download channels and quick start — 2026-09-10
+
+Scope: make the README useful to a first-time CLI user, with direct GitHub binary
+downloads alongside npm, a short Host setup path and a concrete request leading to
+reviewed local files. Keep detailed release/architecture records in their owning guides.
+
+README text drops from 1,072 to 712 whitespace-delimited words. The five native target
+links and SHA256SUMS point to actual Beta.1 assets; npm `next` remains Beta.5 and `latest`
+Beta.3, verified against GitHub and npm. Beta.6 remains a local source candidate.
+The shared first run uses separate initialization and Host setup because the published
+Beta.1 CLI does not support combined `workspace init --host`. Installation and detailed
+quick-start introductions now describe the two channels and their runtime/version differences.
+
+Validation: six download links match the published asset inventory. The downloaded
+macOS ARM64 Beta.1 archive checksum and signature pass. Its CLI and the published Beta.5
+npm CLI both pass version/doctor, README initialization, Codex/Claude setup with a returned
+MCP registration command, and Workspace checks in isolated directories. Local documentation
+links, `git diff --check`, and `xtask source check` pass. No Rust source changed or Rust
+test suite was needed; this is not real-Host acceptance or a new artifact qualification.
+
+Next: include these docs in protected integration and the next CI-built release. Existing
+Beta.6 candidate bytes retain their recorded source identity; this documentation update
+does not relabel or publish them.
+
+### Optional routine Auto approval — 2026-09-10
+
+Scope: reduce repeated product confirmations through an optional checkbox in the existing MCP
+native form. Default remains individual approval. An explicit user grant permits routine private
+Application reads and Requirement, exclusive pasted Source, Plan, draft and review operations for
+60 minutes in one connection, bound to canonical Workspace path/UUID, Application and exact Pack.
+New Requirement Sources, shared Profile/Evidence access and changes, exports and unknown actions
+remain individually guarded. Model flags cannot grant authority. Scope changes, denial, failed
+authorization, explicit cancellation, expiry and reconnect revoke it. Existing preview, revision,
+digest, token, storage and audit checks remain. MCP metadata distinguishes delegated calls from
+individual human inspection; stored user-authority fields keep their existing representation.
+
+The shared application policy owns the scope and allowlist; MCP owns native forms and serialized
+authorization/dispatch. No extra model service, tool, CLI flag, storage format or dependency was
+introduced. README, the contract/consent/integration guides and ADR-RN-0023 describe the option.
+The three Host guides and four affected Skills advance to resource version 4.0.2 with the package
+manifest projection updated; templates, Packs, historical records and GUI/CI scope are unchanged.
+
+Validation: the shared-policy regression passes for default-off, scope changes, expiry, revocation
+and sensitive exclusions. All 8 MCP protocol tests pass, including a synthetic opt-in journey with
+six successive mutations and private reads using one form, shared-data/export/new-Source refusal,
+replay/stale preview rejection, model-flag rejection, cancellation and reconnect. The added pending
+form cancellation check also passes without a timeout. All 17 resource integration tests, four
+Skill validators, affected-package Clippy with warnings denied, Rust formatting and source check
+pass. Source inventory remains 189 files; no inventory projection change is needed. The app test
+linker reports its existing large unwind-section warning; execution passes.
+
+Next: protected integration and a fresh CI-built npm candidate including this feature. The earlier
+local Beta.6 tarball from b78c22e6 predates this implementation and is not relabelled. Publication,
+actual interactive Host acceptance and full native qualification are not claimed by these checks.
+
+### Evidence approval friction — 2026-09-10
+
+The owner supplied a four-group Evidence workflow with repeated private-read and commit prompts.
+The previous allowlist excluded all shared Profile/Evidence operations, and commit separately
+requested each permission. This follow-up lets the user include an exact Profile Source revision
+in the existing Application/session grant. Its reads, source-backed Evidence confirmation and
+Profile/Evidence links reuse that grant; other Sources still need explicit opt-in. Provenance
+comes from the exact immutable Evidence catalog and digest through the Store/application facade.
+Source additions do not renew the grant's lifetime. Each manual request now lists its combined
+read/export/write permissions in one form. Invalid/stale previews remain rejected without
+revoking valid standing authority; user denial, cancellation, scope changes, expiry and reconnect
+still revoke it. No tool, schema, dependency, persisted format, external access or submission was added.
+
+Validation: 9 MCP protocol tests pass, including four Evidence confirmation/association pairs
+plus the Profile link with one Source-grant form, one-form manual commits, invalid quotes and
+digests, new-Source denial, cancellation and stale/replayed previews. The shared-policy test,
+17 resource integration tests, Skill validation, formatting, affected Store/app/MCP/CLI Clippy
+and source check pass. Host guides and the shared Workspace Skill advance to 4.0.3; the package
+resource-manifest digest is synchronized. Historical artifacts and other template/Pack versions
+remain untouched. The app test retains the existing linker unwind-section warning and passes.
+
+The default local command still reports Beta.4 (2886c3c6a652), so the earlier local source
+improvement was not in that executable. Next: build a fresh local Beta.6 npm/native candidate
+from this implementation commit, validate its exact installed bytes, and reconnect the Host
+with the newer binary. This does not claim that the screenshot's actual registered MCP command
+has been inspected, that an existing user session was upgraded, or that npm/remote CI is complete.
+
+Local candidate completed from `6cf9e8f101576ce8bd23ea587cb310322c1df7bb`:
+`dist/npm-beta6-evidence-approval/npm/canisend-1.0.0-beta.6.tgz`, 26,142,858 bytes,
+SHA-256 `d5ae1940df0b4e93ca724e281d584fd28796af8ab25b3bd75750b3b0b12c8aba`.
+The signed macOS ARM64 native archive and offline npm installation retain the exact
+built binary; the npm source archive matches the implementation commit. All 9 MCP
+protocol tests pass against that installed package, including the one-form Evidence
+journey. Native archive installation/uninstall, documented dual-Pack workflow,
+project/global Host lifecycle, guarded MCP workflow and backup/restore pass. Isolated
+Beta.4-to-Beta.6 Codex/Claude upgrades install exact current Skill bytes and preserve
+user-modified files by refusing overwrite. `candidate.json`, `checks/` and
+`INSTALL-LOCAL.md` in the candidate directory retain identity, checks and activation
+steps. Earlier candidates remain unchanged. Next: install/register/reconnect in the
+actual Host for interactive acceptance; protected integration and npm publication
+remain pending. No real Workspace, global CLI or current Host session was changed.
+
+### Readable confirmation content — 2026-09-10
+
+The owner's screenshot shows a native consent form displaying the serialized request,
+including escaped paragraph breaks and internal JSON keys. The shared MCP form now
+renders the exact Broker-owned values as labeled text: operation title, permissions,
+changes and proposed content precede reference details. Auto approval scope and Source
+references use the same renderer. Strings are not decoded twice or rewritten, and
+commit digests, tokens, validation, authorization and structured results are unchanged.
+The server instruction and shared Workspace Skill require readable conversational
+results and document paragraphs; the Skill advances to 4.0.4 with its manifest projection.
+
+Validation: the renderer regression covers paragraphs, Unicode, quotes, literal
+backslashes and reference values without mutating the preview. All 9 MCP protocol tests
+pass, including a multiline revision displayed intact in the real protocol form, exact
+fingerprint binding, token omission, denial, replay and the prior single-form workflow.
+All 17 resource tests, the Skill validator, formatting, affected MCP/CLI Clippy and
+source check pass. Next: build a separate local candidate containing both usability
+fixes and validate its installed binary; retain the earlier candidate's identity.
+This does not claim actual Host visual acceptance, remote CI or npm publication.
+
+Local macOS ARM64 candidate completed from `5af7243bebfcde05ee809a39fd0b683a3f5bbca8`:
+`dist/npm-beta6-readable-confirmations/npm/canisend-1.0.0-beta.6.tgz`, 26,154,790 bytes,
+SHA-256 `b150ac4e0c24d15ca3baa4380f87bb46fa6ea7a8a96a5ec97756e86c771e9922`.
+The offline npm installation matches the signed binary and archived source exactly.
+All 9 MCP tests pass against the installed package, including readable multiline
+confirmation and Source-grant reuse. Native lifecycle, dual-Pack/recovery/MCP smokes,
+Beta.4-to-Beta.6 Codex/Claude upgrades and customization preservation pass. Identity,
+logs and installation/reconnection steps are retained in `candidate.json`, `checks/`
+and `INSTALL-LOCAL.md`. Earlier packages remain unchanged. Actual Host visual
+acceptance, protected CI and publication remain pending; the real Workspace, global
+installation and running Host have not been changed.

@@ -2,4 +2,4 @@ interface:
   display_name: "CanISend Intake"
   short_description: "Interpret sources and confirm Application requirements"
   brand_color: "#2563EB"
-  default_prompt: "Use $canisend-intake to interpret this opportunity and confirm its source-grounded Requirements."
+  default_prompt: "Use $canisend-intake to extract or correct this opportunity’s source-grounded Requirements."

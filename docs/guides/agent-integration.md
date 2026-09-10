@@ -79,21 +79,31 @@ canisend --workspace /absolute/path/to/workspace host remove --host codex --json
 ## Connect the MCP adapter
 
 The CLI-first source requires MCP form elicitation for guarded commits and requested private
-reads/exports. The Host must present each server request to the user and forward that user's
-response; a model argument, tool allowlist, automatic approver or advertised capability alone is
-not user approval. Use a Host whose exact version and interactive behavior have been verified.
-An unsupported Host can still use non-private orientation and previews, but cannot authorize a
-guarded operation. Real Codex/other Host acceptance remains a separate LF-C05 gate.
+reads/exports. The Host presents server forms to the user and forwards their actual responses.
+Eligible forms offer **Auto approve routine work for this application for up to 60 minutes**,
+unchecked by default. Selecting it allows routine work in this connection without repeated forms;
+the server's allowlist decides which operations qualify. A model argument or Host tool allowlist
+cannot enable it. Real Codex/other Host acceptance remains a separate LF-C05 gate.
 
 At commit, CanISend retrieves the exact preview from its current process-local Broker, checks the
-Application/Pack/revision/digest binding, and asks for confirmation through `elicitation/create`.
-Private-read/provider exposure, local private export, and content-change approval use separate
-requests. The form defaults to false and only an `accept` response with exactly
-`{"confirm": true}` grants the current request. Decline, cancel, malformed response, transport
+Application/Pack/revision/digest binding, then checks the user's standing grant or requests a
+native form through `elicitation/create`. One form combines the exact operation's read and write
+permissions. Profile/Evidence forms can include the selected Profile Source in Auto approval;
+its later reads, confirmed facts and links for this Application then run without further prompts.
+Other Sources need their own grant, and exports still ask. An accepted `{"confirm": true}` grants only the current request;
+the optional `auto_approve: true` response enables delegation. Decline, cancel, malformed response, transport
 failure, a two-minute response timeout or missing form capability refuses it. A refused commit
 uses the existing token cancellation path. Commit rechecks canonical state after confirmation;
 concurrent edits, expiry, replay and process restart never turn a previous preview into authority.
 Tokens must not be handed to another Host session. Resume canonical records and preview again.
+
+Auto approval expires after 60 minutes and clears on scope change or denial,
+explicit cancellation or reconnect. To return to individual prompts, ask the Host to cancel a
+pending preview with `request_confirmation: false`, or reconnect. Tool-result
+`_meta["canisend/approval"]` reports the mode, scope, granted `profile_sources` and remaining time.
+Invalid/stale previews remain unusable but do not erase a valid standing grant. Hosts should continue
+within the grant without adding conversational approval prompts; missing facts still need the
+user's input. See the [exact scope and exclusions](../contracts/agent-v4.md#mcp-confirmation-requests).
 
 The protocol and packaged smokes use explicitly synthetic confirmation peers. Their passing
 results do not establish human approval, actual Host behavior or a qualified release artifact.
@@ -185,11 +195,14 @@ Deliverable body remains a separate consented audit or review operation.
 Private Deliverable bodies are available only through consented `canisend_deliverable_audit` or
 `canisend_review_inspect` calls.
 
-It exposes ten guarded mutation pairs:
+It exposes thirteen guarded mutation pairs:
 
 - `canisend_profile_association_preview` → `canisend_profile_association_commit`; and
 - `canisend_evidence_association_preview` → `canisend_evidence_association_commit`;
 - `canisend_requirement_extract_preview` → `canisend_requirement_extract_commit`;
+- `canisend_requirement_revise_preview` → `canisend_requirement_revise_commit`;
+- `canisend_source_revise_preview` → `canisend_source_revise_commit`;
+- `canisend_evidence_confirm_preview` → `canisend_evidence_confirm_commit`;
 - `canisend_requirement_confirm_preview` → `canisend_requirement_confirm_commit`;
 - `canisend_plan_propose_preview` → `canisend_plan_propose_commit`;
 - `canisend_plan_confirm_preview` → `canisend_plan_confirm_commit`;
@@ -204,14 +217,14 @@ new proposals, rejects duplicate spans, and never deletes persisted Requirements
 text-PDF Sources require explicit private-read consent for both preview and commit.
 
 Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
-without the App through `canisend profile-source import`; `private-local` input requires the
+without the App through `canisend profile source import`; `private-local` input requires the
 explicit `--confirm-private-read` flag. Both CLI listing and the MCP tool return IDs, revisions,
 digests, kinds, and privacy metadata without returning original or normalized body text.
 The two association-list tools require one exact Application ID and distinguish Workspace
 candidates from explicit links. They do not imply consent or create an association. A preview
 validates the exact current resource revision and returns a CSPRNG `apv1_` token, preview digest,
 expiry, and private-read requirement without mutating Workspace authority. Commit requires that
-same Application, Pack, revision, digest, token, explicit `approved: true`, and any required private
+same Application, Pack, revision, digest, token, `request_confirmation: true`, an accepted form, and any required private
 read consent. Denial, wrong context, malformed binding, expiry, and successful commit consume the
 token; replay fails without mutation. Only explicitly classified transient I/O or database failures
 restore the same still-valid token.
@@ -234,8 +247,9 @@ orient -> propose -> preview -> approve -> commit -> verify
 ```
 
 The proposal and preview bind the exact Workspace, Application, Pack, revision, snapshot, schema,
-operation, candidate digest, required consents, and expiry. Approval belongs to the user and binds
-the exact preview digest. Commit consumes one opaque, process-bounded token. Expiry, replay, stale
+operation, candidate digest, required consents, and expiry. Authorization comes from the user's
+individual form or applicable standing grant. Commit binds the exact preview digest and consumes
+one opaque, process-bounded token. Expiry, replay, stale
 revision, wrong Pack, denied consent, or host restart requires a fresh orientation and preview.
 
 The canonical task model, operation registry, seven schemas, two examples, host guide, and Skills
@@ -245,9 +259,9 @@ ship in the Agent v4 export pack. The Codex pack has 20 files; Claude and generi
 ## User-only boundaries
 
 An Agent may propose Requirements, Evidence relationships, Plans, Deliverables, and review
-findings. The user confirms sources and Evidence, chooses whether to proceed, grants private,
-provider, network, and export consent, approves exact previews, reviews final artifacts, and
-submits outside CanISend. No tool, Skill, receipt, export, or readiness state authorizes login,
+findings, and perform routine decisions under the user's optional Auto approval grant. The user
+retains control over delegation and Source selection, provider/network access, exports,
+final artifact acceptance and submission outside CanISend. No tool, Skill, receipt, export, or readiness state authorizes login,
 upload, portal automation, or submission. Every export receipt confirms that
 `submission_performed` is `false`.
 

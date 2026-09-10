@@ -10,7 +10,7 @@
 
 ## Boundary
 
-Agent v4 is the only host workflow being developed for Alpha.7. It is a clean protocol, not a
+Agent v4 is the current CLI Host workflow. It is a clean protocol, not a
 compatibility adapter for earlier Skills, host layouts, job aliases, Agent v2/v3 messages, or
 Workspace v2/v3 state. An unsupported protocol, Workspace, unknown field, legacy operation ID, or
 incomplete context fails before an application-facade mutation is attempted.
@@ -23,15 +23,43 @@ does not require the desktop App to be open.
 ### MCP confirmation requests
 
 MCP commit inputs use `request_confirmation`, not a model-supplied approval assertion. True
-requests the server's native exact-preview form; false consumes the selected preview without
-committing. The server authorizes a change only after an actual `accept` response with exactly
-`{"confirm":true}`. Decline, cancel, false, unsupported form capability, malformed responses and
-timeout fail closed. Single-use tokens remain bound to the same MCP process, exact preview and
-current context. A request to display a form is not permission to answer it for the user.
+requests user authorization; false consumes the selected preview without committing and revokes
+any Auto approval grant. By default, each guarded request needs an actual native form `accept`
+with `{"confirm":true}`. Decline, cancel, false, unsupported form capability, malformed responses
+and timeout fail closed. Never answer a form for the user.
 
-Private operations similarly use `request_private_read` and `request_private_export` to request
-separate native consent. These flags do not assert consent; private data remains unavailable
-until the corresponding form is accepted. Commit and private consent are independent gates.
+For routine work, the form also offers an optional, unchecked `auto_approve` boolean. Only the
+user's accepted `{"confirm":true,"auto_approve":true}` form response establishes standing
+permission. It covers one canonical Workspace path/UUID, Application UUID and exact Pack
+ID/version/digest in this MCP connection for up to 60 minutes. Switching scope, rejecting a form,
+explicit cancellation, expiry or reconnecting clears it. Invalid or stale previews fail without
+clearing an otherwise valid grant. Model tool inputs
+cannot enable it; unknown response fields and non-boolean values remain invalid.
+
+The repository allowlist covers Application-private reads, Requirement extraction/revision/
+confirmation, exclusive pasted Source revision, Plan proposal/confirmation, drafting/revision
+and review disposition. Source operations qualify only for exact Source references already used
+by current Requirements. A Profile/Evidence form can additionally grant one exact Profile Source
+ID/revision/digest. Its private reads, source-backed Evidence confirmation and Profile/Evidence
+associations for this Application then reuse that grant, including facts newly confirmed from
+the same Source. Evidence provenance is resolved from its immutable catalog and digest, never
+from a model-supplied origin. Adding another Source requires explicit opt-in and does not extend
+the active grant's expiry. Ungranted Sources, exports and unrecognized operations still ask.
+The grant does not authorize external Host tools, network access or submission.
+
+`request_private_read` and `request_private_export` still request separate consent scopes; neither
+flag grants permission. One form lists all requested permissions for the exact operation, so a
+commit that needs private access and a content change asks once. An applicable standing grant
+can satisfy routine private reads and mutations. Private export remains individually authorized.
+Every mutation still needs its exact current
+preview, revision, digest and single-use token; standing permission does not bypass validation.
+
+Application-scoped tool results expose body-free `_meta["canisend/approval"]`: `mode` (`ask` or
+`auto`), `automatic` (whether this call used standing permission), `scope`, `profile_sources` (the
+explicitly granted Source references), and `remaining_seconds`.
+This connection metadata is not persisted in business receipts. Existing `user` confirmation
+fields identify the user's authorization, including delegation; they do not prove individual
+human inspection of each automatic decision. Hosts should preserve that distinction in reports.
 
 This is a breaking correction to the developing MCP input schemas: old `approved`,
 `confirmed_private_read` and `confirmed_private_export` fields are rejected rather than treated
@@ -47,8 +75,8 @@ it does not expose user Source or Deliverable bodies.
 `canisend_evidence_confirm_preview` accepts an exact imported ProfileSource reference and an
 `EvidenceProposalSet`. Quotes must match byte ranges in that source's normalized artifact;
 source digests, Profile revision and sensitivity are checked before a preview is issued.
-`canisend_evidence_confirm_commit` requests native confirmation of that exact catalog, with
-separate private-read consent when required. It creates Workspace Evidence without changing
+`canisend_evidence_confirm_commit` requests authorization of that exact catalog and its required
+private read in one form, or uses the Source grant. It creates Workspace Evidence without changing
 the Application or automatically associating Evidence. Use the existing guarded association
 tools afterward. Changed source/context, denial and replay cannot commit the saved preview.
 
@@ -66,10 +94,10 @@ Submitted candidates remain untrusted input; submission or cancellation never ad
 Application revision.
 
 `canisend_local_task_draft_preview` loads one exact Submitted task candidate using its Application
-ID, task ID, generation, and candidate digest. `request_private_read` requests native consent
+ID, task ID, generation, and candidate digest. `request_private_read` requests scoped authorization
 before reading the payload. The existing draft validator then prepares `local-task.draft.preview`;
 this does not approve the candidate or change the Application. Use the returned token and digest
-with the existing `canisend_deliverable_draft_commit`, whose native form remains mandatory.
+with the existing `canisend_deliverable_draft_commit`, using individual or active Auto approval.
 A successful commit creates the approved draft and marks the local task Committed atomically.
 A stale task, changed Application or inputs, cancellation, denial, or replay cannot commit the
 handoff. There is no separate local-task commit tool, GUI integration, or two-Host qualification.
@@ -125,6 +153,12 @@ opaque, process-bounded preview token. A mismatch, denial, expiry, replay, stale
 Pack, wrong Workspace, or host restart fails without mutation and requires a new preview where
 applicable.
 
+Native confirmation messages render the Broker-owned preview as labeled text with real
+paragraph breaks, placing proposed changes before reference details. This presentation does
+not alter request values, digests, single-use tokens or the machine-readable tool result.
+Hosts present result summaries and requested document text as readable prose or Markdown;
+raw envelopes and escaped JSON strings are not the default user-facing response.
+
 Committed receipts contain the new revision, snapshot digest, audit-event identity, and typed
 artifact references. `submission_performed` must always be `false`; CanISend renders and exports
 but never uploads or submits an Application.
@@ -175,3 +209,18 @@ Embedded orientation and Source-intake commit examples are validated through gen
 strong primitives, and semantic rules. The resource manifest binds the task model, schemas, and
 examples by exact byte size and SHA-256 so later Codex and Claude Code generators consume one
 integrity-checked source.
+
+### Instruction ownership
+
+Five stable Skill entrypoints share one operating contract in `canisend-workspace`.
+Stage Skills link to that installed sibling and own only their task-specific behavior;
+the application-workflow Skill routes end-to-end work without creating another state
+model. Rediscover schemas after connection/version changes and refresh affected state
+after commits. Guide/Skill resource revisions are independent of the v4 wire schema.
+
+The older `prompts/*` resources remain bound into the academic Pack for declared v2
+artifact tasks. They are not included in Agent v4 Host packs and must not supply v4
+candidate shapes. Their bytes and Pack history remain unchanged by instruction edits.
+No standalone Codex/Claude plugin is shipped: distribution consists of the native MCP
+server, managed Skills and optional exported Host packs. Tauri runtime plugins belong
+to the deferred desktop surface, not Agent instruction discovery.

@@ -1,8 +1,8 @@
 # Quick start: one Workspace, independently Pack-bound Applications
 
-This guide describes the published `v1.0.0-alpha.9` clean Workspace v4 and Agent v4 contract.
-Earlier tags remain immutable historical checkpoints; compare the installed binary with the
-release manifest before following a source-only command.
+This walkthrough uses clean Workspace v4 and Agent v4. Start with the
+[installation guide](installation.md), then check your binary's version: GitHub native
+downloads and npm testing releases may provide different versions and capabilities.
 
 CanISend is local-first. Keep every Workspace in a user-controlled private directory. It never
 logs in, uploads, or submits an Application; every successful export receipt keeps

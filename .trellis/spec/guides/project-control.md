@@ -1,94 +1,49 @@
-# Project Control
+# Project control
 
-Updated: 2026-09-07 — owner-approved separation of development checks and release qualification.
+## Authority and scope
 
-## Authority
+Accepted ADRs own decisions; `docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md`
+owns work ordering. `Cargo.toml`, `release/*.json`, `docs/contracts/*.json`, tags and
+exact artifacts own version and release facts. Existing implementation plans record
+scope, acceptance, evidence and the next action. Correct inconsistent projections;
+never rewrite historical release evidence or treat a pending gate as passed.
 
-1. Accepted ADRs own product, architecture, trust, and platform decisions.
-2. `Cargo.toml`, `release/*.json`, `docs/contracts/*.json`, tags, and exact artifacts own machine
-   and release facts.
-3. `docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md` owns 1.0 ordering and gates.
-4. GitHub Issues and milestones project the Roadmap publicly; do not invent synchronization.
-5. Existing implementation plans hold bounded scope, acceptance, evidence, and the next action.
+ADR-RN-0023 sets CLI-first, same-device Agent workflows as the current direction.
+Unfinished App work and cross-device work are deferred. Historical Beta.1 and private
+Beta.2 qualification retain their original identities and limits in the roadmap.
 
-When sources disagree, correct the lower-authority projection before advancing the affected claim.
-Do not rewrite historical release identities or weaken a product control to accelerate delivery.
+## Execution and integration
 
-## Direct execution
+Work directly on the authorized outcome. Ask only for a missing decision that changes
+it or an action outside existing authority. Reuse the current branch and plan; use
+isolation for conflicting parallel work or risky experiments. Integrate coherent
+milestones with meaningful commits and a PR when remote protections require one.
+Do not change protections or force-push to avoid their checks.
 
-- Read `AGENTS.md`, the current Roadmap slice, its existing plan, and the relevant backend spec.
-- Continue authorized work directly. A task directory, status field, phase transition, subagent,
-  journal entry, or bookkeeping commit is not a prerequisite.
-- Keep one short execution checklist per independently verifiable outcome. Existing PRD/design/
-  implement files may be maintained in place; do not duplicate them into another tracking system.
-- Small changes need only a scope and acceptance note. Add design detail only for unresolved API,
-  data, consent, migration, or recovery contracts. Ask the owner only when such a decision cannot
-  be resolved from existing authority, or when an external/irreversible action is not authorized.
-- Trace the actual owner and all callers, implement one complete slice, run its smallest meaningful
-  checks, inspect the full diff, and update evidence plus the next step once.
-- Keep each integration slice reviewable. Independent implementation may proceed when its code
-  dependencies and automated checks pass; pending human qualification is not a development lock.
-  Coordinate overlapping storage or approval edits through explicit file ownership.
-- Reuse the current local branch. Branches/worktrees are for conflicting parallel work or risky
-  experiments, not task bookkeeping. Integrate completed work locally; prefer fast-forward merges
-  and preserve uncommitted work. Do not bulk-merge or delete unrelated historical branches.
-- Commit meaningful local milestones. A PR is optional until external review is requested or a
-  protected remote integration requires it. Consolidate related local work into one such review;
-  do not change remote protections or force-push as a shortcut.
-- A local Roadmap row may carry owner, scope, acceptance, and pending Issue projection until public
-  synchronization is authorized. Pending projection never counts as completed release governance.
+`.trellis/tasks/`, `.trellis/spec/` and `.trellis/workspace/` are ordinary retained
+project documents. Task status, phase activation, dispatch and journals do not control
+execution. The old project-local Trellis adapters have been removed; do not run
+`trellis init` or `trellis update` unless the owner requests their restoration.
+User-global tools and the CLI's shipped Agent Skills are separate from those adapters.
 
-Private Beta.2 baseline evidence is retained: M4-BETA2-001/002 reached protected main through
-PRs #219/#220; M4-BETA2-003 binds private candidate run `33824463477`, artifact `9920609356`,
-and protected source `2ae2b507b953eef3101aa9689bd60f91a0046605`. This is not public qualification.
+## Verification and release
 
-## Current sequence
+Follow [quality guidelines](../backend/quality-guidelines.md): one invariant has one
+primary test owner. Reuse existing protocol processes, dual-Pack fixtures and package
+smokes. Repeat a passing check only after a relevant change or new failure.
+`xtask source check` and Fast CI validate development; `xtask release check` retains
+full candidate qualification, freeze, dependency and actual Host requirements.
 
-ADR-RN-0023 supersedes App-first delivery priority. Close out R0/R1 source and retain partial R2
-with its open gates; do not claim R2 acceptance. Reconcile the current feature branch with the
-owner-confirmed Beta integration target, preserving its version/release records and user changes.
-The master roadmap maps LF-C01–12: CLI boundary audit, independent build/resources/install, trusted
-headless approval, automated lifecycle/resumption, then bounded local collaboration. Actual Host
-acceptance remains attached to the affected candidate and may run alongside later development.
-Cross-device work and unfinished embedded R2-R6 work are deferred.
+The owner authorized npm testing prereleases independently of full native qualification.
+Since 2026-09-08, `release.yml` can build from main and publish macOS ARM64 to `next`
+through npm OIDC, then verify registry bytes and a fresh installation. Beta.5 succeeded
+in run `34285066117` from `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`.
+See [installation](../../../docs/guides/installation.md) for the current invocation.
+Only supplied platforms may be declared; this route does not qualify the full Beta
+matrix, publish Cargo/GitHub releases, or renew dependency exceptions.
 
-Public Beta.1, private Beta.2 candidate evidence, active freeze, and historical observations retain
-their exact identities. Qualify new CLI bytes and explicitly test any future cohort-binding change;
-the current validator and user thresholds remain unchanged by a direction document.
-
-## Validation and release control
-
-Owner-directed exception, 2026-09-07: build a new CLI source version and publish the npm testing
-prerelease manually from the locally authenticated CLI; the owner will configure GitHub CI later.
-Use `next`, declare only the supplied native platforms, and verify the installed package. This
-bounded registry distribution uses local acceptance and does not claim the complete Beta native
-matrix or current real-Host qualification. Preserve the historical evidence, qualification ledger,
-and all product evidence/consent/data controls. Full qualified checkpoints still use their gates.
-
-- Follow `../backend/quality-guidelines.md`; one invariant has one primary test owner.
-- Reuse existing dual-Pack fixtures, protocol processes, adapter smokes, and release tooling.
-- Run focused regressions when they resolve a bug or protect a trust/data boundary. Batch broader
-  changed-language checks and Tier 2 at a completed feature, public-contract change, substantial
-  merge/conflict resolution, or candidate milestone. Do not run a suite after every edit or commit.
-  A clean fast-forward with unchanged tested content needs no duplicate run. Fast CI owns the
-  complete remote workspace suite when work is synchronized.
-- Tier 2 is `xtask source check`. `xtask release check`, fresh human Host evidence and exact
-  freeze dispositions belong to candidate qualification. Their pending state must be recorded;
-  it does not require repeated approval or evidence-only commits during ordinary development.
-- Native and extended assurance remain with their scheduled or exact-candidate owners. Recheck a
-  passing assertion only after a relevant change or a newly observed failure.
-- Report source implementation, protected CI, exact artifact qualification, and user validation
-  separately. A checked plan or local command cannot substitute for the other evidence classes.
-- The full release check retains exact post-baseline freeze validation before qualification.
-  Collect required dispositions against actual candidate history there; never fabricate a future
-  commit hash or relabel an unqualified development change as released.
-
-## Retained project material
-
-`.trellis/tasks/`, `.trellis/spec/`, and `.trellis/workspace/` remain readable documents with stable
-paths. Existing task JSON and context manifests are compatibility metadata, not execution gates.
-Keep completed records and private-data exclusions intact; no forced migration or archival is needed.
-The old workflow, scripts, template hashes, and upstream license are retained for provenance or
-explicit manual use. Do not regenerate removed skills/hooks with `trellis init` or `trellis update`
-unless the owner explicitly reinstalls Trellis. User-global tools and product Agent v4 Skills are
-outside this removal.
+Fast CI and dependency assurance remain active. GUI checks and archived extended
+workflows remain paused under the owner's decision; see
+[workflow archive](../../../.github/workflow-archive/README.md) before restoring them.
+Keep local checks, protected CI, exact artifact qualification and real-user acceptance
+separate. Pending Host acceptance gates its candidate, not independent development.

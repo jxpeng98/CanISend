@@ -8,7 +8,7 @@ optional; no Trellis installation, hook, or task runner is required to contribut
 
 ## CLI-first development
 
-From the repository root, Cargo selects `canisend-cli` by default:
+From the repository root, Cargo selects the `canisend` CLI package by default:
 
 ```sh
 cargo build --locked
@@ -86,7 +86,8 @@ and the existing plan for the current outcome. Record the scope, acceptance, sma
 and next step once. Add a separate design only when an unresolved contract needs it; do not create
 parallel task records, repeated approval rounds, or journal-only commits for routine work.
 
-The owner removed project-local Trellis skills, hooks, and agents on 2026-09-04. Existing plans,
+The owner requested removing project-local Trellis adapters on 2026-09-04;
+the 2026-09-10 audit removed the remaining tracked Claude integration. Existing plans,
 specs, and journals remain readable project material, including active plans under `.trellis/tasks/`.
 Do not run `trellis init` or `trellis update` unless explicitly reinstalling that workflow.
 

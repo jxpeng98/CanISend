@@ -398,7 +398,22 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
         for entry in &manifest.files {
             let bytes = fs::read(root.join(&entry.path)).expect("pack file");
             assert_eq!(bytes.len(), entry.size);
-            assert_eq!(hex::encode(Sha256::digest(bytes)), entry.sha256);
+            assert_eq!(hex::encode(Sha256::digest(&bytes)), entry.sha256);
+            if entry.path.ends_with("/SKILL.md") {
+                let body = std::str::from_utf8(&bytes).expect("Skill UTF-8");
+                for link in body.split("](").skip(1) {
+                    let target = link.split(')').next().expect("link target");
+                    let resolved = root
+                        .join(&entry.path)
+                        .parent()
+                        .unwrap()
+                        .join(target)
+                        .canonicalize()
+                        .expect("installed Skill reference exists");
+                    assert!(resolved.starts_with(root.canonicalize().unwrap()));
+                    assert!(resolved.is_file());
+                }
+            }
         }
         assert!(export_agent_pack(host, &root).is_err());
     }
@@ -473,9 +488,14 @@ fn agent_v4_skills_cover_the_canonical_tasks_once_without_host_drift() {
     for (skill, tasks) in &expected {
         let body = String::from_utf8_lossy(skills[skill]);
         let metadata = String::from_utf8_lossy(openai_metadata[skill]);
-        assert!(body.contains("canisend.workspace/v4"));
-        assert!(body.contains("canisend.agent/v4"));
-        assert!(body.contains("request_confirmation: true"));
+        if *skill == "canisend-workspace" {
+            assert!(body.contains("canisend.workspace/v4"));
+            assert!(body.contains("canisend.agent/v4"));
+            assert!(body.contains("request_confirmation: true"));
+        } else {
+            // Stage Skills load the single shared protocol/consent owner.
+            assert!(body.contains("../canisend-workspace/SKILL.md"));
+        }
         assert!(!body.contains("canisend.agent/v2"));
         assert!(!body.contains("canisend.agent/v3"));
         assert!(!body.contains("canisend-job-intake"));

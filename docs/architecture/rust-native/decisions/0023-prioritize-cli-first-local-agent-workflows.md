@@ -80,3 +80,43 @@ milestones. Keep focused bug and trust/data-boundary regressions. Request extern
 when needed; protected remote integration and release evidence keep their existing requirements.
 Local integration does not claim remote CI or publication, and does not authorize unrelated
 branch deletion, force pushes, or changing remote protections.
+
+## Optional product delegation amendment — 2026-09-10
+
+The owner requested an optional mode that reduces repeated product confirmations. Default MCP
+behavior remains individual native forms. An eligible form can also accept an unchecked-by-default
+Auto approval grant for one canonical Workspace path/UUID, Application UUID and exact Pack in the
+current connection, with a 60-minute monotonic lifetime. A repository-owned allowlist permits
+routine Application reads and Requirement, pasted Source, Plan, draft and review changes. Exact
+Requirement Source references must already occur in the current Application. Shared Profile/
+Evidence access and changes, exports, new Sources and unknown operations still ask individually.
+
+This user-selected standing grant prospectively replaces per-call human confirmation for its
+eligible scope. It does not derive authority from model arguments or add a model approval service.
+Scope switches, denial, failed authorization, explicit cancellation, expiry and reconnect revoke it.
+Every mutation keeps its exact preview, revision, digest, single-use token and existing audit.
+Response metadata identifies delegated calls; persisted user-authority fields do not attest that
+the human individually inspected every automatic decision. Missing facts and final acceptance
+remain the user's decisions. No external tool, network, upload or submission authority is added.
+
+The change leaves Agent/Workspace v4 payloads and stored formats intact; optional form and MCP
+metadata fields carry the choice and status. Simulated protocol coverage is distinct from actual
+Host acceptance and qualification of a newly built release artifact.
+
+## Approval-friction follow-up — 2026-09-10
+
+The owner's four-group Evidence workflow demonstrated that excluding all Profile/Evidence work
+left repeated confirmations in the main journey. Prospectively, an eligible form may explicitly
+include one exact imported Profile Source revision in the connection's existing Application grant.
+This permits reading that Source, adding validated facts to the shared Evidence catalog and
+managing their Profile/Evidence associations for this Application. Evidence provenance resolves
+through its exact immutable catalog, item digest and normalized Source reference. An ungranted
+Source requires its own opt-in; extending a grant never renews its lifetime. No Workspace-wide,
+cross-Application or future-Source permission follows from that choice.
+
+Each operation presents all of its requested private-read/export and mutation permissions in one
+form. Each required scope must still be requested and authorized; one UI response can grant the
+declared combination. Exports and unsupported actions remain individually authorized. Stale or
+invalid previews fail without clearing a valid standing grant, so recovery does not restart the
+approval sequence. Scope changes, rejected forms, explicit cancellation, expiry and reconnect
+still revoke it. Tool schemas, single-use tokens, factual validation and immutable history remain.

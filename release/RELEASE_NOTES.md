@@ -1,10 +1,15 @@
-# CanISend 1.0.0-beta.5
+# CanISend 1.0.0-beta.6
+
+Agent instruction refresh: shorter shared operating guidance, clearer stage Skill routing,
+removal of obsolete project-local Trellis injection, and unchanged five-Skill discovery.
+Managed upgrades preserve user edits. Agent/Workspace v4 and Pack identities are unchanged.
+This source candidate has not been published.
 
 ## Highlights
 
-CanISend 1.0 combines a Svelte/Tauri macOS desktop, standalone command-line application, and
-versioned Agent integration in one local-first Rust product. It does not require Python, Node.js,
-Java, an external SQLite library, or a Typst command at runtime.
+This candidate focuses on the standalone Rust CLI and versioned Agent integration.
+The native executable does not require Python, Node.js, an external SQLite library or a Typst command;
+the npm launcher requires Node.js. Desktop CI and full native qualification remain paused.
 
 The clean `canisend.workspace/v4` authority is a neutral container. Academic and generic
 Applications coexist in one Workspace, and each Application owns its exact Pack ID, version,
@@ -36,12 +41,14 @@ It also never logs in or uploads on the user behalf.
 - It does not migrate Python-era Workspaces or preserve the `0.6.x` Python command tree.
 - Rust-native schema migrations are append-only. A binary rejects unsupported or future authority
   before mutation.
-- The Apple Silicon macOS application bundles a version-matched CLI; standalone CLI archives
-  cover the five declared targets. The desktop is distributed as a read-only DMG with an
-  Applications drag target and as a portable ZIP; both contain the same ad-hoc-signed
-  `CanISend.app` and external integrity manifest.
+- This npm candidate contains only an Apple Silicon macOS CLI. The paused full release policy
+  declares five CLI targets and an Apple Silicon desktop with a version-matched CLI in DMG/ZIP
+  bundles; those artifacts require separate qualification and are not part of this candidate.
 
 ## Install and verify
+
+For this npm testing candidate, follow the [CLI installation guide](../docs/guides/installation.md).
+The archive and desktop verification requirements below apply when a full native release resumes.
 
 Download the archive for one supported target together with `SHA256SUMS`, the release manifest, notices, and
 stage-required signing evidence. Verify their checksums, GitHub build provenance, manifest identity, and platform

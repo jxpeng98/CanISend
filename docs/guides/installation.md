@@ -1,11 +1,30 @@
 # Install CanISend
 
-CanISend is distributed as a platform-specific native executable. End users do not install Python, Rust, Node.js,
-Java, SQLite, Typst, fonts, or a package manager runtime.
+Choose npm for the current testing CLI on macOS Apple Silicon, or download a native binary
+from GitHub Releases for macOS, Linux or Windows. The desktop App is optional.
+
+## Install through npm
+
+Requires Node.js 22.14 or newer on macOS Apple Silicon:
+
+```sh
+npm install -g canisend@next
+canisend version
+canisend doctor
+```
+
+`next` currently provides `1.0.0-beta.5`; the default `latest` tag may be older. This package
+includes the compiled CLI, templates, Skills and corresponding source. It needs no Rust or
+Python installation. Other npm platforms are not yet supplied.
+
+Continue with [CLI-only first run](#cli-only-first-run). npm and GitHub Releases have separate
+versions: the native downloads below are currently `v1.0.0-beta.1`.
 
 ## Supported native targets
 
-The `1.0` line publishes these standalone CLI archives:
+The [GitHub native release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1)
+provides these standalone CLI archives. They need no Node.js, Python, Rust, external SQLite,
+Typst or font installation:
 
 - macOS arm64: `aarch64-apple-darwin` (`.tar.gz`);
 - macOS Intel: `x86_64-apple-darwin` (`.tar.gz`);
@@ -23,7 +42,8 @@ unavailable.
 
 ## Install from a release archive
 
-1. Download the archive for the operating system plus the published `SHA256SUMS` file from the same release.
+1. Choose a [direct CLI download](../../README.md#download-a-binary--macos-linux-or-windows) and download
+   [SHA256SUMS](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/SHA256SUMS) from the same release.
 2. Verify the checksum before extracting.
 3. Extract the complete bundle. Keep `LICENSE`, `THIRD_PARTY_NOTICES.md`, and the embedded-asset license directory
    with the binary when redistributing it.
@@ -65,11 +85,12 @@ templates, the Typst renderer and fonts are embedded in the executable; no App b
 checkout is a runtime resource directory. Run the verified executable by its absolute path when
 checking a new installation, including when the installation path contains spaces or Unicode.
 
-Interactive `canisend --workspace ./applications workspace init` offers an optional Skills
+In the newer npm CLI, interactive `canisend --workspace ./applications workspace init` offers an optional Skills
 installation choice: Codex or Claude Code, in this Workspace or in the user home. Enter skips
 installation. No prompt is shown with `--json`, redirected output/input, or `--no-skills`.
 
-For scripts, select the Host explicitly; project scope is the default:
+The combined initialization/Host selection is available in the newer npm CLI. For scripts,
+select the Host explicitly; project scope is the default:
 
 ```console
 canisend --workspace ./applications workspace init --host codex --scope project --json
@@ -80,7 +101,8 @@ Workspace; global Skills do not register a global MCP connection. If installatio
 Workspace creation, the error says so; resolve the cause and run `host setup` against that
 Workspace. Existing managed-file protection applies to this path too.
 
-Alternatively, create a Workspace and prepare the Host integration separately:
+For commands that also work with the older GitHub native release, create a Workspace and
+prepare the Host integration separately:
 
 ```console
 canisend --workspace ./applications workspace init --json
@@ -150,7 +172,7 @@ canisend doctor
 
 The first packaged GUI channel began at `1.0.0-alpha.1` on Apple Silicon; the latest publicly
 qualified checkpoint is
-[`v1.0.0-alpha.9`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-alpha.9). Verify the
+[`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1). Verify the
 exact release manifest because later source is not a published update. Intel macOS users can use
 the standalone CLI archive during Alpha.
 Scheduled Intel GUI compilation is a development regression check, not an installable package.
@@ -219,7 +241,7 @@ Building is not the end-user installation path. Developers need the repository-p
 toolchain:
 
 ```console
-cargo build --release --locked
+cargo build --release --locked -p canisend
 ./target/release/canisend doctor
 ```
 
@@ -257,7 +279,7 @@ After merging the intended source version to main, enable the workflow and run:
 
 ```sh
 gh workflow enable release.yml
-gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.5
+gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.6
 ```
 
 Use the exact prerelease version in `Cargo.toml`. Each published version is
