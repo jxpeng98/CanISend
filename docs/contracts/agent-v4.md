@@ -10,7 +10,7 @@
 
 ## Boundary
 
-Agent v4 is the only host workflow being developed for Alpha.7. It is a clean protocol, not a
+Agent v4 is the current CLI Host workflow. It is a clean protocol, not a
 compatibility adapter for earlier Skills, host layouts, job aliases, Agent v2/v3 messages, or
 Workspace v2/v3 state. An unsupported protocol, Workspace, unknown field, legacy operation ID, or
 incomplete context fails before an application-facade mutation is attempted.
@@ -175,3 +175,18 @@ Embedded orientation and Source-intake commit examples are validated through gen
 strong primitives, and semantic rules. The resource manifest binds the task model, schemas, and
 examples by exact byte size and SHA-256 so later Codex and Claude Code generators consume one
 integrity-checked source.
+
+### Instruction ownership
+
+Five stable Skill entrypoints share one operating contract in `canisend-workspace`.
+Stage Skills link to that installed sibling and own only their task-specific behavior;
+the application-workflow Skill routes end-to-end work without creating another state
+model. Rediscover schemas after connection/version changes and refresh affected state
+after commits. Guide/Skill resource revisions are independent of the v4 wire schema.
+
+The older `prompts/*` resources remain bound into the academic Pack for declared v2
+artifact tasks. They are not included in Agent v4 Host packs and must not supply v4
+candidate shapes. Their bytes and Pack history remain unchanged by instruction edits.
+No standalone Codex/Claude plugin is shipped: distribution consists of the native MCP
+server, managed Skills and optional exported Host packs. Tauri runtime plugins belong
+to the deferred desktop surface, not Agent instruction discovery.

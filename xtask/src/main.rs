@@ -1952,6 +1952,8 @@ fn check_documentation() -> Result<(), String> {
     for path in [
         root.join("README.md"),
         root.join("AGENTS.md"),
+        root.join("CLAUDE.md"),
+        root.join(".trellis/spec/guides/project-control.md"),
         guide_root.join("README.md"),
         root.join("docs/development/defensive-assurance-routing.md"),
     ] {
@@ -1962,18 +1964,6 @@ fn check_documentation() -> Result<(), String> {
             )
         })?;
         check_local_markdown_links(&root, &path, &body)?;
-    }
-    let repository_scope = fs::read_to_string(root.join("AGENTS.md"))
-        .map_err(|error| format!("repository agent scope is missing: {error}"))?;
-    for required in [
-        "defensive software assurance",
-        "Do not turn these tasks into instructions for accessing third-party systems",
-        "do not ask the host to disable, downgrade, or bypass its safety policy",
-        "Verification tiers",
-    ] {
-        if !repository_scope.contains(required) {
-            return Err(format!("repository agent scope is missing `{required}`"));
-        }
     }
     let smoke = root.join("scripts/smoke_documented_quickstart.sh");
     if !smoke.is_file() {

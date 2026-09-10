@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.5`, prepared for a single-package npm testing distribution;
+- Checked-in source: `1.0.0-beta.6`, prepared for a single-package npm testing distribution;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -26,15 +26,22 @@
 The owner authorized local npm testing prereleases on `next`, with the supported platforms listed
 in the npm package itself. Starting with `1.0.0-beta.4`, publish one self-contained `canisend`
 package with executables under `native/`; no platform package or installation-time download is
-needed. Build, install and validate those exact bytes before manual `npm publish`. GitHub CI setup
-and publication are deferred to the owner. This registry-only scope does not qualify a complete
-Beta checkpoint or refresh real-Host evidence. Cargo publication remains separate.
+needed. Build, install and validate those exact bytes through the main-only npm path in
+`release.yml`, using OIDC. This registry-only scope does not qualify a complete Beta
+checkpoint or refresh real-Host evidence. Cargo publication remains separate.
 
-Published single npm package: `canisend@1.0.0-beta.4`, from source
-`2886c3c6a652aefedf07b2a011141777d66fec57`. Its `next` install downloaded exactly one package;
-registry digests, embedded CLI/source bytes, five Skills and Workspace initialization/check passed.
-The supported npm platform remains macOS ARM64. `latest` still points to Beta.3; use `canisend@next`
-or the exact Beta.4 version to select the new package layout.
+Published single npm package: `canisend@1.0.0-beta.5`, from source
+`a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`, verified in
+[CI run 34285066117](https://github.com/jxpeng98/CanISend/actions/runs/34285066117).
+The published tarball SHA-256 is
+`d54047c553366fe0d7b5c0c67ac1f937f4ec7c06036e7cb04b1ca139af48aed7`.
+OIDC publication, provenance, registry digests, native/source byte comparison and fresh
+Workspace installation passed. The supported npm platform remains macOS ARM64; `latest`
+still points to Beta.3. Beta.6 prepares shorter Agent instructions and Skills, with the
+same five entrypoints, protocol and Workspace format; it is not yet published.
+
+The prior single-package Beta.4 remains immutable at source
+`2886c3c6a652aefedf07b2a011141777d66fec57`.
 
 Historical npm packages: `canisend@1.0.0-beta.3` and `canisend-darwin-arm64@1.0.0-beta.3`, from
 source `9774d125fdbd55583475103171de0cdbb6488571`. The `next` install was independently downloaded

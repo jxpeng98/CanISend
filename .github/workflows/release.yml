@@ -14,7 +14,7 @@ on:
       tag:
         description: "Exact future tag to build once as a non-publishing candidate"
         required: true
-        default: "v1.0.0-beta.5"
+        default: "v1.0.0-beta.6"
       cache_epoch:
         description: "Body-free sccache namespace epoch used for cold/warm/invalidation measurement"
         required: true
@@ -219,7 +219,7 @@ jobs:
       - name: Reject active Python product files
         shell: bash
         run: |
-          if git ls-files | grep -E '(^|/)(pyproject\.toml|uv\.lock|requirements[^/]*\.txt|pytest\.ini|[^/]+\.py)$' | grep -Ev '^(\.claude/hooks/|\.codex/hooks/|\.trellis/scripts/)'; then
+          if git ls-files | grep -E '(^|/)(pyproject\.toml|uv\.lock|requirements[^/]*\.txt|pytest\.ini|[^/]+\.py)$' | grep -Ev '^(\.trellis/scripts/|scripts/(sync_typst_templates|test_sync_typst_templates)\.py$)'; then
             echo "active Python product files are not allowed in the Rust-native release" >&2
             exit 1
           fi

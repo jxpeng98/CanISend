@@ -1,72 +1,35 @@
 ---
 name: canisend-application-workflow
-description: Prepare or resume a complete CanISend application, from understanding an opportunity and assembling evidence to planning, drafting, reviewing and delivering local materials. Use for end-to-end application help, progress assessment, or coordinating multiple materials; route isolated edits to the relevant stage Skill.
+description: Prepare or resume a complete CanISend application, assess its progress and coordinate evidence, drafts, review and local delivery. Use a stage Skill directly for an isolated edit or operation.
 ---
 
 # CanISend Application Workflow
 
-Own continuity across the application journey; the stage Skills own their operations. This is
-an orchestration entrypoint over the existing Agent v4 tasks, not a new task kind or state store.
-CanISend prepares evidence-bound applications; it does not submit to employers, funders or portals.
+Coordinate the existing stages; do not create another task model or progress database.
+Use the user's opportunity, materials and constraints, asking only for missing decisions
+that affect the result. Start from canonical state and the first unmet dependency.
+A repeated request or resumed conversation is not a reason to replay completed writes.
 
-## Start from the user's outcome
+Use [Workspace](../canisend-workspace/SKILL.md) for connection, exact Application/Pack
+binding and shared operating rules. Read the current verified Pack catalog and actual
+CLI/MCP schemas; stale prompts and model knowledge cannot establish tool availability.
 
-Identify the opportunity, selected Workspace/Application, desired materials, language and any
-source-backed deadline or formatting constraints. Reuse information already supplied. Ask only
-for missing facts or choices that affect the result; do not ask the user to choose every next tool.
-For an isolated stage request, perform that stage rather than forcing a full restart.
+| Need | Owner and result |
+| --- | --- |
+| Opportunity and Requirements | [Intake](../canisend-intake/SKILL.md): source-backed criteria, constraints and unresolved ambiguity |
+| Profile, Evidence, setup or creation | [Workspace](../canisend-workspace/SKILL.md): confirmed facts and explicit Application associations |
+| Fit, Plan, drafting or revisions | [Materials](../canisend-materials/SKILL.md): supported claims, gaps, proceed/hold decision and current material set |
+| Review and local delivery | [Review/export](../canisend-review-export/SKILL.md): current dispositions, readiness and verified local files |
 
-Use `canisend-workspace` to initialize/connect if needed, require `canisend.workspace/v4` and
-`canisend.agent/v4`, select the exact Pack, and read canonical Application state. Inspect the
-complete verified Pack catalog and dependencies. Pack stages guide business ordering; current
-CLI/MCP schemas determine available operations. A declared capability does not prove an adapter
-is callable. Creation/Profile import may need the CLI; pasted Source revision follows `canisend-intake`.
-Shared/file/URL Source revision and material-set change adapter gaps are explicit limitations, not permission to improvise another write path. Never use an old prompt's job IDs or v2 candidate shape in a v4 request.
+Reuse valid stages. Independent evidence preparation can proceed while opportunity details
+are clarified. A hold decision yields a concrete gap-resolution plan, not permission to draft.
+An input correction invalidates affected downstream work; retain unaffected work and history.
 
-## Carry the journey through
+For existing local tasks, read their current metadata before duplicating effort. Supported
+worker handoff carries candidate references, not approval tokens. The reviewer binds the
+exact task generation and candidate digest; only the supported complete initial material-set
+candidate can enter the draft preview.
 
-| Stage and owner | Needed input | Useful result and transition |
-|---|---|---|
-| Opportunity brief — `canisend-intake` | User-selected advert/call and supporting documents | Source-backed purpose, audience, eligibility, criteria, deliverables, deadlines and ambiguities; create/select the Application through `canisend-workspace` when needed |
-| Profile and evidence — `canisend-workspace` | Relevant CV/profile/records supplied with required read consent | Confirmed, source-traceable Evidence; explicit associations to this Application; a missing-fact list |
-| Requirements — `canisend-intake` | Imported, associated Sources | Confirmed Pack-qualified Requirements; separate mandatory, preferred and unclear requirements |
-| Fit and plan — `canisend-materials` | Confirmed Requirements, associated Evidence and Pack catalog | Requirement-to-Evidence assessment, gaps and prohibited claims, user's proceed/hold decision, confirmed material plan |
-| Draft and revise — `canisend-materials` | Confirmed Plan, supported facts and user feedback | Purposeful, audience-specific structured Deliverables; factual claims trace to exact Evidence; gaps remain explicit |
-| Review — `canisend-review-export` | Current drafts, source constraints and audit findings | Corrected materials, cross-document consistency and current review dispositions; route substantive corrections back to their owning stage |
-| Local delivery — `canisend-review-export` | Current readiness and required export consent | Verified local files, format/path/digest inventory and unresolved limitations; no upload or submission claim |
-
-If a stage is already valid for the current inputs, reuse it. Independent profile preparation may
-proceed while opportunity details are clarified. A hold decision produces a concrete gap-resolution
-plan; it is not permission to draft around mandatory deficiencies. Do not invent support merely to
-move the workflow forward. A new advert, fact or document revision may invalidate downstream work;
-refresh affected state rather than rerunning every unrelated stage.
-
-## Continue across sessions and collaborators
-
-Read Application, Plan, Deliverable, review and export state to locate the first unmet dependency.
-If local candidate tasks exist, inspect their metadata before preparing another one. Use only the
-supported local-task handoff for a valid initial material-set candidate; workers exchange candidate references, not
-approval tokens. The final reviewer refreshes the Application and exact candidate digest.
-
-After each durable change, retain returned IDs/revisions and re-read changed context. Summarize
-completed stages, current missing input or decision, and the next concrete action; do not create
-another workflow database or invent completion flags. On restart, upgrade, stale context or lost
-preview metadata, rediscover schemas as needed and read current state first. Obtain a new
-preview only if a change is still needed. Prior conversation text cannot reconstruct a token
-or establish the current revision.
-
-Before any repeated instruction, timeout recovery or test continuation, compare the requested
-outcome with canonical state and the latest result records. A confirmed Requirement, matching
-confirmed Plan or existing valid Deliverable is completed work; skip its write and continue from
-the first unmet dependency within the authorized outcome. Do not replay an earlier checklist.
-
-For `workspace.conflict`, read the Application and relevant stage state. If the intended result
-already exists, report “already completed” with its revision and continue; do not request a form,
-reset the stage or claim a new commit. If the states differ, explain that difference and resolve
-only the missing decision. A failed response alone cannot prove that an earlier attempt did not
-commit. Preserve uncertainty about the original form response when it is not observable.
-
-Use `request_confirmation: true` only to request the actual form for guarded writes; the user
-answers it. Follow `canisend-workspace` for private-data and confirmation boundaries. After a
-denial stop that operation; independent authorized work may continue. An export receipt proves
-local preparation, not submission, application quality, eligibility or likelihood of acceptance.
+Continue through the authorized outcome, reporting the current result and next unmet need.
+Report a missing adapter precisely; do not improvise storage writes or silently recreate the
+Application. An export receipt proves local preparation, not submission or application quality.

@@ -257,7 +257,7 @@ After merging the intended source version to main, enable the workflow and run:
 
 ```sh
 gh workflow enable release.yml
-gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.5
+gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.6
 ```
 
 Use the exact prerelease version in `Cargo.toml`. Each published version is

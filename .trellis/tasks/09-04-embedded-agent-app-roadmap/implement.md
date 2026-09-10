@@ -1650,3 +1650,54 @@ regression expected four Skills rather than the five currently shipped. The othe
 90 xtask tests passed. Correct only the cardinality assertion; retain all malformed,
 legacy, and unbound freeze rejection cases. Linux, Windows, and macOS quality gates
 passed on `15fb346`; the corrected head still needs its own required CI run.
+
+### Agent instruction review and Beta.6 preparation — 2026-09-10
+
+Scope: review repository guidance first, simplify shipped Host guides/Skills second,
+then review the result for routing, consent, recovery and installation consistency.
+Prepare the next npm CLI candidate without claiming publication or full qualification.
+
+Audit decisions:
+
+- Remove 52 tracked Claude/Trellis adapter files (339,653 bytes): their hooks still
+  injected a task/dispatch workflow that the owner had already removed. Keep retained
+  `.trellis/` project records and user-local/global settings; Git preserves the adapters.
+- Root AGENTS and project control shrink from 1,691 to 644 words. Add a small CLAUDE
+  entrypoint referring to the same AGENTS file, instead of reintroducing hooks.
+- Keep the five stable, distinct Skill entrypoints. Merge shared state/consent/retry
+  rules into Workspace and link stage Skills to that installed sibling. Skill text
+  drops from 4,590 to 2,088 words; Host guides from 718 to 368 words. These are text
+  measurements, not claims of measured model accuracy or usage improvements.
+- Clarify actual adapter limits, complete-set drafting, unchanged previews, read-before-
+  retry and modified-file preservation. Discover schemas per connection/version change
+  and refresh affected state rather than replaying the whole workflow. Guide/changed
+  Skill resources use 4.0.1 while the v4 protocol and resource layout remain unchanged.
+- No standalone Host plugin exists. Retain the native MCP server and five Skills;
+  desktop Tauri plugins remain scoped to the paused GUI. Older v2 prompts remain exact
+  Pack-bound artifacts, outside v4 Host packs; no Pack digest or history is changed.
+- Correct stale publication projections: Beta.5 succeeded through OIDC at main
+  `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`, run `34285066117`. Prepare Beta.6 using
+  the established bounded source-version update, preserving historical qualification.
+
+Second-pass review covered: new setup versus existing work; direct stage selection;
+partial versus complete initial drafting; denial versus unknown commit outcome;
+Requirement/Source correction and stale downstream state; modified Skills during an
+upgrade; missing exports after restore. No external user form was answered. The resource
+suite also verifies actual exported sibling links for Codex, Claude and generic packs,
+existing managed upgrades, and refusal to overwrite user edits. Review is a local
+instruction/schema walkthrough, not independent real-Host acceptance.
+
+The domain keyword inventory still covers 189 files. Removing the literal `cover-letter`
+from explanatory Skill text changes one resource classification/family count; the checked
+inventory projection is refreshed without claiming a kernel architecture change.
+The documentation checker no longer requires fixed AGENTS paragraphs; it verifies the
+shared instruction entrypoints and scope-guide links. The assurance guide remains the
+optional detail owner. Python guards retain only maintenance-script exceptions, and
+release notes distinguish the npm candidate from paused desktop/full-matrix policy.
+
+Source check, five Skill frontmatter checks, 17 resource integration tests, the focused
+documentation regression, three npm packaging tests, Rust formatting/affected Clippy,
+workflow YAML, instruction links and preserved-history/template/archive checks pass. Exact-package installation/upgrade
+and lifecycle evidence will be recorded under `dist/npm-beta6/`; next is readiness review,
+then protected CI and an authorized publication run. Dependency exception review and
+full native/real-Host gates stay separate.

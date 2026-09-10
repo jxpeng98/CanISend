@@ -11,7 +11,7 @@ publish = ["crates-io"]
 build = "build.rs"
 
 [dependencies]
-canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.5" }
+canisend-contracts = { path = "../canisend-contracts", version = "=1.0.0-beta.6" }
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

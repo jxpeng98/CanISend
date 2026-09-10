@@ -88,18 +88,18 @@
       "ui": 24
     },
     "classification_counts": {
-      "academic-pack": 8,
+      "academic-pack": 7,
       "compatibility-surface": 138,
-      "kernel": 41,
+      "kernel": 42,
       "optional-adapter": 2
     },
     "family_counts": {
       "academic-vocabulary": 85,
-      "fixed-academic-deliverables": 72,
+      "fixed-academic-deliverables": 71,
       "fixed-workflow-stage": 18,
       "legacy-job-surface": 125
     },
-    "inventory_sha256": "4366c19a3e86fd025461fe1671369c13d81cefdafdb9523f6739ffea1a811e1d",
+    "inventory_sha256": "805ed1255f71a27993af228a239951e404ed0c7508b159dd5c535d2baaedf9d4",
     "matching_files": 189
   }
 }

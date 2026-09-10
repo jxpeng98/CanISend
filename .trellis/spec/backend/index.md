@@ -6,7 +6,7 @@
 
 ## Overview
 
-These files guide Trellis work across the Rust workspace and its adapters. `AGENTS.md`, accepted
+These files guide engineering across the Rust workspace and its adapters. `AGENTS.md`, accepted
 ADRs, public contracts, and machine policy remain authoritative when a summary here disagrees.
 
 ---
