@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.6`, published as a single-package npm testing distribution;
+- Checked-in source: `1.0.0-beta.6`, distributed through npm, Cargo and PyPI testing channels;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -60,13 +60,22 @@ Registry readback also reports `latest` pointing to this first version. The vers
 npm platform is macOS ARM64. Future CI should publish a new version rather than attempt to
 overwrite these immutable registry packages.
 
-On 2026-09-10 the owner authorized Cargo and PyPI testing publication. Cargo distributes
-the eight-crate CLI dependency closure at `1.0.0-beta.6`; PyPI preparation uses Maturin
-to build the native macOS ARM64 CLI as `1.0.0b6`. The independent `pypi_only` path in
-`release.yml` builds and checks an exact wheel, publishes through the existing `pypi`
-environment using OIDC, then verifies registry bytes and installation. TestPyPI remains
-unused. A source build or prepared workflow is not proof of publication; registry readback
-and exact-package checks determine channel status.
+The owner separately authorized Cargo and PyPI testing publication. Cargo's `canisend`
+and seven dependency crates are published at `1.0.0-beta.6`, from
+`d59984438c1a34e12743398b0d0ad0a5a953836d`. All eight downloaded registry archives match
+the verified candidates. A clean `cargo install --locked`, doctor, fresh Workspace and all
+nine MCP protocol tests passed. Registry builds report `git_revision: unknown`; their
+`.cargo_vcs_info.json` and archive checksums retain the source identity. Local exact-package
+evidence is in `dist/cargo-beta6-publication/verification.json`.
+
+PyPI's native macOS ARM64 wheel uses version `1.0.0b6`, from
+`1f56a6d81605cf53655a2843f974cafbf79d61b2`, tracked by
+[release run 34541765388](https://github.com/jxpeng98/CanISend/actions/runs/34541765388).
+The independent `pypi_only` path checks the wheel and installed MCP, publishes through the
+existing `pypi` environment using OIDC, and verifies exact registry bytes and a fresh
+installation. The first attempt stopped before upload because its smoke script required
+`rg`; PR #234 replaced that dependency with the system `grep`. TestPyPI remains unused.
+These channels do not qualify a full native checkpoint or renew dependency exceptions.
 
 ## Supported public package scope
 

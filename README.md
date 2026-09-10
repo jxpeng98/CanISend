@@ -32,6 +32,13 @@ canisend doctor
 `next` currently provides **1.0.0-beta.6**; the default `latest` tag may be older.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
+Other ways to install this testing version:
+
+- **Cargo:** `cargo install canisend --version 1.0.0-beta.6 --locked` (requires Rust 1.97+ and native build tools).
+- **PyPI, macOS Apple Silicon:** `python -m pip install canisend==1.0.0b6` inside a virtual environment. No Rust toolchain is needed.
+
+See [installation options](docs/guides/installation.md) for setup and upgrade commands.
+
 ### Download a binary — macOS, Linux or Windows
 
 These direct downloads are from [GitHub Release v1.0.0-beta.1](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
@@ -98,7 +105,8 @@ See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.6`, published on npm `next` for macOS ARM64.
+The checked-in source version is `1.0.0-beta.6`, available through Cargo, npm `next`, and
+PyPI (`1.0.0b6`). The npm package and PyPI wheel currently support macOS ARM64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process
 and associate its evidence without repeated prompts. New private sources and exports still ask;

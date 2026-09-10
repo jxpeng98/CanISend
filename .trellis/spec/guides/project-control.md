@@ -43,7 +43,9 @@ Only supplied platforms may be declared; this route does not qualify the full Be
 matrix, publish Cargo/GitHub releases, or renew dependency exceptions.
 
 On 2026-09-10 the owner separately authorized Cargo and PyPI testing publication.
-Use Cargo's dependency-ordered publishing for the eight public CLI crates. The main-only
+The eight public CLI crates at `1.0.0-beta.6` are published and registry-installed from source
+`d59984438c1a34e12743398b0d0ad0a5a953836d`; archive hashes and nine MCP tests passed.
+Use Cargo's dependency-ordered publishing for future versions. The main-only
 `pypi_only` path in `release.yml` builds a native macOS ARM64 wheel and uses the existing
 `pypi` environment and OIDC binding. It leaves the Python product implementation retired.
 Verify registry bytes and installation before recording publication as complete; the same

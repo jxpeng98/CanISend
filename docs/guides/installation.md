@@ -1,7 +1,7 @@
 # Install CanISend
 
-Choose npm for the current testing CLI on macOS Apple Silicon, or download a native binary
-from GitHub Releases for macOS, Linux or Windows. The desktop App is optional.
+Choose npm or PyPI for the current testing CLI on macOS Apple Silicon, Cargo to compile from
+source, or GitHub Releases for older native downloads on macOS, Linux or Windows.
 
 ## Install through npm
 
@@ -19,6 +19,41 @@ Python installation. Other npm platforms are not yet supplied.
 
 Continue with [CLI-only first run](#cli-only-first-run). npm and GitHub Releases have separate
 versions: the native downloads below are currently `v1.0.0-beta.1`.
+
+## Install through Cargo
+
+Requires Rust 1.97 or newer and a C/C++ build toolchain:
+
+```sh
+cargo install canisend --version 1.0.0-beta.6 --locked
+canisend version
+canisend doctor
+```
+
+The CLI and its seven dependency crates are published on crates.io. Templates, fonts and
+Skills are compiled into the executable. Keep `--locked` to use the release's dependency set.
+
+## Install through PyPI
+
+Requires Python 3.10 or newer on macOS Apple Silicon. Install in a virtual environment:
+
+```sh
+python3 -m venv ~/.venvs/canisend
+~/.venvs/canisend/bin/python -m pip install canisend==1.0.0b6
+~/.venvs/canisend/bin/canisend version
+```
+
+Prepend `~/.venvs/canisend/bin` to PATH to use `canisend` directly. The wheel contains the native
+Rust CLI and its embedded resources; it needs no Rust or Node.js installation. License notices
+and corresponding source are installed under the environment's `share/canisend` directory.
+It does not provide the historical Python API. Other wheel platforms are not yet supplied.
+
+Use the explicit version: `1.0.0b6` is the PyPI spelling of `1.0.0-beta.6`, and a plain
+unversioned pip installation may select the older stable Python product.
+
+For upgrades, back up your Workspace first, rerun the Cargo installation command or install
+the desired PyPI version with `--upgrade`, then run `host setup --host codex` in the Workspace
+and reconnect the Host. See [upgrade and recovery](upgrade-and-rollback.md).
 
 ## Supported native targets
 
@@ -288,3 +323,18 @@ the candidate tarball and checksums, then verifies registry bytes and a fresh
 Workspace installation. Full native/GUI release remains paused unless explicitly
 restored with `CANISEND_ENABLE_FULL_RELEASE=true` and `npm_only=false`; its original
 qualification gates still apply. npm testing distribution is not full qualification.
+
+### Maintainer: publish the PyPI testing CLI
+
+The same `release.yml` has an independent PyPI path. It builds a macOS ARM64 native wheel,
+checks its installation and MCP behavior, publishes through OIDC, then downloads and compares
+the registry bytes before another fresh installation:
+
+```sh
+gh workflow run release.yml --ref main -F pypi_only=true -F npm_only=false -f tag=v1.0.0-beta.6
+```
+
+The Trusted Publisher uses repository `jxpeng98/CanISend` and workflow `release.yml`.
+If its environment is restricted, set it to `pypi`. No local PyPI token is needed for this path.
+Supply the next unpublished version from Cargo.toml; an already published version is immutable.
+See [packaging](../../packaging/README.md#pypi-native-cli-wheel) for local build and installation checks.

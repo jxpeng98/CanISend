@@ -1886,7 +1886,10 @@ The owner authorized publication through locally authenticated Cargo and PyPI. A
 Cargo packages at source `d59984438c1a34e12743398b0d0ad0a5a953836d` passed locked packaging
 and independent build verification. The first five uploaded successfully; crates.io's new-crate
 rate limit delayed the remaining three. Exact candidate archives and hashes are retained in
-`dist/cargo-beta6-publication/`. Registry completion and installation remain pending.
+`dist/cargo-beta6-publication/`. After the registry's required wait intervals, all eight packages
+published. Each downloaded archive matches its candidate hash. A clean registry installation,
+version/doctor, fresh Workspace and all nine MCP protocol tests passed; `verification.json`
+and retained logs record the exact artifacts. The temporary Cargo publication worktree was removed.
 
 PyPI had no Rust packaging configuration. Added Maturin binary-wheel metadata and two small
 build/install scripts, with the version inherited from Cargo and GPL/third-party notices plus
@@ -1895,5 +1898,11 @@ metadata validation, native signature, version/source identity, doctor, fresh Wo
 all nine existing MCP protocol tests. Bash syntax, workflow YAML/routing and source checks
 passed. `release.yml` now has an independent main-only PyPI route using the retained `pypi`
 environment/OIDC publisher, with artifact retention and exact registry-byte comparison.
-Protected CI, PyPI upload and registry installation remain pending. Full native/GUI and actual
-Host qualification remain outside this scope; no dependency exception was renewed.
+PR #233 passed protected CI and merged. Its first PyPI run `34539718183` built and installed
+the wheel but stopped before upload because the macOS runner lacked `rg`. PR #234 replaced
+that dependency with system `grep`; the isolated archive check with PATH `/usr/bin:/bin`,
+Bash syntax, source gate and required CI run `34541234137` passed. The new publication run
+`34541765388` uses main source `1f56a6d81605cf53655a2843f974cafbf79d61b2`; that run owns
+the final PyPI upload and registry-install status. Prepared installation documentation stays
+in a draft PR until that publication succeeds. Full native/GUI and actual Host qualification
+remain outside this scope; no dependency exception was renewed.
