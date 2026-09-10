@@ -80,3 +80,25 @@ milestones. Keep focused bug and trust/data-boundary regressions. Request extern
 when needed; protected remote integration and release evidence keep their existing requirements.
 Local integration does not claim remote CI or publication, and does not authorize unrelated
 branch deletion, force pushes, or changing remote protections.
+
+## Optional product delegation amendment — 2026-09-10
+
+The owner requested an optional mode that reduces repeated product confirmations. Default MCP
+behavior remains individual native forms. An eligible form can also accept an unchecked-by-default
+Auto approval grant for one canonical Workspace path/UUID, Application UUID and exact Pack in the
+current connection, with a 60-minute monotonic lifetime. A repository-owned allowlist permits
+routine Application reads and Requirement, pasted Source, Plan, draft and review changes. Exact
+Requirement Source references must already occur in the current Application. Shared Profile/
+Evidence access and changes, exports, new Sources and unknown operations still ask individually.
+
+This user-selected standing grant prospectively replaces per-call human confirmation for its
+eligible scope. It does not derive authority from model arguments or add a model approval service.
+Scope switches, denial, failed authorization, explicit cancellation, expiry and reconnect revoke it.
+Every mutation keeps its exact preview, revision, digest, single-use token and existing audit.
+Response metadata identifies delegated calls; persisted user-authority fields do not attest that
+the human individually inspected every automatic decision. Missing facts and final acceptance
+remain the user's decisions. No external tool, network, upload or submission authority is added.
+
+The change leaves Agent/Workspace v4 payloads and stored formats intact; optional form and MCP
+metadata fields carry the choice and status. Simulated protocol coverage is distinct from actual
+Host acceptance and qualification of a newly built release artifact.

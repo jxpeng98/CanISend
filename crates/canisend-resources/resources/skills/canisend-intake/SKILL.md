@@ -29,7 +29,8 @@ constraints outside the schema in the brief rather than inventing JSON propertie
 `canisend_requirement_extract_preview`/commit creates proposals, not confirmations.
 Re-read, then use `canisend_requirement_confirm_preview`/commit: supply exactly one
 confirm/exclude decision for each currently `proposed` Requirement, excluding already decided
-entries. The user answers the native form. Never silently exclude an unmet mandatory criterion.
+entries. Use the user's form or active Auto approval scope under Workspace's shared rules.
+Never silently exclude an unmet mandatory criterion.
 
 ## Corrections
 

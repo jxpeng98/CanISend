@@ -18,7 +18,8 @@ claims the Evidence cannot support. Persist only schema-supported values.
 Associate selected Evidence separately and refresh context before proposing the Plan.
 Reuse the user's proceed/hold decision, asking only if missing. Use
 `canisend_plan_propose_preview`/commit, then `canisend_plan_confirm_preview`/commit with
-their native confirmation requests. A saved proposal is not confirmation; hold forbids drafting.
+their authorization requests under Workspace's shared rules, including active Auto approval.
+A saved proposal is not confirmation; hold forbids drafting.
 
 Specify purpose, audience, outline, source-backed constraints and Requirement coverage for the
 complete material set. Derive kinds/headings from the Pack and opportunity, not an assumed
@@ -37,7 +38,7 @@ work, team contributions and future intentions. Do not strengthen a claim beyond
   and candidate digest, with private-read consent. The same complete-set rule applies.
 - Use `canisend_deliverable_draft_commit` for the initial set. Once materials exist, use
   `canisend_deliverable_revise_preview`/commit for the existing UUID. Follow each current
-  schema and native form; then audit the stored result with the required read consent.
+  schema and applicable user authorization; then audit the stored result with the required read consent.
 
 ## Recover corrected inputs
 

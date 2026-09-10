@@ -1749,3 +1749,34 @@ test suite was needed; this is not real-Host acceptance or a new artifact qualif
 Next: include these docs in protected integration and the next CI-built release. Existing
 Beta.6 candidate bytes retain their recorded source identity; this documentation update
 does not relabel or publish them.
+
+### Optional routine Auto approval — 2026-09-10
+
+Scope: reduce repeated product confirmations through an optional checkbox in the existing MCP
+native form. Default remains individual approval. An explicit user grant permits routine private
+Application reads and Requirement, exclusive pasted Source, Plan, draft and review operations for
+60 minutes in one connection, bound to canonical Workspace path/UUID, Application and exact Pack.
+New Requirement Sources, shared Profile/Evidence access and changes, exports and unknown actions
+remain individually guarded. Model flags cannot grant authority. Scope changes, denial, failed
+authorization, explicit cancellation, expiry and reconnect revoke it. Existing preview, revision,
+digest, token, storage and audit checks remain. MCP metadata distinguishes delegated calls from
+individual human inspection; stored user-authority fields keep their existing representation.
+
+The shared application policy owns the scope and allowlist; MCP owns native forms and serialized
+authorization/dispatch. No extra model service, tool, CLI flag, storage format or dependency was
+introduced. README, the contract/consent/integration guides and ADR-RN-0023 describe the option.
+The three Host guides and four affected Skills advance to resource version 4.0.2 with the package
+manifest projection updated; templates, Packs, historical records and GUI/CI scope are unchanged.
+
+Validation: the shared-policy regression passes for default-off, scope changes, expiry, revocation
+and sensitive exclusions. All 8 MCP protocol tests pass, including a synthetic opt-in journey with
+six successive mutations and private reads using one form, shared-data/export/new-Source refusal,
+replay/stale preview rejection, model-flag rejection, cancellation and reconnect. The added pending
+form cancellation check also passes without a timeout. All 17 resource integration tests, four
+Skill validators, affected-package Clippy with warnings denied, Rust formatting and source check
+pass. Source inventory remains 189 files; no inventory projection change is needed. The app test
+linker reports its existing large unwind-section warning; execution passes.
+
+Next: protected integration and a fresh CI-built npm candidate including this feature. The earlier
+local Beta.6 tarball from b78c22e6 predates this implementation and is not relabelled. Publication,
+actual interactive Host acceptance and full native qualification are not claimed by these checks.

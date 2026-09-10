@@ -43,6 +43,17 @@ Routine orientation is body-free. Private inspection, provider send, network fet
 export require the exact consent declared by the v4 preview. Academic and generic Applications use
 the same protocol while retaining separate Pack bindings and Application-scoped data access.
 
+The CLI MCP form optionally offers **Auto approval** for routine work on the selected Application.
+It is off by default. The user's accepted grant covers private Application reads and routine local
+changes for up to 60 minutes in that connection, bound to the canonical Workspace path/UUID,
+Application UUID and exact Pack. Requirement Source reads qualify only for references already
+used by current Requirements. Shared Profile/Evidence reads and changes, newly selected Sources,
+exports and unknown operations still ask individually. The Host/provider may see private content
+returned by authorized reads; the grant does not extend to other Host tools or provider-send tasks.
+Switching scope, rejecting a form, explicit cancellation, failed authorization, expiry or reconnect
+clears it. See [Agent v4](../contracts/agent-v4.md#mcp-confirmation-requests) for response metadata
+and the distinction between delegated authorization and individual human review.
+
 External-host handoff is the recommended desktop integration. Codex or Claude owns its session, transcript, search,
 plugins, connectors, and approvals; CanISend owns application state. The optional in-App bridge stores only a
 body-free external session binding and remains read-only. The guarded MCP adapter exposes typed inspection and
@@ -50,7 +61,8 @@ preview-confirm operations but does not grant arbitrary filesystem or shell writ
 approval broker issues cryptographically random single-use tokens with a ten-minute monotonic
 lifetime. A token is bound to the canonical Workspace, exact Pack and operation, reviewed snapshot,
 and expected revision. Expiry, replay, wrong Pack, wrong Workspace, or stale revision causes no
-mutation; a token is approval for exactly one reviewed commit, not future work.
+mutation. A token binds exactly one commit; an optional standing user grant is separate and never
+makes stale or replayed tokens valid.
 
 Cancelling an in-App bridge turn terminates only the exact Workspace/runtime/Application-scoped local process. CanISend does
 not parse or persist partial output, and a cancelled new turn cannot replace the last successful external session

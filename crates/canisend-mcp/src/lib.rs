@@ -17,6 +17,7 @@ use canisend_app::{
     ApplicationRequirementConfirmRequestV4, ApplicationRequirementExtractRequestV4,
     ApplicationRequirementReviseRequestV4, ApplicationSourceReviseRequestV4, ApprovalBrokerError,
     ApprovalKind, AssociationApprovalBrokerV4, AssociationApprovalErrorV4, AssociationChangeV4,
+    AutomaticApprovalActionV4, AutomaticApprovalScopeV4, AutomaticApprovalSessionV4,
     EvidenceApprovalBrokerV4, EvidenceApprovalErrorV4, EvidenceAssociationPreviewRequestV4,
     PrivateExportConsent, PrivateReadConsent, ProfileAssociationPreviewRequestV4,
     RequirementDecisionV4,
@@ -87,6 +88,15 @@ pub struct CanISendMcpServer {
     association_approvals: AssociationApprovalBrokerV4,
     mutation_approvals: ApplicationMutationApprovalBrokerV4,
     evidence_approvals: EvidenceApprovalBrokerV4,
+    automatic_approval: Arc<tokio::sync::Mutex<AutomaticApprovalSessionV4>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostConfirmation {
+    confirm: bool,
+    #[serde(default)]
+    auto_approve: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -169,11 +179,11 @@ pub struct AssociationCommitParameters {
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
     #[schemars(
-        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+        description = "Request user authorization through a native form or applicable Auto approval grant. False cancels the preview and revokes Auto approval."
     )]
     pub request_confirmation: bool,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -218,7 +228,7 @@ pub struct RequirementExtractPreviewParameters {
     pub source: ContentRevisionReferenceV3,
     pub requirements: Vec<RequirementExtractInput>,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -230,11 +240,11 @@ pub struct RequirementExtractCommitParameters {
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
     #[schemars(
-        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+        description = "Request user authorization through a native form or applicable Auto approval grant. False cancels the preview and revokes Auto approval."
     )]
     pub request_confirmation: bool,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -261,7 +271,7 @@ pub struct RequirementRevisePreviewParameters {
     pub source: ContentRevisionReferenceV3,
     pub requirement: RequirementExtractInput,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -341,7 +351,7 @@ pub struct ApplicationMutationCommitParameters {
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
     #[schemars(
-        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+        description = "Request user authorization through a native form or applicable Auto approval grant. False cancels the preview and revokes Auto approval."
     )]
     pub request_confirmation: bool,
 }
@@ -351,7 +361,7 @@ pub struct ApplicationMutationCommitParameters {
 pub struct DeliverableAuditParameters {
     pub application_id: String,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -361,7 +371,7 @@ pub struct DeliverableAuditParameters {
 pub struct ReviewInspectParameters {
     pub application_id: String,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -372,7 +382,7 @@ pub struct ReviewDispositionPreviewParameters {
     pub application_id: String,
     pub expected_revision: u64,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -384,11 +394,11 @@ pub struct ReviewDispositionCommitParameters {
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
     #[schemars(
-        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+        description = "Request user authorization through a native form or applicable Auto approval grant. False cancels the preview and revokes Auto approval."
     )]
     pub request_confirmation: bool,
     #[schemars(
-        description = "Request separate native private-read consent; this flag does not grant consent."
+        description = "Request private-read authorization; this flag does not grant consent."
     )]
     pub request_private_read: bool,
 }
@@ -419,7 +429,7 @@ pub struct ExportPrepareCommitParameters {
     pub preview_token: String,
     pub preview_sha256: Sha256Digest,
     #[schemars(
-        description = "Request the native confirmation form; only its actual acceptance authorizes this change. False cancels the preview."
+        description = "Request user authorization through a native form or applicable Auto approval grant. False cancels the preview and revokes Auto approval."
     )]
     pub request_confirmation: bool,
     #[schemars(
@@ -431,8 +441,9 @@ pub struct ExportPrepareCommitParameters {
 impl CanISendMcpServer {
     async fn confirm_with_host(
         context: &RequestContext<RoleServer>,
-        message: String,
-    ) -> Result<(), McpError> {
+        mut message: String,
+        auto_scope: Option<&AutomaticApprovalScopeV4>,
+    ) -> Result<bool, McpError> {
         let denied = || {
             McpError::invalid_params(
                 "Explicit user confirmation through this Host is required; no operation was authorized",
@@ -446,11 +457,23 @@ impl CanISendMcpServer {
         {
             return Err(denied());
         }
-        let requested_schema = serde_json::from_value(serde_json::json!({
+        let mut schema = serde_json::json!({
             "type": "object",
             "properties": {"confirm": {"type": "boolean", "title": "I approve this exact request", "default": false}},
             "required": ["confirm"]
-        })).map_err(|_| McpError::internal_error("Invalid confirmation schema", None))?;
+        });
+        if let Some(scope) = auto_scope {
+            schema["properties"]["auto_approve"] = serde_json::json!({
+                "type": "boolean", "default": false,
+                "title": "Auto approve routine work for this application for up to 60 minutes"
+            });
+            message.push_str(&format!(
+                "\n\nOptional Auto approval: allow this Host to read this application's private content and update its requirements, plan, drafts and reviews for up to 60 minutes in this MCP connection. Shared Profile/Evidence access and changes, exports, and other operations still need individual approval. Switching applications, denial, explicit cancellation or reconnecting clears the grant. Leave unchecked to approve only this request.\nAutomatic approval scope: {}",
+                serde_json::json!(scope),
+            ));
+        }
+        let requested_schema = serde_json::from_value(schema)
+            .map_err(|_| McpError::internal_error("Invalid confirmation schema", None))?;
         let response = tokio::select! {
             () = context.ct.cancelled() => return Err(denied()),
             response = context.peer.create_elicitation_with_timeout(
@@ -458,35 +481,72 @@ impl CanISendMcpServer {
                 Some(Duration::from_secs(120)),
             ) => response.map_err(|_| denied())?,
         };
+        let content = response.content.ok_or_else(denied)?;
+        if auto_scope.is_none() && content.get("auto_approve").is_some() {
+            return Err(denied());
+        }
+        let answer: HostConfirmation = serde_json::from_value(content).map_err(|_| denied())?;
         if context.ct.is_cancelled()
             || response.action != ElicitationAction::Accept
-            || response.content != Some(serde_json::json!({"confirm": true}))
+            || !answer.confirm
         {
             return Err(denied());
         }
-        Ok(())
+        Ok(answer.auto_approve)
+    }
+
+    async fn authorize_with_host(
+        context: &RequestContext<RoleServer>,
+        message: String,
+        auto_scope: Option<&AutomaticApprovalScopeV4>,
+        session: &mut AutomaticApprovalSessionV4,
+    ) -> Result<bool, McpError> {
+        if auto_scope.is_some_and(|scope| session.remaining(scope).is_some()) {
+            return Ok(true);
+        }
+        if Self::confirm_with_host(context, message, auto_scope).await?
+            && let Some(scope) = auto_scope
+        {
+            session.grant_by_user(scope.clone());
+        }
+        Ok(false)
     }
 
     async fn confirm_request(
         &self,
         request: &CallToolRequestParams,
         context: &RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
+        session: &mut AutomaticApprovalSessionV4,
+        scope: Option<&AutomaticApprovalScopeV4>,
+    ) -> Result<bool, McpError> {
         let Some(arguments) = request.arguments.as_ref() else {
-            return Ok(());
+            return Ok(false);
         };
         let Some(tool) = Self::tool_router().get(&request.name).cloned() else {
-            return Ok(()); // The existing router owns unknown-tool errors.
+            return Ok(false); // The existing router owns unknown-tool errors.
         };
         let properties = tool.input_schema.get("properties");
         let has = |field| properties.and_then(|value| value.get(field)).is_some();
         let commit = has("request_confirmation");
         if commit && arguments.get("request_confirmation") != Some(&Value::Bool(true)) {
-            return Ok(()); // Explicit cancellation still consumes the existing preview.
+            session.revoke();
+            return Ok(false); // Explicit cancellation still consumes the existing preview.
         }
         if let Some(application_id) = arguments.get("application_id").and_then(Value::as_str) {
             self.parse_application_id(application_id)?;
         }
+        let mut action = match request.name.as_ref() {
+            "canisend_requirement_extract_preview"
+            | "canisend_requirement_revise_preview"
+            | "canisend_source_revise_preview"
+            | "canisend_local_task_draft_preview"
+            | "canisend_deliverable_audit"
+            | "canisend_review_inspect"
+            | "canisend_review_disposition_preview" => {
+                Some(AutomaticApprovalActionV4::PrivateApplicationRead)
+            }
+            _ => None,
+        };
         let preview = if commit {
             let mut binding = arguments.clone();
             binding.remove("request_private_read");
@@ -550,10 +610,49 @@ impl CanISendMcpServer {
                     kind,
                 ))?
             };
+            action = Some(AutomaticApprovalActionV4::Mutation(kind));
             Some(preview.0)
         } else {
             None
         };
+        let mut auto_scope =
+            scope.filter(|_| action.is_some_and(AutomaticApprovalActionV4::is_routine));
+        let source_operation = match request.name.as_ref() {
+            "canisend_requirement_extract_preview" | "canisend_requirement_extract_commit" => {
+                Some("RequirementExtract")
+            }
+            "canisend_requirement_revise_preview" | "canisend_requirement_revise_commit" => {
+                Some("RequirementRevise")
+            }
+            "canisend_source_revise_preview" | "canisend_source_revise_commit" => {
+                Some("SourceRevise")
+            }
+            _ => None,
+        };
+        if let Some(scope) = auto_scope
+            && let Some(operation) = source_operation
+        {
+            // Commits resolve the Source from the Broker-owned preview, never model display text.
+            let source = if commit {
+                preview
+                    .as_ref()
+                    .and_then(|value| value.get(operation))
+                    .and_then(|value| value.pointer("/preview/request/source"))
+            } else {
+                arguments.get("source")
+            };
+            let included = source
+                .cloned()
+                .and_then(|value| serde_json::from_value::<ContentRevisionReferenceV3>(value).ok())
+                .map(|source| scope.includes_requirement_source(&source))
+                .transpose()
+                .map_err(|error| McpError::invalid_params(error.to_string(), None))?
+                .unwrap_or(false);
+            if !included {
+                auto_scope = None;
+            }
+        }
+        let mut automatic = false;
         for (flag, purpose) in [
             (
                 "request_private_read",
@@ -585,20 +684,38 @@ impl CanISendMcpServer {
                     .collect::<BTreeMap<_, _>>();
                 let subjects = serde_json::json!(subjects);
                 let selected = preview.as_ref().unwrap_or(&subjects);
-                Self::confirm_with_host(context, format!(
+                automatic |= Self::authorize_with_host(context, format!(
                     "{purpose}. This consent does not approve a content change.\nWorkspace: {}\nOperation: {}\nSelected inputs: {}",
                     self.workspace().display(), request.name,
                     selected,
-                )).await?;
+                ), auto_scope.filter(|_| flag == "request_private_read"), session).await?;
             }
         }
         if let Some(preview) = preview {
-            Self::confirm_with_host(context, format!(
+            automatic |= Self::authorize_with_host(context, format!(
                 "Approve this exact local change? No submission is performed.\nOperation: {}\nExact change: {}",
                 request.name, preview,
-            )).await?;
+            ), auto_scope, session).await?;
         }
-        Ok(())
+        // A pending form cannot transfer a grant to a replaced Workspace or Pack.
+        if let Some(scope) = scope {
+            let current =
+                AutomaticApprovalScopeV4::for_application(self.workspace(), &scope.application_id)
+                    .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+            if current != *scope {
+                return Err(McpError::invalid_params(
+                    "Approval scope changed; retry from current state",
+                    None,
+                ));
+            }
+        }
+        if context.ct.is_cancelled() {
+            return Err(McpError::invalid_params(
+                "Request cancelled before dispatch",
+                None,
+            ));
+        }
+        Ok(automatic)
     }
 
     pub fn open(workspace: &Path) -> Result<Self, ApplicationError> {
@@ -626,6 +743,9 @@ impl CanISendMcpServer {
             association_approvals: AssociationApprovalBrokerV4::default(),
             mutation_approvals: ApplicationMutationApprovalBrokerV4::default(),
             evidence_approvals: EvidenceApprovalBrokerV4::default(),
+            automatic_approval: Arc::new(tokio::sync::Mutex::new(
+                AutomaticApprovalSessionV4::default(),
+            )),
         })
     }
 
@@ -1017,7 +1137,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit exact Source-bound Requirement proposals; the preview token is single-use",
+        description = "Request user authorization, then commit exact Source-bound Requirement proposals; the preview token is single-use",
         annotations(
             title = "Commit Requirement extraction",
             read_only_hint = false,
@@ -1224,7 +1344,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit Requirement decisions; the preview token is single-use",
+        description = "Request user authorization, then commit Requirement decisions; the preview token is single-use",
         annotations(
             title = "Commit Requirement decisions",
             read_only_hint = false,
@@ -1308,7 +1428,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit one draft Plan proposal; the preview token is single-use",
+        description = "Request user authorization, then commit one draft Plan proposal; the preview token is single-use",
         annotations(
             title = "Commit a Plan proposal",
             read_only_hint = false,
@@ -1492,7 +1612,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit Deliverable drafts; the preview token is single-use",
+        description = "Request user authorization, then commit Deliverable drafts; the preview token is single-use",
         annotations(
             title = "Commit Deliverable drafts",
             read_only_hint = false,
@@ -1546,7 +1666,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit one Deliverable revision; the preview token is single-use",
+        description = "Request user authorization, then commit one Deliverable revision; the preview token is single-use",
         annotations(
             title = "Commit a Deliverable revision",
             read_only_hint = false,
@@ -1647,7 +1767,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit the exact review disposition; the preview token is single-use",
+        description = "Request user authorization, then commit the exact review disposition; the preview token is single-use",
         annotations(
             title = "Commit review disposition",
             read_only_hint = false,
@@ -1843,7 +1963,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit one Profile Source link preview; the token is single-use",
+        description = "Request user authorization, then commit one Profile Source link preview; the token is single-use",
         annotations(
             title = "Commit an Application Profile Source link change",
             read_only_hint = false,
@@ -1919,7 +2039,7 @@ impl CanISendMcpServer {
     }
 
     #[tool(
-        description = "Request native confirmation, then commit one Evidence link preview; the token is single-use",
+        description = "Request user authorization, then commit one Evidence link preview; the token is single-use",
         annotations(
             title = "Commit an Application Evidence link change",
             read_only_hint = false,
@@ -2006,35 +2126,88 @@ impl CanISendMcpServer {
 
 #[tool_handler(
     name = "canisend",
-    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request native forms; they never assert user approval. Only the actual native form response authorizes the selected scope. Never answer it for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
+    instructions = "CanISend opens only clean Workspace v4 state. Applications bind an exact workflow Pack; a Workspace itself is domain-neutral. Routine context is body-free. Guarded changes require an exact preview and a single-use token. request_confirmation and request_private_read/export request authorization; they never assert user approval. The user may opt into Auto approval in a native form for routine work on one Application in this connection for up to 60 minutes. Shared Profile/Evidence access and changes and exports always require individual forms. Response _meta canisend/approval reports the mode and whether standing permission was used. False request_confirmation cancels the preview and revokes Auto approval. Never answer a form for the user. CanISend never uploads or submits an Application. Never edit .canisend, SQLite, immutable Blobs, or managed projections directly."
 )]
 impl ServerHandler for CanISendMcpServer {
-    // The router is entered only after native consent succeeds, or to consume a cancellation.
+    // The router is entered only after user authorization, or to consume a cancellation.
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        if let Err(error) = self.confirm_request(&request, &context).await {
-            // Reuse the owning cancellation path; do not leave a declined commit reusable.
-            if request
-                .arguments
-                .as_ref()
-                .is_some_and(|args| args.contains_key("request_confirmation"))
-            {
-                let mut cancelled = request.clone();
-                if let Some(arguments) = cancelled.arguments.as_mut() {
-                    arguments.insert("request_confirmation".to_owned(), Value::Bool(false));
-                }
-                let _ = Self::tool_router()
-                    .call(ToolCallContext::new(self, cancelled, context))
-                    .await;
+        // ponytail: serialize session authorization and dispatch; use scoped scheduling if
+        // parallel tool throughput becomes necessary. Revocation cannot race an auto commit.
+        let mut session = self.automatic_approval.lock().await;
+        let mut scope = None;
+        let authorization = async {
+            if context.ct.is_cancelled() {
+                return Err(McpError::invalid_params(
+                    "Request cancelled before dispatch",
+                    None,
+                ));
             }
-            return Err(error);
+            if Self::tool_router().get(&request.name).is_some()
+                && let Some(id) = request
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("application_id"))
+                    .and_then(Value::as_str)
+            {
+                let id = self.parse_application_id(id)?;
+                let current = AutomaticApprovalScopeV4::for_application(self.workspace(), &id)
+                    .map_err(|error| {
+                        let failure = error.classify();
+                        McpError::invalid_params(
+                            failure.message.clone(),
+                            serde_json::to_value(failure).ok(),
+                        )
+                    })?;
+                session.remaining(&current); // Visiting another scope revokes the old grant.
+                scope = Some(current);
+            }
+            self.confirm_request(&request, &context, &mut session, scope.as_ref())
+                .await
         }
-        Self::tool_router()
+        .await;
+        let automatic = match authorization {
+            Ok(automatic) => automatic,
+            Err(error) => {
+                session.revoke();
+                // Reuse the owning cancellation path; do not leave a declined commit reusable.
+                if request
+                    .arguments
+                    .as_ref()
+                    .is_some_and(|args| args.contains_key("request_confirmation"))
+                {
+                    let mut cancelled = request.clone();
+                    if let Some(arguments) = cancelled.arguments.as_mut() {
+                        arguments.insert("request_confirmation".to_owned(), Value::Bool(false));
+                    }
+                    let _ = Self::tool_router()
+                        .call(ToolCallContext::new(self, cancelled, context))
+                        .await;
+                }
+                return Err(error);
+            }
+        };
+        let mut response = Self::tool_router()
             .call(ToolCallContext::new(self, request, context))
-            .await
+            .await?;
+        if let Some(scope) = scope
+            && let CallToolResponse::Complete(result) = &mut response
+        {
+            let remaining = session.remaining(&scope);
+            result.meta.get_or_insert_with(Default::default).insert(
+                "canisend/approval".to_owned(),
+                serde_json::json!({
+                    "mode": if remaining.is_some() { "auto" } else { "ask" },
+                    "automatic": automatic,
+                    "scope": scope,
+                    "remaining_seconds": remaining.map(|ttl| ttl.as_secs()),
+                }),
+            );
+        }
+        Ok(response)
     }
 }
 

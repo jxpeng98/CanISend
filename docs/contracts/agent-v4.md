@@ -23,15 +23,35 @@ does not require the desktop App to be open.
 ### MCP confirmation requests
 
 MCP commit inputs use `request_confirmation`, not a model-supplied approval assertion. True
-requests the server's native exact-preview form; false consumes the selected preview without
-committing. The server authorizes a change only after an actual `accept` response with exactly
-`{"confirm":true}`. Decline, cancel, false, unsupported form capability, malformed responses and
-timeout fail closed. Single-use tokens remain bound to the same MCP process, exact preview and
-current context. A request to display a form is not permission to answer it for the user.
+requests user authorization; false consumes the selected preview without committing and revokes
+any Auto approval grant. By default, each guarded request needs an actual native form `accept`
+with `{"confirm":true}`. Decline, cancel, false, unsupported form capability, malformed responses
+and timeout fail closed. Never answer a form for the user.
 
-Private operations similarly use `request_private_read` and `request_private_export` to request
-separate native consent. These flags do not assert consent; private data remains unavailable
-until the corresponding form is accepted. Commit and private consent are independent gates.
+For routine work, the form also offers an optional, unchecked `auto_approve` boolean. Only the
+user's accepted `{"confirm":true,"auto_approve":true}` form response establishes standing
+permission. It covers one canonical Workspace path/UUID, Application UUID and exact Pack
+ID/version/digest in this MCP connection for up to 60 minutes. Switching scope, rejecting a form,
+explicit cancellation, failed authorization, expiry or reconnecting clears it. Model tool inputs
+cannot enable it; unknown response fields and non-boolean values remain invalid.
+
+The repository allowlist covers Application-private reads, Requirement extraction/revision/
+confirmation, exclusive pasted Source revision, Plan proposal/confirmation, drafting/revision
+and review disposition. Source operations qualify only for exact Source references already used
+by current Requirements. Shared Profile/Evidence access and associations, Evidence confirmation,
+exports, newly selected Sources and unrecognized operations still require individual forms.
+The grant does not authorize external Host tools, network access or submission.
+
+`request_private_read` and `request_private_export` still request separate consent scopes; neither
+flag grants permission. An applicable standing grant can satisfy routine private reads and
+mutations. Private export always needs its own form. Every mutation still needs its exact current
+preview, revision, digest and single-use token; standing permission does not bypass validation.
+
+Application-scoped tool results expose body-free `_meta["canisend/approval"]`: `mode` (`ask` or
+`auto`), `automatic` (whether this call used standing permission), `scope`, and `remaining_seconds`.
+This connection metadata is not persisted in business receipts. Existing `user` confirmation
+fields identify the user's authorization, including delegation; they do not prove individual
+human inspection of each automatic decision. Hosts should preserve that distinction in reports.
 
 This is a breaking correction to the developing MCP input schemas: old `approved`,
 `confirmed_private_read` and `confirmed_private_export` fields are rejected rather than treated
@@ -66,10 +86,10 @@ Submitted candidates remain untrusted input; submission or cancellation never ad
 Application revision.
 
 `canisend_local_task_draft_preview` loads one exact Submitted task candidate using its Application
-ID, task ID, generation, and candidate digest. `request_private_read` requests native consent
+ID, task ID, generation, and candidate digest. `request_private_read` requests scoped authorization
 before reading the payload. The existing draft validator then prepares `local-task.draft.preview`;
 this does not approve the candidate or change the Application. Use the returned token and digest
-with the existing `canisend_deliverable_draft_commit`, whose native form remains mandatory.
+with the existing `canisend_deliverable_draft_commit`, using individual or active Auto approval.
 A successful commit creates the approved draft and marks the local task Committed atomically.
 A stale task, changed Application or inputs, cancellation, denial, or replay cannot commit the
 handoff. There is no separate local-task commit tool, GUI integration, or two-Host qualification.

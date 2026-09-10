@@ -187,6 +187,244 @@ fn mutation_preview_binding(response: &Value) -> (String, String) {
 }
 
 #[test]
+fn automatic_approval_is_scoped_and_preserves_guarded_boundaries() {
+    let root = temporary_root("auto-approval");
+    Application::initialize_workspace_v4(&root).unwrap();
+    let create = || {
+        Application::create_application_flow_v4(
+            &root,
+            ApplicationFlowCreateRequestV4 {
+                pack_id: WorkflowPackId::try_new(GENERIC_APPLICATION_WORKFLOW_PACK_ID).unwrap(),
+                application: ApplicationFlowCreateRequestV3 {
+                    title: "Automatic approval fixture".to_owned(),
+                    opportunity_metadata: Default::default(),
+                    application_metadata: Default::default(),
+                    source_text: "Provide a reviewed primary document.".to_owned(),
+                    requirements: vec![ApplicationFlowRequirementDraftV3 {
+                        category: WorkflowPackItemId::try_new("format").unwrap(),
+                        statement: "Provide a reviewed primary document.".to_owned(),
+                        priority: RequirementPriorityV3::Mandatory,
+                        start_byte: 0,
+                        end_byte: 36,
+                    }],
+                },
+            },
+        )
+        .unwrap()
+        .data
+        .stored
+    };
+    let created = create();
+    let other = create();
+    let id = &created.snapshot.application.id;
+    let requirement = &created.snapshot.requirements[0];
+    let mut mcp = McpProcess::start(&root);
+    mcp.initialize();
+    let opt_in = json!({"action": "accept", "content": {"confirm": true, "auto_approve": true}});
+    let deny = json!({"action": "decline", "content": null});
+    mcp.confirmation = Some(opt_in.clone());
+    let mut last_commit = Value::Null;
+    for (index, (stage, mut arguments, private)) in [
+        ("requirement_revise", json!({"requirement_id": requirement.id, "source": requirement.source_span.content,
+            "requirement": {"category": "format", "statement": requirement.statement,
+                "priority": "recommended", "start_byte": 0, "end_byte": 36},
+            "request_private_read": true}), true),
+        ("requirement_confirm", json!({"decisions": [{"requirement_id": requirement.id, "decision": "confirm"}]}), false),
+        ("plan_propose", json!({"decision": "proceed", "deliverables": [{
+            "kind": "primary-document", "disposition": "required", "rationale": "Source requirement",
+            "constraints": [], "execution_mode": "host-agent"}]}), false),
+        ("plan_confirm", json!({}), false),
+        ("deliverable_draft", json!({"deliverables": [{"kind": "primary-document", "title": "Fixture",
+            "media_type": "text/markdown", "content": "AUTO-APPROVAL-PRIVATE-DRAFT"}]}), false),
+        ("review_disposition", json!({"request_private_read": true}), true),
+    ].into_iter().enumerate() {
+        arguments["application_id"] = json!(id);
+        arguments["expected_revision"] = json!(index + 1);
+        let preview = mcp.request(2, "tools/call", json!({
+            "name": format!("canisend_{stage}_preview"), "arguments": arguments
+        }));
+        let (token, digest) = mutation_preview_binding(&preview);
+        // Any unexpected form after the first explicit opt-in will be declined.
+        mcp.confirmation = Some(deny.clone());
+        let mut commit = json!({"application_id": id, "preview_token": token,
+            "preview_sha256": digest, "request_confirmation": true});
+        if private { commit["request_private_read"] = json!(true); }
+        last_commit = json!({"name": format!("canisend_{stage}_commit"), "arguments": commit});
+        let result = mcp.request(3, "tools/call", last_commit.clone());
+        assert_eq!(result["result"]["isError"], false, "{stage}: {result}");
+        assert_eq!(result["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"], index + 2);
+        assert_eq!(result["result"]["_meta"]["canisend/approval"]["automatic"], true);
+        assert_eq!(mcp.confirmations.len(), 1);
+    }
+    let offered = &mcp.confirmations[0]["requestedSchema"];
+    assert_eq!(offered["properties"]["auto_approve"]["default"], false);
+    assert_eq!(offered["required"], json!(["confirm"]));
+    let audit = json!({"name": "canisend_deliverable_audit", "arguments": {
+        "application_id": id, "request_private_read": true
+    }});
+    let read = mcp.request(4, "tools/call", audit.clone());
+    assert!(read.to_string().contains("AUTO-APPROVAL-PRIVATE-DRAFT"));
+    assert_eq!(read["result"]["_meta"]["canisend/approval"]["mode"], "auto");
+    assert_eq!(mcp.confirmations.len(), 1);
+    let show = json!({"name": "canisend_application_show", "arguments": {"application_id": id}});
+    let enable = |peer: &mut McpProcess| {
+        peer.confirmation = Some(opt_in.clone());
+        let before = peer.confirmations.len();
+        let read = peer.request(5, "tools/call", audit.clone());
+        assert_eq!(
+            read["result"]["_meta"]["canisend/approval"]["mode"], "auto",
+            "{read}"
+        );
+        assert_eq!(
+            read["result"]["_meta"]["canisend/approval"]["automatic"],
+            false
+        );
+        assert_eq!(peer.confirmations.len(), before + 1);
+        peer.confirmation = Some(deny.clone());
+    };
+
+    // A valid standing grant cannot replay a consumed mutation token.
+    let replay = mcp.request(6, "tools/call", last_commit);
+    assert!(replay["error"].is_object());
+    assert_eq!(mcp.confirmations.len(), 1);
+    enable(&mut mcp);
+
+    let profile = root.join("auto-profile.md");
+    fs::write(&profile, "Shared Profile fixture").unwrap();
+    let imported = Application::import_profile_source_v4(
+        &root,
+        &profile,
+        PrivacyClassification::PrivateLocal,
+        Some(PrivateReadConsent::granted_by_user()),
+    )
+    .unwrap()
+    .data
+    .source;
+    let profile_reference = json!({"id": imported.id, "revision": imported.revision,
+        "sha256": imported.original.sha256});
+    // Shared-data mutations, private exports and newly selected Sources still ask individually.
+    let association = mcp.request(
+        7,
+        "tools/call",
+        json!({
+            "name": "canisend_profile_association_preview", "arguments": {
+                "application_id": id, "profile_source": profile_reference, "change": "associate"
+            }
+        }),
+    );
+    assert_eq!(association["result"]["isError"], false, "{association}");
+    let association_data = &association["result"]["structuredContent"];
+    let sensitive = [
+        json!({"name": "canisend_profile_association_commit", "arguments": {
+            "application_id": id, "preview_token": association_data["preview_token"],
+            "preview_sha256": association_data["preview"]["data"]["preview_sha256"],
+            "request_confirmation": true, "request_private_read": true
+        }}),
+        json!({"name": "canisend_export_prepare_preview", "arguments": {
+            "application_id": id, "expected_revision": 7, "destination": format!("applications/{id}/exports/auto"),
+            "request_private_export": true
+        }}),
+        json!({"name": "canisend_requirement_revise_preview", "arguments": {
+            "application_id": id, "expected_revision": 7, "requirement_id": requirement.id,
+            "source": other.snapshot.requirements[0].source_span.content,
+            "requirement": {"category": "format", "statement": requirement.statement,
+                "priority": "recommended", "start_byte": 0, "end_byte": 36}, "request_private_read": true
+        }}),
+    ];
+    for request in sensitive {
+        let before = mcp.confirmations.len();
+        let denied = mcp.request(8, "tools/call", request);
+        assert_eq!(
+            denied["error"]["data"]["code"], "consent.host-confirmation-required",
+            "{denied}"
+        );
+        assert_eq!(mcp.confirmations.len(), before + 1);
+        assert!(
+            mcp.confirmations.last().unwrap()["requestedSchema"]["properties"]
+                .get("auto_approve")
+                .is_none()
+        );
+        let state = mcp.request(9, "tools/call", show.clone());
+        assert_eq!(state["result"]["_meta"]["canisend/approval"]["mode"], "ask");
+        assert_eq!(
+            state["result"]["structuredContent"]["data"]["snapshot"]["application"]["revision"],
+            7
+        );
+        enable(&mut mcp);
+    }
+    // Scope switches, explicit cancellation, model assertions and reconnects revoke delegation.
+    mcp.request(
+        10,
+        "tools/call",
+        json!({"name": "canisend_application_show",
+        "arguments": {"application_id": other.snapshot.application.id}}),
+    );
+    let state = mcp.request(11, "tools/call", show.clone());
+    assert_eq!(state["result"]["_meta"]["canisend/approval"]["mode"], "ask");
+    enable(&mut mcp);
+    for model_assertion in [false, true] {
+        let mut args = json!({"application_id": id, "preview_token": "not-issued",
+            "preview_sha256": "0".repeat(64), "request_confirmation": model_assertion});
+        if model_assertion {
+            args["auto_approve"] = json!(true);
+        }
+        let before = mcp.confirmations.len();
+        let result = mcp.request(
+            12,
+            "tools/call",
+            json!({"name": "canisend_plan_confirm_commit", "arguments": args}),
+        );
+        assert!(result["error"].is_object());
+        assert_eq!(mcp.confirmations.len(), before);
+        let state = mcp.request(13, "tools/call", show.clone());
+        assert_eq!(state["result"]["_meta"]["canisend/approval"]["mode"], "ask");
+        enable(&mut mcp);
+    }
+    // A preview becomes stale after an independent commit even while Auto approval is active.
+    let preview_args = json!({"name": "canisend_deliverable_revise_preview", "arguments": {
+        "application_id": id, "expected_revision": 7,
+        "deliverable_id": read["result"]["structuredContent"]["data"]["deliverables"][0]["deliverable"]["id"],
+        "title": "Updated", "media_type": "text/markdown", "content": "Updated fixture"
+    }});
+    let first = mcp.request(14, "tools/call", preview_args.clone());
+    let second = mcp.request(15, "tools/call", preview_args);
+    for (index, preview) in [first, second].iter().enumerate() {
+        let (token, digest) = mutation_preview_binding(preview);
+        let result = mcp.request(16, "tools/call", json!({"name": "canisend_deliverable_revise_commit", "arguments": {
+            "application_id": id, "preview_token": token, "preview_sha256": digest, "request_confirmation": true
+        }}));
+        if index == 0 {
+            assert_eq!(result["result"]["isError"], false, "{result}");
+        } else {
+            assert!(result["error"].is_object(), "{result}");
+        }
+    }
+    enable(&mut mcp);
+    // Protocol cancellation must revoke the grant while a sensitive form holds the session lock.
+    mcp.pending_confirmation(50, json!({"name": "canisend_export_prepare_preview", "arguments": {
+        "application_id": id, "expected_revision": 8, "destination": format!("applications/{id}/exports/cancelled"),
+        "request_private_export": true
+    }}));
+    mcp.send(
+        &json!({"jsonrpc": "2.0", "method": "notifications/cancelled",
+        "params": {"requestId": 50, "reason": "Synthetic user cancellation"}}),
+    );
+    let state = mcp.request(51, "tools/call", show.clone());
+    assert_eq!(state["result"]["_meta"]["canisend/approval"]["mode"], "ask");
+    enable(&mut mcp);
+    drop(mcp);
+    let mut restarted = McpProcess::start(&root);
+    restarted.initialize();
+    let state = restarted.request(17, "tools/call", show);
+    assert_eq!(state["result"]["_meta"]["canisend/approval"]["mode"], "ask");
+    let read = restarted.request(18, "tools/call", audit);
+    assert_eq!(read["result"]["isError"], false);
+    assert_eq!(restarted.confirmations.len(), 1);
+    drop(restarted);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn negotiates_current_protocol_and_lists_only_clean_v4_tools() {
     let root = temporary_root("list");
     Application::initialize_workspace_v4(&root).expect("initialize Workspace v4");
@@ -287,6 +525,8 @@ fn guarded_lifecycle(local_candidate: bool) {
         Some(json!({"action": "decline", "content": null})),
         Some(json!({"action": "cancel", "content": null})),
         Some(json!({"action": "accept", "content": {"confirm": false}})),
+        Some(json!({"action": "accept", "content": {"confirm": false, "auto_approve": true}})),
+        Some(json!({"action": "accept", "content": {"confirm": true, "auto_approve": "true"}})),
         Some(json!({"action": "accept", "content": {"confirm": "true"}})),
         Some(json!({"action": "accept", "content": {"confirm": true, "unexpected": true}})),
     ] {

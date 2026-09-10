@@ -20,7 +20,8 @@ substantive edits to Materials; refresh review after a change.
 `canisend_review_disposition_preview` reviews the current material set using the Application
 revision and required private-read request. It does not take an arbitrary finding ID or waive
 individual blockers. Correct blockers, preview, then call its commit with the actual schema's
-private-read and `request_confirmation: true` fields. The user answers; verify returned state
+private-read and `request_confirmation: true` fields. Use individual or active Auto approval
+under Workspace's shared rules; verify returned state
 and report optional receipt fields as absent when they are not returned.
 
 ## Local export and verification
