@@ -1725,3 +1725,27 @@ is superseded under `dist/npm-beta6-initial/`. This evidence-only update does no
 the candidate source identity above. Local npm preparation is ready; protected CI,
 real-Host/full native qualification and publication are not claimed. Next: integrate
 through protected CI, then use the authorized main-only npm release route.
+
+### README download channels and quick start — 2026-09-10
+
+Scope: make the README useful to a first-time CLI user, with direct GitHub binary
+downloads alongside npm, a short Host setup path and a concrete request leading to
+reviewed local files. Keep detailed release/architecture records in their owning guides.
+
+README text drops from 1,072 to 712 whitespace-delimited words. The five native target
+links and SHA256SUMS point to actual Beta.1 assets; npm `next` remains Beta.5 and `latest`
+Beta.3, verified against GitHub and npm. Beta.6 remains a local source candidate.
+The shared first run uses separate initialization and Host setup because the published
+Beta.1 CLI does not support combined `workspace init --host`. Installation and detailed
+quick-start introductions now describe the two channels and their runtime/version differences.
+
+Validation: six download links match the published asset inventory. The downloaded
+macOS ARM64 Beta.1 archive checksum and signature pass. Its CLI and the published Beta.5
+npm CLI both pass version/doctor, README initialization, Codex/Claude setup with a returned
+MCP registration command, and Workspace checks in isolated directories. Local documentation
+links, `git diff --check`, and `xtask source check` pass. No Rust source changed or Rust
+test suite was needed; this is not real-Host acceptance or a new artifact qualification.
+
+Next: include these docs in protected integration and the next CI-built release. Existing
+Beta.6 candidate bytes retain their recorded source identity; this documentation update
+does not relabel or publish them.

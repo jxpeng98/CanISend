@@ -4,193 +4,123 @@
 
 <p align="center">
   <a href="https://github.com/jxpeng98/CanISend/actions/workflows/fast-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jxpeng98/CanISend/fast-ci.yml?branch=main&label=Fast%20CI" alt="Fast CI status"></a>
-  <img src="https://img.shields.io/badge/Rust-1.97%2B-orange" alt="Rust 1.97+">
-  <img src="https://img.shields.io/badge/protocol-Agent%20v4-blue" alt="Agent protocol v4">
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-green" alt="GPL-3.0-only license">
 </p>
 
 # 这也能投 / CanISend
 
-CanISend is a local-first framework for preparing evidence-bound Applications and submissions.
-Its domain-neutral Rust kernel enforces evidence, consent, review, export, recovery, and audit
-rules. Declarative workflow Packs own domain vocabulary, stages, Deliverables, templates, and
-validators.
+Turn an application brief and your own records into reviewed documents. Work with **Codex or
+Claude Code** to understand requirements, prepare drafts supported by your evidence, and export
+local files for you to submit.
 
-The two built-in reference Packs are `org.canisend.generic-application` and
-`org.canisend.academic-job`. One neutral Workspace can contain Applications from both Packs at
-the same time; each Application owns its exact Pack identity and state.
+CanISend supports academic jobs and general applications such as grants and proposals. Your
+workspace keeps sources, drafts and review history together so you can resume later. PDF
+rendering, templates and fonts are built in.
 
-CanISend never logs in, uploads, or submits an Application. The user owns every source, approval,
-export, and external submission decision.
+## Install
 
-## Current status
+### npm — macOS Apple Silicon
 
-The npm testing release `canisend@1.0.0-beta.5` is available for **macOS Apple Silicon**:
+Requires Node.js **22.14 or newer**. Install the current testing release:
 
 ```sh
 npm install -g canisend@next
 canisend version
-canisend --workspace ./applications workspace init --host codex
+canisend doctor
 ```
 
-The npm launcher needs Node.js 22.14 or newer. One package includes the compiled Rust CLI,
-both Packs, five Skills, and the corresponding source archive. It needs no Rust toolchain,
-platform-package dependencies, or extra binary downloads. Other npm platforms and Cargo
-publication are pending. This locally verified testing distribution is separate from the
-fully qualified checkpoints below.
+`next` currently provides **1.0.0-beta.5**; the default `latest` tag may be older.
+The package includes the native CLI and its resources; no Rust toolchain is needed.
 
-Initialization installs the Codex Skills in `./applications/.agents/skills` and prints an MCP
-registration command. Run that command, then open the Workspace in Codex and reconnect to load
-the tools. MCP runs the Rust executable directly; `node_modules` in its path is npm's storage
-location. After an upgrade, run `canisend --workspace ./applications host setup --host codex`
-and update the MCP registration if its executable path has changed. Back up the Workspace
-before upgrading. `next` tracks testing releases and can differ from the default `latest` tag.
+### Download a binary — macOS, Linux or Windows
 
-The checked-in source version is `1.0.0-beta.6`. The latest publicly qualified checkpoint is `v1.0.0-beta.1`
-([Release](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1)), built once from
-`6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified after promotion, and bound
-to candidate run `33281162734` in the qualification ledger. Deterministic local Homebrew, Scoop,
-and WinGet review candidates are derived from those exact public bytes; they do not authorize or
-modify an external package index. Feature freeze is active at protected repository baseline
-`acf25dc483643ca9be0210320775708da116b715` with zero initial exceptions; the qualified Beta
-artifact source remains unchanged. The invited cohort remains required before RC.1. Earlier
-release facts remain immutable at their tags.
+These direct downloads are from [GitHub Release v1.0.0-beta.1](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
+an older native release than npm `next`. They require **no Node.js, Python or Rust installation**.
 
-Qualified Beta.1 provides:
+| Platform | Download |
+| --- | --- |
+| macOS Apple Silicon | [ARM64 · tar.gz](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-aarch64-apple-darwin.tar.gz) |
+| macOS Intel | [x64 · tar.gz](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-x86_64-apple-darwin.tar.gz) |
+| Linux x64, glibc | [x64 · tar.gz](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-x86_64-unknown-linux-gnu.tar.gz) |
+| Linux x64, musl / static | [x64 · tar.gz](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-x86_64-unknown-linux-musl.tar.gz) |
+| Windows x64 | [x64 · zip](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/canisend-1.0.0-beta.1-x86_64-pc-windows-msvc.zip) |
 
-- `canisend.workspace/v4` with clean initialization, check, backup, restore, repair, and explicit
-  unsupported-legacy refusal;
-- Application-level Pack binding, mixed academic/generic Applications, connected source intake,
-  explicit Profile Source/Evidence associations, and independent revisions;
-- App-led bootstrap plus standalone CLI initialization, host setup/status/remove, basic-data
-  import/read, recovery, and MCP stdio;
-- sidebar Workspace/Application context, project or global Agent Skill installation, Typst Profile
-  import, and verified starter resources for a new Workspace;
-- `canisend.agent/v4`, schema version `4.0.0`, and generated integrity-managed Codex and Claude
-  Code Skills from one canonical resource source;
-- digest-bound preview/approval/commit operations for Requirement, Plan, and Deliverable work in
-  one persistent App or MCP process;
-- English and Simplified Chinese desktop interfaces, keyboard and 200% text support, embedded
-  Typst rendering, immutable content-addressed Blobs, SQLite authority, and no default telemetry;
-- five standalone CLI release targets and an Apple Silicon macOS App candidate channel.
+Download [SHA256SUMS](https://github.com/jxpeng98/CanISend/releases/download/v1.0.0-beta.1/SHA256SUMS)
+from the same release and follow the [verification steps](docs/guides/release-verification.md).
+Extract the archive, put `canisend` (`canisend.exe` on Windows) on your `PATH`, then run
+`canisend version` and `canisend doctor`. See [installation details](docs/guides/installation.md)
+for checksum commands, platform selection and signing information.
 
-Alpha.6-or-earlier Skills, Agent v2/v3 requests, job aliases, host-resource layouts, and Workspace
-v2/v3 migration are not Alpha.7-or-later compatibility targets. They fail before mutation and
-direct users to initialize a clean v4 Workspace.
+## Start with Codex or Claude Code
 
-The [1.0 delivery roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md) is the
-execution authority. [ADR-RN-0020](docs/architecture/rust-native/decisions/0020-adopt-a-neutral-multi-application-workspace-and-new-agent-surface.md)
-defines the breaking v4 boundary.
+Use a private directory for your applications. These commands work with both download channels:
 
-## Quick start
-
-Build the pinned Rust source, initialize a neutral Workspace, and create Applications with exact
-Pack bindings:
-
-```console
-cargo build --release --locked
-./target/release/canisend version --json
-./target/release/canisend doctor --json
-./target/release/canisend --workspace ./my-applications workspace init --json
-./target/release/canisend --workspace ./my-applications application create \
-  --pack org.canisend.generic-application --candidate ./generic.json --json
-./target/release/canisend --workspace ./my-applications application create \
-  --pack org.canisend.academic-job --candidate ./academic.json --json
-./target/release/canisend --workspace ./my-applications application list --json
+```sh
+canisend --workspace ./applications workspace init --json
+canisend --workspace ./applications host setup --host codex
 ```
 
-Use the [documented quick start](docs/guides/quick-start.md) for candidate formats, shared basic
-data, backup, restore, and the full guarded lifecycle.
+For Claude Code, replace `--host codex` with `--host claude`.
+**Run the MCP registration command printed by setup**, then open `./applications` in your Host
+and reconnect to load the CanISend tools. Setup installs Skills; registration connects the tools.
+The desktop App is optional. See [Agent integration](docs/guides/agent-integration.md) if needed.
 
-## Codex, Claude Code, and headless use
+Provide the opportunity text and your relevant records, then ask:
 
-The App is optional after initialization. Install current v4 Skills and keep one MCP process alive
-for guarded mutations:
+> Use CanISend to prepare my application for this opportunity. Identify the requirements and
+> missing evidence, draft the requested documents using my records, review them, and export
+> PDFs in this workspace. Ask me for missing facts and required approvals. Show me the final
+> files and any unresolved gaps.
 
-```console
-./target/release/canisend --workspace ./my-applications host setup --host codex --json
-./target/release/canisend --workspace ./my-applications host setup --host claude --json
-./target/release/canisend --workspace ./my-applications host status --host codex --json
-./target/release/canisend --workspace ./my-applications mcp serve
+For academic jobs, include the advert and your CV or profile records. You should receive a
+requirements summary, supported drafts, and local files to review and submit yourself.
+Return to the same workspace to continue or revise an application.
+
+CanISend never logs in, uploads or submits applications. Workspace data stays local; material
+you share with an AI Host is subject to that Host's data settings.
+
+## Upgrade
+
+Back up your workspace, then install the newer npm version or replace the downloaded binary.
+Refresh Skills using the new executable:
+
+```sh
+canisend --workspace ./applications workspace backup ./applications-backup
+# Install the new version, then:
+canisend --workspace ./applications host setup --host codex
+canisend --workspace ./applications workspace check
 ```
 
-Host commands default to project-local Skills; add `--scope global` consistently to setup, status,
-and removal for a current-user installation.
+Use a new backup directory each time. Reconnect your Host and update its MCP registration if
+the executable path changed. Setup preserves locally edited Skills. Built-in templates update
+with the CLI; existing applications retain their bound template version and history.
+See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
-The canonical Agent sequence is:
+## Current status
 
-```text
-orient -> propose -> preview -> approve -> commit -> verify
-```
+The checked-in source version is `1.0.0-beta.6`, prepared locally but not published.
+The latest publicly qualified checkpoint is `v1.0.0-beta.1`; npm testing releases are a
+separate channel. CLI development is active; GUI work and full native qualification are paused.
+See [release status](RELEASE.md) for exact versions, artifacts and remaining gates.
 
-CanISend remains the state authority. Host conversations, credentials, plugins, search, and
-retention stay with the selected Agent host. See [Agent integration](docs/guides/agent-integration.md).
+## More
 
-## User and operator guides
+- [Detailed CLI walkthrough](docs/guides/quick-start.md) · [Troubleshooting](docs/guides/troubleshooting.md)
+- [Privacy and consent](docs/guides/privacy-and-consent.md) · [Backup and recovery](docs/guides/backup-and-recovery.md)
+- [Known limitations](docs/guides/known-limitations.md) · [Report a problem](https://github.com/jxpeng98/CanISend/issues)
+- [Contributing](CONTRIBUTING.md) · [1.0 roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md)
 
-- [Installation](docs/guides/installation.md)
-- [Release verification](docs/guides/release-verification.md)
-- [Quick start](docs/guides/quick-start.md)
-- [Desktop App](docs/guides/desktop-gui.md)
-- [Agent integration](docs/guides/agent-integration.md)
-- [Privacy and consent](docs/guides/privacy-and-consent.md)
-- [Backup and recovery](docs/guides/backup-and-recovery.md)
-- [Upgrade, rollback, and uninstall](docs/guides/upgrade-and-rollback.md)
-- [Known limitations](docs/guides/known-limitations.md)
-- [Support policy](docs/release/support-policy.md)
-- [Release qualification ledger](docs/release/qualification-ledger.md)
-- [Defensive assurance routing](docs/development/defensive-assurance-routing.md)
+<details>
+<summary>Development</summary>
 
-## Development checks
+<img src="https://img.shields.io/badge/Rust-1.97%2B-orange" alt="Rust 1.97+">
 
-Use the smallest verification tier that proves a change. The final shared-contract source gate is:
+A domain-neutral Rust kernel enforces evidence, consent and recovery rules.
+The built-in Packs are `org.canisend.generic-application` and `org.canisend.academic-job`.
+Build only the CLI with `cargo build --release --locked -p canisend`; use
+`cargo run -p xtask --locked -- source check` for the shared source gate.
 
-```console
-cargo fmt --all -- --check
-cargo run -p xtask --locked -- release check
-```
+</details>
 
-Fast CI owns the complete Rust, desktop UI, accessibility, Linux, Windows, and Apple Silicon macOS
-suite. Native release workflows own exact packaged binaries on their declared targets.
-
-No Python interpreter, virtual environment, PyPI package, or Pytest runner participates in the
-active product.
-
-## Architecture
-
-```text
-Codex / Claude Code / user / conforming MCP client
-                       |
-                 App / CLI / MCP
-                       |
-          Agent v4 + generated Skills
-                       |
-       shared Rust application facade
-                       |
- domain-neutral kernel + declarative Packs
-                       |
- SQLite authority + immutable Blobs + bounded I/O
-```
-
-User documents are projections or exports, not authority. Every surface uses the same application
-facade and approval rules. Typst rendering is embedded in the native product.
-
-## Product boundary
-
-CanISend prepares local material. It does not create accounts, fill portals, acquire credentials,
-send email, bypass platform controls, upload files, or submit Applications. Image-only PDF OCR,
-external Pack installation, Pack marketplaces, and Windows/Linux public GUI packages are outside
-the current 1.0 scope.
-
-The archived Python implementation remains available at tag
-`archive/python-v0.6.0b1-final`; the Rust product does not run it or import its Workspaces.
-
-## License
-
-CanISend is free software licensed under the
-[GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Corresponding source for a
-release is its matching Git tag. Historical tags retain the license stated by their own source
-tree.
-
-Native bundles include [third-party notices](THIRD_PARTY_NOTICES.md), license texts, SBOM data,
-checksums, and release provenance.
+Licensed under [GPL-3.0-only](LICENSE). Downloads include license texts and
+[third-party notices](THIRD_PARTY_NOTICES.md).
