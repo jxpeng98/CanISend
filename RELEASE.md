@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.6`, prepared for a single-package npm testing distribution;
+- Checked-in source: `1.0.0-beta.6`, published as a single-package npm testing distribution;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -30,15 +30,25 @@ needed. Build, install and validate those exact bytes through the main-only npm 
 `release.yml`, using OIDC. This registry-only scope does not qualify a complete Beta
 checkpoint or refresh real-Host evidence. Cargo publication remains separate.
 
-Published single npm package: `canisend@1.0.0-beta.5`, from source
-`a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`, verified in
-[CI run 34285066117](https://github.com/jxpeng98/CanISend/actions/runs/34285066117).
+Published single npm package: `canisend@1.0.0-beta.6`, from source
+`e9ba8ea7364dbad152482db7ba99a45a0273007d`, verified in
+[CI run 34533668709](https://github.com/jxpeng98/CanISend/actions/runs/34533668709).
 The published tarball SHA-256 is
-`d54047c553366fe0d7b5c0c67ac1f937f4ec7c06036e7cb04b1ca139af48aed7`.
+`35093c1ef29cd9642f905f0a1c5abcaa20d6dcea9f6314e2fb1abe5677350ba8`.
 OIDC publication, provenance, registry digests, native/source byte comparison and fresh
 Workspace installation passed. The supported npm platform remains macOS ARM64; `latest`
-still points to Beta.3. Beta.6 prepares shorter Agent instructions and Skills, with the
-same five entrypoints, protocol and Workspace format; it is not yet published.
+still points to Beta.3. Beta.6 includes shorter Agent instructions and Skills, scoped optional
+Auto approval and readable, combined confirmation forms. The five Skill entrypoints, Agent
+protocol and Workspace format are unchanged. Independent registry signature/attestation,
+exact CI-package comparison and fresh installation checks passed.
+
+Required integration CI passed in [PR #231](https://github.com/jxpeng98/CanISend/pull/231).
+The separate dependency-assurance job still fails because advisory-exception review is overdue
+since 2026-09-07; this publication does not renew those records or claim full native/Host qualification.
+
+The prior Beta.5 remains immutable at source `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`,
+published in [CI run 34285066117](https://github.com/jxpeng98/CanISend/actions/runs/34285066117),
+with tarball SHA-256 `d54047c553366fe0d7b5c0c67ac1f937f4ec7c06036e7cb04b1ca139af48aed7`.
 
 The prior single-package Beta.4 remains immutable at source
 `2886c3c6a652aefedf07b2a011141777d66fec57`.

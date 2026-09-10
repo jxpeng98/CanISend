@@ -1,13 +1,20 @@
 # CanISend 1.0.0-beta.6
 
-Agent instruction refresh: shorter shared operating guidance, clearer stage Skill routing,
-removal of obsolete project-local Trellis injection, and unchanged five-Skill discovery.
-Managed upgrades preserve user edits. Agent/Workspace v4 and Pack identities are unchanged.
-This source candidate has not been published.
+Published to npm `next` for macOS ARM64. See the [release record](../RELEASE.md) for the
+exact source, package checksum and CI verification.
+
+Optional Auto approval covers routine work on one Application and selected Profile Sources
+for up to 60 minutes. Manual requests combine their permissions in one form, and confirmation
+content uses readable text with real paragraphs. New private Sources and exports still ask.
+Evidence, revision, digest and single-use token checks remain enforced.
+
+Shared Agent guidance and stage Skills are shorter, obsolete project-local Trellis injection
+is removed, and five-Skill discovery is unchanged. Managed upgrades preserve user edits.
+Agent/Workspace v4 and Pack identities are unchanged.
 
 ## Highlights
 
-This candidate focuses on the standalone Rust CLI and versioned Agent integration.
+This testing release focuses on the standalone Rust CLI and versioned Agent integration.
 The native executable does not require Python, Node.js, an external SQLite library or a Typst command;
 the npm launcher requires Node.js. Desktop CI and full native qualification remain paused.
 
@@ -41,13 +48,13 @@ It also never logs in or uploads on the user behalf.
 - It does not migrate Python-era Workspaces or preserve the `0.6.x` Python command tree.
 - Rust-native schema migrations are append-only. A binary rejects unsupported or future authority
   before mutation.
-- This npm candidate contains only an Apple Silicon macOS CLI. The paused full release policy
+- This npm release contains only an Apple Silicon macOS CLI. The paused full release policy
   declares five CLI targets and an Apple Silicon desktop with a version-matched CLI in DMG/ZIP
-  bundles; those artifacts require separate qualification and are not part of this candidate.
+  bundles; those artifacts require separate qualification and are not part of this npm release.
 
 ## Install and verify
 
-For this npm testing candidate, follow the [CLI installation guide](../docs/guides/installation.md).
+For this npm testing release, follow the [CLI installation guide](../docs/guides/installation.md).
 The archive and desktop verification requirements below apply when a full native release resumes.
 
 Download the archive for one supported target together with `SHA256SUMS`, the release manifest, notices, and

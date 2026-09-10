@@ -1854,3 +1854,28 @@ logs and installation/reconnection steps are retained in `candidate.json`, `chec
 and `INSTALL-LOCAL.md`. Earlier packages remain unchanged. Actual Host visual
 acceptance, protected CI and publication remain pending; the real Workspace, global
 installation and running Host have not been changed.
+
+### Beta.6 npm publication — 2026-09-10
+
+The owner authorized publication. PR #231 merged the prepared changes after all required
+Fast CI checks passed in run `34532533933`; GUI jobs remained skipped under the existing
+pause. The delayed PR event made supplemental run `34532410149` redundant, so it was
+cancelled once the formal run started. No branch protection or dependency record was changed.
+
+The main-only `release.yml` npm path published `canisend@1.0.0-beta.6` to `next` in
+run `34533668709`, source `e9ba8ea7364dbad152482db7ba99a45a0273007d`, macOS ARM64 only.
+The registry tarball is 26,412,877 bytes with SHA-256
+`35093c1ef29cd9642f905f0a1c5abcaa20d6dcea9f6314e2fb1abe5677350ba8`.
+CI publication, provenance, exact-package MCP/lifecycle checks and registry reinstallation
+passed. Independent npm download matches the retained CI tarball, SHA-1/SHA-512 registry
+metadata, installed native binary and source archive. npm verifies the registry signature
+and attestation; native signature, doctor, fresh Workspace and exact five-Skill installation
+also pass. `dist/npm-beta6-published-34533668709/verification.json` retains local evidence.
+
+`latest` remains Beta.3. The dependency-assurance run `34532533950` fails on the existing
+RUSTSEC-2024-0320 review deadline of 2026-09-07; this independent npm publication does not
+renew exceptions or claim full native qualification or actual Host acceptance. The previous
+local candidate bytes remain unchanged; no real Workspace, global CLI or Host was upgraded.
+README, installation, release notes and current release records now describe the published
+package. Next: integrate this documentation-only publication record through protected CI.
+The updated publication projections pass the source gate and `git diff --check`.
