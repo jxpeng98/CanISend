@@ -1,16 +1,25 @@
-# CanISend 1.0.0-beta.7
+# CanISend 1.0.0-beta.8
 
 Prepared for npm `next`, Cargo and PyPI testing publication. Publication outcomes are not
 tracked for this iteration; see the [release record](../RELEASE.md) for verified older artifacts.
 
-After upgrading the CLI, run `canisend --workspace PATH workspace upgrade` to refresh all
-installed project Skills. It restores missing files, updates unchanged managed files and
-stops on customizations before changing any Host's Skills. Use `--host codex` or `--host claude`
-to select or install one Host. Global Skills still use `host setup --scope global`.
+This release makes all 40 CLI commands easier to discover and use:
 
-The command reuses supported Workspace v4 migrations and existing resource integrity checks.
-It prints readable terminal output and supports `--json`. Reconnect the Host afterward.
-Legacy Workspace formats are not imported; Application data, bound Packs and user edits remain.
+- Shorter help, consistent argument names, and visible `ws`, `app`, `source` and `links` aliases.
+- `-w` for workspace, `-a` for application, and `-f` / `--file` for JSON request files.
+- Global `--text` and `--json` options, accepted before or after ordinary commands. Terminal
+  output defaults to text; redirected output retains its JSON default.
+- Lists include useful IDs, states, revisions and export paths. Authorized review and worker
+  results preserve readable paragraphs instead of JSON escapes.
+- Current review commands now pass legacy preflight. Conflicting output modes and output flags
+  on `mcp serve` fail before workspace access.
+
+Existing long commands, JSON operation names, consent and revision checks remain compatible.
+See the [complete command reference](../docs/guides/cli-reference.md).
+
+After upgrading, run `canisend -w PATH ws upgrade` to refresh installed project Skills, then
+`canisend -w PATH ws check` and reconnect your Host. Workspace upgrade restores missing managed
+files and preserves local edits; built-in templates update with the CLI.
 
 ## Highlights
 

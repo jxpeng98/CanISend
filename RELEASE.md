@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.7`, prepared for npm, Cargo and PyPI testing channels;
+- Checked-in source: `1.0.0-beta.8`, prepared for npm, Cargo and PyPI testing channels;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -83,6 +83,12 @@ one Host. Workspace v4 compatibility checks and existing migrations are reused; 
 Workspace import or new schema is introduced. The owner requested publication without
 tracking its outcome, so Beta.7 has no verified-publication claim here. The Beta.6 records
 above retain the last independently verified registry artifacts.
+
+Beta.8 packages the CLI clarity work merged in [PR #237](https://github.com/jxpeng98/CanISend/pull/237):
+all 40 commands have simpler help, common output options and shortcuts; metadata lists and
+consented private reads produce more useful text. Canonical commands and JSON contracts remain
+compatible. Publication is authorized for npm `next`, Cargo and PyPI, without following outcomes.
+This preparation adds no verified-publication claim and preserves the historical records above.
 
 ## Supported public package scope
 

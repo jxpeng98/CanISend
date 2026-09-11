@@ -1,6 +1,6 @@
 # CLI command reference
 
-This reference describes the current development source. Installed releases may lag behind;
+This reference describes Beta.8 and newer. Installed releases may lag behind;
 use `canisend COMMAND --help` to check your binary. All existing long names remain supported.
 
 ## Common options
