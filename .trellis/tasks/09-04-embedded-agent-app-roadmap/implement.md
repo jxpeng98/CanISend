@@ -1937,3 +1937,6 @@ dry-run. Local evidence is `dist/beta7-checks/verification.json`; no publication
 The first protected CI exposed the old fixed CLI cardinality (39). Update it to 40 for the new
 leaf; the four CLI unit tests pass locally. This changes a test assertion, not runtime behavior.
 The corrected head still requires its protected checks before merge and publication dispatch.
+
+The full macOS suite also found the corresponding contracts-layer CLI count still at 39.
+Align that assertion to 40; the 47 contract unit tests pass. No runtime change is involved.
