@@ -237,6 +237,31 @@ fn known_json_error_uses_stdout_only_and_validation_exit_code() {
 
 #[test]
 fn public_help_excludes_every_alpha6_legacy_command_family() {
+    for path in canisend_cli::clap_leaf_paths()
+        .iter()
+        .map(String::as_str)
+        .chain([
+            "ws upgrade",
+            "app show",
+            "source list",
+            "profile links list",
+            "evidence links list",
+            "review show",
+        ])
+    {
+        let mut args = path.split_whitespace().collect::<Vec<_>>();
+        args.push("--help");
+        let output = run(&args);
+        assert!(
+            output.status.success(),
+            "help failed for {path}: {output:?}"
+        );
+        assert!(output.stderr.is_empty());
+        let help = String::from_utf8(output.stdout).unwrap();
+        for option in ["--workspace <DIR>", "--json", "--text", "--help"] {
+            assert!(help.contains(option), "{path} omits {option}: {help}");
+        }
+    }
     let help = run(&["--help"]);
     assert!(help.status.success());
     let help = String::from_utf8(help.stdout).expect("root help is UTF-8");
@@ -275,6 +300,38 @@ fn public_help_excludes_every_alpha6_legacy_command_family() {
     let profile_help = String::from_utf8(profile_help.stdout).expect("Profile help is UTF-8");
     assert!(profile_help.contains("association"));
     assert!(!profile_help.contains("source-list"));
+}
+
+#[test]
+fn output_flags_are_global_explicit_and_keep_mcp_stdio_clean() {
+    let default = run_json(&["version"]);
+    for args in [["--json", "version"], ["version", "--json"]] {
+        assert_eq!(run_json(&args), default);
+    }
+    for args in [["--text", "version"], ["version", "--text"]] {
+        let output = run(&args);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.contains(env!("CARGO_PKG_VERSION")));
+        assert!(serde_json::from_str::<Value>(&text).is_err());
+    }
+    let error = run(&["--text", "schema", "show", "missing"]);
+    assert_eq!(error.status.code(), Some(3));
+    assert!(error.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&error.stderr).contains("schema.not_found"));
+    let conflicting = run(&["--text", "version", "--json"]);
+    assert_eq!(conflicting.status.code(), Some(2));
+    assert!(conflicting.stdout.is_empty());
+
+    let workspace = TestDirectory::new("output-mode-no-mcp-start");
+    for mode in ["--text", "--json"] {
+        let output = run(&["-w", workspace.text(), "mcp", "serve", mode]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("JSON-RPC"));
+        assert!(!workspace.path().exists());
+    }
 }
 
 #[test]
@@ -805,6 +862,48 @@ fn workspace_v4_holds_generic_and_academic_applications_together() {
         ]);
         assert_eq!(requirement["operation"], "requirement.show");
         assert_eq!(requirement["data"]["requirement"]["id"], requirement_id);
+        let text = run(&[
+            "-w",
+            workspace.text(),
+            "requirement",
+            "list",
+            "-a",
+            application_id,
+            "--text",
+        ]);
+        assert!(text.status.success());
+        let text = String::from_utf8(text.stdout).unwrap();
+        assert!(text.contains(requirement_id));
+        assert!(
+            text.contains(
+                requirement["data"]["requirement"]["statement"]
+                    .as_str()
+                    .unwrap()
+            )
+        );
+
+        let read_args = [
+            "-w",
+            workspace.text(),
+            "review",
+            "show",
+            "-a",
+            application_id,
+            "--json",
+        ];
+        let denied = run(&read_args);
+        assert!(!denied.status.success());
+        let denied: Value = serde_json::from_slice(&denied.stdout).unwrap();
+        assert_eq!(denied["operation"], "review.inspect");
+        assert!(
+            denied["error"]["code"]
+                .as_str()
+                .unwrap()
+                .contains("consent")
+        );
+        let mut approved = read_args.to_vec();
+        approved.push("--confirm-private-read");
+        assert_eq!(run_json(&approved)["operation"], "review.inspect");
 
         let plan = run_json(&[
             "--workspace",
@@ -1110,7 +1209,8 @@ fn local_task_handoff_preserves_application_and_requires_private_read() {
     let generation = claimed["data"]["generation"].to_string();
     let lease = claimed["data"]["lease_id"].as_str().unwrap();
     let candidate_path = inputs.path().join("candidate.json");
-    let candidate = serde_json::json!({"untrusted_text": "LOCAL-TASK-PRIVATE-SENTINEL"});
+    let candidate =
+        serde_json::json!({"untrusted_text": "LOCAL-TASK-PRIVATE-SENTINEL\n\nSecond paragraph."});
     fs::write(&candidate_path, serde_json::to_vec(&candidate).unwrap()).unwrap();
     let submitted = run_json(&[
         "--workspace",
@@ -1165,6 +1265,32 @@ fn local_task_handoff_preserves_application_and_requires_private_read() {
         "--json",
     ]);
     assert_eq!(read["data"], candidate);
+    for (leaf, consent, succeeds) in [
+        ("show", false, true),
+        ("candidate-show", false, false),
+        ("candidate-show", true, true),
+    ] {
+        let mut args = vec![
+            "-w",
+            workspace.text(),
+            "local-task",
+            leaf,
+            "--task",
+            task,
+            "--text",
+        ];
+        if consent {
+            args.push("--confirm-private-read");
+        }
+        let output = run(&args);
+        assert_eq!(output.status.success(), succeeds);
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text.contains("LOCAL-TASK-PRIVATE-SENTINEL"), consent);
+        if consent {
+            assert!(text.contains("LOCAL-TASK-PRIVATE-SENTINEL\n\nSecond paragraph."));
+            assert!(!text.contains("\\n"));
+        }
+    }
     let after = run_json(&[
         "--workspace",
         workspace.text(),

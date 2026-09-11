@@ -3,6 +3,8 @@
 This walkthrough uses clean Workspace v4 and Agent v4. Start with the
 [installation guide](installation.md), then check your binary's version: GitHub native
 downloads and npm testing releases may provide different versions and capabilities.
+The [CLI reference](cli-reference.md) lists every command, shortcuts and output options
+in the current development source. Existing long command names remain supported.
 
 CanISend is local-first. Keep every Workspace in a user-controlled private directory. It never
 logs in, uploads, or submits an Application; every successful export receipt keeps

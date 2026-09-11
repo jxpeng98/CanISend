@@ -27,13 +27,16 @@ use serde_json::{Value, json};
 #[derive(Debug, Parser)]
 #[command(
     name = "canisend",
-    about = "Evidence-backed application preparation",
+    about = "Prepare, review and export evidence-backed applications",
+    after_help = "Examples:\n  canisend -w ./applications ws init --host codex\n  canisend -w ./applications ws upgrade\n  canisend app list\n  canisend app show -a APPLICATION_ID\n\nUse COMMAND --help for details. --json and --text work before or after commands, except mcp serve.",
     disable_version_flag = true
 )]
 struct Cli {
-    /// Resolve commands against this Workspace instead of discovering from the current directory.
-    #[arg(long, global = true, value_name = "PATH")]
+    /// Workspace directory; otherwise search the current directory and its parents.
+    #[arg(short = 'w', long, global = true, value_name = "DIR")]
     workspace: Option<PathBuf>,
+    #[command(flatten)]
+    output: OutputArgs,
     #[command(subcommand)]
     command: Command,
 }
@@ -74,81 +77,101 @@ pub fn public_clap_leaf_paths() -> Vec<String> {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Coordinate local workers and retain untrusted candidates without committing an Application.
+    /// Coordinate local workers and collect their draft results.
+    #[command(display_order = 12)]
     LocalTask {
         #[command(subcommand)]
         command: local_task::LocalTaskCommand,
     },
-    /// Print native product and protocol versions.
-    Version(OutputArgs),
-    /// Check the native binary's embedded foundation.
-    Doctor(OutputArgs),
-    /// Serve the canonical CanISend v4 tool surface over Model Context Protocol.
+    /// Show the CLI version and build details.
+    #[command(display_order = 13)]
+    Version,
+    /// Check installation, bundled resources and PDF rendering.
+    #[command(display_order = 14)]
+    Doctor,
+    /// Connect an AI Host through MCP.
+    #[command(display_order = 15)]
     Mcp {
         #[command(subcommand)]
         command: McpCommand,
     },
-    /// Inspect generated public JSON Schemas.
+    /// Find JSON request schemas and their versions.
+    #[command(display_order = 16)]
     Schema {
         #[command(subcommand)]
         command: SchemaCommand,
     },
-    /// Inspect resources embedded in this executable.
+    /// List bundled templates, Skills and other resources.
+    #[command(display_order = 17)]
     Resource {
         #[command(subcommand)]
         command: ResourceCommand,
     },
-    /// Initialize, inspect, check, back up, restore, or repair a Workspace v4.
+    /// Create, upgrade and maintain a workspace.
+    #[command(visible_alias = "ws")]
+    #[command(display_order = 1)]
     Workspace {
         #[command(subcommand)]
         command: WorkspaceCommand,
     },
-    /// Create and inspect Pack-bound Applications in a Workspace v4.
+    /// Create, view and archive applications.
+    #[command(visible_alias = "app")]
+    #[command(display_order = 3)]
     Application {
         #[command(subcommand)]
         command: ApplicationCommand,
     },
-    /// Import and inspect neutral Workspace-level Profile Sources.
+    /// Import and list reusable profile sources.
+    #[command(visible_alias = "source")]
+    #[command(display_order = 4)]
     ProfileSource {
         #[command(subcommand)]
         command: ProfileSourceCommand,
     },
-    /// Inspect Application-scoped Profile Source links.
+    /// View profile sources linked to an application.
+    #[command(display_order = 5)]
     Profile {
         #[command(subcommand)]
         command: ProfileCommand,
     },
-    /// Inspect Application-scoped confirmed Evidence links.
+    /// View confirmed evidence linked to an application.
+    #[command(display_order = 6)]
     Evidence {
         #[command(subcommand)]
         command: EvidenceCommand,
     },
-    /// Inspect Pack-bound Requirements for one Application.
+    /// List and view application requirements.
+    #[command(display_order = 7)]
     Requirement {
         #[command(subcommand)]
         command: RequirementCommand,
     },
-    /// Inspect the current Pack-bound Plan for one Application.
+    /// View the current document plan.
+    #[command(display_order = 8)]
     Plan {
         #[command(subcommand)]
         command: PlanCommand,
     },
-    /// Inspect Pack-bound Deliverable metadata for one Application.
+    /// List and view document metadata.
+    #[command(display_order = 9)]
     Deliverable {
         #[command(subcommand)]
         command: DeliverableCommand,
     },
-    /// Inspect exact current private Deliverables for evidence-bound review.
+    /// Review current documents with permission to read them.
+    #[command(display_order = 10)]
     Review {
         #[command(subcommand)]
         command: ReviewCommand,
     },
-    /// Inspect verified local exports for one exact Application.
+    /// Find and verify exported files.
+    #[command(display_order = 11)]
     Export {
         #[command(subcommand)]
         command: ExportCommand,
     },
-    /// Install and inspect clean Agent v4 host resources for this project or user.
+    /// Manage Skills and MCP setup for an AI Host.
+    #[command(display_order = 2)]
     Host {
         #[command(subcommand)]
         command: HostCommand,
@@ -157,80 +180,82 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum McpCommand {
-    /// Serve versioned tools with existing consent and approval controls over stdio.
+    /// Start the MCP server over standard input/output.
+    #[command(after_help = "Do not pass --json or --text; stdout is reserved for JSON-RPC.")]
     Serve {
-        /// Restrict tools to one existing Application; disable Workspace-wide results.
-        #[arg(long, value_name = "APPLICATION_ID")]
+        /// Limit this connection to one existing application.
+        #[arg(short = 'a', long, value_name = "ID")]
         application: Option<String>,
     },
 }
 
 #[derive(Debug, Subcommand)]
 enum SchemaCommand {
-    /// List generated Schemas with version and integrity metadata.
-    List(OutputArgs),
-    /// Inspect one generated Schema by logical ID or short slug.
+    /// List available schemas.
+    List,
+    /// Show schema metadata by ID or short name.
     Show(SchemaShowArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ResourceCommand {
-    /// List embedded resources with version and integrity metadata.
-    List(OutputArgs),
+    /// List bundled resources and versions.
+    List,
 }
 
 #[derive(Debug, Subcommand)]
 enum WorkspaceCommand {
-    /// Initialize a neutral Workspace v4 at --workspace or the current directory.
+    /// Create a workspace and optionally install Skills.
     Init(WorkspaceInitArgs),
-    /// Upgrade supported Workspace storage and installed project Skills with this binary.
+    /// Update workspace storage and installed project Skills.
     Upgrade(WorkspaceUpgradeArgs),
-    /// Report authoritative Workspace and SQLite status.
-    Status(OutputArgs),
-    /// Verify database, blob, freshness, and projection invariants.
-    Check(OutputArgs),
-    /// Create and verify a consistent backup directory.
+    /// Show workspace identity, version and application count.
+    Status,
+    /// Check workspace data and generated files for problems.
+    Check,
+    /// Create a verified backup in a new directory.
     Backup(WorkspaceBackupArgs),
-    /// Restore a verified backup into a new empty directory.
+    /// Restore a backup into a new or empty directory.
     Restore(WorkspaceRestoreArgs),
-    /// Rebuild missing or repair-required projections while preserving user edits.
-    Repair(OutputArgs),
+    /// Restore generated files while preserving user edits.
+    Repair,
 }
 
 #[derive(Debug, Subcommand)]
 enum ApplicationCommand {
-    /// List Pack-bound Applications in the current Workspace v4.
-    List(OutputArgs),
-    /// Show one Pack-bound Application in the current Workspace v4.
+    /// List applications and their current states.
+    List,
+    /// Show an application and what to do next.
     Show(ApplicationIdArgs),
-    /// Inspect the complete verified Pack bound to one Application.
+    /// View the application's workflow Pack.
     Pack {
         #[command(subcommand)]
         command: ApplicationPackCommand,
     },
-    /// Archive one Application without deleting history or shared Workspace data.
+    /// Archive an application while retaining its history.
     Archive(ApplicationArchiveArgs),
-    /// Create a Pack-bound Application from a reviewed JSON request.
+    /// Create an application from a JSON file and workflow Pack.
     Create(ApplicationCreateArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ApplicationPackCommand {
-    /// Show the exact Pack Manifest, including all Deliverable minimum/maximum counts.
+    /// Show the workflow Pack and required document types.
     Show(ApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ProfileSourceCommand {
-    /// List body-free Profile Source metadata from the current Workspace v4.
-    List(OutputArgs),
-    /// Import one reviewed Typst, Markdown, plain-text, or JSON file into Workspace v4 authority.
+    /// List profile source metadata without reading source content.
+    List,
+    /// Import a Typst, Markdown, text or JSON profile source.
     Import(ProfileSourceImportArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ProfileCommand {
-    /// Inspect exact Profile Source links for one Application.
+    /// View profile source links for an application.
+    #[command(visible_alias = "links")]
     Association {
         #[command(subcommand)]
         command: AssociationCommand,
@@ -239,7 +264,8 @@ enum ProfileCommand {
 
 #[derive(Debug, Subcommand)]
 enum EvidenceCommand {
-    /// Inspect exact confirmed Evidence links for one Application.
+    /// View confirmed evidence links for an application.
+    #[command(visible_alias = "links")]
     Association {
         #[command(subcommand)]
         command: AssociationCommand,
@@ -248,43 +274,44 @@ enum EvidenceCommand {
 
 #[derive(Debug, Subcommand)]
 enum AssociationCommand {
-    /// List body-free Workspace candidates and explicit links for one Application.
+    /// List available records and their application links.
     List(ApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum RequirementCommand {
-    /// List Requirements for one exact Application revision and Pack binding.
+    /// List requirements and confirmation states.
     List(ApplicationIdArgs),
-    /// Show one Requirement that belongs to the selected Application.
+    /// Show a requirement and its confirmation state.
     Show(RequirementIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum PlanCommand {
-    /// Show the current Plan, or an explicit not-created state, for one Application.
+    /// Show the document plan and any blockers.
     Show(ApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum DeliverableCommand {
-    /// List body-free Deliverable metadata for one exact Application revision.
+    /// List documents and their current states.
     List(ApplicationIdArgs),
-    /// Show one body-free Deliverable metadata record for the selected Application.
+    /// Show document metadata without reading its content.
     Show(DeliverableIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ReviewCommand {
-    /// Inspect exact current Deliverable bodies after explicit private-read consent.
+    /// Read current documents for review; requires private-read consent.
+    #[command(visible_alias = "show")]
     Inspect(PrivateApplicationIdArgs),
 }
 
 #[derive(Debug, Subcommand)]
 enum ExportCommand {
-    /// List verified local exports for one exact Application.
+    /// List exported directories and document counts.
     List(ApplicationIdArgs),
-    /// Show and verify one exact local export manifest and its document digests.
+    /// Verify an export directory and show its files.
     Show(ExportShowArgs),
 }
 
@@ -305,11 +332,11 @@ impl From<ProfileSourceSensitivityArgument> for PrivacyClassification {
 
 #[derive(Debug, Subcommand)]
 enum HostCommand {
-    /// Install managed Skills and prepare the exact MCP registration for one host.
+    /// Install or update Skills and print the MCP registration command.
     Setup(HostConfigurationArgs),
-    /// Inspect managed Skills and show the current MCP registration guidance.
+    /// Show Skills status and MCP setup instructions.
     Status(HostConfigurationArgs),
-    /// Remove only unchanged, manifest-owned Skills; preserve host MCP configuration.
+    /// Remove unmodified CanISend Skills; keep Host configuration.
     Remove(HostRemoveArgs),
 }
 
@@ -354,258 +381,166 @@ impl From<AgentSkillsScopeArgument> for AgentSkillsInstallScope {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Copy, Default, Args)]
 struct OutputArgs {
-    /// Emit exactly one canisend.agent/v4 JSON object on stdout.
-    #[arg(long)]
+    /// Print JSON (also the default when output is piped).
+    #[arg(long, global = true, conflicts_with = "text")]
     json: bool,
+    /// Print readable text, including when output is piped.
+    #[arg(long, global = true, conflicts_with = "json")]
+    text: bool,
+}
+
+impl OutputArgs {
+    fn wants_json(self) -> bool {
+        self.json || (!self.text && !std::io::stdout().is_terminal())
+    }
 }
 
 #[derive(Debug, Args)]
 struct SchemaShowArgs {
-    /// Schema ID such as canisend.application/v3, or its short slug.
+    /// Schema ID or short name from `schema list`.
     id: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct WorkspaceBackupArgs {
-    /// New or empty destination directory for the verified backup.
+    /// New directory for the backup.
+    #[arg(value_name = "DIR")]
     destination: PathBuf,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct WorkspaceInitArgs {
-    /// Install bundled Skills for this Host after creating the Workspace.
+    /// Install Skills for codex, claude or generic.
     #[arg(long, value_enum, conflicts_with = "no_skills")]
     host: Option<HostArgument>,
-    /// Skills location; project is the default when --host is supplied.
+    /// Skills location; defaults to project when --host is supplied.
     #[arg(long, value_enum, requires = "host")]
     scope: Option<AgentSkillsScopeArgument>,
-    /// Skip the interactive Skills installation choice.
+    /// Create the workspace without prompting to install Skills.
     #[arg(long)]
     no_skills: bool,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct WorkspaceUpgradeArgs {
-    /// Update or install this Host's project Skills; default: all existing project installations.
+    /// Update or install one Host; defaults to all installed project Skills.
     #[arg(long, value_enum)]
     host: Option<HostArgument>,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct WorkspaceRestoreArgs {
-    /// Verified CanISend backup directory.
+    /// Backup directory created by `workspace backup`.
+    #[arg(value_name = "BACKUP_DIR")]
     backup: PathBuf,
-    /// New or empty destination directory for the restored Workspace.
+    /// New or empty directory for the restored workspace.
+    #[arg(value_name = "DIR")]
     destination: PathBuf,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct ApplicationIdArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct RequirementIdArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    #[arg(long)]
+    /// Requirement ID from `requirement list`.
+    #[arg(long, value_name = "ID")]
     requirement: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct DeliverableIdArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    #[arg(long)]
+    /// Deliverable ID from `deliverable list`.
+    #[arg(long, value_name = "ID")]
     deliverable: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct PrivateApplicationIdArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    /// Confirm that CanISend may read current private Deliverable bodies.
+    /// Allow reading current private documents for this request.
     #[arg(long)]
     confirm_private_read: bool,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct ExportShowArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    /// Exact Workspace-relative export directory.
-    #[arg(long)]
+    /// Export directory relative to the workspace, from `export list`.
+    #[arg(long, value_name = "DIR")]
     destination: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct ApplicationCreateArgs {
-    /// Exact Workflow Pack ID bound to the new Application.
-    #[arg(long)]
+    /// Workflow Pack ID, such as org.canisend.generic-application.
+    #[arg(long, value_name = "PACK_ID")]
     pack: String,
-    /// Reviewed bounded JSON request matching the canonical operation contract.
-    #[arg(long, value_name = "PATH")]
+    /// JSON application request file.
+    #[arg(short = 'f', long, visible_alias = "file", value_name = "JSON_FILE")]
     candidate: PathBuf,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct ApplicationArchiveArgs {
-    #[arg(long)]
+    /// Application ID from `app list`.
+    #[arg(short = 'a', long, value_name = "ID")]
     application: String,
-    #[arg(long)]
+    /// Current Application revision; rejects changes made since it was read.
+    #[arg(long, value_name = "REVISION")]
     expected_revision: u64,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct ProfileSourceImportArgs {
-    /// Reviewed local Typst, Markdown, plain-text, or JSON file.
+    /// Local Typst, Markdown, text or JSON profile source.
+    #[arg(value_name = "FILE")]
     source: PathBuf,
-    /// Privacy classification stored with the source.
+    /// Source privacy: public or private-local (requires consent).
     #[arg(long, value_enum)]
     sensitivity: ProfileSourceSensitivityArgument,
-    /// Confirm that CanISend may read the selected private-local file.
+    /// Allow reading this private-local source file.
     #[arg(long)]
     confirm_private_read: bool,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct HostConfigurationArgs {
-    /// Agent host that will load the managed resources.
+    /// Host to configure: codex, claude or generic.
     #[arg(long, value_enum)]
     host: HostArgument,
-    /// Install resources in this Workspace or the current user's home directory.
+    /// Skills location: this project or your user home.
     #[arg(long, value_enum, default_value = "project")]
     scope: AgentSkillsScopeArgument,
-    /// Absolute CanISend executable path used by the MCP server registration.
+    /// Absolute CLI path for MCP; defaults to this executable.
     #[arg(long, value_name = "PATH")]
     executable: Option<PathBuf>,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 struct HostRemoveArgs {
-    /// Agent host whose manifest-owned Skills should be removed.
+    /// Host whose CanISend Skills should be removed.
     #[arg(long, value_enum)]
     host: HostArgument,
-    /// Remove resources from this Workspace or the current user's home directory.
+    /// Skills location: this project or your user home.
     #[arg(long, value_enum, default_value = "project")]
     scope: AgentSkillsScopeArgument,
-    #[command(flatten)]
-    output: OutputArgs,
-}
-
-impl Cli {
-    fn explicit_json(&self) -> bool {
-        match &self.command {
-            Command::LocalTask { command } => command.json(),
-            Command::Version(output) | Command::Doctor(output) => output.json,
-            Command::Mcp {
-                command: McpCommand::Serve { .. },
-            } => false,
-            Command::Schema {
-                command: SchemaCommand::List(output),
-            }
-            | Command::Resource {
-                command: ResourceCommand::List(output),
-            } => output.json,
-            Command::Schema {
-                command: SchemaCommand::Show(arguments),
-            } => arguments.output.json,
-            Command::Workspace {
-                command: WorkspaceCommand::Init(arguments),
-            } => arguments.output.json,
-            Command::Workspace {
-                command: WorkspaceCommand::Upgrade(arguments),
-            } => arguments.output.json,
-            Command::Workspace {
-                command:
-                    WorkspaceCommand::Status(output)
-                    | WorkspaceCommand::Check(output)
-                    | WorkspaceCommand::Repair(output),
-            } => output.json,
-            Command::Workspace {
-                command: WorkspaceCommand::Backup(arguments),
-            } => arguments.output.json,
-            Command::Workspace {
-                command: WorkspaceCommand::Restore(arguments),
-            } => arguments.output.json,
-            Command::Application { command } => match command {
-                ApplicationCommand::List(output) => output.json,
-                ApplicationCommand::Show(arguments) => arguments.output.json,
-                ApplicationCommand::Pack {
-                    command: ApplicationPackCommand::Show(arguments),
-                } => arguments.output.json,
-                ApplicationCommand::Archive(arguments) => arguments.output.json,
-                ApplicationCommand::Create(arguments) => arguments.output.json,
-            },
-            Command::ProfileSource { command } => match command {
-                ProfileSourceCommand::List(output) => output.json,
-                ProfileSourceCommand::Import(arguments) => arguments.output.json,
-            },
-            Command::Profile {
-                command: ProfileCommand::Association { command },
-            }
-            | Command::Evidence {
-                command: EvidenceCommand::Association { command },
-            } => match command {
-                AssociationCommand::List(arguments) => arguments.output.json,
-            },
-            Command::Requirement { command } => match command {
-                RequirementCommand::List(arguments) => arguments.output.json,
-                RequirementCommand::Show(arguments) => arguments.output.json,
-            },
-            Command::Plan {
-                command: PlanCommand::Show(arguments),
-            } => arguments.output.json,
-            Command::Deliverable { command } => match command {
-                DeliverableCommand::List(arguments) => arguments.output.json,
-                DeliverableCommand::Show(arguments) => arguments.output.json,
-            },
-            Command::Review {
-                command: ReviewCommand::Inspect(arguments),
-            } => arguments.output.json,
-            Command::Export { command } => match command {
-                ExportCommand::List(arguments) => arguments.output.json,
-                ExportCommand::Show(arguments) => arguments.output.json,
-            },
-            Command::Host { command } => match command {
-                HostCommand::Setup(arguments) | HostCommand::Status(arguments) => {
-                    arguments.output.json
-                }
-                HostCommand::Remove(arguments) => arguments.output.json,
-            },
-        }
-    }
 }
 
 struct CommandOutput {
@@ -707,16 +642,35 @@ pub fn run() -> ExitCode {
     if let Some(legacy_surface) = unsupported_legacy_surface(arguments.iter().cloned()) {
         return render_unsupported_legacy_surface(
             &legacy_surface,
-            arguments
-                .iter()
-                .any(|argument| argument.to_str() == Some("--json")),
+            OutputArgs {
+                json: arguments.iter().any(|arg| arg == "--json"),
+                text: arguments.iter().any(|arg| arg == "--text"),
+            }
+            .wants_json(),
         );
     }
     let cli = Cli::parse_from(arguments);
+    // Clap can miss global flag conflicts across different command levels.
+    if cli.output.json && cli.output.text {
+        Cli::command()
+            .error(
+                clap::error::ErrorKind::ArgumentConflict,
+                "choose one output format: --json or --text",
+            )
+            .exit();
+    }
     if let Command::Mcp {
         command: McpCommand::Serve { application },
     } = &cli.command
     {
+        if cli.output.json || cli.output.text {
+            Cli::command()
+                .error(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "mcp serve uses JSON-RPC over stdio; omit --json and --text",
+                )
+                .exit();
+        }
         return match canisend_mcp::serve_stdio_with_application(
             cli.workspace.as_deref(),
             application.as_deref(),
@@ -728,7 +682,7 @@ pub fn run() -> ExitCode {
             }
         };
     }
-    let json_output = wants_json(cli.explicit_json());
+    let json_output = cli.output.wants_json();
     match execute(cli) {
         Ok(output) => render_success(output, json_output),
         Err(failure) => render_failure(*failure, json_output),
@@ -744,7 +698,6 @@ const LEGACY_TOP_LEVEL_COMMANDS: &[&str] = &[
     "criteria",
     "match",
     "document",
-    "review",
     "package",
     "render",
     "workflow",
@@ -756,7 +709,7 @@ fn unsupported_legacy_surface(arguments: impl IntoIterator<Item = OsString>) -> 
     let mut command_path = Vec::with_capacity(2);
     while let Some(argument) = arguments.next() {
         let argument = argument.to_str()?;
-        if argument == "--workspace" {
+        if argument == "--workspace" || argument == "-w" {
             let _workspace = arguments.next();
             continue;
         }
@@ -776,14 +729,21 @@ fn unsupported_legacy_surface(arguments: impl IntoIterator<Item = OsString>) -> 
     if top_level == "profile"
         && command_path
             .get(1)
-            .is_some_and(|command| command != "association")
+            .is_some_and(|command| !matches!(command.as_str(), "association" | "links"))
     {
         return Some(command_path.join(" "));
     }
-    if top_level == "application"
+    if matches!(top_level.as_str(), "application" | "app")
         && command_path
             .get(1)
             .is_some_and(|leaf| leaf.starts_with("generic-"))
+    {
+        return Some(command_path.join(" "));
+    }
+    if top_level == "review"
+        && command_path
+            .get(1)
+            .is_some_and(|leaf| !matches!(leaf.as_str(), "inspect" | "show"))
     {
         return Some(command_path.join(" "));
     }
@@ -792,7 +752,7 @@ fn unsupported_legacy_surface(arguments: impl IntoIterator<Item = OsString>) -> 
 
 fn render_unsupported_legacy_surface(surface: &str, json_output: bool) -> ExitCode {
     let message = format!(
-        "unsupported Alpha.6-era command `{surface}`; Alpha.7 accepts only clean Workspace v4 and neutral operation names"
+        "unsupported legacy command `{surface}`; use `canisend --help` for current Workspace v4 commands"
     );
     if json_output {
         let response = json!({
@@ -834,34 +794,38 @@ fn render_unsupported_legacy_surface(surface: &str, json_output: bool) -> ExitCo
 }
 
 fn execute(cli: Cli) -> CommandResult<CommandOutput> {
-    let Cli { workspace, command } = cli;
+    let Cli {
+        workspace,
+        command,
+        output,
+    } = cli;
     match command {
         Command::LocalTask { command } => local_task::execute(workspace, command),
-        Command::Version(_) => version(),
-        Command::Doctor(_) => doctor(),
+        Command::Version => version(),
+        Command::Doctor => doctor(),
         Command::Mcp {
             command: McpCommand::Serve { .. },
         } => unreachable!("MCP server is dispatched before command rendering"),
         Command::Schema {
-            command: SchemaCommand::List(_),
+            command: SchemaCommand::List,
         } => schema_list(),
         Command::Schema {
             command: SchemaCommand::Show(arguments),
         } => schema_show(&arguments.id),
         Command::Resource {
-            command: ResourceCommand::List(_),
+            command: ResourceCommand::List,
         } => resource_list(),
         Command::Workspace {
             command: WorkspaceCommand::Init(arguments),
-        } => workspace_init(workspace, arguments),
+        } => workspace_init(workspace, arguments, output),
         Command::Workspace {
             command: WorkspaceCommand::Upgrade(arguments),
         } => workspace_upgrade(workspace, arguments),
         Command::Workspace {
-            command: WorkspaceCommand::Status(_),
+            command: WorkspaceCommand::Status,
         } => workspace_status(workspace),
         Command::Workspace {
-            command: WorkspaceCommand::Check(_),
+            command: WorkspaceCommand::Check,
         } => workspace_check(workspace),
         Command::Workspace {
             command: WorkspaceCommand::Backup(arguments),
@@ -870,10 +834,10 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: WorkspaceCommand::Restore(arguments),
         } => workspace_restore(arguments.backup, arguments.destination),
         Command::Workspace {
-            command: WorkspaceCommand::Repair(_),
+            command: WorkspaceCommand::Repair,
         } => workspace_repair(workspace),
         Command::Application {
-            command: ApplicationCommand::List(_),
+            command: ApplicationCommand::List,
         } => application_list(workspace),
         Command::Application {
             command: ApplicationCommand::Show(arguments),
@@ -891,7 +855,7 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: ApplicationCommand::Create(arguments),
         } => application_create(workspace, arguments),
         Command::ProfileSource {
-            command: ProfileSourceCommand::List(_),
+            command: ProfileSourceCommand::List,
         } => profile_source_list(workspace),
         Command::ProfileSource {
             command: ProfileSourceCommand::Import(arguments),
@@ -1019,7 +983,7 @@ fn schema_list() -> CommandResult<CommandOutput> {
     let human = data
         .schemas
         .iter()
-        .map(|schema| format!("{} {}", schema.id, schema.sha256))
+        .map(|schema| format!("{}  {}", schema.id, schema.version))
         .collect();
     success("schema.list", "available", &data, human)
 }
@@ -1047,7 +1011,7 @@ fn resource_list() -> CommandResult<CommandOutput> {
     let human = data
         .resources
         .iter()
-        .map(|resource| format!("{} [{}]", resource.id, resource.kind))
+        .map(|resource| format!("{}  {}  [{}]", resource.id, resource.version, resource.kind))
         .collect();
     success("resource.list", "available", &data, human)
 }
@@ -1055,6 +1019,7 @@ fn resource_list() -> CommandResult<CommandOutput> {
 fn workspace_init(
     workspace_path: Option<PathBuf>,
     arguments: WorkspaceInitArgs,
+    output: OutputArgs,
 ) -> CommandResult<CommandOutput> {
     let root = workspace_path.unwrap_or_else(|| PathBuf::from("."));
     let selection = if let Some(host) = arguments.host {
@@ -1063,7 +1028,8 @@ fn workspace_init(
             arguments.scope.unwrap_or(AgentSkillsScopeArgument::Project),
         ))
     } else if !arguments.no_skills
-        && !wants_json(arguments.output.json)
+        && !output.wants_json()
+        && std::io::stdout().is_terminal()
         && std::io::stdin().is_terminal()
         && std::io::stderr().is_terminal()
     {
@@ -1091,7 +1057,7 @@ fn workspace_init(
     )?;
     if let Some((host, scope)) = selection {
         let setup = host_setup(Some(path.clone()), HostConfigurationArgs {
-            host, scope, executable: None, output: OutputArgs { json: arguments.output.json },
+            host, scope, executable: None,
         }).map_err(|mut failure| {
             let message = format!("Workspace initialized at {}; Skills setup failed: {}. Use host setup to retry installation.", path.display(), failure.error.message);
             failure.error.message.clone_from(&message);
@@ -1307,7 +1273,7 @@ fn host_setup(
     let registration = mcp
         .registration_command
         .as_deref()
-        .unwrap_or("merge the returned configuration snippet into the selected host");
+        .unwrap_or("run host setup --host generic --json for the Host configuration snippet");
     let data = json!({
         "host": host,
         "scope": arguments.scope.as_str(),
@@ -1321,13 +1287,14 @@ fn host_setup(
         &data,
         vec![
             format!(
-                "Agent v4 {} resources are ready for {}",
+                "Skills ready ({}; {})",
                 arguments.scope.as_str(),
                 host.as_str()
             ),
             format!("Skills directory: {}", skills_directory.display()),
             format!("MCP registration: {registration}"),
-            "Skills are installed; MCP connection has not been verified. Run the registration command, then reconnect the Host and discover its tools. Open the Workspace in the Host to discover project Skills.".to_owned(),
+            "Run the registration command, then open this workspace in your Host and reconnect."
+                .to_owned(),
         ],
     )
 }
@@ -1376,12 +1343,17 @@ fn host_status(
         &data,
         vec![
             format!(
-                "Agent v4 {} resource status for {}: {status}",
+                "Skills ({}; {}): {status}",
                 arguments.scope.as_str(),
                 host.as_str()
             ),
-            "The response includes the deterministic MCP registration and verification commands"
-                .to_owned(),
+            format!("Skills directory: {}", skills.directory.display()),
+            format!(
+                "MCP registration: {}",
+                mcp.registration_command
+                    .as_deref()
+                    .unwrap_or("use the configuration returned by --json")
+            ),
         ],
     )?;
     let (action, advice) = match skills.state {
@@ -1628,7 +1600,10 @@ fn application_create(
                 "Revision: {}",
                 model.stored.snapshot.application.revision.get()
             ),
-            "Next: use a reviewed Agent v4 write operation to continue".to_owned(),
+            format!(
+                "Next: canisend app show -a {}",
+                model.stored.snapshot.application.id
+            ),
         ],
     )
 }
@@ -1720,8 +1695,7 @@ fn profile_source_import(
         vec![
             format!("Profile Source: {}", model.source.id),
             format!("Profile revision: {}", model.profile_revision),
-            "Only body-free metadata is returned; original bytes remain in local Workspace authority"
-                .to_owned(),
+            "Source content saved locally; this output shows metadata only".to_owned(),
         ],
     )
 }
@@ -1735,16 +1709,35 @@ fn profile_association_list(
     let model = Application::list_profile_associations_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
-    success(
-        operation,
-        "available",
-        &model,
-        vec![
+    success(operation, "available", &model, {
+        let mut lines = vec![
             format!("Application: {}", model.application_id),
             format!("Workspace Profile Sources: {}", model.profile_sources.len()),
             format!("Explicit links: {}", model.associations.len()),
-        ],
-    )
+        ];
+        lines.extend(
+            model
+                .profile_sources
+                .iter()
+                .map(|source| {
+                    format!(
+                        "Source: {} [{:?}; revision {}]",
+                        source.id,
+                        source.kind,
+                        source.revision.get()
+                    )
+                })
+                .chain(model.associations.iter().map(|link| {
+                    format!(
+                        "Linked source: {} [revision {}; stale: {}]",
+                        link.profile_source.id,
+                        link.profile_source.revision.get(),
+                        link.stale
+                    )
+                })),
+        );
+        lines
+    })
 }
 
 fn evidence_association_list(
@@ -1756,16 +1749,35 @@ fn evidence_association_list(
     let model = Application::list_evidence_associations_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?
         .data;
-    success(
-        operation,
-        "available",
-        &model,
-        vec![
+    success(operation, "available", &model, {
+        let mut lines = vec![
             format!("Application: {}", model.application_id),
             format!("Confirmed Workspace Evidence: {}", model.evidence.len()),
             format!("Explicit links: {}", model.associations.len()),
-        ],
-    )
+        ];
+        lines.extend(
+            model
+                .evidence
+                .iter()
+                .map(|item| {
+                    format!(
+                        "Evidence: {} [{}; revision {}]",
+                        item.evidence.id,
+                        item.kind,
+                        item.evidence.revision.get()
+                    )
+                })
+                .chain(model.associations.iter().map(|link| {
+                    format!(
+                        "Linked evidence: {} [revision {}; stale: {}]",
+                        link.evidence.id,
+                        link.evidence.revision.get(),
+                        link.stale
+                    )
+                })),
+        );
+        lines
+    })
 }
 
 fn requirement_list(
@@ -1777,16 +1789,20 @@ fn requirement_list(
     let receipt = Application::list_requirements_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?;
     let count = receipt.data.requirements.len();
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
             format!("Requirements: {count}"),
-        ],
-    )
+        ];
+        lines.extend(receipt.data.requirements.iter().map(|item| {
+            format!(
+                "{}  [{:?}; {:?}] {}",
+                item.id, item.confirmation, item.priority, item.statement
+            )
+        }));
+        lines
+    })
 }
 
 fn requirement_show(
@@ -1804,6 +1820,13 @@ fn requirement_show(
         &receipt.data,
         vec![
             format!("Requirement: {}", receipt.data.requirement.id),
+            receipt.data.requirement.statement.clone(),
+            format!(
+                "State: {:?}; priority: {:?}; revision: {}",
+                receipt.data.requirement.confirmation,
+                receipt.data.requirement.priority,
+                receipt.data.requirement.revision.get()
+            ),
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
         ],
@@ -1823,16 +1846,35 @@ fn plan_show(
     } else {
         "Plan: not created"
     };
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
             state.to_owned(),
-        ],
-    )
+        ];
+        lines.extend(receipt.data.plan.iter().flat_map(|plan| {
+            let mut details = vec![format!(
+                "State: {:?}; revision: {}",
+                plan.state,
+                plan.revision.get()
+            )];
+            if let Some(decision) = &plan.decision {
+                details.push(format!("Decision: {decision}"));
+            }
+            details.extend(
+                plan.deliverables.iter().map(|item| {
+                    format!("{} [{:?}]: {}", item.kind, item.disposition, item.rationale)
+                }),
+            );
+            details.extend(
+                plan.blockers
+                    .iter()
+                    .map(|item| format!("{:?}: {}", item.severity, item.description)),
+            );
+            details
+        }));
+        lines
+    })
 }
 
 fn deliverable_list(
@@ -1844,16 +1886,23 @@ fn deliverable_list(
     let receipt = Application::list_deliverables_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?;
     let count = receipt.data.deliverables.len();
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
             format!("Deliverables: {count}"),
-        ],
-    )
+        ];
+        lines.extend(receipt.data.deliverables.iter().map(|item| {
+            format!(
+                "{}  {}  [{:?}; revision {}]",
+                item.id,
+                item.title,
+                item.state,
+                item.revision.get()
+            )
+        }));
+        lines
+    })
 }
 
 fn deliverable_show(
@@ -1870,7 +1919,14 @@ fn deliverable_show(
         &receipt.status,
         &receipt.data,
         vec![
-            format!("Deliverable: {}", receipt.data.deliverable.id),
+            format!("Deliverable: {}", receipt.data.deliverable.title),
+            format!("ID: {}", receipt.data.deliverable.id),
+            format!(
+                "Type: {}; state: {:?}; revision: {}",
+                receipt.data.deliverable.kind,
+                receipt.data.deliverable.state,
+                receipt.data.deliverable.revision.get()
+            ),
             format!("Application: {}", receipt.data.context.application_id),
             format!("Pack: {}", receipt.data.context.pack.id),
             "Content body remains behind the private-read boundary".to_owned(),
@@ -1899,16 +1955,20 @@ fn review_inspect(
             .then(PrivateReadConsent::granted_by_user),
     )
     .map_err(|error| app_adapter::failure(operation, error))?;
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Application: {application_id}"),
             format!("Deliverables reviewed: {}", receipt.data.deliverables.len()),
             "Submission performed: no".to_owned(),
-        ],
-    )
+        ];
+        lines.extend(receipt.data.deliverables.iter().flat_map(|item| {
+            vec![
+                format!("\n## {}\n", item.deliverable.title),
+                item.content.clone(),
+            ]
+        }));
+        lines
+    })
 }
 
 fn export_list(
@@ -1919,15 +1979,21 @@ fn export_list(
     let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let receipt = Application::list_exports_v4(&root, application_id)
         .map_err(|error| app_adapter::failure(operation, error))?;
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Application: {}", receipt.data.context.application_id),
             format!("Verified local exports: {}", receipt.data.exports.len()),
-        ],
-    )
+        ];
+        lines.extend(receipt.data.exports.iter().map(|item| {
+            format!(
+                "{}  [{} documents; revision {}]",
+                item.destination,
+                item.document_count,
+                item.application_revision.get()
+            )
+        }));
+        lines
+    })
 }
 
 fn export_show(
@@ -1939,19 +2005,25 @@ fn export_show(
     let receipt =
         Application::show_export_v4(&root, &arguments.application, &arguments.destination)
             .map_err(|error| app_adapter::failure(operation, error))?;
-    success(
-        operation,
-        &receipt.status,
-        &receipt.data,
-        vec![
+    success(operation, &receipt.status, &receipt.data, {
+        let mut lines = vec![
             format!("Destination: {}", receipt.data.manifest.destination),
             format!(
                 "Verified documents: {}",
                 receipt.data.manifest.documents.len()
             ),
             "Submission performed: no".to_owned(),
-        ],
-    )
+        ];
+        lines.extend(
+            receipt
+                .data
+                .manifest
+                .documents
+                .iter()
+                .map(|item| format!("{}  [{} pages]", item.relative_path, item.page_count)),
+        );
+        lines
+    })
 }
 
 fn read_application_candidate<T>(operation: &'static str, path: &Path) -> CommandResult<T>
@@ -2057,10 +2129,6 @@ fn success<T: serde::Serialize>(
         response: CommandResponseV4::success(operation, status, value),
         human,
     })
-}
-
-fn wants_json(explicit: bool) -> bool {
-    explicit || !std::io::stdout().is_terminal()
 }
 
 fn render_success(output: CommandOutput, json_output: bool) -> ExitCode {
@@ -2175,6 +2243,33 @@ mod tests {
 
     #[test]
     fn canonical_v4_commands_parse_and_legacy_paths_are_preflight_rejected() {
+        for flag in ["--candidate", "--file", "-f"] {
+            let parsed = Cli::try_parse_from([
+                "canisend",
+                "--text",
+                "app",
+                "create",
+                "--pack",
+                "org.canisend.generic-application",
+                flag,
+                "request.json",
+                "-w",
+                "/tmp/canisend-cli-alias",
+            ])
+            .expect("short commands and candidate aliases");
+            assert!(parsed.output.text);
+            assert_eq!(
+                parsed.workspace.unwrap(),
+                std::path::Path::new("/tmp/canisend-cli-alias")
+            );
+            let Command::Application {
+                command: ApplicationCommand::Create(request),
+            } = parsed.command
+            else {
+                panic!("expected application create");
+            };
+            assert_eq!(request.candidate, std::path::Path::new("request.json"));
+        }
         let pack = Cli::try_parse_from([
             "canisend",
             "application",
@@ -2185,7 +2280,7 @@ mod tests {
             "--json",
         ])
         .expect("Application Pack show command");
-        assert!(pack.explicit_json());
+        assert!(pack.output.json);
         assert!(matches!(
             pack.command,
             Command::Application {
@@ -2239,7 +2334,7 @@ mod tests {
         assert!(matches!(
             profile_sources.command,
             Command::ProfileSource {
-                command: ProfileSourceCommand::List(_)
+                command: ProfileSourceCommand::List
             }
         ));
 
