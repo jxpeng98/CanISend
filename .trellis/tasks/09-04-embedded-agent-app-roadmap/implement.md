@@ -1961,3 +1961,18 @@ classification unchanged. No dependencies, resource payloads or version records 
 Next: integrate through protected Fast CI. This scope does not publish a new version or
 follow the previous Beta.7 publication outcomes; local checks do not claim native release
 qualification or actual Host acceptance.
+
+### Beta.8 CLI publication — 2026-09-11
+
+The owner authorized a new beta containing the CLI clarity work merged in PR #237. Prepare
+`1.0.0-beta.8` for npm `next` and Cargo, and `1.0.0b8` for the native macOS ARM64 PyPI wheel.
+Synchronize active version projections and release notes; retain historical qualification,
+dependency exceptions and the paused GUI/full-native release scope. No new product code or
+resource payload is introduced by this version update.
+
+The source gate, formatting, diff checks and version-identity regression pass. PR #237 already
+passed its 30 CLI/MCP tests and protected checks; its Linux installation test passed on rerun
+after a transient executable-busy error. Next: exact-package installation/lifecycle checks,
+Cargo publish dry-run and protected integration, then trigger the three authorized publications.
+Retain local package evidence under `dist/beta8-checks/`. Do not follow publication outcomes,
+update real user Workspaces or change global CLI/Host installations.

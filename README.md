@@ -30,7 +30,7 @@ canisend doctor
 ```
 
 `next` tracks testing releases; the default `latest` tag may be older.
-Beta.7 is prepared for publication; Beta.6 is the last independently verified registry release.
+Beta.8 is prepared for publication; Beta.6 is the last independently verified registry release.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
 Other ways to install this testing version:
@@ -109,8 +109,11 @@ See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.7`, adding `workspace upgrade`.
-Beta.7 targets Cargo, npm `next`, and PyPI (`1.0.0b7`); publication results are not yet verified. The npm package and PyPI wheel currently support macOS ARM64.
+The checked-in source version is `1.0.0-beta.8`, with clearer help across all 40 CLI commands,
+shortcuts such as `ws`, `app` and `-w`, and `--text` for readable output through pipes. Existing
+commands and JSON responses remain compatible. See the [command reference](docs/guides/cli-reference.md).
+Beta.8 targets Cargo, npm `next`, and PyPI (`1.0.0b8`); publication results are not yet verified.
+The npm package and PyPI wheel currently support macOS ARM64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process
 and associate its evidence without repeated prompts. New private sources and exports still ask;

@@ -314,7 +314,7 @@ After merging the intended source version to main, enable the workflow and run:
 
 ```sh
 gh workflow enable release.yml
-gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.6
+gh workflow run release.yml --ref main -F npm_only=true -f tag=v1.0.0-beta.8
 ```
 
 Use the exact prerelease version in `Cargo.toml`. Each published version is
@@ -331,7 +331,7 @@ checks its installation and MCP behavior, publishes through OIDC, then downloads
 the registry bytes before another fresh installation:
 
 ```sh
-gh workflow run release.yml --ref main -F pypi_only=true -F npm_only=false -f tag=v1.0.0-beta.6
+gh workflow run release.yml --ref main -F pypi_only=true -F npm_only=false -f tag=v1.0.0-beta.8
 ```
 
 The Trusted Publisher uses repository `jxpeng98/CanISend` and workflow `release.yml`.
