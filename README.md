@@ -122,7 +122,7 @@ See [release status](RELEASE.md) for exact versions, artifacts and remaining gat
 
 ## More
 
-- [Detailed CLI walkthrough](docs/guides/quick-start.md) · [Troubleshooting](docs/guides/troubleshooting.md)
+- [CLI command reference](docs/guides/cli-reference.md) · [Walkthrough](docs/guides/quick-start.md) · [Troubleshooting](docs/guides/troubleshooting.md)
 - [Privacy and consent](docs/guides/privacy-and-consent.md) · [Backup and recovery](docs/guides/backup-and-recovery.md)
 - [Known limitations](docs/guides/known-limitations.md) · [Report a problem](https://github.com/jxpeng98/CanISend/issues)
 - [Contributing](CONTRIBUTING.md) · [1.0 roadmap](docs/superpowers/plans/2026-07-25-1.0-release-roadmap.md)

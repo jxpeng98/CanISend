@@ -1940,3 +1940,24 @@ The corrected head still requires its protected checks before merge and publicat
 
 The full macOS suite also found the corresponding contracts-layer CLI count still at 39.
 Align that assertion to 40; the 47 contract unit tests pass. No runtime change is involved.
+
+### CLI command clarity — 2026-09-11
+
+Owner-authorized scope: review and simplify all 40 CLI commands. Consolidate output flags
+at the root, add explicit piped text output and consistent workspace/application/file
+shortcuts, retain canonical commands and JSON operation contracts, and document the complete
+command surface. Text lists now include usable IDs, states and paths; review and local worker
+results preserve paragraphs after existing private-read consent checks. Fix legacy preflight
+rejecting current review commands and reject conflicting output modes across command levels.
+MCP stdio rejects CLI output flags before opening a workspace.
+
+Local verification passes: 4 CLI unit tests, 17 binary contracts (all 40 help entries plus
+aliases, output/error modes, revision and privacy boundaries), 9 MCP protocol tests, affected
+Clippy, formatting, the source gate, and documentation link/inventory checks. The release-only
+performance test remains ignored in this development build. A schema help example initially
+triggered the domain inventory; using the generic Pack example keeps the existing domain
+classification unchanged. No dependencies, resource payloads or version records change.
+
+Next: integrate through protected Fast CI. This scope does not publish a new version or
+follow the previous Beta.7 publication outcomes; local checks do not claim native release
+qualification or actual Host acceptance.

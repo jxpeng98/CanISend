@@ -2,39 +2,42 @@ use super::*;
 
 #[derive(Debug, Subcommand)]
 pub(super) enum LocalTaskCommand {
-    /// List up to 100 recent task records for an Application without candidate bodies.
+    /// List up to 100 recent worker tasks.
     List(ApplicationIdArgs),
-    /// Prepare coordination for an exact Application revision; this does not authorize a write.
+    /// Create a worker task for the current application revision.
     Prepare {
-        #[arg(long)]
+        /// Application ID from `app list`.
+        #[arg(short = 'a', long, value_name = "ID")]
         application: String,
-        #[arg(long)]
+        /// Current Application revision.
+        #[arg(long, value_name = "REVISION")]
         expected_revision: u64,
-        #[command(flatten)]
-        output: OutputArgs,
     },
-    /// Read task metadata without exposing the candidate body.
+    /// Show task state, generation and lease details.
     Show(TaskIdArgs),
-    /// Claim a prepared task or reclaim an expired lease atomically.
+    /// Claim a task or renew an expired lease.
     Claim {
         #[command(flatten)]
         task: TaskIdArgs,
-        #[arg(long)]
+        /// Current generation from `local-task show`.
+        #[arg(long, value_name = "GENERATION")]
         expected_generation: u64,
     },
-    /// Store a bounded, untrusted JSON candidate under the exact live lease.
+    /// Save a worker result locally; does not submit an application.
     Submit {
         #[command(flatten)]
         lease: LeaseArgs,
-        #[arg(long)]
+        /// JSON result file to save under the current lease.
+        #[arg(short = 'f', long, visible_alias = "file", value_name = "JSON_FILE")]
         candidate: PathBuf,
     },
-    /// Abandon a claimed task without changing the Application.
+    /// Cancel a claimed task; keep the application unchanged.
     Cancel(LeaseArgs),
-    /// Read private candidate bytes for a subsequent independently approved preview.
+    /// Read a saved result with private-read consent.
     CandidateShow {
         #[command(flatten)]
         task: TaskIdArgs,
+        /// Allow reading this private task result.
         #[arg(long)]
         confirm_private_read: bool,
     },
@@ -42,34 +45,24 @@ pub(super) enum LocalTaskCommand {
 
 #[derive(Debug, Args)]
 pub(super) struct TaskIdArgs {
-    #[arg(long)]
+    /// Task ID from `local-task list`.
+    #[arg(long, value_name = "ID")]
     task: String,
-    #[command(flatten)]
-    output: OutputArgs,
 }
 
 #[derive(Debug, Args)]
 pub(super) struct LeaseArgs {
     #[command(flatten)]
     task: TaskIdArgs,
-    #[arg(long)]
+    /// Current generation from `local-task show`.
+    #[arg(long, value_name = "GENERATION")]
     expected_generation: u64,
-    #[arg(long)]
+    /// Lease ID returned by `local-task claim`.
+    #[arg(long, value_name = "ID")]
     lease: String,
 }
 
 impl LocalTaskCommand {
-    pub(super) fn json(&self) -> bool {
-        match self {
-            Self::List(arguments) => arguments.output.json,
-            Self::Prepare { output, .. } => output.json,
-            Self::Show(task) | Self::Claim { task, .. } | Self::CandidateShow { task, .. } => {
-                task.output.json
-            }
-            Self::Submit { lease, .. } | Self::Cancel(lease) => lease.task.output.json,
-        }
-    }
-
     fn operation(&self) -> &'static str {
         match self {
             Self::List(_) => "local-task.list",
@@ -96,7 +89,14 @@ pub(super) fn execute(
             operation,
             &receipt.status,
             &receipt.data,
-            vec![serde_json::to_string_pretty(&receipt.data).unwrap_or_default()],
+            std::iter::once(format!("Worker tasks: {}", receipt.data.len()))
+                .chain(receipt.data.iter().map(|task| {
+                    format!(
+                        "{}  [{:?}; generation {}]",
+                        task.id, task.state, task.generation
+                    )
+                }))
+                .collect(),
         );
     }
     if let LocalTaskCommand::CandidateShow {
@@ -114,7 +114,7 @@ pub(super) fn execute(
             operation,
             &receipt.status,
             &receipt.data,
-            vec![serde_json::to_string_pretty(&receipt.data).unwrap_or_default()],
+            candidate_text(&receipt.data),
         );
     }
     let result = match command {
@@ -155,6 +155,44 @@ pub(super) fn execute(
         operation,
         &receipt.status,
         &receipt.data,
-        vec![serde_json::to_string_pretty(&receipt.data).unwrap_or_default()],
+        task_text(&receipt.data),
     )
+}
+
+fn task_text(task: &canisend_contracts::LocalTaskV4) -> Vec<String> {
+    let mut lines = vec![
+        format!("Task: {}", task.id),
+        format!("State: {:?}; generation: {}", task.state, task.generation),
+    ];
+    if let Some(lease) = &task.lease_id {
+        lines.push(format!("Lease: {lease}"));
+    }
+    if let Some(expires) = &task.lease_expires_at {
+        lines.push(format!("Lease expires: {expires}"));
+    }
+    if let Some(bytes) = task.candidate_bytes {
+        lines.push(format!("Saved result: {bytes} bytes"));
+    }
+    lines
+}
+
+// Worker results are arbitrary JSON; render strings as text without JSON escaping.
+fn candidate_text(value: &Value) -> Vec<String> {
+    match value {
+        Value::Object(fields) if !fields.is_empty() => fields
+            .iter()
+            .flat_map(|(key, value)| {
+                std::iter::once(format!("{}:", key.replace('_', " "))).chain(candidate_text(value))
+            })
+            .collect(),
+        Value::Array(values) if !values.is_empty() => values
+            .iter()
+            .enumerate()
+            .flat_map(|(index, value)| {
+                std::iter::once(format!("{}.", index + 1)).chain(candidate_text(value))
+            })
+            .collect(),
+        Value::String(text) => vec![text.clone()],
+        value => vec![value.to_string()],
+    }
 }
