@@ -37,10 +37,13 @@ impl Drop for TestDirectory {
 }
 
 fn run(arguments: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_canisend"))
-        .args(arguments)
-        .output()
-        .expect("canisend binary runs")
+    Command::new(
+        std::env::var_os("CANISEND_TEST_CLI_BINARY")
+            .unwrap_or_else(|| env!("CARGO_BIN_EXE_canisend").into()),
+    )
+    .args(arguments)
+    .output()
+    .expect("canisend binary runs")
 }
 
 fn run_json(arguments: &[&str]) -> Value {
@@ -1333,6 +1336,118 @@ fn workspace_init_installs_selected_skills_without_interactive_input() {
         !run(&["workspace", "init", "--scope", "global"])
             .status
             .success()
+    );
+}
+
+#[test]
+fn workspace_upgrade_refreshes_existing_skills_and_preserves_customizations() {
+    let workspace = TestDirectory::new("upgrade-skills");
+    run_json(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "init",
+        "--json",
+    ]);
+    let upgrade = || {
+        run_json(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "upgrade",
+            "--json",
+        ])
+    };
+    assert_eq!(upgrade()["data"]["skills"], serde_json::json!([]));
+    assert!(!workspace.path().join(".agents").exists());
+    assert!(!workspace.path().join(".claude").exists());
+    let mut manifests = Vec::new();
+    let mut skill_files = Vec::new();
+    for (host, folder) in [
+        ("codex", ".agents"),
+        ("claude", ".claude"),
+        ("generic", "."),
+    ] {
+        let installed = run_json(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "upgrade",
+            "--host",
+            host,
+            "--json",
+        ]);
+        assert_eq!(installed["data"]["skills"][0]["state"], "installed");
+        let manifest = workspace.path().join(folder).join("canisend-agent-v4.json");
+        let skill = workspace
+            .path()
+            .join(folder)
+            .join("skills/canisend-workspace/SKILL.md");
+        let mut previous: Value = serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+        previous["product_version"] = "1.0.0-beta.5".into();
+        fs::write(&manifest, serde_json::to_vec(&previous).unwrap()).unwrap();
+        let original = fs::read(&skill).unwrap();
+        fs::remove_file(&skill).unwrap();
+        manifests.push(manifest);
+        skill_files.push((skill, original));
+    }
+    let updated = upgrade();
+    assert_eq!(updated["operation"], "workspace.upgrade");
+    assert_eq!(
+        updated["data"]["product_version"],
+        env!("CARGO_PKG_VERSION")
+    );
+    assert_eq!(updated["data"]["skills"].as_array().unwrap().len(), 3);
+    for skills in updated["data"]["skills"].as_array().unwrap() {
+        assert_eq!(skills["state"], "updated");
+    }
+    for (skill, original) in &skill_files {
+        assert_eq!(&fs::read(skill).unwrap(), original);
+    }
+    for skills in upgrade()["data"]["skills"].as_array().unwrap() {
+        assert_eq!(skills["state"], "up-to-date");
+    }
+    // A later host conflict must not partially upgrade an earlier host.
+    fs::remove_file(&skill_files[0].0).unwrap();
+    fs::write(&skill_files[1].0, "user-owned edit").unwrap();
+    let before = manifests
+        .iter()
+        .map(|p| fs::read(p).unwrap())
+        .collect::<Vec<_>>();
+    let failure = run(&[
+        "--workspace",
+        workspace.text(),
+        "workspace",
+        "upgrade",
+        "--json",
+    ]);
+    assert!(!failure.status.success());
+    assert!(!skill_files[0].0.exists());
+    assert_eq!(
+        fs::read_to_string(&skill_files[1].0).unwrap(),
+        "user-owned edit"
+    );
+    for (manifest, original) in manifests.iter().zip(before) {
+        assert_eq!(fs::read(manifest).unwrap(), original);
+    }
+    // An unmanaged file is also preserved when explicitly selecting its host.
+    fs::remove_file(&manifests[1]).unwrap();
+    assert!(
+        !run(&[
+            "--workspace",
+            workspace.text(),
+            "workspace",
+            "upgrade",
+            "--host",
+            "claude",
+            "--json"
+        ])
+        .status
+        .success()
+    );
+    assert_eq!(
+        fs::read_to_string(&skill_files[1].0).unwrap(),
+        "user-owned edit"
     );
 }
 

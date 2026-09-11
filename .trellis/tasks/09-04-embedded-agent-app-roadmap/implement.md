@@ -1906,3 +1906,37 @@ Bash syntax, source gate and required CI run `34541234137` passed. The new publi
 the final PyPI upload and registry-install status. Prepared installation documentation stays
 in a draft PR until that publication succeeds. Full native/GUI and actual Host qualification
 remain outside this scope; no dependency exception was renewed.
+
+
+### Workspace upgrade and Beta.7 — 2026-09-11
+
+Owner-authorized scope: expose one noninteractive Workspace upgrade command, especially for
+project-local Skills, then publish the next testing beta without tracking publication outcomes.
+Reuse the App facade and existing resource install/status checks. Auto-detect Codex, Claude and
+generic project installations; `--host` selects or installs one. Preflight customizations across
+all selected hosts, restore missing managed files, preserve unrelated files and user edits.
+Global Skills remain explicit through `host setup`; unsupported Workspace formats stay rejected.
+
+Prepare Beta.7 with the established bounded source-version update. The full `prepare-stage`
+command rejects this independent registry iteration because the active Beta lacks full native
+qualification; historical qualification and freeze records remain unchanged. Local regression,
+source checks, package lifecycle and required protected CI are tracked below before publication.
+No real Workspace, global installation, Host configuration or user consent form is changed.
+
+Local checks: the 16 CLI binary-contract tests (including upgrade), 17 resource lifecycle tests,
+three npm launcher/packaging tests, affected Clippy, formatting, workflow YAML and source check
+pass. The workflow runs the owning upgrade regression against its installed npm/PyPI candidate
+before publication. Exact Beta.6-to-Beta.7 package upgrade and protected CI remain next.
+
+Package checks at `78f2b2b`: installed npm and PyPI candidates pass the upgrade regression;
+the wheel also passes native signing, source/notices, doctor and Workspace checks. Real published
+Beta.6 Skills upgrade to the candidate for both Codex and Claude, including missing-file recovery,
+idempotence and cross-host conflict preservation. All eight Cargo packages compile in publish
+dry-run. Local evidence is `dist/beta7-checks/verification.json`; no publication is claimed.
+
+The first protected CI exposed the old fixed CLI cardinality (39). Update it to 40 for the new
+leaf; the four CLI unit tests pass locally. This changes a test assertion, not runtime behavior.
+The corrected head still requires its protected checks before merge and publication dispatch.
+
+The full macOS suite also found the corresponding contracts-layer CLI count still at 39.
+Align that assertion to 40; the 47 contract unit tests pass. No runtime change is involved.

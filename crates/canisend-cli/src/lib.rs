@@ -183,6 +183,8 @@ enum ResourceCommand {
 enum WorkspaceCommand {
     /// Initialize a neutral Workspace v4 at --workspace or the current directory.
     Init(WorkspaceInitArgs),
+    /// Upgrade supported Workspace storage and installed project Skills with this binary.
+    Upgrade(WorkspaceUpgradeArgs),
     /// Report authoritative Workspace and SQLite status.
     Status(OutputArgs),
     /// Verify database, blob, freshness, and projection invariants.
@@ -391,6 +393,15 @@ struct WorkspaceInitArgs {
 }
 
 #[derive(Debug, Args)]
+struct WorkspaceUpgradeArgs {
+    /// Update or install this Host's project Skills; default: all existing project installations.
+    #[arg(long, value_enum)]
+    host: Option<HostArgument>,
+    #[command(flatten)]
+    output: OutputArgs,
+}
+
+#[derive(Debug, Args)]
 struct WorkspaceRestoreArgs {
     /// Verified CanISend backup directory.
     backup: PathBuf,
@@ -532,6 +543,9 @@ impl Cli {
             } => arguments.output.json,
             Command::Workspace {
                 command: WorkspaceCommand::Init(arguments),
+            } => arguments.output.json,
+            Command::Workspace {
+                command: WorkspaceCommand::Upgrade(arguments),
             } => arguments.output.json,
             Command::Workspace {
                 command:
@@ -841,6 +855,9 @@ fn execute(cli: Cli) -> CommandResult<CommandOutput> {
             command: WorkspaceCommand::Init(arguments),
         } => workspace_init(workspace, arguments),
         Command::Workspace {
+            command: WorkspaceCommand::Upgrade(arguments),
+        } => workspace_upgrade(workspace, arguments),
+        Command::Workspace {
             command: WorkspaceCommand::Status(_),
         } => workspace_status(workspace),
         Command::Workspace {
@@ -1092,6 +1109,35 @@ fn workspace_init(
         });
     }
     Ok(output)
+}
+
+fn workspace_upgrade(
+    workspace_path: Option<PathBuf>,
+    arguments: WorkspaceUpgradeArgs,
+) -> CommandResult<CommandOutput> {
+    let operation = "workspace.upgrade";
+    let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
+    let data = Application::upgrade_workspace_v4(&root, arguments.host.map(AgentHost::from))
+        .map_err(|error| app_adapter::failure(operation, error))?
+        .data;
+    let mut human = vec![format!(
+        "Workspace ready for CanISend {}: {}",
+        data.product_version,
+        data.workspace.path.display()
+    )];
+    for skills in &data.skills {
+        human.push(format!(
+            "Project Skills ready: {}",
+            skills.directory.display()
+        ));
+    }
+    if data.skills.is_empty() {
+        human.push(
+            "No project Skills installed. Add --host codex (or claude) to install them.".to_owned(),
+        );
+    }
+    human.push("Reconnect your Host to load the updated Skills and tools. If the executable path changed, run host setup for its new MCP registration command. Global Skills use host setup --scope global.".to_owned());
+    success(operation, "ready", &data, human)
 }
 
 fn prompt_init_skills(
@@ -2124,7 +2170,7 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 39);
+        assert_eq!(actual.len(), 40);
     }
 
     #[test]

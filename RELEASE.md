@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.6`, distributed through npm, Cargo and PyPI testing channels;
+- Checked-in source: `1.0.0-beta.7`, prepared for npm, Cargo and PyPI testing channels;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -76,6 +76,13 @@ existing `pypi` environment using OIDC, and verifies exact registry bytes and a 
 installation. The first attempt stopped before upload because its smoke script required
 `rg`; PR #234 replaced that dependency with the system `grep`. TestPyPI remains unused.
 These channels do not qualify a full native checkpoint or renew dependency exceptions.
+
+Beta.7 adds `workspace upgrade` to refresh existing project Skills using the installed
+CLI, restore missing managed files and preserve user edits. `--host` selects or installs
+one Host. Workspace v4 compatibility checks and existing migrations are reused; no legacy
+Workspace import or new schema is introduced. The owner requested publication without
+tracking its outcome, so Beta.7 has no verified-publication claim here. The Beta.6 records
+above retain the last independently verified registry artifacts.
 
 ## Supported public package scope
 

@@ -1,7 +1,7 @@
 {
   "schema": "canisend.alpha-package-contract/v3",
-  "version": "1.0.0-beta.6",
-  "tag": "v1.0.0-beta.6",
+  "version": "1.0.0-beta.7",
+  "tag": "v1.0.0-beta.7",
   "contracts": {
     "agent_protocol": "canisend.agent/v4",
     "migration_inventory": {
@@ -20,7 +20,7 @@
     "resource_manifest": {
       "entry_count": 91,
       "path": "crates/canisend-resources/resources/manifest.json",
-      "sha256": "8caaf0509968e6726eaab9a607970a6a533e34f4f58340157c113120ee20b744"
+      "sha256": "edf69ba1134b60102648e45a5ed84e5e5675748e43ec0f7abc30b59dfd4af845"
     },
     "workflow_pack_format": "canisend.workflow-pack/v1",
     "workflow_packs": [
@@ -44,31 +44,31 @@
     "assets": [
       {
         "target": "aarch64-apple-darwin",
-        "file": "canisend-1.0.0-beta.6-aarch64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-beta.7-aarch64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-apple-darwin",
-        "file": "canisend-1.0.0-beta.6-x86_64-apple-darwin.tar.gz"
+        "file": "canisend-1.0.0-beta.7-x86_64-apple-darwin.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-gnu",
-        "file": "canisend-1.0.0-beta.6-x86_64-unknown-linux-gnu.tar.gz"
+        "file": "canisend-1.0.0-beta.7-x86_64-unknown-linux-gnu.tar.gz"
       },
       {
         "target": "x86_64-unknown-linux-musl",
-        "file": "canisend-1.0.0-beta.6-x86_64-unknown-linux-musl.tar.gz"
+        "file": "canisend-1.0.0-beta.7-x86_64-unknown-linux-musl.tar.gz"
       },
       {
         "target": "x86_64-pc-windows-msvc",
-        "file": "canisend-1.0.0-beta.6-x86_64-pc-windows-msvc.zip"
+        "file": "canisend-1.0.0-beta.7-x86_64-pc-windows-msvc.zip"
       }
     ]
   },
   "desktop_macos": {
     "build_profile": "release-alpha",
     "target": "aarch64-apple-darwin",
-    "archive": "CanISend-1.0.0-beta.6-aarch64-apple-darwin.zip",
-    "dmg": "CanISend-1.0.0-beta.6-aarch64-apple-darwin.dmg",
+    "archive": "CanISend-1.0.0-beta.7-aarch64-apple-darwin.zip",
+    "dmg": "CanISend-1.0.0-beta.7-aarch64-apple-darwin.dmg",
     "archive_top_level": [
       "CanISend.app",
       "CanISend.app.manifest.json"
