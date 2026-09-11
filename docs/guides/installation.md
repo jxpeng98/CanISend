@@ -13,7 +13,7 @@ canisend version
 canisend doctor
 ```
 
-`next` currently provides `1.0.0-beta.6`; the default `latest` tag may be older. This package
+`next` tracks testing releases; the default `latest` tag may be older. This package
 includes the compiled CLI, templates, Skills and corresponding source. It needs no Rust or
 Python installation. Other npm platforms are not yet supplied.
 
@@ -52,7 +52,7 @@ Use the explicit version: `1.0.0b6` is the PyPI spelling of `1.0.0-beta.6`, and 
 unversioned pip installation may select the older stable Python product.
 
 For upgrades, back up your Workspace first, rerun the Cargo installation command or install
-the desired PyPI version with `--upgrade`, then run `host setup --host codex` in the Workspace
+the desired PyPI version with `--upgrade`, then run `workspace upgrade` in each Workspace (available from Beta.7)
 and reconnect the Host. See [upgrade and recovery](upgrade-and-rollback.md).
 
 ## Supported native targets

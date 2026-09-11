@@ -8,7 +8,7 @@ use canisend_contracts::{
     BackupManifestData, WORKSPACE_V4_FORMAT, WorkspaceCheckData, WorkspaceStatusData,
 };
 use canisend_io::EmbeddedTypstCompiler;
-use canisend_resources::{ResourceId, export_if_missing};
+use canisend_resources::{AgentSkillsStatusState, ResourceError, ResourceId, export_if_missing};
 use canisend_store::{
     ApplicationModelRepository, BACKUP_FORMAT, BackupResult, ProjectionService, Workspace,
 };
@@ -16,7 +16,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ACADEMIC_JOB_WORKFLOW_PACK_ID, GENERIC_APPLICATION_WORKFLOW_PACK_ID};
 use crate::{
-    ActionReceipt, Application, ApplicationError,
+    ActionReceipt, AgentHost, AgentSkillsInstallReadModel, AgentSkillsInstallRequest,
+    AgentSkillsInstallScope, Application, ApplicationError,
     application::{open_workspace, open_workspace_v4},
 };
 
@@ -33,6 +34,14 @@ pub struct WorkspaceReadModel {
 pub struct WorkspaceV4ReadModel {
     pub path: PathBuf,
     pub status: WorkspaceStatusData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceUpgradeReadModel {
+    pub workspace: WorkspaceV4ReadModel,
+    pub product_version: String,
+    pub skills: Vec<AgentSkillsInstallReadModel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,6 +83,53 @@ pub enum WorkspaceInitPolicy {
 }
 
 impl Application {
+    /// Open supported Workspace storage and refresh project Skills from this binary.
+    pub fn upgrade_workspace_v4(
+        root: &Path,
+        host: Option<AgentHost>,
+    ) -> Result<ActionReceipt<WorkspaceUpgradeReadModel>, ApplicationError> {
+        let workspace = Self::workspace_status_v4(root)?.data;
+        let hosts = host.map_or_else(
+            || vec![AgentHost::Codex, AgentHost::Claude, AgentHost::Generic],
+            |host| vec![host],
+        );
+        let mut requests = Vec::new();
+        // Check every selected installation before changing any host's Skills.
+        for selected in hosts {
+            let request = AgentSkillsInstallRequest {
+                host: selected,
+                workspace: workspace.path.clone(),
+                scope: AgentSkillsInstallScope::Project,
+            };
+            let status = Self::agent_skills_status(&request)?.data;
+            match status.state {
+                AgentSkillsStatusState::NotInstalled if host.is_none() => continue,
+                AgentSkillsStatusState::UserModified => {
+                    return Err(ResourceError::ManagedSkillModified(status.directory).into());
+                }
+                AgentSkillsStatusState::Unmanaged => {
+                    return Err(ResourceError::UnmanagedSkillFiles(status.directory).into());
+                }
+                _ => {}
+            }
+            requests.push(request);
+        }
+        let skills = requests
+            .iter()
+            .map(|request| Self::install_agent_skills(request).map(|receipt| receipt.data))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ActionReceipt::new(
+            "workspace.upgrade",
+            "ready",
+            "Workspace storage and project Skills match this binary",
+            WorkspaceUpgradeReadModel {
+                workspace,
+                product_version: env!("CARGO_PKG_VERSION").to_owned(),
+                skills,
+            },
+        ))
+    }
+
     pub fn initialize_workspace_v4(
         root: &Path,
     ) -> Result<ActionReceipt<WorkspaceV4ReadModel>, ApplicationError> {

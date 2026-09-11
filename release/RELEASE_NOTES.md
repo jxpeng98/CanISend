@@ -1,16 +1,16 @@
-# CanISend 1.0.0-beta.6
+# CanISend 1.0.0-beta.7
 
-Published to npm `next` for macOS ARM64. See the [release record](../RELEASE.md) for the
-exact source, package checksum and CI verification.
+Prepared for npm `next`, Cargo and PyPI testing publication. Publication outcomes are not
+tracked for this iteration; see the [release record](../RELEASE.md) for verified older artifacts.
 
-Optional Auto approval covers routine work on one Application and selected Profile Sources
-for up to 60 minutes. Manual requests combine their permissions in one form, and confirmation
-content uses readable text with real paragraphs. New private Sources and exports still ask.
-Evidence, revision, digest and single-use token checks remain enforced.
+After upgrading the CLI, run `canisend --workspace PATH workspace upgrade` to refresh all
+installed project Skills. It restores missing files, updates unchanged managed files and
+stops on customizations before changing any Host's Skills. Use `--host codex` or `--host claude`
+to select or install one Host. Global Skills still use `host setup --scope global`.
 
-Shared Agent guidance and stage Skills are shorter, obsolete project-local Trellis injection
-is removed, and five-Skill discovery is unchanged. Managed upgrades preserve user edits.
-Agent/Workspace v4 and Pack identities are unchanged.
+The command reuses supported Workspace v4 migrations and existing resource integrity checks.
+It prints readable terminal output and supports `--json`. Reconnect the Host afterward.
+Legacy Workspace formats are not imported; Application data, bound Packs and user edits remain.
 
 ## Highlights
 

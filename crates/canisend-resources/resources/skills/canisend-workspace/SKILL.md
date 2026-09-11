@@ -57,12 +57,14 @@ Initialize with `canisend --workspace PATH workspace init --host codex --json`
 Use the user's chosen Host/scope. The returned MCP registration command still needs
 running in that Host; installed Skills or status `ready` do not prove a connection.
 
-After replacing the binary, run `version --json`, `doctor --json` and
-`canisend --workspace PATH host status --host HOST --scope SCOPE --json`.
-For `update-available`/`incomplete`, run `host setup` with the same scope and new binary.
-For `user-modified`/`unmanaged`, preserve customizations and report the conflict; do not
-force-update or edit ownership manifests. Reconnect, rediscover schemas and refresh
-state; use the returned registration command if the executable path changed.
+After backing up the Workspace and replacing the binary, run `version --json`,
+`doctor --json` and `canisend --workspace PATH workspace upgrade --json`.
+Upgrade refreshes all existing project Skills and restores missing managed files;
+add `--host HOST` to select or install one Host. Global Skills still use
+`host setup --host HOST --scope global`. For modified or unmanaged files, preserve
+customizations and report the conflict; do not force-update or edit ownership manifests.
+Reconnect, rediscover schemas and refresh state. If the executable path changed, use
+`host setup` for the new registration command. Workspace v2/v3 import is unsupported.
 
 ## Profile, Evidence and Application creation
 

@@ -64,31 +64,29 @@ installed command:
 Use `canisend.exe` on Windows. Replace the installed executable and its release notice bundle as one versioned unit.
 Do not merge files from different releases.
 
-Then inspect and check each Workspace with the new executable:
+From Beta.7, upgrade each Workspace with one command, then check its integrity:
 
 ```console
-canisend --workspace ./applications workspace status --json
-canisend --workspace ./applications workspace check --json
+canisend --workspace ./applications workspace upgrade
+canisend --workspace ./applications workspace check
 ```
 
-Opening a Workspace applies only the reviewed, contiguous database migrations embedded in that
-binary. It does not import unsupported Workspace v2/v3 state. Migration history, exact
-Application Pack compatibility, and integrity checks fail closed. After all Workspaces pass,
-inspect Skills with the new binary, then update the selected scope through the CLI:
+Opening a supported Workspace applies the contiguous database migrations embedded in the
+binary. `workspace upgrade` also refreshes all existing project Skills (Codex, Claude and
+generic), restores missing managed files and removes unchanged obsolete managed files.
+It preflights all selected installations for customizations before updating any Skills.
+Repeated upgrades are safe. The command does not import unsupported Workspace v2/v3 state.
+Templates are bundled in the new CLI; existing Applications retain their bound Pack and history.
 
-```console
-canisend --workspace ./applications host status --host codex --scope project --json
-canisend --workspace ./applications host setup --host codex --scope project --json
-canisend --workspace ./applications host status --host codex --scope project --json
-```
+Use `workspace upgrade --host codex` (or `claude`) to select or install one Host's project
+Skills. Without `--host`, a Workspace with no installed Skills stays that way. These commands
+return readable text in a terminal and JSON when piped or passed `--json`. They do not prompt for approval.
+If the executable moved, run `host setup --host HOST` for the updated MCP registration command.
+Reconnect the Host after upgrading; installing Skills does not change its MCP configuration.
 
-Use `--host claude` for Claude Code. If the executable moved, update the Host registration to the
-new verified path. Setup does not modify the Host's configuration or start a model session.
-
-Use the same scope used during installation (`--scope global` for user-wide Skills). Updating
-project Skills does not update another global copy; avoid duplicate copies that a Host might
-load together. `host status` compares installed manifests and actual bytes with the running
-binary, including changes within the same product version, and returns a state-specific next action.
+User-wide Skills remain separate: run `host setup --host HOST --scope global` to update them.
+Before Beta.7, use `host setup --host HOST` for project updates as well. `host status` compares
+manifests and actual bytes with the running binary and provides conflict guidance:
 
 | Status | Action |
 |---|---|
@@ -118,7 +116,7 @@ for Claude Code. Their ownership manifests are `.agents/canisend-agent-v4.json` 
 uninstall performs a complete digest preflight and refuses user-modified or unmanaged files.
 Pre-v4 layouts are not upgraded in place: remove them explicitly, then perform a clean v4 install.
 
-For missing managed Skill files, run the same `host setup` command to restore the embedded version,
+For missing managed Skill files, run `workspace upgrade` (or the same scoped `host setup` command) to restore the embedded version,
 then check `host status`. User-edited or unmanaged files require review; setup and removal refuse
 to overwrite or delete conflicting files. A broken executable is repaired by reinstalling a verified
 archive, not by changing Workspace data. Use `workspace repair` only for its documented managed

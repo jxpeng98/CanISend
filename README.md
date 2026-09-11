@@ -29,7 +29,8 @@ canisend version
 canisend doctor
 ```
 
-`next` currently provides **1.0.0-beta.6**; the default `latest` tag may be older.
+`next` tracks testing releases; the default `latest` tag may be older.
+Beta.7 is prepared for publication; Beta.6 is the last independently verified registry release.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
 Other ways to install this testing version:
@@ -89,24 +90,27 @@ you share with an AI Host is subject to that Host's data settings.
 ## Upgrade
 
 Back up your workspace, then install the newer npm version or replace the downloaded binary.
-Refresh Skills using the new executable:
+Upgrade each workspace using the new executable:
 
 ```sh
 canisend --workspace ./applications workspace backup ./applications-backup
 # Install the new version, then:
-canisend --workspace ./applications host setup --host codex
+canisend --workspace ./applications workspace upgrade
 canisend --workspace ./applications workspace check
 ```
 
 Use a new backup directory each time. Reconnect your Host and update its MCP registration if
-the executable path changed. Setup preserves locally edited Skills. Built-in templates update
+the executable path changed. Upgrade detects existing project Skills, updates managed files,
+and restores missing ones. It stops on local edits so you can preserve and resolve them.
+Add `--host codex` or `--host claude` to install or select one Host; global Skills still use
+`host setup --host HOST --scope global`. Built-in templates update
 with the CLI; existing applications retain their bound template version and history.
 See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.6`, available through Cargo, npm `next`, and
-PyPI (`1.0.0b6`). The npm package and PyPI wheel currently support macOS ARM64.
+The checked-in source version is `1.0.0-beta.7`, adding `workspace upgrade`.
+Beta.7 targets Cargo, npm `next`, and PyPI (`1.0.0b7`); publication results are not yet verified. The npm package and PyPI wheel currently support macOS ARM64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process
 and associate its evidence without repeated prompts. New private sources and exports still ask;

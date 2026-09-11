@@ -101,7 +101,7 @@ Initialization prints an MCP registration command for your installation. Run tha
 
 The registration command points directly to the Rust executable. With npm, its path includes \`node_modules/canisend/native/...\`; \`node_modules\` is the installation directory, and the MCP server itself runs without Node. \`Agent v4\` identifies the integration protocol, separately from the package version shown by \`canisend version\`.
 
-For Claude Code, use \`--host claude\`. Use \`--no-skills\` to initialize without Skills, or add \`--scope global\` with a host to install them for your user account. For an existing Workspace, use \`host setup\` to install or refresh its Skills instead of initializing it again.
+For Claude Code, use \`--host claude\`. Use \`--no-skills\` to initialize without Skills, or add \`--scope global\` with a host to install them for your user account. For an existing Workspace, use \`workspace upgrade\` to refresh installed project Skills, or add \`--host codex\` to install them.
 
 ## Prepare an application
 
@@ -117,13 +117,13 @@ Back up your Workspace to a new directory before upgrading:
 canisend --workspace ./applications workspace backup ./applications-backup
 npm install -g canisend@next
 canisend version
-canisend --workspace ./applications host setup --host codex
+canisend --workspace ./applications workspace upgrade
 canisend --workspace ./applications workspace check
 \`\`\`
 
 \`next\` tracks testing releases and may differ from npm's default \`latest\` tag. To choose a specific release, install \`canisend@VERSION\` instead.
 
-Review the MCP registration printed by \`host setup\`, update the host registration, and reconnect. The executable path changed between the beta.3 platform packages and the beta.4 single package, so an older registration can still point to the previous binary. Refresh Skills through \`host setup\`; it reports conflicts rather than silently replacing locally edited files. Keep the backup until you have checked the upgraded Workspace.
+Review the MCP registration printed by \`host setup\`, update the host registration, and reconnect. The executable path changed between the beta.3 platform packages and the beta.4 single package, so an older registration can still point to the previous binary. Refresh project Skills through \`workspace upgrade\`; it reports conflicts rather than silently replacing locally edited files. Keep the backup until you have checked the upgraded Workspace.
 
 ## If the command still shows an older version
 

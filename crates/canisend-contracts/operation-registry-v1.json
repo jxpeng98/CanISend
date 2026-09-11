@@ -98,7 +98,7 @@
         "mcp serve",
         "schema list", "schema show",
         "resource list",
-        "workspace init", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair",
+        "workspace init", "workspace upgrade", "workspace status", "workspace check", "workspace backup", "workspace restore", "workspace repair",
         "application list", "application show", "application pack show", "application archive", "application create",
         "profile-source list", "profile-source import",
         "profile association list", "evidence association list",
