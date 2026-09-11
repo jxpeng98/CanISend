@@ -1927,3 +1927,13 @@ Local checks: the 16 CLI binary-contract tests (including upgrade), 17 resource 
 three npm launcher/packaging tests, affected Clippy, formatting, workflow YAML and source check
 pass. The workflow runs the owning upgrade regression against its installed npm/PyPI candidate
 before publication. Exact Beta.6-to-Beta.7 package upgrade and protected CI remain next.
+
+Package checks at `78f2b2b`: installed npm and PyPI candidates pass the upgrade regression;
+the wheel also passes native signing, source/notices, doctor and Workspace checks. Real published
+Beta.6 Skills upgrade to the candidate for both Codex and Claude, including missing-file recovery,
+idempotence and cross-host conflict preservation. All eight Cargo packages compile in publish
+dry-run. Local evidence is `dist/beta7-checks/verification.json`; no publication is claimed.
+
+The first protected CI exposed the old fixed CLI cardinality (39). Update it to 40 for the new
+leaf; the four CLI unit tests pass locally. This changes a test assertion, not runtime behavior.
+The corrected head still requires its protected checks before merge and publication dispatch.

@@ -2170,7 +2170,7 @@ mod tests {
             .expect("CLI leaves");
         assert_eq!(actual, public);
         assert_eq!(actual, registered);
-        assert_eq!(actual.len(), 39);
+        assert_eq!(actual.len(), 40);
     }
 
     #[test]
