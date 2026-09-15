@@ -201,6 +201,28 @@ pub struct AgentMcpConfigurationRequest {
     pub executable: PathBuf,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentPermissionProfile {
+    #[default]
+    Strict,
+    Guarded,
+}
+
+/// Setup guidance, never evidence of effective Host policy or a user consent grant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentPermissionPlan {
+    pub profile: AgentPermissionProfile,
+    pub grants_consent: bool,
+    pub automatic_approval_ttl_seconds: u64,
+    pub without_product_confirmation: Vec<String>,
+    pub with_session_grant: Vec<String>,
+    pub always_ask: Vec<String>,
+    pub never_granted: Vec<String>,
+    pub revocation: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentMcpConfigurationReadModel {
@@ -219,6 +241,7 @@ pub struct AgentMcpConfigurationReadModel {
     pub guarded_write_tools: Vec<String>,
     pub state_authority: String,
     pub session_authority: String,
+    pub permission_plan: AgentPermissionPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -466,6 +489,21 @@ impl Application {
     pub fn prepare_agent_mcp_configuration(
         request: &AgentMcpConfigurationRequest,
     ) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, ApplicationError> {
+        Self::prepare_agent_mcp_configuration_with_permissions(
+            request,
+            AgentPermissionProfile::Strict,
+        )
+    }
+
+    pub fn prepare_agent_mcp_configuration_with_permissions(
+        request: &AgentMcpConfigurationRequest,
+        profile: AgentPermissionProfile,
+    ) -> Result<ActionReceipt<AgentMcpConfigurationReadModel>, ApplicationError> {
+        if profile == AgentPermissionProfile::Guarded && request.host != AgentHost::Codex {
+            return Err(ApplicationError::InvalidInput(
+                "The guarded Host permission profile is supported only for Codex; use strict for other Hosts".to_owned(),
+            ));
+        }
         let workspace = Self::resolve_workspace_root_v4(Some(&request.workspace))?;
         let executable = validated_mcp_executable(&request.executable)?;
         let quoted_workspace = shell_quote_path(&workspace)?;
@@ -473,55 +511,73 @@ impl Application {
         let executable_json = serialize_mcp_configuration(&executable, false)?;
         let workspace_json = serialize_mcp_configuration(&workspace, false)?;
         let args_json = format!("[\"--workspace\", {workspace_json}, \"mcp\", \"serve\"]");
-        let (configuration_target, registration_command, configuration_snippet, verification) =
-            match request.host {
-                AgentHost::Codex => (
-                    ".codex/config.toml",
-                    Some(format!(
-                        "codex mcp add canisend -- {quoted_executable} --workspace {quoted_workspace} mcp serve"
-                    )),
-                    format!(
-                        "[mcp_servers.canisend]\ncommand = {executable_json}\nargs = {args_json}\nenabled = true\ndefault_tools_approval_mode = \"writes\"\n"
-                    ),
-                    "codex mcp list",
+        let (
+            configuration_target,
+            mut registration_command,
+            mut configuration_snippet,
+            verification,
+        ) = match request.host {
+            AgentHost::Codex => (
+                ".codex/config.toml",
+                Some(format!(
+                    "codex mcp add canisend -- {quoted_executable} --workspace {quoted_workspace} mcp serve"
+                )),
+                format!(
+                    "[mcp_servers.canisend]\ncommand = {executable_json}\nargs = {args_json}\nenabled = true\ndefault_tools_approval_mode = \"writes\"\n"
                 ),
-                AgentHost::Claude => (
-                    ".mcp.json",
-                    Some(format!(
-                        "claude mcp add --transport stdio --scope project canisend -- {quoted_executable} --workspace {quoted_workspace} mcp serve"
-                    )),
-                    serialize_mcp_configuration(
-                        &serde_json::json!({
-                            "mcpServers": {
-                                "canisend": {
-                                "type": "stdio",
-                                "command": executable,
-                                "args": ["--workspace", workspace, "mcp", "serve"]
-                                }
+                "codex mcp list",
+            ),
+            AgentHost::Claude => (
+                ".mcp.json",
+                Some(format!(
+                    "claude mcp add --transport stdio --scope project canisend -- {quoted_executable} --workspace {quoted_workspace} mcp serve"
+                )),
+                serialize_mcp_configuration(
+                    &serde_json::json!({
+                        "mcpServers": {
+                            "canisend": {
+                            "type": "stdio",
+                            "command": executable,
+                            "args": ["--workspace", workspace, "mcp", "serve"]
                             }
-                        }),
-                        true,
-                    )?,
-                    "claude mcp get canisend",
-                ),
-                AgentHost::Generic => (
-                    "mcp.json",
-                    None,
-                    serialize_mcp_configuration(
-                        &serde_json::json!({
-                            "mcpServers": {
-                                "canisend": {
-                                "type": "stdio",
-                                "command": executable,
-                                "args": ["--workspace", workspace, "mcp", "serve"]
-                                }
+                        }
+                    }),
+                    true,
+                )?,
+                "claude mcp get canisend",
+            ),
+            AgentHost::Generic => (
+                "mcp.json",
+                None,
+                serialize_mcp_configuration(
+                    &serde_json::json!({
+                        "mcpServers": {
+                            "canisend": {
+                            "type": "stdio",
+                            "command": executable,
+                            "args": ["--workspace", workspace, "mcp", "serve"]
                             }
-                        }),
-                        true,
-                    )?,
-                    "inspect the host MCP server list",
-                ),
-            };
+                        }
+                    }),
+                    true,
+                )?,
+                "inspect the host MCP server list",
+            ),
+        };
+        if profile == AgentPermissionProfile::Guarded {
+            // Freeze the exposed catalog; future tools need a newly reviewed configuration.
+            configuration_snippet.push_str(&format!(
+                "enabled_tools = {}\n",
+                serialize_mcp_configuration(&CANISEND_MCP_TOOLS.as_slice(), false)?
+            ));
+            for tool in CANISEND_MCP_GUARDED_WRITE_TOOLS {
+                configuration_snippet.push_str(&format!(
+                    "\n[mcp_servers.canisend.tools.{tool}]\napproval_mode = \"auto\"\n"
+                ));
+            }
+            // `mcp add` does not apply these per-tool settings or project scope.
+            registration_command = None;
+        }
         let data = AgentMcpConfigurationReadModel {
             host: request.host,
             workspace,
@@ -544,6 +600,25 @@ impl Application {
                 .collect(),
             state_authority: "CanISend application facade and workspace".to_owned(),
             session_authority: "The selected external agent host".to_owned(),
+            permission_plan: AgentPermissionPlan {
+                profile,
+                grants_consent: false,
+                automatic_approval_ttl_seconds: crate::AUTOMATIC_APPROVAL_TTL.as_secs(),
+                without_product_confirmation: vec!["Body-free Workspace, Application and catalog metadata".to_owned()],
+                with_session_grant: vec![
+                    "Routine private reads and guarded edits for one Application and exact Pack after the user opts in through a native MCP form".to_owned(),
+                    "Profile/Evidence work only for explicitly included Source revisions; previews, revisions and single-use tokens still apply".to_owned(),
+                ],
+                always_ask: vec![
+                    "Initial session grant; new private Sources or revisions; exports; operations outside the current grant".to_owned(),
+                    "Missing facts and final user acceptance".to_owned(),
+                ],
+                never_granted: vec![
+                    "Direct managed-state edits, invented Evidence, answering the user's consent form or bypassing a denial".to_owned(),
+                    "Host shell, filesystem, network, provider-send, unrelated tools or external submission authority".to_owned(),
+                ],
+                revocation: "Cancel a preview with request_confirmation: false or reconnect; denial, scope change and expiry also clear the process-local grant".to_owned(),
+            },
         };
         Ok(ActionReceipt::new(
             "agent.mcp.configuration.prepare",
@@ -899,6 +974,69 @@ mod tests {
                 .configuration_snippet
                 .contains("default_tools_approval_mode = \"writes\"")
         );
+        assert_eq!(
+            codex.permission_plan.profile,
+            super::AgentPermissionProfile::Strict
+        );
+        assert!(!codex.permission_plan.grants_consent);
+        assert_eq!(codex.permission_plan.automatic_approval_ttl_seconds, 3600);
+        assert!(
+            !codex
+                .configuration_snippet
+                .contains("approval_mode = \"auto\"")
+        );
+        let guarded = Application::prepare_agent_mcp_configuration_with_permissions(
+            &AgentMcpConfigurationRequest {
+                host: AgentHost::Codex,
+                workspace: root.clone(),
+                executable: executable.clone(),
+            },
+            super::AgentPermissionProfile::Guarded,
+        )
+        .expect("guarded Codex configuration")
+        .data;
+        assert!(guarded.registration_command.is_none());
+        assert!(!guarded.permission_plan.grants_consent);
+        assert_eq!(
+            guarded.permission_plan.profile,
+            super::AgentPermissionProfile::Guarded
+        );
+        assert!(
+            guarded
+                .configuration_snippet
+                .starts_with(&codex.configuration_snippet)
+        );
+        let catalog = serde_json::to_string(CANISEND_MCP_TOOLS.as_slice()).unwrap();
+        assert!(
+            guarded
+                .configuration_snippet
+                .contains(&format!("enabled_tools = {catalog}\n"))
+        );
+        assert_eq!(
+            guarded
+                .configuration_snippet
+                .matches("approval_mode = \"auto\"")
+                .count(),
+            CANISEND_MCP_GUARDED_WRITE_TOOLS.len()
+        );
+        for tool in CANISEND_MCP_GUARDED_WRITE_TOOLS {
+            assert!(guarded.configuration_snippet.contains(&format!(
+                "[mcp_servers.canisend.tools.{tool}]\napproval_mode = \"auto\"\n"
+            )));
+        }
+        for host in [AgentHost::Claude, AgentHost::Generic] {
+            assert!(
+                Application::prepare_agent_mcp_configuration_with_permissions(
+                    &AgentMcpConfigurationRequest {
+                        host,
+                        workspace: root.clone(),
+                        executable: executable.clone(),
+                    },
+                    super::AgentPermissionProfile::Guarded,
+                )
+                .is_err()
+            );
+        }
         assert!(
             codex
                 .registration_command
@@ -915,6 +1053,10 @@ mod tests {
         .expect("Claude configuration")
         .data;
         assert_eq!(claude.configuration_target, ".mcp.json");
+        assert_eq!(
+            claude.permission_plan.profile,
+            super::AgentPermissionProfile::Strict
+        );
         let parsed: serde_json::Value =
             serde_json::from_str(&claude.configuration_snippet).expect("Claude JSON");
         assert_eq!(

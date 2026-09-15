@@ -32,6 +32,12 @@ navigation memory without deleting or changing a CanISend workspace.
 
 ## Host-agent mode
 
+First-use [CLI permission guidance](agent-integration.md#first-use-permission-guidance) separates
+Host tool policy from product consent. The generated plan and managed Skills are instructions,
+not authorization. Setup cannot grant a private read, enable a session grant, answer a human form
+or override Host/admin policy. No lasting consent file is created; existing Host config and
+user `AGENTS.md` are preserved. A proposed guarded Host policy still uses CanISend's native forms.
+
 Codex, Claude Code, Claude Desktop, or another MCP host performs reasoning while CanISend remains
 the local state authority. Start one version-matched Agent v4 MCP process:
 

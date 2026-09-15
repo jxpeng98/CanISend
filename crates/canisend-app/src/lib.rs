@@ -54,13 +54,13 @@ pub use evidence_v4::{
 pub use agent::{
     AgentCapabilitiesReadModel, AgentContextReadModel, AgentHandoffReadModel, AgentHandoffRequest,
     AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
-    AgentPackExportReadModel, AgentPackExportRequest, AgentSkillsInstallReadModel,
-    AgentSkillsInstallRequest, AgentSkillsInstallScope, AgentSkillsInstallState,
-    AgentSkillsStatusReadModel, AgentSkillsStatusRequest, AgentSkillsStatusState,
-    AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest, AgentSkillsUninstallState,
-    CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION, CANISEND_MCP_READ_ONLY_TOOLS,
-    CANISEND_MCP_TOOLS, CANISEND_MCP_V2_GUARDED_WRITE_TOOLS, CANISEND_MCP_V2_READ_ONLY_TOOLS,
-    CANISEND_MCP_V2_TOOLS,
+    AgentPackExportReadModel, AgentPackExportRequest, AgentPermissionPlan, AgentPermissionProfile,
+    AgentSkillsInstallReadModel, AgentSkillsInstallRequest, AgentSkillsInstallScope,
+    AgentSkillsInstallState, AgentSkillsStatusReadModel, AgentSkillsStatusRequest,
+    AgentSkillsStatusState, AgentSkillsUninstallReadModel, AgentSkillsUninstallRequest,
+    AgentSkillsUninstallState, CANISEND_MCP_GUARDED_WRITE_TOOLS, CANISEND_MCP_PROTOCOL_VERSION,
+    CANISEND_MCP_READ_ONLY_TOOLS, CANISEND_MCP_TOOLS, CANISEND_MCP_V2_GUARDED_WRITE_TOOLS,
+    CANISEND_MCP_V2_READ_ONLY_TOOLS, CANISEND_MCP_V2_TOOLS,
 };
 pub use agent_session::{
     AgentRuntimeKind, AgentSessionEntry, AgentSessionMetadata, AgentSessionRegistry,

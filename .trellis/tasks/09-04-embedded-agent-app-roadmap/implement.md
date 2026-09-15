@@ -1976,3 +1976,70 @@ after a transient executable-busy error. Next: exact-package installation/lifecy
 Cargo publish dry-run and protected integration, then trigger the three authorized publications.
 Retain local package evidence under `dist/beta8-checks/`. Do not follow publication outcomes,
 update real user Workspaces or change global CLI/Host installations.
+
+### First-use permission guidance and 1.0 readiness — 2026-09-15
+
+Owner-authorized outcome: execute the existing CLI-first plan until 1.0 is ready to release.
+Keep current `main`, version `1.0.0-beta.8`, all historical qualification identities and the
+declared support matrix. This does not authorize Stable publication, real consent responses,
+global Host changes or restarting paused GUI/native workflows.
+
+Scope: reuse Host setup/status, the five managed Skills and the existing process-local Auto
+approval grant. Add an opt-in interactive setup, explicit strict/guarded configuration previews,
+and a body-free permission plan. Strict remains the default. Guarded is Codex-only and limits
+the configured tool catalog; it changes neither native form authority nor preview/token checks.
+Existing AGENTS/Host configuration stays untouched, and no persistent grant database is added.
+Rollback: remove the proposed CanISend per-tool overrides/allowlist and restore strict `writes`
+in the reviewed Host configuration, reconnect, and restore prior version-matched managed Skills.
+
+Validation owner: existing app configuration regression, CLI parser/binary Host contracts and
+MCP protocol suite; resource integrity/Skill validation, formatting, affected Clippy and source
+check. Package lifecycle checks must use extracted bytes, not just the source tree. Actual
+interactive Host behavior, protected CI and qualification remain separate from these local checks.
+
+Remaining release sequence (no gate is satisfied by this planning record):
+
+1. Complete and verify this bounded source slice, then protected Fast CI on its reviewed identity.
+2. Capture real Codex native-form strict/guarded behavior, one-Host dual-Pack journey, denied/new
+   Source/export boundaries, and fresh-session resumption; LF-C07/11 owns actual two-Host work.
+3. Resolve overdue dependency-advisory reviews on current dependency facts; never extend dates
+   merely to make the release check pass. Qualify an explicitly selected CLI-first Beta through
+   LF-C10, retaining five CLI targets and existing supported Apple Silicon GUI lifecycle evidence.
+   Resuming paused qualification workflows needs the owner's direction.
+4. Update/test the existing cohort validator for that qualified build while preserving Beta.1
+   history; collect at least 8 real users and 20 flows, both Packs and three non-academic families,
+   with the unchanged quality/recovery thresholds. Dogfood/synthetic users do not count.
+5. Qualify two distinct exact RC matrices, upgrades, docs/uninstall, accessibility and final
+   support/feedback evidence. Only then report Stable ready and obtain publication authorization.
+
+Current source base: `1fd0509ad91c7d86e1cf07d788ea7477a1264d21` (PR #238).
+Local verification: the app configuration regression, 5 CLI unit tests, 18 binary contracts,
+9 MCP protocol tests and 18 resource unit/integration tests pass. Skill validation, formatting,
+affected all-target Clippy (`canisend-app`, `canisend`, `canisend-resources`) and
+`cargo run -p xtask --locked -- source check` pass. The initial source failure was the changed
+resource manifest's stale package binding; the generated current-source digest was synchronized
+without changing historical qualification. Isolated PTY checks cover guarded selection, default
+strict and EOF cancellation; a TOML parser confirms exactly 44 exposed tools and 13 scoped
+overrides without unrelated policy. These are synthetic setup checks, not real consent evidence.
+
+Release readiness is **not ready**. `xtask release check` and `xtask dependencies check` fail on
+the existing `RUSTSEC-2024-0320` review deadline (2026-09-07). `xtask release status --json`
+also rejects the current source/qualification gap: Beta.8 is not the sequential successor to
+qualified Beta.1. LF-C10 must resolve the registry-only versus full-qualification transition with
+a tested policy change, not manufactured Beta history. Protected CI, current actual Host evidence,
+the native matrix, formal cohort and two RCs remain unrun for this source. No cohort result,
+dependency exception, qualification record or publication status has been changed.
+
+The local Apple Silicon `release-alpha` archive is
+`dist/permission-onboarding-local/package/canisend-1.0.0-beta.8-aarch64-apple-darwin.tar.gz`
+(23,043,340 bytes; SHA-256 `2bedbc1a17f9b5423b39ee7ce128c149684a2a2a1faf369e400feda22c8f4d42`).
+It contains dirty working-tree changes, not the published Beta.8 bytes; its version command reports
+the base revision only. The local `source.patch`, `candidate.json` and `INSTALL-LOCAL.md` retain
+the exact patch/artifact hashes, checks and manual activation instructions. Signature verification,
+extracted-byte identity, isolated installation/uninstallation with Workspace retention, project/global
+Skills lifecycle, dual-Pack MCP/export/recovery and the new permission regression all pass.
+The first archive smoke stopped on four stale pre-Beta.8 help-text assertions. The shared
+documentation smoke now checks command usage and required options; rerunning the original archive
+check against unchanged bytes passes. No runtime guard was weakened. Failed-run outputs are retained
+under `checks/`, and complete passing evidence is under `checks-verified/`. These are local checks,
+not a native candidate qualification or actual Host/human acceptance record.

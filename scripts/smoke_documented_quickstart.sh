@@ -38,13 +38,15 @@ jq -e '
 ' "$smoke_root/doctor.json" >/dev/null
 
 "$binary" --help > "$smoke_root/help.txt"
-grep -q 'Evidence-backed application preparation' "$smoke_root/help.txt"
+grep -Fq 'Usage: canisend [OPTIONS] <COMMAND>' "$smoke_root/help.txt"
 "$binary" application create --help > "$smoke_root/application-create-help.txt"
-grep -q 'Pack-bound Application' "$smoke_root/application-create-help.txt"
+grep -Fq -- '--pack <PACK_ID>' "$smoke_root/application-create-help.txt"
+grep -Fq -- '--candidate <JSON_FILE>' "$smoke_root/application-create-help.txt"
 "$binary" profile-source import --help > "$smoke_root/profile-source-import-help.txt"
-grep -q 'Workspace v4 authority' "$smoke_root/profile-source-import-help.txt"
+grep -Fq -- '--sensitivity <SENSITIVITY>' "$smoke_root/profile-source-import-help.txt"
+grep -Fq -- '--confirm-private-read' "$smoke_root/profile-source-import-help.txt"
 "$binary" workspace repair --help > "$smoke_root/workspace-repair-help.txt"
-grep -q 'projection' "$smoke_root/workspace-repair-help.txt"
+grep -Fq 'Usage: canisend workspace repair [OPTIONS]' "$smoke_root/workspace-repair-help.txt"
 
 "$binary" --workspace "$workspace" workspace init --json \
   > "$smoke_root/workspace-init.json"

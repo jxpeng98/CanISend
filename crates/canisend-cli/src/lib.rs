@@ -12,8 +12,9 @@ use std::{
 };
 
 use canisend_app::{
-    AgentHost, AgentMcpConfigurationRequest, AgentSkillsInstallRequest, AgentSkillsInstallScope,
-    Application, ApplicationArchiveRequest, ApplicationError, ApplicationFlowCreateRequestV3,
+    AgentHost, AgentMcpConfigurationReadModel, AgentMcpConfigurationRequest,
+    AgentPermissionProfile, AgentSkillsInstallRequest, AgentSkillsInstallScope, Application,
+    ApplicationArchiveRequest, ApplicationError, ApplicationFlowCreateRequestV3,
     ApplicationFlowCreateRequestV4, PrivateReadConsent, WorkspaceInitPolicy,
 };
 use canisend_contracts::{
@@ -332,8 +333,8 @@ impl From<ProfileSourceSensitivityArgument> for PrivacyClassification {
 
 #[derive(Debug, Subcommand)]
 enum HostCommand {
-    /// Install or update Skills and print the MCP registration command.
-    Setup(HostConfigurationArgs),
+    /// Install Skills and prepare MCP configuration and permission guidance.
+    Setup(HostSetupArgs),
     /// Show Skills status and MCP setup instructions.
     Status(HostConfigurationArgs),
     /// Remove unmodified CanISend Skills; keep Host configuration.
@@ -531,6 +532,33 @@ struct HostConfigurationArgs {
     /// Absolute CLI path for MCP; defaults to this executable.
     #[arg(long, value_name = "PATH")]
     executable: Option<PathBuf>,
+    /// Proposed Host policy, not consent: strict (default), or guarded (Codex only).
+    #[arg(long, value_enum)]
+    permission_profile: Option<PermissionProfileArgument>,
+}
+
+#[derive(Debug, Args)]
+struct HostSetupArgs {
+    #[command(flatten)]
+    configuration: HostConfigurationArgs,
+    /// Explain permissions and choose a Codex policy in an interactive terminal.
+    #[arg(long, conflicts_with_all = ["permission_profile", "json"])]
+    guided: bool,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum PermissionProfileArgument {
+    Strict,
+    Guarded,
+}
+
+impl From<PermissionProfileArgument> for AgentPermissionProfile {
+    fn from(value: PermissionProfileArgument) -> Self {
+        match value {
+            PermissionProfileArgument::Strict => Self::Strict,
+            PermissionProfileArgument::Guarded => Self::Guarded,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -1056,8 +1084,11 @@ fn workspace_init(
         ],
     )?;
     if let Some((host, scope)) = selection {
-        let setup = host_setup(Some(path.clone()), HostConfigurationArgs {
-            host, scope, executable: None,
+        let setup = host_setup(Some(path.clone()), HostSetupArgs {
+            configuration: HostConfigurationArgs {
+                host, scope, executable: None, permission_profile: None,
+            },
+            guided: false,
         }).map_err(|mut failure| {
             let message = format!("Workspace initialized at {}; Skills setup failed: {}. Use host setup to retry installation.", path.display(), failure.error.message);
             failure.error.message.clone_from(&message);
@@ -1247,19 +1278,40 @@ fn workspace_repair(workspace_path: Option<PathBuf>) -> CommandResult<CommandOut
 
 fn host_setup(
     workspace_path: Option<PathBuf>,
-    arguments: HostConfigurationArgs,
+    setup: HostSetupArgs,
 ) -> CommandResult<CommandOutput> {
     let operation = "host.setup";
+    let arguments = setup.configuration;
+    let profile = if setup.guided {
+        if !matches!(arguments.host, HostArgument::Codex)
+            || !std::io::stdin().is_terminal()
+            || !std::io::stdout().is_terminal()
+            || !std::io::stderr().is_terminal()
+        {
+            return Err(app_adapter::failure(operation, ApplicationError::InvalidInput(
+                "--guided requires Codex and an interactive terminal; use --permission-profile strict or guarded with --json for scripts".to_owned(),
+            )));
+        }
+        prompt_host_permissions()?
+    } else {
+        arguments
+            .permission_profile
+            .map(Into::into)
+            .unwrap_or_default()
+    };
     let root = app_adapter::workspace_root_v4(workspace_path, operation)?;
     let host = AgentHost::from(arguments.host);
     let scope = AgentSkillsInstallScope::from(arguments.scope);
     let executable = host_executable(arguments.executable, operation)?;
     // Validate every non-mutating input before installing managed Workspace files.
-    let mcp = Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
-        host,
-        workspace: root.clone(),
-        executable,
-    })
+    let mcp = Application::prepare_agent_mcp_configuration_with_permissions(
+        &AgentMcpConfigurationRequest {
+            host,
+            workspace: root.clone(),
+            executable,
+        },
+        profile,
+    )
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
     let skills = Application::install_agent_skills(&AgentSkillsInstallRequest {
@@ -1270,33 +1322,136 @@ fn host_setup(
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
     let skills_directory = skills.directory.clone();
-    let registration = mcp
-        .registration_command
-        .as_deref()
-        .unwrap_or("run host setup --host generic --json for the Host configuration snippet");
+    let mut human = vec![
+        format!(
+            "Skills ready ({}; {})",
+            arguments.scope.as_str(),
+            host.as_str()
+        ),
+        format!("Skills directory: {}", skills_directory.display()),
+    ];
+    human.extend(host_configuration_guidance(&mcp));
     let data = json!({
         "host": host,
         "scope": arguments.scope.as_str(),
         "skills": skills,
         "mcp": mcp,
         "mcp_configuration_mutated": false,
+        "effective_permissions_verified": false,
     });
-    success(
-        operation,
-        "ready",
-        &data,
-        vec![
-            format!(
-                "Skills ready ({}; {})",
-                arguments.scope.as_str(),
-                host.as_str()
+    success(operation, "ready", &data, human)
+}
+
+fn prompt_host_permissions() -> CommandResult<AgentPermissionProfile> {
+    eprintln!(
+        "Choose proposed Codex MCP policy; this does not grant consent or change Host settings."
+    );
+    eprintln!("  1. Strict [default]: keep Host write prompts and CanISend native forms.");
+    eprintln!("  2. Guarded: request Host auto review for this binary's allowlisted MCP writes.");
+    eprintln!(
+        "Both retain native forms: optional 60-minute, single-Application Auto approval; new private Sources and exports still ask."
+    );
+    eprintln!(
+        "No shell, filesystem, network or provider-send authority is granted. Setup installs managed Skills; review and merge the printed MCP config yourself."
+    );
+    eprint!("Choose [1-2, Enter = strict]: ");
+    let read = || -> std::io::Result<String> {
+        std::io::stderr().flush()?;
+        let mut answer = String::new();
+        if std::io::stdin().read_line(&mut answer)? == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "No policy selected; setup cancelled",
+            ));
+        }
+        Ok(answer)
+    };
+    let answer = read().map_err(|error| {
+        app_adapter::failure(
+            "host.setup",
+            ApplicationError::InvalidInput(error.to_string()),
+        )
+    })?;
+    parse_host_permission_choice(&answer)
+}
+
+fn parse_host_permission_choice(answer: &str) -> CommandResult<AgentPermissionProfile> {
+    match answer.trim() {
+        "" | "1" => Ok(AgentPermissionProfile::Strict),
+        "2" => Ok(AgentPermissionProfile::Guarded),
+        _ => Err(app_adapter::failure(
+            "host.setup",
+            ApplicationError::InvalidInput(
+                "Choose 1 or 2; setup cancelled without installing Skills".to_owned(),
             ),
-            format!("Skills directory: {}", skills_directory.display()),
-            format!("MCP registration: {registration}"),
-            "Run the registration command, then open this workspace in your Host and reconnect."
-                .to_owned(),
+        )),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn host_permission_choice_is_explicit_and_defaults_to_strict() {
+    for answer in ["", "\n", "1", " 1\n"] {
+        assert!(matches!(
+            parse_host_permission_choice(answer),
+            Ok(AgentPermissionProfile::Strict)
+        ));
+    }
+    assert!(matches!(
+        parse_host_permission_choice("2\n"),
+        Ok(AgentPermissionProfile::Guarded)
+    ));
+    for answer in ["yes", "auto", "0", "1 2"] {
+        assert!(parse_host_permission_choice(answer).is_err());
+    }
+    for arguments in [
+        vec![
+            "canisend", "host", "setup", "--host", "codex", "--guided", "--json",
         ],
-    )
+        vec![
+            "canisend",
+            "host",
+            "setup",
+            "--host",
+            "codex",
+            "--guided",
+            "--permission-profile",
+            "guarded",
+        ],
+    ] {
+        assert!(Cli::try_parse_from(arguments).is_err());
+    }
+}
+
+fn host_configuration_guidance(mcp: &AgentMcpConfigurationReadModel) -> Vec<String> {
+    let plan = &mcp.permission_plan;
+    let mut lines = vec![
+        format!(
+            "Permission plan: {:?} (guidance only; no consent granted or effective Host policy verified)",
+            plan.profile
+        ),
+        format!(
+            "Without product confirmation: {}",
+            plan.without_product_confirmation.join("; ")
+        ),
+        format!(
+            "With optional session grant (up to {} seconds): {}",
+            plan.automatic_approval_ttl_seconds,
+            plan.with_session_grant.join("; ")
+        ),
+        format!("Still ask: {}", plan.always_ask.join("; ")),
+        format!("Never granted by setup: {}", plan.never_granted.join("; ")),
+        format!("Revoke: {}", plan.revocation),
+    ];
+    if let Some(registration) = &mcp.registration_command {
+        lines.push(format!("MCP registration: {registration}"));
+    }
+    lines.push(format!(
+        "Review and merge this configuration into {} (not written by setup):\n{}",
+        mcp.configuration_target, mcp.configuration_snippet
+    ));
+    lines.push(format!("Verify registration: {}. Open this Workspace in your Host, reconnect and test a native form; registration alone does not verify consent UI.", mcp.verification_command));
+    lines
 }
 
 fn host_status(
@@ -1315,11 +1470,17 @@ fn host_status(
     })
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
-    let mcp = Application::prepare_agent_mcp_configuration(&AgentMcpConfigurationRequest {
-        host,
-        workspace: root,
-        executable,
-    })
+    let mcp = Application::prepare_agent_mcp_configuration_with_permissions(
+        &AgentMcpConfigurationRequest {
+            host,
+            workspace: root,
+            executable,
+        },
+        arguments
+            .permission_profile
+            .map(Into::into)
+            .unwrap_or_default(),
+    )
     .map_err(|error| app_adapter::failure(operation, error))?
     .data;
     let status = match skills.state {
@@ -1336,6 +1497,7 @@ fn host_status(
         "skills": skills,
         "mcp": mcp,
         "mcp_configuration_mutated": false,
+        "effective_permissions_verified": false,
     });
     let mut output = success(
         operation,
@@ -1348,14 +1510,9 @@ fn host_status(
                 host.as_str()
             ),
             format!("Skills directory: {}", skills.directory.display()),
-            format!(
-                "MCP registration: {}",
-                mcp.registration_command
-                    .as_deref()
-                    .unwrap_or("use the configuration returned by --json")
-            ),
         ],
     )?;
+    output.human.extend(host_configuration_guidance(&mcp));
     let (action, advice) = match skills.state {
         canisend_app::AgentSkillsStatusState::UpToDate => (
             "host.reconnect",
@@ -2383,7 +2540,12 @@ mod tests {
         else {
             panic!("expected host setup");
         };
-        assert_eq!(arguments.scope, AgentSkillsScopeArgument::Project);
+        assert_eq!(
+            arguments.configuration.scope,
+            AgentSkillsScopeArgument::Project
+        );
+        assert!(!arguments.guided);
+        assert!(arguments.configuration.permission_profile.is_none());
 
         let host_status = Cli::try_parse_from([
             "canisend", "host", "status", "--host", "claude", "--scope", "global",
