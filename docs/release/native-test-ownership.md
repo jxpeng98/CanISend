@@ -4,10 +4,12 @@ CanISend runs the complete locked Rust workspace suite once in the candidate sou
 release jobs do not repeat the whole workspace test graph for every target. Their responsibility is
 to prove the behavior that depends on the exact target runner and packaged bytes.
 
-Development uses five logical jobs in `.github/workflows/fast-ci.yml`. Three run on Apple Silicon:
-`desktop-ui` owns Svelte checks, UI tests, the production frontend build, and desktop Rust
-Clippy/tests/build. Independent `macos-quality` and `macos-tests` jobs check the CLI and shared
-Rust crates with `--exclude canisend-gui`; they need no frontend artifact or desktop job.
+Since the owner's 2026-09-15 decision, all macOS builds and tests run locally:
+see the [local macOS runbook](../development/local-macos-validation.md). `desktop-ui`
+is hard-disabled remotely; local `desktop` mode owns its frontend and Rust checks.
+Independent `macos-quality` and `macos-tests` jobs now run on **Ubuntu**, retaining
+only their legacy protected-check names. They check CLI/shared Rust crates with
+`--exclude canisend-gui` and need no frontend artifact or desktop job.
 `xtask source check` verifies source contracts without release qualification. The workspace
 suite already includes generated property tests, so Fast CI does not run that target twice.
 A bounded Ubuntu Chrome job owns keyboard, focus, accessibility, reflow, and key visual-state
@@ -23,27 +25,33 @@ The machine-readable authority is
 check` rejects policy drift, a missing source suite, a repeated target workspace suite, or removal
 of the named native package gates.
 
+The runner labels in the formal candidate contract retain the historical evidence
+identity; they do not authorize new hosted macOS jobs or relabel local checks.
+Formal local-evidence ingestion is pending. macOS-only workflow jobs are disabled,
+mixed matrices contain Linux/Windows only, and publication is blocked until exact
+local-artifact handoff is implemented. No missing platform is counted as passed.
+
 ## Gate ownership
 
 | Owner | Required evidence |
 |---|---|
 | Candidate source gate | format, full workspace Clippy, complete locked workspace tests, generated property contracts, release contracts, dependency policy |
 | Every CLI native job | locked target release build; exact archived-binary comparison; extracted version, doctor, quickstart, Agent v4 host-resource lifecycle, guarded dual-Pack MCP lifecycle, isolated install/uninstall, and workspace-retention smoke |
-| macOS CLI jobs | native architecture plus stage-required ad-hoc signing |
-| Intel macOS candidate job | standalone CLI for every stage; exact-commit GUI compilation evidence for Beta and later |
-| Scheduled Intel GUI workflow | weekly/manual Alpha development compile regression; never release evidence or a support claim |
+| Local macOS CLI | native architecture plus stage-required ad-hoc signing; formal evidence ingestion pending |
+| Local Intel macOS candidate | standalone CLI for every stage; exact-commit GUI compilation for Beta and later; formal evidence ingestion pending |
+| Local Intel GUI compilation | manual compile regression; never release evidence or a support claim |
 | Scheduled Windows/Linux desktop workflow | latest Typst template audit; four-candidate desktop profile matrix; native one-host NSIS/MSI, DEB/RPM/AppImage builds; GUI/CLI/MCP smoke; and size records; nonpublishing until promoted into the candidate matrix |
 | Windows CLI job | PowerShell parser plus stage-required self-signed Authenticode verification |
 | Linux GNU job | release performance and full synthetic workflow budgets |
 | Linux musl job | musl linker and execution of the extracted static-target archive |
-| Apple Silicon desktop job | version-matched CLI/GUI build, bounded ZIP, compressed read-only DMG with `/Applications` link, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
-| Desktop fast CI | locked dependencies, Svelte/TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build |
+| Local Apple Silicon desktop | version-matched CLI/GUI build, bounded ZIP, compressed read-only DMG with `/Applications` link, companion integrity, nested/outer ad-hoc signatures, packaged workflows, and GUI launch |
+| Local macOS desktop checks | locked dependencies, Svelte/TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build |
 | Browser fast CI | pinned Chrome skip-link and primary-navigation traversal, focus restoration, automated accessibility, bilingual 200% reflow, and key active-state checks |
 | Linux/Windows core fast CI | locked core, Store, IO, CLI, and MCP contract tests on Ubuntu and Windows without packaging or release profiles |
-| macOS CLI/shared Rust fast CI | formatting, Clippy and workspace tests excluding GUI, generated properties within that suite, source contracts, debug CLI build, recovery/render coverage, and clean-v4 CLI/host/MCP smoke |
+| Linux common Fast CI and local macOS CLI | formatting, Clippy and workspace tests excluding GUI, generated properties within that suite, source contracts, debug CLI build, recovery/render coverage, and clean-v4 CLI/host/MCP smoke |
 | Windows release tests | PowerShell parsers plus bounded recovery, concurrency, embedded-font, complex-layout, and revision-bound render contracts |
 | Native release source and package gates | Linux full suite, dependency policy, GNU performance/synthetic budgets, Linux/Windows exact package smoke, and signing checks |
-| Scheduled workflows | Intel GUI compilation, Windows/Linux desktop package qualification, and bounded malformed-input fuzzing outside the edit loop |
+| Scheduled workflows | Windows/Linux desktop package qualification and bounded malformed-input fuzzing outside the edit loop; existing pauses remain |
 
 The lightweight Windows/Linux development tests provide early contract feedback; they are not
 release evidence and do not replace exact packaged-binary qualification. The candidate Windows
@@ -58,8 +66,8 @@ that the exact host passes that target's GUI, renamed CLI, MCP, rendering, packa
 integrity gates before the production profile changes. A native failure retains that target's
 existing production profile.
 
-Alpha candidates use the explicit `release-alpha` profile. Beta, RC, Stable, and the scheduled
-Intel GUI compile keep the canonical `release` profile. The stage selector is emitted only after
+Alpha candidates use the explicit `release-alpha` profile. Beta, RC, Stable, and the
+local Intel GUI compile keep the canonical `release` profile. The stage selector is emitted only after
 the tag has passed validation, and each release artifact records the selected profile.
 
 The extracted archive is compared byte-for-byte with the target binary before it is executed.
@@ -87,8 +95,9 @@ native qualification records, signatures, and GitHub attestations remain authori
 
 ## Compiler cache
 
-Candidate source, native CLI, and Apple Silicon desktop builds use `sccache` with the GitHub
-Actions cache backend. The scheduled Intel GUI compile uses the same bounded mechanism. The
+Remote candidate source and Linux/Windows native CLI builds use `sccache` with the GitHub
+Actions cache backend. Disabled historical macOS definitions retain that configuration, but
+local macOS checks use the local Cargo cache without Actions credentials. The
 installation action is pinned to an immutable commit, installs `sccache` `v0.16.0`, and verifies
 the official release SHA-256 sidecar before extraction.
 

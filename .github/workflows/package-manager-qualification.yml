@@ -54,6 +54,8 @@ jobs:
           "${{ inputs.to_tag }}" "$RUNNER_TEMP/to-assets"
 
   homebrew:
+    # Local-only macOS; no qualification is implied by this skipped job.
+    if: ${{ false }}
     name: homebrew-${{ matrix.target }}
     needs: preflight
     runs-on: ${{ matrix.runner }}

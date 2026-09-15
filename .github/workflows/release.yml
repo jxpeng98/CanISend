@@ -38,6 +38,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  local-macos-required:
+    name: local-macos-release-required
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse publication without qualified local macOS artifacts
+        run: |
+          echo 'macOS build/test execution is local-only. See docs/development/local-macos-validation.md.' >&2
+          echo 'Publication is blocked until exact local artifact/evidence ingestion is supported; no runner or run ID may be fabricated.' >&2
+          exit 1
+
   release-identity:
     # Full native/GUI qualification remains paused during CLI-first delivery.
     if: vars.CANISEND_ENABLE_FULL_RELEASE == 'true' && !inputs.npm_only && !inputs.pypi_only
@@ -360,16 +370,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            runner: macos-15
-            environment: macos-15
-            executable: canisend
-            archive: tar.gz
-          - target: x86_64-apple-darwin
-            runner: macos-15-intel
-            environment: macos-15-intel
-            executable: canisend
-            archive: tar.gz
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-24.04
             environment: ubuntu-24.04
@@ -748,7 +748,8 @@ jobs:
     needs:
       - release-identity
       - signing-readiness
-    if: needs.release-identity.outputs.mode == 'candidate'
+    # Local-only macOS; retained as a reference for the local package procedure.
+    if: ${{ false }}
     runs-on: macos-15
     permissions:
       contents: read
@@ -1121,6 +1122,7 @@ jobs:
   promote-release-candidate:
     name: promote-release-candidate
     needs:
+      - local-macos-required
       - release-identity
       - locate-release-candidate
     if: needs.release-identity.outputs.mode == 'promote'
@@ -1326,18 +1328,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: cli-aarch64-apple-darwin
-            surface: cli
-            target: aarch64-apple-darwin
-            runner: macos-15
-            extension: tar.gz
-            executable: canisend
-          - name: cli-x86_64-apple-darwin
-            surface: cli
-            target: x86_64-apple-darwin
-            runner: macos-15-intel
-            extension: tar.gz
-            executable: canisend
           - name: cli-x86_64-unknown-linux-gnu
             surface: cli
             target: x86_64-unknown-linux-gnu
@@ -1356,12 +1346,6 @@ jobs:
             runner: windows-2025
             extension: zip
             executable: canisend.exe
-          - name: desktop-aarch64-apple-darwin
-            surface: desktop
-            target: aarch64-apple-darwin
-            runner: macos-15
-            extension: zip
-            executable: canisend-gui
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -1421,6 +1405,7 @@ jobs:
   publish-release:
     name: publish-verified-release
     needs:
+      - local-macos-required
       - release-identity
       - verify-draft-release-assets
     if: needs.release-identity.outputs.mode == 'promote'
@@ -1567,7 +1552,8 @@ jobs:
 
   publish-npm:
     name: publish-npm-macos-arm64
-    if: github.event_name == 'workflow_dispatch' && inputs.npm_only && !inputs.pypi_only
+    # Local-only macOS; publishing needs a separately verified local candidate.
+    if: ${{ false }}
     runs-on: macos-15
     timeout-minutes: 45
     permissions:
@@ -1655,7 +1641,8 @@ jobs:
           echo "Published canisend@$NPM_RELEASE_VERSION to next (macOS ARM64)." >> "$GITHUB_STEP_SUMMARY"
 
   build-pypi:
-    if: github.event_name == 'workflow_dispatch' && inputs.pypi_only
+    # Local-only macOS: bash scripts/check_macos_local.sh pypi
+    if: ${{ false }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -1713,6 +1700,8 @@ jobs:
           packages-dir: dist/pypi/
 
   verify-pypi:
+    # Local-only macOS; a skipped check does not qualify registry bytes.
+    if: ${{ false }}
     needs: publish-pypi
     runs-on: macos-15
     steps:

@@ -24,8 +24,10 @@ pnpm, frontend build, or desktop webview SDK. Default tests cover the CLI packag
 crate is the domain facade and remains a CLI dependency.
 
 Desktop development is an explicit selection (`-p canisend-gui`) with its existing frontend and
-platform prerequisites; follow [the desktop guide](docs/guides/desktop-gui.md). Independent desktop CI
-continues to build and test the desktop. CLI quality/tests do not wait for that build.
+platform prerequisites; follow [the desktop guide](docs/guides/desktop-gui.md). All macOS builds
+and tests, including desktop and release packages, run locally using the
+[local macOS runbook](docs/development/local-macos-validation.md). GUI work remains opt-in and
+paused by default. CLI quality/tests do not wait for a desktop build.
 Existing Linux/Windows core CI additionally checks the
 CLI-only default selection and dependency graph, builds it without frontend steps, and runs the
 existing CLI/Host/MCP tests. These source checks do not qualify standalone release packages.
@@ -41,9 +43,9 @@ Keep a focused regression during bug diagnosis and for consent/data-integrity ch
 | Prose or historical note only | `git diff --check` | Documentation/source gate when the file is active release truth |
 | Rust leaf behavior | affected test or test filter, `cargo fmt --all -- --check`, affected-package Clippy | Fast CI runs the workspace suite |
 | Shared contract, schema, resource, CI, or release metadata | smallest affected test plus `cargo run -p xtask --locked -- source check` once at the integration milestone | Fast CI when synchronized |
-| Desktop behavior | affected pnpm test/check plus production build only when bundling changed | Fast CI accessibility and macOS lanes |
-| Package/runtime behavior | exact affected package smoke | Native candidate workflow |
-| Release candidate | no ad hoc local matrix | Build-once native and public-verification workflows |
+| Desktop behavior | affected pnpm test/check plus production build only when bundling changed | Local macOS; existing Linux/Windows and browser workflows when enabled |
+| Package/runtime behavior | exact affected package smoke | Local macOS; Linux/Windows native candidate jobs |
+| Release candidate | exact local macOS artifact checks | Full qualification remains blocked until local evidence ingestion is supported |
 
 `source check` validates source contracts; `release check` additionally requires current release
 qualification, human evidence and freeze dispositions. Run the latter when qualifying a candidate

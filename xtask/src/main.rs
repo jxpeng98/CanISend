@@ -6374,8 +6374,51 @@ fn check_dependency_table(
     Ok(())
 }
 
+fn reject_hosted_macos_jobs(workflow: &str) -> Result<(), String> {
+    // ponytail: repository workflows use two-space job keys; adopt a YAML parser
+    // if workflow generation or aliases are introduced instead of expanding this scanner.
+    let mut job = "";
+    let mut macos_runner = false;
+    let mut disabled = false;
+    for line in workflow.lines().chain(["  end-of-policy-scan:"]) {
+        if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':') {
+            if macos_runner && !disabled {
+                return Err(format!(
+                    "macOS job `{job}` must be local-only (literal job-level if: ${{{{ false }}}})"
+                ));
+            }
+            job = line.trim();
+            macos_runner = false;
+            disabled = false;
+        }
+        let field = line.trim();
+        if (field.starts_with("runs-on:") || field.starts_with("runner:"))
+            && field.contains("macos")
+        {
+            macos_runner = true;
+        }
+        if line == "    if: ${{ false }}" {
+            disabled = true;
+        }
+    }
+    Ok(())
+}
+
 fn check_native_test_ownership() -> Result<(), String> {
     let root = repository_root();
+    for entry in fs::read_dir(root.join(".github/workflows"))
+        .map_err(|error| format!("cannot read workflows: {error}"))?
+    {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if matches!(
+            path.extension().and_then(|value| value.to_str()),
+            Some("yml" | "yaml")
+        ) {
+            let workflow = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            reject_hosted_macos_jobs(&workflow)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+        }
+    }
     let policy_path = root.join("release/native-test-ownership.json");
     let policy: Value = serde_json::from_slice(&fs::read(&policy_path).map_err(|error| {
         format!(
@@ -6386,6 +6429,13 @@ fn check_native_test_ownership() -> Result<(), String> {
     .map_err(|error| format!("native test ownership policy is invalid JSON: {error}"))?;
     let expected = json!({
         "schema": NATIVE_TEST_OWNERSHIP_SCHEMA,
+        "macos_execution": {
+            "location": "local-only",
+            "entrypoint": "bash scripts/check_macos_local.sh",
+            "runbook": "docs/development/local-macos-validation.md",
+            "formal_local_evidence_ingestion": "pending",
+            "historical_runner_labels_are_not_local_evidence": true
+        },
         "source_gate": {
             "command": "cargo test --workspace --locked",
             "frontend": {
@@ -6438,7 +6488,6 @@ fn check_native_test_ownership() -> Result<(), String> {
         "development_fast_ci": {
             "workflow": ".github/workflows/fast-ci.yml",
             "runners": [
-                "macos-15",
                 "ubuntu-24.04",
                 "windows-2025"
             ],
@@ -6449,6 +6498,8 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "macos-quality",
                 "macos-tests"
             ],
+            "disabled_jobs": ["desktop-ui"],
+            "legacy_linux_check_names": ["macos-quality", "macos-tests"],
             "commands": [
                 "pnpm install --frozen-lockfile",
                 "pnpm format:check",
@@ -6551,7 +6602,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         },
         "extended_assurance": [
             {
-                "owner": "fast-ci/desktop-ui",
+                "owner": "local-macos/desktop",
                 "scope": "Formatting, Svelte and TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build"
             },
             {
@@ -6568,14 +6619,14 @@ fn check_native_test_ownership() -> Result<(), String> {
             },
             {
                 "owner": "fast-ci/macos-tests",
-                "scope": "macOS CLI and shared Rust workspace, property contracts, recovery, and rendering; independent of desktop builds"
+                "scope": "Linux CLI and shared Rust workspace, property contracts, recovery, and rendering; macOS repeats locally"
             },
             {
                 "owner": "native-release/source-and-native",
                 "scope": "release-only Linux and Windows tests, performance, packaging, and exact archive smoke"
             },
             {
-                "owner": "intel-gui-compile/scheduled-alpha",
+                "owner": "local-macos/intel-gui-compile",
                 "scope": "non-publishing Intel GUI compile regression"
             },
             {
@@ -6663,9 +6714,11 @@ fn check_native_test_ownership() -> Result<(), String> {
             ));
         }
     }
-    if fast_ci.matches("runs-on: macos-15").count() != 3 {
+    if fast_ci.matches("runs-on: macos-15").count() != 1
+        || fast_ci.matches("runs-on: ubuntu-24.04").count() != 3
+    {
         return Err(
-            "fast CI must contain exactly three macOS jobs, including independent desktop maintenance"
+            "fast CI requires Linux quality/tests/browser jobs and one disabled legacy macOS desktop job"
                 .to_owned(),
         );
     }
@@ -6838,6 +6891,24 @@ fn check_native_test_ownership() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
+    for job in ["promote-release-candidate", "publish-release"] {
+        let header = format!("\n  {job}:\n");
+        let body = workflow
+            .split_once(&header)
+            .ok_or_else(|| format!("release job `{job}` is missing"))?
+            .1;
+        let awaits_local_macos = body
+            .lines()
+            .take_while(|line| {
+                !(line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':'))
+            })
+            .any(|line| line == "      - local-macos-required");
+        if !awaits_local_macos {
+            return Err(format!(
+                "release job `{job}` must await qualified local macOS artifacts"
+            ));
+        }
+    }
     let source_gate_start = workflow
         .find("\n  source-gates:\n")
         .ok_or_else(|| "release workflow source-gates job is missing".to_owned())?;
@@ -7126,6 +7197,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "scripts/write_sccache_stats.sh",
         "scripts/test_sccache_contract.sh",
         "docs/release/native-test-ownership.md",
+        "docs/development/local-macos-validation.md",
+        "scripts/check_macos_local.sh",
     ] {
         if !root.join(required).is_file() {
             return Err(format!("native test ownership file is missing: {required}"));
@@ -14026,7 +14099,7 @@ fn check_upgrade_qualification_policy() -> Result<(), String> {
         &format!("default: \"{release}-rc.1\""),
         "gh attestation verify",
         "qualify_archive_upgrade.sh",
-        "macos-15-intel",
+        "macOS is local-only; the five-target evidence gate remains strict.",
         "ubuntu-24.04",
         "windows-2025",
         "verify-upgrade-evidence",
@@ -17798,6 +17871,27 @@ mod tests {
     #[test]
     fn native_test_ownership_runs_the_source_suite_once() {
         check_native_test_ownership().expect("native test ownership policy");
+    }
+
+    #[test]
+    fn macos_ci_policy_rejects_direct_and_matrix_runners_unless_job_is_disabled() {
+        for runner in [
+            "    runs-on: macos-15\n",
+            "    runs-on: macos-15-intel\n",
+            "    runs-on: ${{ matrix.runner }}\n    strategy:\n      matrix:\n        include:\n          - target: aarch64-apple-darwin\n            runner: macos-15\n",
+        ] {
+            let workflow = format!("jobs:\n  mac:\n{runner}");
+            assert!(reject_hosted_macos_jobs(&workflow).is_err());
+            let disabled = format!("jobs:\n  mac:\n    if: ${{{{ false }}}}\n{runner}");
+            assert!(reject_hosted_macos_jobs(&disabled).is_ok());
+            let step_only = format!("{workflow}    steps:\n      - if: ${{{{ false }}}}\n");
+            assert!(reject_hosted_macos_jobs(&step_only).is_err());
+            let sibling = format!(
+                "jobs:\n  other:\n    if: ${{{{ false }}}}\n    runs-on: ubuntu-24.04\n  mac:\n{runner}"
+            );
+            assert!(reject_hosted_macos_jobs(&sibling).is_err());
+        }
+        assert!(reject_hosted_macos_jobs("jobs:\n  linux:\n    runs-on: ubuntu-24.04\n  windows:\n    runs-on: windows-2025\n").is_ok());
     }
 
     #[test]

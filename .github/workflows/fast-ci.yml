@@ -20,8 +20,8 @@ env:
 
 jobs:
   desktop-ui:
-    # Paused during CLI-first delivery; set the repository variable to resume.
-    if: vars.CANISEND_ENABLE_DESKTOP_CI == 'true'
+    # Local-only macOS: bash scripts/check_macos_local.sh desktop
+    if: ${{ false }}
     name: desktop-ui
     runs-on: macos-15
     timeout-minutes: 15
@@ -198,8 +198,9 @@ jobs:
             "$RUNNER_TEMP/release-smoke-${{ matrix.target }}/agent-v4-mcp-workflow"
 
   macos-quality:
+    # Legacy required-check name; common checks now run on Linux.
     name: macos-quality
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -211,21 +212,15 @@ jobs:
         with:
           components: clippy,rustfmt
 
-      - name: Cache macOS quality build
+      - name: Cache Linux quality build
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          key: fast-ci-macos-quality
+          key: fast-ci-linux-quality
 
       - name: Start quality timing
         id: timing
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Apple Silicon development runner
-        shell: bash
-        run: |
-          test "$(uname -s)" = "Darwin"
-          test "$(uname -m)" = "arm64"
 
       - name: Reject active Python product files
         shell: bash
@@ -254,15 +249,16 @@ jobs:
         run: |
           elapsed="$(( $(date +%s) - START_EPOCH ))"
           {
-            echo "### macOS quality timing"
+            echo "### Linux quality timing (legacy required-check name)"
             echo ""
             echo "- Elapsed seconds: $elapsed"
             echo "- Target: 300 seconds or less after cache warm-up"
           } >> "$GITHUB_STEP_SUMMARY"
 
   macos-tests:
+    # Legacy required-check name; native macOS coverage is local-only.
     name: macos-tests
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -272,33 +268,27 @@ jobs:
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
 
-      - name: Cache macOS test build
+      - name: Cache Linux test build
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          key: fast-ci-macos-tests
+          key: fast-ci-linux-tests
 
       - name: Start test timing
         id: timing
         shell: bash
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify Apple Silicon development runner
-        shell: bash
-        run: |
-          test "$(uname -s)" = "Darwin"
-          test "$(uname -m)" = "arm64"
-
-      - name: Run CLI and shared Rust suite on macOS
+      - name: Run CLI and shared Rust suite on Linux
         run: cargo test --workspace --exclude canisend-gui --locked
 
-      - name: Build macOS development CLI
+      - name: Build Linux development CLI
         run: cargo build --locked -p canisend
 
-      - name: Smoke macOS development CLI
+      - name: Smoke Linux development CLI
         shell: bash
         run: |
           test -x ./target/debug/canisend
-          file ./target/debug/canisend | grep -q arm64
+          file ./target/debug/canisend | grep -q x86-64
           ./target/debug/canisend version --json
           ./target/debug/canisend doctor --json
           ./scripts/smoke_host_v4.sh \
@@ -316,7 +306,7 @@ jobs:
         run: |
           elapsed="$(( $(date +%s) - START_EPOCH ))"
           {
-            echo "### macOS test timing"
+            echo "### Linux test timing (legacy required-check name)"
             echo ""
             echo "- Elapsed seconds: $elapsed"
             echo "- Target: 300 seconds or less after cache warm-up"

@@ -2043,3 +2043,40 @@ documentation smoke now checks command usage and required options; rerunning the
 check against unchanged bytes passes. No runtime guard was weakened. Failed-run outputs are retained
 under `checks/`, and complete passing evidence is under `checks-verified/`. These are local checks,
 not a native candidate qualification or actual Host/human acceptance record.
+
+### Local-only macOS CI execution — 2026-09-15
+
+Owner scope: all macOS builds and tests, including npm/PyPI and native packages,
+move to local execution; Linux/Windows Actions remain. No self-hosted runner,
+remote protection change, workflow reactivation, publication, or historical
+qualification rewrite is authorized by this migration.
+
+Mac-only jobs are hard-disabled; mixed native, upgrade and preview matrices retain
+Linux/Windows entries. Common Fast CI quality/workspace checks now run on Ubuntu,
+keeping `macos-quality`/`macos-tests` solely as required-check compatibility names.
+`scripts/check_macos_local.sh` reuses existing checks and isolated package smokes;
+the [runbook](../../../docs/development/local-macos-validation.md) owns invocation
+and prerequisites. Source policy rejects runnable macOS jobs and preserves the
+publication dependency on pending local evidence. Formal local-artifact ingestion
+is not implemented: publication stays blocked, and missing macOS evidence is not
+a successful five-target or native-preview qualification.
+
+Local source validation: YAML parsing and enabled-runner inventory, shell syntax,
+runbook links, `git diff --check`, the new direct/matrix/disabled-job regression,
+formatting, full non-GUI Clippy, and `xtask source check` passed. The local CLI
+entrypoint passed 475 Rust tests (5 deliberately ignored), debug build/doctor,
+Host lifecycle and guarded dual-Pack MCP/export/recovery smokes; output is retained
+in `dist/local-macos-cli.PlZ6Rf/`. npm packaging and native-preview policy tests
+passed (7 tests). Invalid mode, Actions execution and dirty package-source guards
+reject correctly. The initial process-substitution log failed under the sandbox;
+a regular pipe preserves failure status. Two localhost fixture tests initially
+failed sandbox port binding, then passed in the authorized local rerun. An existing
+non-fatal macOS linker unwind-size warning remains.
+
+Source and local development checks do not qualify a release. Optional desktop,
+Intel, Homebrew, wheel and formal artifact qualification are not claimed here;
+PyPI build tools are not installed on this host. Exact clean-source package checks
+retain their own logs and hashes in `dist/local-macos-*/`. Remote CI is unrun for
+this change and requires protected PR integration. The next release work is the
+verified local artifact/evidence handoff plus the previously recorded dependency,
+Host, cohort and RC gates; none has been waived to reduce CI costs.

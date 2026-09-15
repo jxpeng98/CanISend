@@ -1,5 +1,12 @@
 {
   "schema": "canisend.native-test-ownership/v1",
+  "macos_execution": {
+    "location": "local-only",
+    "entrypoint": "bash scripts/check_macos_local.sh",
+    "runbook": "docs/development/local-macos-validation.md",
+    "formal_local_evidence_ingestion": "pending",
+    "historical_runner_labels_are_not_local_evidence": true
+  },
   "source_gate": {
     "command": "cargo test --workspace --locked",
     "frontend": {
@@ -50,7 +57,6 @@
   "development_fast_ci": {
     "workflow": ".github/workflows/fast-ci.yml",
     "runners": [
-      "macos-15",
       "ubuntu-24.04",
       "windows-2025"
     ],
@@ -61,6 +67,8 @@
       "macos-quality",
       "macos-tests"
     ],
+    "disabled_jobs": ["desktop-ui"],
+    "legacy_linux_check_names": ["macos-quality", "macos-tests"],
     "commands": [
       "pnpm install --frozen-lockfile",
       "pnpm format:check",
@@ -163,7 +171,7 @@
   },
   "extended_assurance": [
     {
-      "owner": "fast-ci/desktop-ui",
+      "owner": "local-macos/desktop",
       "scope": "Formatting, Svelte and TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build"
     },
     {
@@ -180,14 +188,14 @@
     },
     {
       "owner": "fast-ci/macos-tests",
-      "scope": "macOS CLI and shared Rust workspace, property contracts, recovery, and rendering; independent of desktop builds"
+      "scope": "Linux CLI and shared Rust workspace, property contracts, recovery, and rendering; macOS repeats locally"
     },
     {
       "owner": "native-release/source-and-native",
       "scope": "release-only Linux and Windows tests, performance, packaging, and exact archive smoke"
     },
     {
-      "owner": "intel-gui-compile/scheduled-alpha",
+      "owner": "local-macos/intel-gui-compile",
       "scope": "non-publishing Intel GUI compile regression"
     },
     {

@@ -3,7 +3,11 @@
 The owner paused nonessential Actions on 2026-09-08 during CLI-first delivery.
 The initial pause retained only Fast CI and dependency assurance as repository workflows;
 GitHub's managed Dependency Graph is also retained. Fast CI's desktop and browser
-jobs require `CANISEND_ENABLE_DESKTOP_CI=true` (currently false).
+browser job requires `CANISEND_ENABLE_DESKTOP_CI=true` (currently false).
+The 2026-09-15 owner decision supersedes macOS execution: every macOS build/test
+is local-only, including release packages. Retained macOS-only jobs are hard-disabled;
+mixed matrices retain only Linux/Windows. See the
+[local runbook](../../docs/development/local-macos-validation.md).
 
 ## Snapshot
 
@@ -26,13 +30,16 @@ are not discovered as Actions workflows.
    overwrite newer definitions. Run source checks before enabling execution.
 2. Enable only the required workflow with `gh workflow enable WORKFLOW.yml`.
    For the removed Rust spike, explicitly restore and review its file first.
-3. To resume Fast CI desktop jobs, set the repository variable with
-   `gh variable set CANISEND_ENABLE_DESKTOP_CI --body true`. Independently enable
-   `desktop-platform-qualification.yml` and `intel-gui-compile.yml` if needed.
+3. To resume Fast CI's Linux browser job, set the repository variable with
+   `gh variable set CANISEND_ENABLE_DESKTOP_CI --body true`. This cannot enable
+   macOS jobs. Desktop-platform qualification retains only Windows/Linux remote
+   execution; Intel GUI compilation is local-only.
 4. Enabling a scheduled workflow restores its schedule. Formal publication still
    requires every existing release and artifact gate; the pause does not qualify
    any candidate. The npm trusted publisher remains bound to `release.yml`, which now has a separate npm-only CLI path. The owner subsequently authorized
-   re-enabling that path; full native/GUI release remains gated by
-   `CANISEND_ENABLE_FULL_RELEASE=true`. The archived release definition remains unchanged.
+   re-enabling that path, before moving all macOS execution locally on 2026-09-15.
+   Current npm/PyPI macOS publishers are disabled and promotion is blocked pending
+   verified local-artifact handoff. `CANISEND_ENABLE_FULL_RELEASE=true` does not
+   waive that boundary. The archived release definition remains unchanged.
 
 Verify the snapshot with `cd .github/workflow-archive/2026-09-08 && shasum -a 256 -c SHA256SUMS`.
