@@ -757,6 +757,84 @@
         "release/dependency-advisory-exceptions.json"
       ],
       "reason": "Bind the current 751-package fingerprint and fresh dependency review to the sole RMCP-to-url feature edge; preserve advisory reachability restrictions and the existing 2026-09-07 review and expiry deadlines."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "db484997f300d6bba84291ae6a310aed339cc2f2",
+      "paths": [
+        "crates/canisend-app/src/agent.rs",
+        "crates/canisend-app/src/lib.rs",
+        "crates/canisend-cli/src/lib.rs",
+        "crates/canisend-cli/tests/binary_contract.rs",
+        "crates/canisend-resources/resources/manifest.json",
+        "crates/canisend-resources/resources/skills/canisend-workspace/SKILL.md",
+        "release/alpha-package-contract.json",
+        "scripts/smoke_documented_quickstart.sh"
+      ],
+      "reason": "Add the owner-authorized guided permission setup while preserving Host-owned approvals, explicit product consent and the submission boundary."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "f4cbc5853ad958902e2d8d863e3f939566b2b345",
+      "paths": [
+        ".github/workflow-archive/README.md",
+        ".github/workflows/desktop-platform-qualification.yml",
+        ".github/workflows/fast-ci.yml",
+        ".github/workflows/intel-gui-compile.yml",
+        ".github/workflows/package-manager-qualification.yml",
+        ".github/workflows/release.yml",
+        ".github/workflows/upgrade-qualification.yml",
+        "release/native-test-ownership.json",
+        "scripts/check_macos_local.sh",
+        "tools/native-preview/README.md",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Move macOS build and test ownership to explicit local execution while failing closed on formal publication until exact local evidence ingestion exists."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "6abac9214275ab189905195dad5d63831b2ab274",
+      "paths": [
+        "xtask/src/main.rs"
+      ],
+      "reason": "Allow sequential registry-only Beta source iterations without inventing qualification history or weakening the full Beta and RC gates."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "cf2056fce0642c53f5dccbedca670abd1def00b3",
+      "paths": [
+        "Cargo.lock",
+        "release/dependency-advisory-exceptions.json"
+      ],
+      "reason": "Remove the newly detected reachable rustls vulnerability, replace the yanked chacha20 release and bind the refreshed dependency review to the exact lock."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "2f01fa1624dd0228e7625d73644c9196b9982110",
+      "paths": [
+        ".github/ISSUE_TEMPLATE/bug.yml",
+        ".github/workflows/release.yml",
+        "Cargo.lock",
+        "Cargo.toml",
+        "apps/canisend-desktop/package.json",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-desktop/Cargo.toml",
+        "crates/canisend-desktop/tauri.conf.json",
+        "crates/canisend-desktop/tauri.windows.conf.json",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-mcp/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/alpha-package-contract.json",
+        "scripts/publish_local_macos_candidate.sh",
+        "tools/native-preview/package.json",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Prepare the deterministic Beta.9 registry-testing source and bounded local publish-only adapter without claiming a qualified native checkpoint, tag or Host evidence."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
