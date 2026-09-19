@@ -4,9 +4,11 @@ CanISend runs the complete locked Rust workspace suite once in the candidate sou
 release jobs do not repeat the whole workspace test graph for every target. Their responsibility is
 to prove the behavior that depends on the exact target runner and packaged bytes.
 
-Since the owner's 2026-09-15 decision, all macOS builds and tests run locally:
+Since the owner's 2026-09-15 decision, formal macOS builds and tests run locally:
 see the [local macOS runbook](../development/local-macos-validation.md). `desktop-ui`
 is hard-disabled remotely; local `desktop` mode owns its frontend and Rust checks.
+The 2026-09-19 registry-only exception permits the exact npm/PyPI build and verification
+jobs in `release.yml`; their results never count as native qualification evidence.
 Independent `macos-quality` and `macos-tests` jobs now run on **Ubuntu**, retaining
 only their legacy protected-check names. They check CLI/shared Rust crates with
 `--exclude canisend-gui` and need no frontend artifact or desktop job.
@@ -27,9 +29,10 @@ of the named native package gates.
 
 The runner labels in the formal candidate contract retain the historical evidence
 identity; they do not authorize new hosted macOS jobs or relabel local checks.
-Formal local-evidence ingestion is pending. macOS-only workflow jobs are disabled,
-mixed matrices contain Linux/Windows only, and publication is blocked until exact
-local-artifact handoff is implemented. No missing platform is counted as passed.
+Formal local-evidence ingestion is pending. macOS qualification jobs are disabled,
+mixed matrices contain Linux/Windows only, and full publication is blocked until exact
+local-artifact handoff is implemented. Registry-only npm/PyPI jobs remain nonqualifying;
+no missing platform is counted as passed.
 
 ## Gate ownership
 
