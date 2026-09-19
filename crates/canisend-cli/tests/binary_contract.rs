@@ -743,6 +743,103 @@ fn host_setup_validates_inputs_and_refuses_pre_v4_resources_without_mutation() {
 }
 
 #[test]
+fn host_permission_guidance_is_not_a_grant_or_host_config_write() {
+    let workspace = TestDirectory::new("host-permissions");
+    run_json(&["-w", workspace.text(), "ws", "init", "--no-skills"]);
+    fs::create_dir_all(workspace.path().join(".codex")).unwrap();
+    let config = workspace.path().join(".codex/config.toml");
+    fs::write(
+        &config,
+        b"# USER POLICY\n[mcp_servers.personal]\ncommand = \"personal\"\n",
+    )
+    .unwrap();
+    fs::write(workspace.path().join("AGENTS.md"), b"USER INSTRUCTIONS").unwrap();
+    let before = file_snapshot(workspace.path());
+    for extra in [
+        vec!["--host", "codex", "--guided", "--text"], // No TTY: never consume piped consent.
+        vec!["--host", "claude", "--permission-profile", "guarded"],
+        vec!["--host", "generic", "--permission-profile", "guarded"],
+        vec!["--host", "codex", "--permission-profile", "unknown"],
+    ] {
+        let mut arguments = vec!["-w", workspace.text(), "host", "setup"];
+        arguments.extend(extra);
+        assert!(!run(&arguments).status.success());
+        assert_eq!(file_snapshot(workspace.path()), before);
+    }
+    let setup = run_json(&[
+        "-w",
+        workspace.text(),
+        "host",
+        "setup",
+        "--host",
+        "codex",
+        "--permission-profile",
+        "guarded",
+    ]);
+    assert_eq!(
+        setup["data"]["mcp"]["permission_plan"]["profile"],
+        "guarded"
+    );
+    assert_eq!(
+        setup["data"]["mcp"]["permission_plan"]["grants_consent"],
+        false
+    );
+    assert_eq!(setup["data"]["mcp_configuration_mutated"], false);
+    assert_eq!(setup["data"]["effective_permissions_verified"], false);
+    assert_eq!(setup["data"]["mcp"]["registration_command"], Value::Null);
+    assert!(
+        workspace
+            .path()
+            .join(".agents/skills/canisend-workspace/SKILL.md")
+            .is_file()
+    );
+    let installed = file_snapshot(workspace.path());
+    for (path, bytes) in before {
+        assert_eq!(
+            installed.get(&path),
+            Some(&bytes),
+            "preserve {}",
+            path.display()
+        );
+    }
+    // Status reports the requested plan, never guesses a stored grant or effective Host policy.
+    let status = run_json(&["-w", workspace.text(), "host", "status", "--host", "codex"]);
+    assert_eq!(
+        status["data"]["mcp"]["permission_plan"]["profile"],
+        "strict"
+    );
+    assert_eq!(status["data"]["effective_permissions_verified"], false);
+    let status_guarded = run_json(&[
+        "-w",
+        workspace.text(),
+        "host",
+        "status",
+        "--host",
+        "codex",
+        "--permission-profile",
+        "guarded",
+    ]);
+    assert_eq!(status_guarded["data"]["mcp"], setup["data"]["mcp"]);
+    assert_eq!(file_snapshot(workspace.path()), installed);
+    let text = run(&[
+        "-w",
+        workspace.text(),
+        "host",
+        "status",
+        "--host",
+        "codex",
+        "--permission-profile",
+        "guarded",
+        "--text",
+    ]);
+    assert!(text.status.success());
+    let output = String::from_utf8(text.stdout).unwrap();
+    assert!(output.contains("no consent granted"));
+    assert!(output.contains("[mcp_servers.canisend.tools.canisend_export_prepare_commit]"));
+    assert_eq!(file_snapshot(workspace.path()), installed);
+}
+
+#[test]
 fn workspace_v4_holds_generic_and_academic_applications_together() {
     let workspace = TestDirectory::new("mixed-pack");
     let candidates = TestDirectory::new("mixed-pack-candidates");

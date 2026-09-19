@@ -11,9 +11,12 @@ The test uses a deterministic black/white/blue PDF probe, captures the native wi
 - `native-preview-host-size.json`, the SHA-256 and byte size of the production-equivalent and
   qualification-only hosts, including the test-only delta.
 
-The scheduled matrix combines all three platform records into
+The evidence summarizer combines all three platform records into
 `canisend.native-pdf-preview-matrix/v1`. A missing or failed direct renderer names the affected
 platform and requires system-viewer review. It never adds PDF.js automatically.
+Since 2026-09-15, macOS runs locally only; the remote matrix retains Windows/Linux.
+Missing local WKWebView evidence is not a pass. See the
+[execution policy](../../docs/development/local-macos-validation.md).
 
 The production boundary is deliberate. WebdriverIO has its own pnpm lock file here, and the native
 server is compiled only when Cargo feature `preview-qualification` is explicitly enabled. Neither

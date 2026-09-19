@@ -4999,14 +4999,16 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         (from_stage, to_stage),
         (ReleaseStage::Beta, ReleaseStage::Beta)
     ) {
-        let qualified_beta = ledger["beta"].clone();
-        if ledger.get("beta_history").is_none() {
-            ledger["beta_history"] = json!([]);
+        if ledger["beta"]["status"] == "qualified" {
+            let qualified_beta = ledger["beta"].clone();
+            if ledger.get("beta_history").is_none() {
+                ledger["beta_history"] = json!([]);
+            }
+            ledger["beta_history"]
+                .as_array_mut()
+                .expect("validated Beta qualification history")
+                .push(qualified_beta);
         }
-        ledger["beta_history"]
-            .as_array_mut()
-            .expect("validated Beta qualification history")
-            .push(qualified_beta);
         ledger["beta"] = json!({"status": "pending"});
     }
     ledger["workspace_stage"] = Value::String(to_stage.as_str().to_owned());
@@ -5423,11 +5425,8 @@ fn validate_transition_ledger_preconditions(
         (from_stage, to_stage),
         (ReleaseStage::Beta, ReleaseStage::Beta)
     ) {
-        if ledger["feature_freeze"]["status"] != "frozen" || ledger["beta"]["status"] != "qualified"
-        {
-            return Err(
-                "sequential Beta requires a qualified active Beta and feature freeze".to_owned(),
-            );
+        if ledger["feature_freeze"]["status"] != "frozen" {
+            return Err("sequential Beta requires an active feature freeze".to_owned());
         }
         let baseline = required_string(
             &ledger["feature_freeze"],
@@ -5435,7 +5434,10 @@ fn validate_transition_ledger_preconditions(
             "feature freeze",
         )?;
         validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
-        validate_beta_qualification_state(ledger, Some(from_version))?;
+        let (_, history_count) = validate_beta_qualification_state(ledger, Some(from_version))?;
+        if ledger["beta"]["status"] == "pending" && history_count == 0 {
+            return Err("an unqualified first Beta cannot advance to another iteration".to_owned());
+        }
     }
     if matches!(
         (from_stage, to_stage),
@@ -6374,8 +6376,51 @@ fn check_dependency_table(
     Ok(())
 }
 
+fn reject_hosted_macos_jobs(workflow: &str) -> Result<(), String> {
+    // ponytail: repository workflows use two-space job keys; adopt a YAML parser
+    // if workflow generation or aliases are introduced instead of expanding this scanner.
+    let mut job = "";
+    let mut macos_runner = false;
+    let mut disabled = false;
+    for line in workflow.lines().chain(["  end-of-policy-scan:"]) {
+        if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':') {
+            if macos_runner && !disabled {
+                return Err(format!(
+                    "macOS job `{job}` must be local-only (literal job-level if: ${{{{ false }}}})"
+                ));
+            }
+            job = line.trim();
+            macos_runner = false;
+            disabled = false;
+        }
+        let field = line.trim();
+        if (field.starts_with("runs-on:") || field.starts_with("runner:"))
+            && field.contains("macos")
+        {
+            macos_runner = true;
+        }
+        if line == "    if: ${{ false }}" {
+            disabled = true;
+        }
+    }
+    Ok(())
+}
+
 fn check_native_test_ownership() -> Result<(), String> {
     let root = repository_root();
+    for entry in fs::read_dir(root.join(".github/workflows"))
+        .map_err(|error| format!("cannot read workflows: {error}"))?
+    {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if matches!(
+            path.extension().and_then(|value| value.to_str()),
+            Some("yml" | "yaml")
+        ) {
+            let workflow = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            reject_hosted_macos_jobs(&workflow)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+        }
+    }
     let policy_path = root.join("release/native-test-ownership.json");
     let policy: Value = serde_json::from_slice(&fs::read(&policy_path).map_err(|error| {
         format!(
@@ -6386,6 +6431,13 @@ fn check_native_test_ownership() -> Result<(), String> {
     .map_err(|error| format!("native test ownership policy is invalid JSON: {error}"))?;
     let expected = json!({
         "schema": NATIVE_TEST_OWNERSHIP_SCHEMA,
+        "macos_execution": {
+            "location": "local-only",
+            "entrypoint": "bash scripts/check_macos_local.sh",
+            "runbook": "docs/development/local-macos-validation.md",
+            "formal_local_evidence_ingestion": "pending",
+            "historical_runner_labels_are_not_local_evidence": true
+        },
         "source_gate": {
             "command": "cargo test --workspace --locked",
             "frontend": {
@@ -6438,7 +6490,6 @@ fn check_native_test_ownership() -> Result<(), String> {
         "development_fast_ci": {
             "workflow": ".github/workflows/fast-ci.yml",
             "runners": [
-                "macos-15",
                 "ubuntu-24.04",
                 "windows-2025"
             ],
@@ -6449,6 +6500,8 @@ fn check_native_test_ownership() -> Result<(), String> {
                 "macos-quality",
                 "macos-tests"
             ],
+            "disabled_jobs": ["desktop-ui"],
+            "legacy_linux_check_names": ["macos-quality", "macos-tests"],
             "commands": [
                 "pnpm install --frozen-lockfile",
                 "pnpm format:check",
@@ -6551,7 +6604,7 @@ fn check_native_test_ownership() -> Result<(), String> {
         },
         "extended_assurance": [
             {
-                "owner": "fast-ci/desktop-ui",
+                "owner": "local-macos/desktop",
                 "scope": "Formatting, Svelte and TypeScript checks, UI and desktop Rust tests, desktop Clippy, and production frontend/GUI build"
             },
             {
@@ -6568,14 +6621,14 @@ fn check_native_test_ownership() -> Result<(), String> {
             },
             {
                 "owner": "fast-ci/macos-tests",
-                "scope": "macOS CLI and shared Rust workspace, property contracts, recovery, and rendering; independent of desktop builds"
+                "scope": "Linux CLI and shared Rust workspace, property contracts, recovery, and rendering; macOS repeats locally"
             },
             {
                 "owner": "native-release/source-and-native",
                 "scope": "release-only Linux and Windows tests, performance, packaging, and exact archive smoke"
             },
             {
-                "owner": "intel-gui-compile/scheduled-alpha",
+                "owner": "local-macos/intel-gui-compile",
                 "scope": "non-publishing Intel GUI compile regression"
             },
             {
@@ -6663,9 +6716,11 @@ fn check_native_test_ownership() -> Result<(), String> {
             ));
         }
     }
-    if fast_ci.matches("runs-on: macos-15").count() != 3 {
+    if fast_ci.matches("runs-on: macos-15").count() != 1
+        || fast_ci.matches("runs-on: ubuntu-24.04").count() != 3
+    {
         return Err(
-            "fast CI must contain exactly three macOS jobs, including independent desktop maintenance"
+            "fast CI requires Linux quality/tests/browser jobs and one disabled legacy macOS desktop job"
                 .to_owned(),
         );
     }
@@ -6838,6 +6893,24 @@ fn check_native_test_ownership() -> Result<(), String> {
     let workflow_path = root.join(".github/workflows/release.yml");
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("release workflow is missing: {error}"))?;
+    for job in ["promote-release-candidate", "publish-release"] {
+        let header = format!("\n  {job}:\n");
+        let body = workflow
+            .split_once(&header)
+            .ok_or_else(|| format!("release job `{job}` is missing"))?
+            .1;
+        let awaits_local_macos = body
+            .lines()
+            .take_while(|line| {
+                !(line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':'))
+            })
+            .any(|line| line == "      - local-macos-required");
+        if !awaits_local_macos {
+            return Err(format!(
+                "release job `{job}` must await qualified local macOS artifacts"
+            ));
+        }
+    }
     let source_gate_start = workflow
         .find("\n  source-gates:\n")
         .ok_or_else(|| "release workflow source-gates job is missing".to_owned())?;
@@ -7126,6 +7199,8 @@ fn check_native_test_ownership() -> Result<(), String> {
         "scripts/write_sccache_stats.sh",
         "scripts/test_sccache_contract.sh",
         "docs/release/native-test-ownership.md",
+        "docs/development/local-macos-validation.md",
+        "scripts/check_macos_local.sh",
     ] {
         if !root.join(required).is_file() {
             return Err(format!("native test ownership file is missing: {required}"));
@@ -12509,14 +12584,20 @@ fn validate_beta_qualification_history(
     let history = history
         .as_array()
         .ok_or_else(|| "Beta qualification history must be an array".to_owned())?;
-    let mut validated = Vec::with_capacity(history.len());
+    let mut validated: Vec<(Version, String, u64)> = Vec::with_capacity(history.len());
     let mut source_commits = BTreeSet::new();
     let mut runs = BTreeSet::new();
     for (index, record) in history.iter().enumerate() {
         let context = format!("Beta qualification history entry {index}");
         let (version, source_commit, run) = validate_beta_qualification_record(record, &context)?;
         if let Some((previous, _, _)) = validated.last() {
-            validate_stage_transition(previous, ReleaseStage::Beta, &version, ReleaseStage::Beta)?;
+            if (previous.major, previous.minor, previous.patch)
+                != (version.major, version.minor, version.patch)
+                || prerelease_iteration(&version, "beta")?
+                    <= prerelease_iteration(previous, "beta")?
+            {
+                return Err("Beta qualification history must be strictly increasing".to_owned());
+            }
         } else if prerelease_iteration(&version, "beta")? != 1 {
             return Err("Beta qualification history must start at beta.1".to_owned());
         }
@@ -12552,7 +12633,16 @@ fn validate_beta_qualification_state(
     let status = required_string(active, "status", "Beta qualification")?;
     let validate_next = |version: &Version| -> Result<(), String> {
         if let Some((previous, _, _)) = history.last() {
-            validate_stage_transition(previous, ReleaseStage::Beta, version, ReleaseStage::Beta)
+            if (previous.major, previous.minor, previous.patch)
+                != (version.major, version.minor, version.patch)
+                || !version.build.is_empty()
+                || prerelease_iteration(version, "beta")? <= prerelease_iteration(previous, "beta")?
+            {
+                return Err(
+                    "Beta qualification must be later than the latest qualified Beta".to_owned(),
+                );
+            }
+            Ok(())
         } else if prerelease_iteration(version, "beta")? == 1 {
             Ok(())
         } else {
@@ -14026,7 +14116,7 @@ fn check_upgrade_qualification_policy() -> Result<(), String> {
         &format!("default: \"{release}-rc.1\""),
         "gh attestation verify",
         "qualify_archive_upgrade.sh",
-        "macos-15-intel",
+        "macOS is local-only; the five-target evidence gate remains strict.",
         "ubuntu-24.04",
         "windows-2025",
         "verify-upgrade-evidence",
@@ -17801,6 +17891,27 @@ mod tests {
     }
 
     #[test]
+    fn macos_ci_policy_rejects_direct_and_matrix_runners_unless_job_is_disabled() {
+        for runner in [
+            "    runs-on: macos-15\n",
+            "    runs-on: macos-15-intel\n",
+            "    runs-on: ${{ matrix.runner }}\n    strategy:\n      matrix:\n        include:\n          - target: aarch64-apple-darwin\n            runner: macos-15\n",
+        ] {
+            let workflow = format!("jobs:\n  mac:\n{runner}");
+            assert!(reject_hosted_macos_jobs(&workflow).is_err());
+            let disabled = format!("jobs:\n  mac:\n    if: ${{{{ false }}}}\n{runner}");
+            assert!(reject_hosted_macos_jobs(&disabled).is_ok());
+            let step_only = format!("{workflow}    steps:\n      - if: ${{{{ false }}}}\n");
+            assert!(reject_hosted_macos_jobs(&step_only).is_err());
+            let sibling = format!(
+                "jobs:\n  other:\n    if: ${{{{ false }}}}\n    runs-on: ubuntu-24.04\n  mac:\n{runner}"
+            );
+            assert!(reject_hosted_macos_jobs(&sibling).is_err());
+        }
+        assert!(reject_hosted_macos_jobs("jobs:\n  linux:\n    runs-on: ubuntu-24.04\n  windows:\n    runs-on: windows-2025\n").is_ok());
+    }
+
+    #[test]
     fn rust_toolchain_claims_match_every_active_owner() {
         check_rust_toolchain_alignment().expect("Rust toolchain alignment");
     }
@@ -18476,9 +18587,14 @@ mod tests {
         assert_eq!(next["beta"]["tag"], "v0.7.0-beta.2");
         assert_eq!(next["beta_history"], sequential["beta_history"]);
         assert!(
-            beta_qualified_ledger(&sequential, "v0.7.0-beta.3", 29_640_000_002, &next_source,)
-                .is_err()
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.1", 29_640_000_002, &next_source,)
+                .is_err(),
+            "a qualified Beta cannot repeat an earlier iteration"
         );
+        let later =
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.8", 29_640_000_008, &next_source)
+                .expect("qualify a later Beta after registry-only iterations");
+        assert_eq!(later["beta"]["tag"], "v0.7.0-beta.8");
         assert!(
             beta_qualified_ledger(&sequential, "v0.7.0-beta.2", 29_640_000_001, &next_source,)
                 .is_err()
@@ -18489,6 +18605,13 @@ mod tests {
             beta_qualified_ledger(&malformed, "v0.7.0-beta.2", 29_640_000_002, &next_source,)
                 .is_err()
         );
+        let mut cross_line = qualified.clone();
+        cross_line["beta"]["tag"] = json!("v1.0.0-beta.2");
+        cross_line["beta"]["source_commit"] = json!("9".repeat(40));
+        cross_line["beta"]["signed_matrix_run"] = json!(29_640_000_009_u64);
+        let cross_line =
+            json!({"beta_history": [qualified["beta"].clone(), cross_line["beta"].clone()]});
+        assert!(validate_beta_qualification_history(&cross_line).is_err());
     }
 
     #[test]
@@ -18727,6 +18850,24 @@ mod tests {
             .is_err(),
             "unqualified Beta must not advance"
         );
+        unqualified_beta["beta_history"] = json!([{
+            "signed_matrix_run": 29_640_000_001_u64,
+            "signing_evidence_targets": [
+                "aarch64-apple-darwin",
+                "x86_64-apple-darwin",
+                "x86_64-pc-windows-msvc"
+            ],
+            "source_commit": "6".repeat(40),
+            "status": "qualified",
+            "tag": "v0.7.0-beta.1"
+        }]);
+        validate_transition_ledger_preconditions(
+            &unqualified_beta,
+            &beta_two,
+            ReleaseStage::Beta,
+            ReleaseStage::Beta,
+        )
+        .expect("registry-only Beta may advance without inventing qualification history");
 
         let current_rc = json!({
             "schema": RELEASE_QUALIFICATION_SCHEMA,

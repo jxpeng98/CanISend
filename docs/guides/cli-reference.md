@@ -56,6 +56,13 @@ add `--scope global` for user-wide Skills. Setup/status accept `--executable PAT
 MCP should use a different absolute CLI path. Host commands leave MCP configuration for you
 to register or remove. Upgrade and removal preserve locally modified managed files.
 
+Source builds with `--permission-profile strict|guarded` prepare a permission plan on setup/status;
+strict is the default, guarded is Codex-only. `host setup --host codex --guided` explains and selects
+the policy in a terminal, without granting consent. It conflicts with `--json` and an explicit
+profile, and refuses piped sessions. These options do not edit Host policy or verify effective
+permissions. Review and apply the printed configuration, reconnect, and use the native MCP form
+for optional session Auto approval. See [permission guidance](agent-integration.md#first-use-permission-guidance).
+
 ## Applications and documents
 
 Use `-a ID` for the application on each selected-application command below.

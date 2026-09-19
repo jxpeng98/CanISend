@@ -30,13 +30,14 @@ Every exception records:
 - an HTTPS upstream issue, commit, or advisory-tracking reference.
 
 Reviews are valid for at most 14 days and exceptions for at most 30 days. The current lock-bound
-set was re-reviewed on 2026-09-06 after LF-C04 added only the RMCP-to-existing-`url` edge.
-An exact comparison retained all 751 third-party package identities, versions and checksums,
-and every other dependency edge. No renderer, font, bibliography, GTK or pattern input changed.
-A fresh `cargo-deny 0.19.7` advisory, ban, license and source check passed; existing duplicate,
-unmatched-license and yanked `chacha20 0.10.1` warnings remain. Its next review and hard expiry are
-both 2026-09-07, so there is no grace period after a missed review. A missing, new, reordered,
-stale, expired, or lock-mismatched exception fails before `cargo deny` can treat it as accepted.
+set was re-reviewed on 2026-09-19 after a fresh advisory scan found `RUSTSEC-2026-0285` in
+`rustls 0.23.42`. The compatible lock update moves rustls to 0.23.45, its crypto and WebPKI
+dependencies to patched versions, and the yanked `chacha20 0.10.1` to 0.10.2. The graph still has
+751 third-party packages, and no renderer, font, bibliography, GTK or pattern input changed. A
+fresh `cargo-deny 0.19.7` advisory, ban, license and source check passed; existing duplicate and
+unmatched-license warnings remain. The next review is due 2026-10-03 and the hard expiry is
+2026-10-19. A missing, new, reordered, stale, expired, or lock-mismatched exception fails before
+`cargo deny` can treat it as accepted.
 
 ## Vulnerability boundary
 

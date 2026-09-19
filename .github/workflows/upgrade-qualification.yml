@@ -79,13 +79,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # macOS is local-only; the five-target evidence gate remains strict.
         include:
-          - target: aarch64-apple-darwin
-            environment: macos-15
-            runner: macos-15
-          - target: x86_64-apple-darwin
-            environment: macos-15-intel
-            runner: macos-15-intel
           - target: x86_64-unknown-linux-gnu
             environment: ubuntu-24.04
             runner: ubuntu-24.04

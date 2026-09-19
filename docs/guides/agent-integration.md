@@ -78,6 +78,51 @@ canisend --workspace /absolute/path/to/workspace host remove --host codex --json
 
 ## Connect the MCP adapter
 
+### First-use permission guidance
+
+On binaries whose `host setup --help` lists `--guided`, use a real terminal:
+
+```console
+canisend --workspace /absolute/path/to/workspace host setup --host codex --guided
+```
+
+The dialogue explains the boundaries before installing Skills and defaults to **strict**.
+It selects a proposed Host policy, not product consent. For noninteractive setup or inspection:
+
+```console
+canisend --workspace /absolute/path/to/workspace host setup --host codex --permission-profile guarded --json
+canisend --workspace /absolute/path/to/workspace host status --host codex --permission-profile guarded --json
+```
+
+`strict` retains the existing Codex `writes` configuration. `guarded` is opt-in and Codex-only:
+it limits `enabled_tools` to this binary's exact catalog and proposes `auto` for its known guarded
+write tools. CanISend's own native forms, preview/revision/token checks and sensitive boundaries
+remain unchanged. The two Host settings are described in the
+[Codex MCP configuration reference](https://learn.chatgpt.com/docs/extend/mcp).
+Host/admin policy may still prompt or refuse; this is not a promise of unattended execution.
+
+Review the returned `configuration_snippet` and merge only the `canisend` server entry into the
+Workspace's `.codex/config.toml`; do not replace unrelated servers or security settings. Guarded
+setup returns no registration command because `codex mcp add` alone does not apply this policy.
+For strict setup, its registration command configures transport only: review the snippet to apply
+the proposed policy. If changing an existing guarded setup back to strict, remove its CanISend
+per-tool approval overrides and `enabled_tools` after reviewing the default `writes` policy;
+merging a top-level default alone does not undo overrides. Reconnect after changes. Project
+settings require a trusted project. `--scope global` controls Skills only, not MCP configuration.
+
+`data.mcp.permission_plan` groups body-free inspection, work under a live grant, decisions that
+still ask, and authority setup never grants. `grants_consent` and
+`data.effective_permissions_verified` are false: setup/status do not inspect effective Host policy,
+private bodies or active MCP grants. Repeat `--permission-profile` when inspecting a proposed plan;
+an omitted profile always means strict, not detection of a previously selected profile.
+`--guided` rejects JSON, piped/non-terminal sessions and unsupported Hosts before installing Skills.
+
+The five managed Skills already provide persistent Agent guidance, including permission boundaries;
+setup leaves any user `AGENTS.md` unchanged. No token, private content or durable authorization is
+written into instructions. Only a real native form response can create the optional session grant.
+
+### Native confirmation and session grants
+
 The CLI-first source requires MCP form elicitation for guarded commits and requested private
 reads/exports. The Host presents server forms to the user and forwards their actual responses.
 Eligible forms offer **Auto approve routine work for this application for up to 60 minutes**,
@@ -129,8 +174,9 @@ existing external-host behavior. Binding grants no private-read/provider-send co
 approval and does not qualify the embedded provider's isolation.
 
 
-Apply the `registration_command` returned by `host setup` in a user-reviewed terminal, or merge its
-`configuration_snippet` into the reported `configuration_target`. Then run the returned
+Apply any `registration_command` returned by `host setup` in a user-reviewed terminal, then review
+its `configuration_snippet` for the proposed policy in the reported `configuration_target`. A
+snippet-only setup needs no registration command. Then run the returned
 `verification_command`. This explicit boundary prevents CanISend from overwriting unrelated host
 servers or user policy. This manual merge rule applies to standalone CLI setup and existing
 Workspaces; only the App's atomic new-or-empty Workspace bootstrap creates a project file directly.

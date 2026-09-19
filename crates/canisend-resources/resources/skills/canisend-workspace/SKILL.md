@@ -57,6 +57,14 @@ Initialize with `canisend --workspace PATH workspace init --host codex --json`
 Use the user's chosen Host/scope. The returned MCP registration command still needs
 running in that Host; installed Skills or status `ready` do not prove a connection.
 
+For first-use permission guidance, a human can run `host setup --host codex --guided`
+in a terminal. Scripts use `host setup|status --host codex --permission-profile strict|guarded
+--json`. `data.mcp.permission_plan` classifies boundaries, not effective permissions or consent.
+Strict preserves Host write prompts; guarded proposes an exact-tool Codex policy while retaining
+CanISend native forms. Setup prints the policy for a reviewed merge; it never changes Host config.
+Do not select a policy for the user, infer a session grant from these files, or replace their
+`AGENTS.md`. These managed Skills retain instructions; only live MCP approval metadata reports grants.
+
 After backing up the Workspace and replacing the binary, run `version --json`,
 `doctor --json` and `canisend --workspace PATH workspace upgrade --json`.
 Upgrade refreshes all existing project Skills and restores missing managed files;

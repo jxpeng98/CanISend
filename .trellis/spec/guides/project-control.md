@@ -35,7 +35,7 @@ smokes. Repeat a passing check only after a relevant change or new failure.
 full candidate qualification, freeze, dependency and actual Host requirements.
 
 The owner authorized npm testing prereleases independently of full native qualification.
-Since 2026-09-08, `release.yml` can build from main and publish macOS ARM64 to `next`
+From 2026-09-08, `release.yml` could build from main and publish macOS ARM64 to `next`
 through npm OIDC, then verify registry bytes and a fresh installation. Beta.6 succeeded
 in run `34533668709` from `e9ba8ea7364dbad152482db7ba99a45a0273007d`.
 See [installation](../../../docs/guides/installation.md) for the current invocation.
@@ -46,10 +46,20 @@ On 2026-09-10 the owner separately authorized Cargo and PyPI testing publication
 The eight public CLI crates at `1.0.0-beta.6` are published and registry-installed from source
 `d59984438c1a34e12743398b0d0ad0a5a953836d`; archive hashes and nine MCP tests passed.
 Use Cargo's dependency-ordered publishing for future versions. The main-only
-`pypi_only` path in `release.yml` builds a native macOS ARM64 wheel and uses the existing
+`pypi_only` path in `release.yml` built a native macOS ARM64 wheel using the existing
 `pypi` environment and OIDC binding. It leaves the Python product implementation retired.
 Verify registry bytes and installation before recording publication as complete; the same
 full-qualification and dependency-exception limits apply.
+
+On 2026-09-15 the owner moved **all macOS builds and tests to local execution**,
+including npm, PyPI and native packages; no self-hosted Actions runner is introduced.
+The previous macOS publishing jobs are now disabled. Use the
+[local macOS runbook](../../../docs/development/local-macos-validation.md).
+Linux/Windows automation is retained. Common quality/workspace checks run on Ubuntu
+under their legacy protected-check names; no remote protection is changed.
+Formal local evidence ingestion and publish-only handoff remain pending, so release
+promotion is blocked rather than accepting missing macOS evidence. Historical run
+IDs and qualification records must not be rewritten to represent local execution.
 
 Fast CI and dependency assurance remain active. GUI checks and archived extended
 workflows remain paused under the owner's decision; see
