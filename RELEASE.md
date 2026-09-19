@@ -2,8 +2,8 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.9`, prepared for npm, Cargo and PyPI testing channels;
-  this is not a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.9`, published and independently verified on npm, Cargo and
+  PyPI testing channels; this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -99,6 +99,27 @@ still required before Beta.9 can become a qualified GitHub checkpoint.
 The owner authorized GitHub-hosted registry-only builds through npm and PyPI Trusted Publishers
 and a repository-scoped Cargo registry token. Those jobs verify exact registry bytes and clean
 installs, but do not satisfy or replace the local macOS and full native qualification gates.
+
+Registry publication completed from source `7581d2f72e4d753e1c220d68e05d5e55ea310fa0`
+in [run 35473707357](https://github.com/jxpeng98/CanISend/actions/runs/35473707357):
+
+- npm published `canisend@1.0.0-beta.9` with OIDC provenance and moved `next` to Beta.9;
+  `latest` remains Beta.3. The exact retained candidate matches the public tarball, whose SHA-256
+  is `acf987588d9071ba33fbbd15ec7cc1e99ae7964bb1b682c29df97db4ae6e363a`.
+- Cargo published `canisend` and all seven dependency crates at `1.0.0-beta.9`. All eight public
+  archives match source candidates and crates.io checksums; a locked clean install, fresh
+  Workspace and all nine MCP protocol tests passed. The idempotent readback also passed in
+  [run 35475205555](https://github.com/jxpeng98/CanISend/actions/runs/35475205555)
+  without attempting another upload.
+- PyPI published the macOS ARM64 wheel as `canisend==1.0.0b9` through its `pypi` OIDC
+  environment. CI matched the public wheel to the retained candidate and passed a fresh install;
+  its SHA-256 is `65a1a4f54601a4068630130b74fc11085bcf1d39d81e806bdf67f0f500fd6db4`.
+
+The first run concluded red only because Cargo dry-run removes temporary package archives and npm
+initially returned its documented processing response. [PR #241](https://github.com/jxpeng98/CanISend/pull/241)
+preserves future Cargo candidates, verifies registry checksums, retries npm readback and fails
+closed on partial or unexpected registry state. The exact local machine record is
+`dist/beta9-registry-publication/verification.json`. No Git tag or GitHub Release was created.
 
 ## Supported public package scope
 

@@ -1,7 +1,8 @@
 # CanISend 1.0.0-beta.9
 
-Prepared for npm `next`, Cargo and PyPI testing publication. Publication outcomes are not
-tracked for this iteration; see the [release record](../RELEASE.md) for verified older artifacts.
+Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
+`7581d2f72e4d753e1c220d68e05d5e55ea310fa0`. This registry-only release is not a qualified
+GitHub checkpoint; see the [release record](../RELEASE.md) for exact evidence and remaining gates.
 
 This release adds guided, policy-only permission onboarding and keeps all 40 CLI commands easy to
 discover and use:
