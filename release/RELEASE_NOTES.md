@@ -1,9 +1,18 @@
-# CanISend 1.0.0-beta.8
+# CanISend 1.0.0-beta.9
 
 Prepared for npm `next`, Cargo and PyPI testing publication. Publication outcomes are not
 tracked for this iteration; see the [release record](../RELEASE.md) for verified older artifacts.
 
-This release makes all 40 CLI commands easier to discover and use:
+This release adds guided, policy-only permission onboarding and keeps all 40 CLI commands easy to
+discover and use:
+
+- `canisend host setup --host codex --guided` records a reviewed strict or guarded permission plan
+  and installs matching project guidance without granting consent or editing the Host's global
+  approval database.
+- The generated plan separates always-allowed local reads, preview/commit operations, sensitive
+  consent, and actions that remain outside CanISend's submission boundary.
+- The dependency lock upgrades rustls to 0.23.45 for `RUSTSEC-2026-0285` and replaces the yanked
+  `chacha20 0.10.1` with 0.10.2; the refreshed advisory, license and source scan passes.
 
 - Shorter help, consistent argument names, and visible `ws`, `app`, `source` and `links` aliases.
 - `-w` for workspace, `-a` for application, and `-f` / `--file` for JSON request files.
@@ -18,7 +27,8 @@ Existing long commands, JSON operation names, consent and revision checks remain
 See the [complete command reference](../docs/guides/cli-reference.md).
 
 After upgrading, run `canisend -w PATH ws upgrade` to refresh installed project Skills, then
-`canisend -w PATH ws check` and reconnect your Host. Workspace upgrade restores missing managed
+`canisend -w PATH host setup --host codex --guided`, review the generated plan, run
+`canisend -w PATH ws check`, and reconnect your Host. Workspace upgrade restores missing managed
 files and preserves local edits; built-in templates update with the CLI.
 
 ## Highlights

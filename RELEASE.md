@@ -2,7 +2,7 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.8`, prepared for npm, Cargo and PyPI testing channels;
+- Checked-in source: `1.0.0-beta.9`, prepared for npm, Cargo and PyPI testing channels;
   this is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
@@ -43,8 +43,9 @@ protocol and Workspace format are unchanged. Independent registry signature/atte
 exact CI-package comparison and fresh installation checks passed.
 
 Required integration CI passed in [PR #231](https://github.com/jxpeng98/CanISend/pull/231).
-The separate dependency-assurance job still fails because advisory-exception review is overdue
-since 2026-09-07; this publication does not renew those records or claim full native/Host qualification.
+The dependency authority was re-reviewed on 2026-09-19 after upgrading the reachable rustls
+vulnerability to 0.23.45 and the yanked chacha20 release to 0.10.2. This does not claim full
+native or Host qualification.
 
 The prior Beta.5 remains immutable at source `a2f8b06a75f3fcee8c6aaf638ac3e2310c6ae423`,
 published in [CI run 34285066117](https://github.com/jxpeng98/CanISend/actions/runs/34285066117),
@@ -89,6 +90,12 @@ all 40 commands have simpler help, common output options and shortcuts; metadata
 consented private reads produce more useful text. Canonical commands and JSON contracts remain
 compatible. Publication is authorized for npm `next`, Cargo and PyPI, without following outcomes.
 This preparation adds no verified-publication claim and preserves the historical records above.
+
+Beta.9 adds guided Codex permission planning without granting product consent or writing global
+Host approvals. It also carries the refreshed dependency review and patched rustls lock. The
+registry-only npm, Cargo and PyPI testing route remains separate from full native qualification;
+real-Host dogfood, local macOS release-evidence ingestion and a complete five-target matrix are
+still required before Beta.9 can become a qualified GitHub checkpoint.
 
 ## Supported public package scope
 

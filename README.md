@@ -109,7 +109,7 @@ See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.8`, with clearer help across all 40 CLI commands,
+The checked-in source version is `1.0.0-beta.9`, with clearer help across all 40 CLI commands,
 shortcuts such as `ws`, `app` and `-w`, and `--text` for readable output through pipes. Existing
 commands and JSON responses remain compatible. See the [command reference](docs/guides/cli-reference.md).
 Beta.8 targets Cargo, npm `next`, and PyPI (`1.0.0b8`); publication results are not yet verified.

@@ -69,8 +69,13 @@ five-target and native-preview completeness checks stay strict, so incomplete
 Linux/Windows-only evidence cannot qualify a full release. No support target,
 security check, real-user acceptance requirement, or evidence record is waived.
 
-Before the next publication, implement and test exact local-artifact/evidence
-handoff and a separately authorized publish-only path. Until then, local package
-checks are usable, but automated publication and formal macOS qualification are
-**not ready**. Committing these changes alone does not update remote workflows;
+Before the next full native publication, implement and test exact local-artifact/evidence
+handoff; automated promotion and formal macOS qualification are **not ready**. An independently
+authorized registry-only testing prerelease can use the bounded local publish-only path: first
+review an exact clean-tree candidate, run
+`bash scripts/publish_local_macos_candidate.sh verify npm|pypi CANDIDATE_DIRECTORY`, then set
+`CANISEND_PUBLISH=yes` and replace `verify` with `publish`. The publish command rechecks source
+identity and candidate hashes, publishes only that archive, verifies the registry digest, and
+performs a fresh registry install. It does not create a tag, GitHub release, full qualification,
+or Host evidence. Committing these changes alone does not update remote workflows;
 protected PR integration is required, and already-running jobs are unaffected.
