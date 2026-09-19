@@ -835,6 +835,19 @@
         "xtask/Cargo.toml"
       ],
       "reason": "Prepare the deterministic Beta.9 registry-testing source and bounded local publish-only adapter without claiming a qualified native checkpoint, tag or Host evidence."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "56edf58dd244b48eb85f397ba2f83ab33ba325c7",
+      "paths": [
+        ".github/workflows/release.yml",
+        "RELEASE.md",
+        "docs/development/local-macos-validation.md",
+        "docs/release/native-test-ownership.md",
+        "release/native-test-ownership.json",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Enable the owner-authorized registry-only Beta publishers through npm and PyPI Trusted Publishing plus the repository Cargo token while preserving local formal macOS and full native qualification gates."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

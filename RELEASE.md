@@ -96,6 +96,9 @@ Host approvals. It also carries the refreshed dependency review and patched rust
 registry-only npm, Cargo and PyPI testing route remains separate from full native qualification;
 real-Host dogfood, local macOS release-evidence ingestion and a complete five-target matrix are
 still required before Beta.9 can become a qualified GitHub checkpoint.
+The owner authorized GitHub-hosted registry-only builds through npm and PyPI Trusted Publishers
+and a repository-scoped Cargo registry token. Those jobs verify exact registry bytes and clean
+installs, but do not satisfy or replace the local macOS and full native qualification gates.
 
 ## Supported public package scope
 

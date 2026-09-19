@@ -5,7 +5,20 @@
     "entrypoint": "bash scripts/check_macos_local.sh",
     "runbook": "docs/development/local-macos-validation.md",
     "formal_local_evidence_ingestion": "pending",
-    "historical_runner_labels_are_not_local_evidence": true
+    "historical_runner_labels_are_not_local_evidence": true,
+    "registry_only_github_actions": {
+      "workflow": ".github/workflows/release.yml",
+      "jobs": [
+        "publish-npm",
+        "build-pypi",
+        "verify-pypi"
+      ],
+      "channels": [
+        "npm",
+        "pypi"
+      ],
+      "authoritative_release_evidence": false
+    }
   },
   "source_gate": {
     "command": "cargo test --workspace --locked",

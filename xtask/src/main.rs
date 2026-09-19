@@ -6376,22 +6376,24 @@ fn check_dependency_table(
     Ok(())
 }
 
-fn reject_hosted_macos_jobs(workflow: &str) -> Result<(), String> {
+fn reject_hosted_macos_jobs(workflow_name: &str, workflow: &str) -> Result<(), String> {
     // ponytail: repository workflows use two-space job keys; adopt a YAML parser
     // if workflow generation or aliases are introduced instead of expanding this scanner.
     let mut job = "";
     let mut macos_runner = false;
     let mut disabled = false;
+    let mut registry_only = false;
     for line in workflow.lines().chain(["  end-of-policy-scan:"]) {
         if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':') {
-            if macos_runner && !disabled {
+            if macos_runner && !disabled && !registry_only {
                 return Err(format!(
-                    "macOS job `{job}` must be local-only (literal job-level if: ${{{{ false }}}})"
+                    "macOS job `{job}` must be local-only or an approved registry-only publisher"
                 ));
             }
             job = line.trim();
             macos_runner = false;
             disabled = false;
+            registry_only = false;
         }
         let field = line.trim();
         if (field.starts_with("runs-on:") || field.starts_with("runner:"))
@@ -6401,6 +6403,16 @@ fn reject_hosted_macos_jobs(workflow: &str) -> Result<(), String> {
         }
         if line == "    if: ${{ false }}" {
             disabled = true;
+        }
+        if workflow_name == "release.yml"
+            && matches!(
+                (job, line),
+                ("publish-npm:", "    if: ${{ inputs.npm_only }}")
+                    | ("build-pypi:", "    if: ${{ inputs.pypi_only }}")
+                    | ("verify-pypi:", "    if: ${{ inputs.pypi_only }}")
+            )
+        {
+            registry_only = true;
         }
     }
     Ok(())
@@ -6417,7 +6429,11 @@ fn check_native_test_ownership() -> Result<(), String> {
             Some("yml" | "yaml")
         ) {
             let workflow = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-            reject_hosted_macos_jobs(&workflow)
+            let workflow_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| format!("workflow has no UTF-8 filename: {}", path.display()))?;
+            reject_hosted_macos_jobs(workflow_name, &workflow)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
         }
     }
@@ -6436,7 +6452,17 @@ fn check_native_test_ownership() -> Result<(), String> {
             "entrypoint": "bash scripts/check_macos_local.sh",
             "runbook": "docs/development/local-macos-validation.md",
             "formal_local_evidence_ingestion": "pending",
-            "historical_runner_labels_are_not_local_evidence": true
+            "historical_runner_labels_are_not_local_evidence": true,
+            "registry_only_github_actions": {
+                "workflow": ".github/workflows/release.yml",
+                "jobs": [
+                    "publish-npm",
+                    "build-pypi",
+                    "verify-pypi"
+                ],
+                "channels": ["npm", "pypi"],
+                "authoritative_release_evidence": false
+            }
         },
         "source_gate": {
             "command": "cargo test --workspace --locked",
@@ -17898,17 +17924,28 @@ mod tests {
             "    runs-on: ${{ matrix.runner }}\n    strategy:\n      matrix:\n        include:\n          - target: aarch64-apple-darwin\n            runner: macos-15\n",
         ] {
             let workflow = format!("jobs:\n  mac:\n{runner}");
-            assert!(reject_hosted_macos_jobs(&workflow).is_err());
+            assert!(reject_hosted_macos_jobs("example.yml", &workflow).is_err());
             let disabled = format!("jobs:\n  mac:\n    if: ${{{{ false }}}}\n{runner}");
-            assert!(reject_hosted_macos_jobs(&disabled).is_ok());
+            assert!(reject_hosted_macos_jobs("example.yml", &disabled).is_ok());
             let step_only = format!("{workflow}    steps:\n      - if: ${{{{ false }}}}\n");
-            assert!(reject_hosted_macos_jobs(&step_only).is_err());
+            assert!(reject_hosted_macos_jobs("example.yml", &step_only).is_err());
             let sibling = format!(
                 "jobs:\n  other:\n    if: ${{{{ false }}}}\n    runs-on: ubuntu-24.04\n  mac:\n{runner}"
             );
-            assert!(reject_hosted_macos_jobs(&sibling).is_err());
+            assert!(reject_hosted_macos_jobs("example.yml", &sibling).is_err());
         }
-        assert!(reject_hosted_macos_jobs("jobs:\n  linux:\n    runs-on: ubuntu-24.04\n  windows:\n    runs-on: windows-2025\n").is_ok());
+        assert!(reject_hosted_macos_jobs("example.yml", "jobs:\n  linux:\n    runs-on: ubuntu-24.04\n  windows:\n    runs-on: windows-2025\n").is_ok());
+
+        for (job, condition) in [
+            ("publish-npm", "inputs.npm_only"),
+            ("build-pypi", "inputs.pypi_only"),
+            ("verify-pypi", "inputs.pypi_only"),
+        ] {
+            let registry_only =
+                format!("jobs:\n  {job}:\n    if: ${{{{ {condition} }}}}\n    runs-on: macos-15\n");
+            assert!(reject_hosted_macos_jobs("release.yml", &registry_only).is_ok());
+            assert!(reject_hosted_macos_jobs("other.yml", &registry_only).is_err());
+        }
     }
 
     #[test]

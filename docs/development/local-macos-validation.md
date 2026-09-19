@@ -1,9 +1,11 @@
 # Local-only macOS builds and tests
 
-Owner decision, 2026-09-15: all macOS builds and tests run locally, including npm,
-PyPI, native CLI archives, desktop ZIP/DMG, Intel compilation, Homebrew, upgrade,
-and WKWebView checks. Do not substitute a self-hosted Actions runner. Linux and
-Windows retain their existing GitHub Actions jobs and pause/enable settings.
+Owner decision, 2026-09-15: formal macOS builds and tests run locally, including
+native CLI archives, desktop ZIP/DMG, Intel compilation, Homebrew, upgrade, and
+WKWebView checks. A 2026-09-19 exception authorizes the three exact hosted jobs in
+`release.yml` that build, publish, and verify registry-only npm/PyPI testing packages.
+Those jobs are not formal native evidence. Do not substitute a self-hosted Actions
+runner. Linux and Windows retain their existing GitHub Actions jobs and settings.
 
 ## Development and CLI packages
 
@@ -54,25 +56,26 @@ GUI work remains paused. When explicitly resumed, use the existing local tools:
 Fast CI still runs Linux/Windows core tests. Common formatting, Clippy, source
 invariants and the CLI/shared workspace suite run on Ubuntu. Their legacy names
 `macos-quality` and `macos-tests` are retained solely because the protected branch
-requires those exact check contexts; they are **not macOS evidence**. Desktop
-macOS jobs are hard-disabled, not switchable through repository variables.
+requires those exact check contexts; they are **not macOS evidence**. Desktop and
+formal native macOS jobs are hard-disabled, not switchable through repository variables.
 
-Mixed matrices contain only Linux/Windows entries. Retained macOS-only jobs use
-literal `if: ${{ false }}`; their bodies document the previous procedures and
-cannot allocate runners. The source gate rejects runnable macOS runner entries.
+Mixed matrices contain only Linux/Windows entries. Retained formal macOS-only jobs
+use literal `if: ${{ false }}` and cannot allocate runners. The source gate rejects
+runnable macOS entries except `publish-npm`, `build-pypi`, and `verify-pypi` in
+`release.yml` with their exact registry-only input conditions.
 Archived snapshots and historical release evidence remain unchanged.
 
 Local artifact ingestion and provenance for formal release qualification are not
-yet implemented. `release.yml` fails its local-macOS prerequisite and prevents
-promotion/publication; old npm/PyPI macOS publishers are disabled. Existing
+yet implemented. `release.yml` fails its local-macOS prerequisite for full release
+promotion; registry-only npm/PyPI dispatches skip that unrelated prerequisite. Existing
 five-target and native-preview completeness checks stay strict, so incomplete
 Linux/Windows-only evidence cannot qualify a full release. No support target,
 security check, real-user acceptance requirement, or evidence record is waived.
 
 Before the next full native publication, implement and test exact local-artifact/evidence
 handoff; automated promotion and formal macOS qualification are **not ready**. An independently
-authorized registry-only testing prerelease can use the bounded local publish-only path: first
-review an exact clean-tree candidate, run
+authorized registry-only testing prerelease can use the Trusted Publisher jobs or the bounded
+local publish-only path. For the local path, first review an exact clean-tree candidate and run
 `bash scripts/publish_local_macos_candidate.sh verify npm|pypi CANDIDATE_DIRECTORY`, then set
 `CANISEND_PUBLISH=yes` and replace `verify` with `publish`. The publish command rechecks source
 identity and candidate hashes, publishes only that archive, verifies the registry digest, and

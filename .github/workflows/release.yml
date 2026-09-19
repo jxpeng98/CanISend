@@ -16,6 +16,11 @@ on:
         type: boolean
         default: true
         required: true
+      cargo_only:
+        description: "Publish the CLI and seven dependency crates to crates.io"
+        type: boolean
+        default: false
+        required: true
       tag:
         description: "Exact future tag to build once as a non-publishing candidate"
         required: true
@@ -40,6 +45,7 @@ concurrency:
 jobs:
   local-macos-required:
     name: local-macos-release-required
+    if: ${{ github.event_name != 'workflow_dispatch' || (!inputs.npm_only && !inputs.pypi_only && !inputs.cargo_only) }}
     runs-on: ubuntu-24.04
     steps:
       - name: Refuse publication without qualified local macOS artifacts
@@ -50,7 +56,7 @@ jobs:
 
   release-identity:
     # Full native/GUI qualification remains paused during CLI-first delivery.
-    if: vars.CANISEND_ENABLE_FULL_RELEASE == 'true' && !inputs.npm_only && !inputs.pypi_only
+    if: vars.CANISEND_ENABLE_FULL_RELEASE == 'true' && !inputs.npm_only && !inputs.pypi_only && !inputs.cargo_only
     name: release-identity
     runs-on: ubuntu-24.04
     outputs:
@@ -1550,10 +1556,71 @@ jobs:
       tag: ${{ needs.release-identity.outputs.tag }}
     secrets: inherit
 
+  publish-cargo:
+    name: publish-cargo-testing-beta
+    if: ${{ inputs.cargo_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - name: Validate main and exact prerelease identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          version="$(cargo metadata --locked --no-deps --format-version 1 | jq -er '.packages[] | select(.name == "canisend") | .version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9.-]+$ ]]
+          test "$RELEASE_TAG" = "v$version"
+          echo "CARGO_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Check source and package closure
+        run: |
+          cargo run -p xtask --locked -- source check
+          cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+      - name: Publish Cargo dependency closure
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+      - name: Verify registry archives and clean installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cargo-registry"
+          for crate in canisend-contracts canisend-core canisend-resources canisend-io canisend-store canisend-app canisend-mcp canisend; do
+            published="$RUNNER_TEMP/cargo-registry/$crate-$CARGO_RELEASE_VERSION.crate"
+            for attempt in {1..20}; do
+              if curl --fail --silent --show-error --location \
+                --user-agent 'CanISend release verification' \
+                --output "$published" \
+                "https://crates.io/api/v1/crates/$crate/$CARGO_RELEASE_VERSION/download"; then
+                break
+              fi
+              if [[ "$attempt" == 20 ]]; then
+                echo "crates.io did not expose $crate@$CARGO_RELEASE_VERSION" >&2
+                exit 1
+              fi
+              sleep 15
+            done
+            cmp "target/package/$crate-$CARGO_RELEASE_VERSION.crate" "$published"
+          done
+          cargo install canisend --version "=$CARGO_RELEASE_VERSION" --locked --root "$RUNNER_TEMP/cargo-install"
+          binary="$RUNNER_TEMP/cargo-install/bin/canisend"
+          "$binary" version --json | jq -e --arg version "$CARGO_RELEASE_VERSION" '.data.version == $version'
+          "$binary" --workspace "$RUNNER_TEMP/cargo-workspace" workspace init --host codex --json
+          "$binary" --workspace "$RUNNER_TEMP/cargo-workspace" workspace check --json
+          CANISEND_TEST_CLI_BINARY="$binary" cargo test -p canisend --locked --test mcp_protocol
+          echo "Published the Cargo dependency closure at $CARGO_RELEASE_VERSION; exact archives and fresh installation verified." >> "$GITHUB_STEP_SUMMARY"
+
   publish-npm:
     name: publish-npm-macos-arm64
-    # Local-only macOS; publishing needs a separately verified local candidate.
-    if: ${{ false }}
+    # Registry-only testing release; this does not qualify the full native matrix.
+    if: ${{ inputs.npm_only }}
     runs-on: macos-15
     timeout-minutes: 45
     permissions:
@@ -1641,8 +1708,8 @@ jobs:
           echo "Published canisend@$NPM_RELEASE_VERSION to next (macOS ARM64)." >> "$GITHUB_STEP_SUMMARY"
 
   build-pypi:
-    # Local-only macOS: bash scripts/check_macos_local.sh pypi
-    if: ${{ false }}
+    # Registry-only testing release; this does not qualify the full native matrix.
+    if: ${{ inputs.pypi_only }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -1684,6 +1751,7 @@ jobs:
 
   publish-pypi:
     needs: build-pypi
+    if: ${{ inputs.pypi_only }}
     runs-on: ubuntu-24.04
     environment:
       name: pypi
@@ -1700,8 +1768,7 @@ jobs:
           packages-dir: dist/pypi/
 
   verify-pypi:
-    # Local-only macOS; a skipped check does not qualify registry bytes.
-    if: ${{ false }}
+    if: ${{ inputs.pypi_only }}
     needs: publish-pypi
     runs-on: macos-15
     steps:
