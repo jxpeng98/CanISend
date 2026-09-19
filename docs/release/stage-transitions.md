@@ -29,10 +29,13 @@ Tauri and npm package versions, the CLI/GUI parity scope, Alpha package asset na
 default, README/root-release/known-limitations source-version claims, the active macOS Alpha
 performance-baseline identity, and release-note heading in one plan. It resets stale Beta
 readiness, contract-freeze, and feedback identities to canonical pending state for the new Alpha;
-Git history retains the prior evidence. Once an active Beta is qualified and feature freeze is
-active, `prepare-stage v1.0.0-beta.N+1` preserves its exact canonical qualification in ordered
-`beta_history`, resets the active `beta` slot to pending, and leaves readiness, contract-freeze,
-feedback, cohort, and freeze evidence unchanged. Once RC.1 evidence is committed,
+Git history retains the prior evidence. When feature freeze is active,
+`prepare-stage v1.0.0-beta.N+1` preserves any qualified active Beta in ordered `beta_history`,
+resets the active `beta` slot to pending, and leaves readiness, contract-freeze, feedback, cohort,
+and freeze evidence unchanged. A pending Beta may advance only after at least one earlier Beta was
+qualified; this supports registry-only iterations without inventing qualification records. Source
+iterations remain sequential, while qualification history is strictly increasing and may omit
+iterations that were never fully qualified. Once RC.1 evidence is committed,
 `prepare-stage v1.0.0-rc.2` is allowed; RC iteration preserves the qualification ledger's earlier
 clean-tag records. Beta or RC number skipping is rejected.
 Any explicit release-notes review is reset during sequential RC iteration: the earlier review still exists in Git

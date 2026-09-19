@@ -4999,14 +4999,16 @@ fn render_stage_transition(root: &Path, tag: &str) -> Result<RenderedStageTransi
         (from_stage, to_stage),
         (ReleaseStage::Beta, ReleaseStage::Beta)
     ) {
-        let qualified_beta = ledger["beta"].clone();
-        if ledger.get("beta_history").is_none() {
-            ledger["beta_history"] = json!([]);
+        if ledger["beta"]["status"] == "qualified" {
+            let qualified_beta = ledger["beta"].clone();
+            if ledger.get("beta_history").is_none() {
+                ledger["beta_history"] = json!([]);
+            }
+            ledger["beta_history"]
+                .as_array_mut()
+                .expect("validated Beta qualification history")
+                .push(qualified_beta);
         }
-        ledger["beta_history"]
-            .as_array_mut()
-            .expect("validated Beta qualification history")
-            .push(qualified_beta);
         ledger["beta"] = json!({"status": "pending"});
     }
     ledger["workspace_stage"] = Value::String(to_stage.as_str().to_owned());
@@ -5423,11 +5425,8 @@ fn validate_transition_ledger_preconditions(
         (from_stage, to_stage),
         (ReleaseStage::Beta, ReleaseStage::Beta)
     ) {
-        if ledger["feature_freeze"]["status"] != "frozen" || ledger["beta"]["status"] != "qualified"
-        {
-            return Err(
-                "sequential Beta requires a qualified active Beta and feature freeze".to_owned(),
-            );
+        if ledger["feature_freeze"]["status"] != "frozen" {
+            return Err("sequential Beta requires an active feature freeze".to_owned());
         }
         let baseline = required_string(
             &ledger["feature_freeze"],
@@ -5435,7 +5434,10 @@ fn validate_transition_ledger_preconditions(
             "feature freeze",
         )?;
         validate_lower_hex("feature-freeze baseline commit", baseline, 40)?;
-        validate_beta_qualification_state(ledger, Some(from_version))?;
+        let (_, history_count) = validate_beta_qualification_state(ledger, Some(from_version))?;
+        if ledger["beta"]["status"] == "pending" && history_count == 0 {
+            return Err("an unqualified first Beta cannot advance to another iteration".to_owned());
+        }
     }
     if matches!(
         (from_stage, to_stage),
@@ -12582,14 +12584,20 @@ fn validate_beta_qualification_history(
     let history = history
         .as_array()
         .ok_or_else(|| "Beta qualification history must be an array".to_owned())?;
-    let mut validated = Vec::with_capacity(history.len());
+    let mut validated: Vec<(Version, String, u64)> = Vec::with_capacity(history.len());
     let mut source_commits = BTreeSet::new();
     let mut runs = BTreeSet::new();
     for (index, record) in history.iter().enumerate() {
         let context = format!("Beta qualification history entry {index}");
         let (version, source_commit, run) = validate_beta_qualification_record(record, &context)?;
         if let Some((previous, _, _)) = validated.last() {
-            validate_stage_transition(previous, ReleaseStage::Beta, &version, ReleaseStage::Beta)?;
+            if (previous.major, previous.minor, previous.patch)
+                != (version.major, version.minor, version.patch)
+                || prerelease_iteration(&version, "beta")?
+                    <= prerelease_iteration(previous, "beta")?
+            {
+                return Err("Beta qualification history must be strictly increasing".to_owned());
+            }
         } else if prerelease_iteration(&version, "beta")? != 1 {
             return Err("Beta qualification history must start at beta.1".to_owned());
         }
@@ -12625,7 +12633,16 @@ fn validate_beta_qualification_state(
     let status = required_string(active, "status", "Beta qualification")?;
     let validate_next = |version: &Version| -> Result<(), String> {
         if let Some((previous, _, _)) = history.last() {
-            validate_stage_transition(previous, ReleaseStage::Beta, version, ReleaseStage::Beta)
+            if (previous.major, previous.minor, previous.patch)
+                != (version.major, version.minor, version.patch)
+                || !version.build.is_empty()
+                || prerelease_iteration(version, "beta")? <= prerelease_iteration(previous, "beta")?
+            {
+                return Err(
+                    "Beta qualification must be later than the latest qualified Beta".to_owned(),
+                );
+            }
+            Ok(())
         } else if prerelease_iteration(version, "beta")? == 1 {
             Ok(())
         } else {
@@ -18570,9 +18587,14 @@ mod tests {
         assert_eq!(next["beta"]["tag"], "v0.7.0-beta.2");
         assert_eq!(next["beta_history"], sequential["beta_history"]);
         assert!(
-            beta_qualified_ledger(&sequential, "v0.7.0-beta.3", 29_640_000_002, &next_source,)
-                .is_err()
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.1", 29_640_000_002, &next_source,)
+                .is_err(),
+            "a qualified Beta cannot repeat an earlier iteration"
         );
+        let later =
+            beta_qualified_ledger(&sequential, "v0.7.0-beta.8", 29_640_000_008, &next_source)
+                .expect("qualify a later Beta after registry-only iterations");
+        assert_eq!(later["beta"]["tag"], "v0.7.0-beta.8");
         assert!(
             beta_qualified_ledger(&sequential, "v0.7.0-beta.2", 29_640_000_001, &next_source,)
                 .is_err()
@@ -18583,6 +18605,13 @@ mod tests {
             beta_qualified_ledger(&malformed, "v0.7.0-beta.2", 29_640_000_002, &next_source,)
                 .is_err()
         );
+        let mut cross_line = qualified.clone();
+        cross_line["beta"]["tag"] = json!("v1.0.0-beta.2");
+        cross_line["beta"]["source_commit"] = json!("9".repeat(40));
+        cross_line["beta"]["signed_matrix_run"] = json!(29_640_000_009_u64);
+        let cross_line =
+            json!({"beta_history": [qualified["beta"].clone(), cross_line["beta"].clone()]});
+        assert!(validate_beta_qualification_history(&cross_line).is_err());
     }
 
     #[test]
@@ -18821,6 +18850,24 @@ mod tests {
             .is_err(),
             "unqualified Beta must not advance"
         );
+        unqualified_beta["beta_history"] = json!([{
+            "signed_matrix_run": 29_640_000_001_u64,
+            "signing_evidence_targets": [
+                "aarch64-apple-darwin",
+                "x86_64-apple-darwin",
+                "x86_64-pc-windows-msvc"
+            ],
+            "source_commit": "6".repeat(40),
+            "status": "qualified",
+            "tag": "v0.7.0-beta.1"
+        }]);
+        validate_transition_ledger_preconditions(
+            &unqualified_beta,
+            &beta_two,
+            ReleaseStage::Beta,
+            ReleaseStage::Beta,
+        )
+        .expect("registry-only Beta may advance without inventing qualification history");
 
         let current_rc = json!({
             "schema": RELEASE_QUALIFICATION_SCHEMA,
