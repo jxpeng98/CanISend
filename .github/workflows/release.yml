@@ -1583,7 +1583,35 @@ jobs:
         run: |
           cargo run -p xtask --locked -- source check
           cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+      - name: Detect existing Cargo release
+        shell: bash
+        run: |
+          set -euo pipefail
+          crates=(canisend-contracts canisend-core canisend-resources canisend-io canisend-store canisend-app canisend-mcp canisend)
+          published=0
+          for crate in "${crates[@]}"; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --user-agent 'CanISend release verification' \
+              "https://crates.io/api/v1/crates/$crate/$CARGO_RELEASE_VERSION")"
+            case "$status" in
+              200) ((published += 1)) ;;
+              404) ;;
+              *) echo "crates.io returned HTTP $status for $crate@$CARGO_RELEASE_VERSION" >&2; exit 1 ;;
+            esac
+          done
+          if (( published == 0 )); then
+            cargo package --locked --no-verify -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
+            mkdir -p "$RUNNER_TEMP/cargo-candidates"
+            cp target/package/*-"$CARGO_RELEASE_VERSION".crate "$RUNNER_TEMP/cargo-candidates/"
+            echo "CARGO_PUBLISH_REQUIRED=true" >> "$GITHUB_ENV"
+          elif (( published == ${#crates[@]} )); then
+            echo "CARGO_PUBLISH_REQUIRED=false" >> "$GITHUB_ENV"
+          else
+            echo "crates.io contains only $published of ${#crates[@]} expected packages for $CARGO_RELEASE_VERSION" >&2
+            exit 1
+          fi
       - name: Publish Cargo dependency closure
+        if: env.CARGO_PUBLISH_REQUIRED == 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --locked -p canisend-contracts -p canisend-core -p canisend-resources -p canisend-io -p canisend-store -p canisend-app -p canisend-mcp -p canisend
@@ -1607,7 +1635,13 @@ jobs:
               fi
               sleep 15
             done
-            cmp "target/package/$crate-$CARGO_RELEASE_VERSION.crate" "$published"
+            checksum="$(curl --fail --silent --show-error \
+              --user-agent 'CanISend release verification' \
+              "https://crates.io/api/v1/crates/$crate/$CARGO_RELEASE_VERSION" | jq -er '.version.checksum')"
+            test "$(sha256sum "$published" | cut -d ' ' -f1)" = "$checksum"
+            if [[ "$CARGO_PUBLISH_REQUIRED" == true ]]; then
+              cmp "$RUNNER_TEMP/cargo-candidates/$crate-$CARGO_RELEASE_VERSION.crate" "$published"
+            fi
           done
           cargo install canisend --version "=$CARGO_RELEASE_VERSION" --locked --root "$RUNNER_TEMP/cargo-install"
           binary="$RUNNER_TEMP/cargo-install/bin/canisend"
@@ -1689,15 +1723,40 @@ jobs:
             dist/npm-release/SHA256SUMS
             dist/npm-release/packages.json
           if-no-files-found: error
+      - name: Detect existing npm release
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            "https://registry.npmjs.org/canisend/$NPM_RELEASE_VERSION")"
+          case "$status" in
+            200)
+              npm view "canisend@$NPM_RELEASE_VERSION" dist --json > dist/npm-release/registry.json
+              expected="$(shasum "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" | awk '{print $1}')"
+              test "$(jq -r .shasum dist/npm-release/registry.json)" = "$expected"
+              echo "NPM_PUBLISH_REQUIRED=false" >> "$GITHUB_ENV"
+              ;;
+            404) echo "NPM_PUBLISH_REQUIRED=true" >> "$GITHUB_ENV" ;;
+            *) echo "npm registry returned HTTP $status for canisend@$NPM_RELEASE_VERSION" >&2; exit 1 ;;
+          esac
       - name: Publish to npm next using OIDC
+        if: env.NPM_PUBLISH_REQUIRED == 'true'
         run: npm publish "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" --access public --tag next --ignore-scripts --provenance
       - name: Verify registry bytes and fresh installation
         run: |
           set -euo pipefail
-          npm view "canisend@$NPM_RELEASE_VERSION" dist --json > dist/npm-release/registry.json
+          for attempt in {1..40}; do
+            if npm view "canisend@$NPM_RELEASE_VERSION" dist --json > dist/npm-release/registry.json 2>/dev/null \
+              && [[ "$(npm view canisend dist-tags.next 2>/dev/null)" == "$NPM_RELEASE_VERSION" ]]; then
+              break
+            fi
+            if [[ "$attempt" == 40 ]]; then
+              echo "npm did not expose canisend@$NPM_RELEASE_VERSION with the next tag" >&2
+              exit 1
+            fi
+            sleep 15
+          done
           expected="$(shasum "dist/npm-release/canisend-$NPM_RELEASE_VERSION.tgz" | awk '{print $1}')"
           test "$(jq -r .shasum dist/npm-release/registry.json)" = "$expected"
-          test "$(npm view canisend dist-tags.next)" = "$NPM_RELEASE_VERSION"
           npm install --ignore-scripts --no-audit --no-fund --cache "$RUNNER_TEMP/npm-registry-cache" \
             --prefix "$RUNNER_TEMP/npm-registry" "canisend@$NPM_RELEASE_VERSION"
           installed="$RUNNER_TEMP/npm-registry/node_modules/canisend"
