@@ -3,16 +3,19 @@
 set -euo pipefail
 repo="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$repo"
-wheel_dir="${1:?usage: smoke.sh WHEEL_DIRECTORY NEW_VENV}"
-venv="${2:?usage: smoke.sh WHEEL_DIRECTORY NEW_VENV}"
+wheel="${1:?usage: smoke.sh WHEEL NEW_VENV TARGET_TRIPLE}"
+venv="${2:?usage: smoke.sh WHEEL NEW_VENV TARGET_TRIPLE}"
+target="${3:?usage: smoke.sh WHEEL NEW_VENV TARGET_TRIPLE}"
 test ! -e "$venv"
 python3 -m venv "$venv"
-"$venv/bin/pip" install --no-index --no-deps "$wheel_dir"/*.whl
+"$venv/bin/pip" install --no-index --no-deps "$wheel"
 binary="$venv/bin/canisend"
-codesign --verify --strict "$binary"
+if [[ "$target" == *-apple-darwin ]]; then
+  codesign --verify --strict "$binary"
+fi
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
-"$binary" version --json | jq -e --arg version "$version" --arg revision "$(git rev-parse --short=12 HEAD)" \
-  '.ok and .data.version == $version and .data.git_revision == $revision and .data.target == "aarch64-apple-darwin"'
+"$binary" version --json | jq -e --arg version "$version" --arg revision "$(git rev-parse --short=12 HEAD)" --arg target "$target" \
+  '.ok and .data.version == $version and .data.git_revision == $revision and .data.target == $target'
 "$binary" doctor --json | jq -e .ok
 "$binary" --workspace "$venv/workspace" workspace init --host codex --json | jq -e .ok
 "$binary" --workspace "$venv/workspace" workspace check --json | jq -e .ok

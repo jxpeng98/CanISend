@@ -1,11 +1,11 @@
 # Install CanISend
 
-Choose npm or PyPI for the current testing CLI on macOS Apple Silicon, Cargo to compile from
+Choose npm or PyPI for the current testing CLI, Cargo to compile from
 source, or GitHub Releases for older native downloads on macOS, Linux or Windows.
 
 ## Install through npm
 
-Requires Node.js 22.14 or newer on macOS Apple Silicon:
+Requires Node.js 22.14 or newer on macOS Apple Silicon or glibc-based Linux x86_64/arm64:
 
 ```sh
 npm install -g canisend@next
@@ -15,7 +15,7 @@ canisend doctor
 
 `next` tracks testing releases; the default `latest` tag may be older. This package
 includes the compiled CLI, templates, Skills and corresponding source. It needs no Rust or
-Python installation. Other npm platforms are not yet supplied.
+Python installation. Linux musl is not supplied by this testing package.
 
 Continue with [CLI-only first run](#cli-only-first-run). npm and GitHub Releases have separate
 versions: the native downloads below are currently `v1.0.0-beta.1`.
@@ -25,7 +25,7 @@ versions: the native downloads below are currently `v1.0.0-beta.1`.
 Requires Rust 1.97 or newer and a C/C++ build toolchain:
 
 ```sh
-cargo install canisend --version 1.0.0-beta.6 --locked
+cargo install canisend --version 1.0.0-beta.9 --locked
 canisend version
 canisend doctor
 ```
@@ -35,20 +35,21 @@ Skills are compiled into the executable. Keep `--locked` to use the release's de
 
 ## Install through PyPI
 
-Requires Python 3.10 or newer on macOS Apple Silicon. Install in a virtual environment:
+Requires Python 3.10 or newer. Beta.9 supplies Apple Silicon macOS; Beta.10 adds glibc-based
+Linux x86_64 and arm64 wheels after publication. Install in a virtual environment:
 
 ```sh
 python3 -m venv ~/.venvs/canisend
-~/.venvs/canisend/bin/python -m pip install canisend==1.0.0b6
+~/.venvs/canisend/bin/python -m pip install canisend==1.0.0b9
 ~/.venvs/canisend/bin/canisend version
 ```
 
 Prepend `~/.venvs/canisend/bin` to PATH to use `canisend` directly. The wheel contains the native
 Rust CLI and its embedded resources; it needs no Rust or Node.js installation. License notices
 and corresponding source are installed under the environment's `share/canisend` directory.
-It does not provide the historical Python API. Other wheel platforms are not yet supplied.
+It does not provide the historical Python API. Linux musl and Windows wheels are not supplied.
 
-Use the explicit version: `1.0.0b6` is the PyPI spelling of `1.0.0-beta.6`, and a plain
+Use the explicit version: `1.0.0b9` is the PyPI spelling of `1.0.0-beta.9`, and a plain
 unversioned pip installation may select the older stable Python product.
 
 For upgrades, back up your Workspace first, rerun the Cargo installation command or install
@@ -71,7 +72,8 @@ The Apple Silicon macOS desktop GUI is distributed as
 `CanISend-VERSION-aarch64-apple-darwin.dmg` and a portable
 `CanISend-VERSION-aarch64-apple-darwin.zip`; neither is a sixth CLI target. Linux arm64 is not
 supported in the `1.0` line. Choose a CLI archive by operating system, CPU architecture, and—on
-Linux—the available C library. `ldd --version` normally identifies a glibc system; use the musl
+Linux—the available C library. Linux arm64 remains registry-testing-only and is not supplied as
+a qualified GitHub Release archive. `ldd --version` normally identifies a glibc system; use the musl
 archive for a musl distribution or when the glibc archive cannot start because its loader is
 unavailable.
 

@@ -21,6 +21,7 @@ test('select embedded native binaries and forward arguments/stdin/stdout without
     ['darwin', 'arm64', undefined, 'darwin-arm64/canisend'],
     ['darwin', 'x64', undefined, 'darwin-x64/canisend'],
     ['linux', 'x64', '2.39', 'linux-x64-gnu/canisend'],
+    ['linux', 'arm64', '2.39', 'linux-arm64-gnu/canisend'],
     ['linux', 'x64', undefined, 'linux-x64-musl/canisend'],
     ['win32', 'x64', undefined, 'win32-x64/canisend.exe'],
   ]) {

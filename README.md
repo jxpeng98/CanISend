@@ -19,7 +19,7 @@ rendering, templates and fonts are built in.
 
 ## Install
 
-### npm — macOS Apple Silicon
+### npm — macOS Apple Silicon or Linux GNU x86_64/arm64
 
 Requires Node.js **22.14 or newer**. Install the current testing release:
 
@@ -30,13 +30,13 @@ canisend doctor
 ```
 
 `next` tracks testing releases; the default `latest` tag may be older.
-Beta.8 is prepared for publication; Beta.6 is the last independently verified registry release.
+Beta.10 is prepared for publication; Beta.9 is the last independently verified registry release.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
 Other ways to install this testing version:
 
-- **Cargo:** `cargo install canisend --version 1.0.0-beta.6 --locked` (requires Rust 1.97+ and native build tools).
-- **PyPI, macOS Apple Silicon:** `python -m pip install canisend==1.0.0b6` inside a virtual environment. No Rust toolchain is needed.
+- **Cargo:** `cargo install canisend --version 1.0.0-beta.9 --locked` (requires Rust 1.97+ and native build tools).
+- **PyPI, macOS Apple Silicon:** `python -m pip install canisend==1.0.0b9` inside a virtual environment. No Rust toolchain is needed. Beta.10 adds Linux GNU x86_64/arm64 wheels after publication.
 
 See [installation options](docs/guides/installation.md) for setup and upgrade commands.
 

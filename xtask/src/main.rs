@@ -10940,7 +10940,12 @@ fn build_support_policy(version: &Version) -> Result<Value, String> {
         "platforms": {
             "authority": "release/targets.json",
             "target_count": target_count,
-            "linux_arm64": format!("unsupported-in-{}.{}", version.major, version.minor),
+            "linux_arm64": "registry-testing-only",
+            "registry_testing_targets": [
+                "aarch64-apple-darwin",
+                "x86_64-unknown-linux-gnu",
+                "aarch64-unknown-linux-gnu"
+            ],
             "runtime_requirements": {
                 "python": false,
                 "node": false,

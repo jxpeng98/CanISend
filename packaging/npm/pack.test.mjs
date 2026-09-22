@@ -6,10 +6,10 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-test('pack one self-contained package for either one platform or the complete CI matrix', t => {
+test('pack one self-contained package for one platform, the release matrix, or Linux arm64', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canisend-npm-pack-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-unknown-linux-musl', 'x86_64-pc-windows-msvc'];
+  const targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-unknown-linux-gnu', 'x86_64-unknown-linux-musl', 'x86_64-pc-windows-msvc', 'aarch64-unknown-linux-gnu'];
   const bundles = targets.map(target => {
     const directory = path.join(root, target);
     fs.mkdirSync(directory);
@@ -20,9 +20,9 @@ test('pack one self-contained package for either one platform or the complete CI
     fs.writeFileSync(path.join(directory, 'RELEASE.json'), JSON.stringify({ ok: true, data: { product: 'canisend', target, version: '1.0.0-beta.3', git_revision: 'fixture' } }));
     return directory;
   });
-  for (const count of [1, targets.length]) {
+  for (const count of [1, 5, targets.length]) {
     if (count === 1) fs.writeFileSync(path.join(bundles[0], 'SOURCE.tar.gz'), 'source archive fixture');
-    else fs.rmSync(path.join(bundles[0], 'SOURCE.tar.gz'));
+    else fs.rmSync(path.join(bundles[0], 'SOURCE.tar.gz'), { force: true });
     const output = path.join(root, `packages-${count}`);
     execFileSync(process.execPath, [fileURLToPath(new URL('pack.mjs', import.meta.url)), output, ...bundles.slice(0, count)], {
       env: { ...process.env, npm_config_cache: path.join(root, 'cache'), npm_config_offline: 'true' },
@@ -33,10 +33,10 @@ test('pack one self-contained package for either one platform or the complete CI
     assert.equal(entry.dependencies, undefined);
     assert.equal(entry.optionalDependencies, undefined);
     assert.equal(entry.scripts, undefined);
-    assert.equal(report.complete, count === targets.length);
+    assert.equal(report.complete, count >= 5);
     assert.deepEqual(report.archives, [`canisend-${entry.version}.tgz`]);
     assert.deepEqual(fs.readdirSync(output).sort(), ['canisend', `canisend-${entry.version}.tgz`, 'packages.json']);
-    const platforms = ['darwin-arm64', 'darwin-x64', 'linux-x64-gnu', 'linux-x64-musl', 'win32-x64'];
+    const platforms = ['darwin-arm64', 'darwin-x64', 'linux-x64-gnu', 'linux-x64-musl', 'win32-x64', 'linux-arm64-gnu'];
     for (const platform of platforms.slice(0, count)) {
       const native = path.join(output, 'canisend/native', platform);
       assert.equal(fs.readFileSync(path.join(native, platform.startsWith('win32') ? 'canisend.exe' : 'canisend'), 'utf8'), 'isolated packaging fixture\n');

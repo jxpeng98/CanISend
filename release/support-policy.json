@@ -14,7 +14,12 @@
   },
   "platforms": {
     "authority": "release/targets.json",
-    "linux_arm64": "unsupported-in-1.0",
+    "linux_arm64": "registry-testing-only",
+    "registry_testing_targets": [
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu"
+    ],
     "runtime_requirements": {
       "external_sqlite": false,
       "external_typst": false,
