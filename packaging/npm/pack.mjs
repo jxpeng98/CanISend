@@ -7,9 +7,17 @@ const platforms = {
   'aarch64-apple-darwin': ['darwin', 'arm64'],
   'x86_64-apple-darwin': ['darwin', 'x64'],
   'x86_64-unknown-linux-gnu': ['linux', 'x64', 'gnu'],
+  'aarch64-unknown-linux-gnu': ['linux', 'arm64', 'gnu'],
   'x86_64-unknown-linux-musl': ['linux', 'x64', 'musl'],
   'x86_64-pc-windows-msvc': ['win32', 'x64'],
 };
+const completeTargets = new Set([
+  'aarch64-apple-darwin',
+  'x86_64-apple-darwin',
+  'x86_64-unknown-linux-gnu',
+  'x86_64-unknown-linux-musl',
+  'x86_64-pc-windows-msvc',
+]);
 const [destination, ...bundles] = process.argv.slice(2);
 if (!destination || !bundles.length) throw Error('usage: node pack.mjs NEW_OUTPUT STAGED_BUNDLE...');
 const output = path.resolve(destination);
@@ -146,4 +154,4 @@ ${fs.existsSync(sourceArchive) ? '\nThe corresponding source is included in `SOU
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const packed = JSON.parse(execFileSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: directory, encoding: 'utf8' }));
 const archives = [packed[0].filename];
-fs.writeFileSync(path.join(output, 'packages.json'), JSON.stringify({ version, complete: seen.size === Object.keys(platforms).length, archives }, null, 2) + '\n');
+fs.writeFileSync(path.join(output, 'packages.json'), JSON.stringify({ version, complete: [...completeTargets].every(target => seen.has(target)), archives }, null, 2) + '\n');

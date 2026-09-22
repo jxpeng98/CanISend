@@ -100,7 +100,7 @@ cargo publish --dry-run --locked -p canisend-contracts -p canisend-core -p canis
 ```
 
 `node packaging/npm/pack.mjs NEW_OUTPUT STAGED_BUNDLE...` produces one `canisend` package with
-the supplied binaries in `native/{darwin-arm64,darwin-x64,linux-x64-gnu,linux-x64-musl,win32-x64}`.
+the supplied binaries in `native/{darwin-arm64,darwin-x64,linux-x64-gnu,linux-arm64-gnu,linux-x64-musl,win32-x64}`.
 The entry forwards arguments, exit status and stdio to the matching embedded executable; there
 are no dependencies or download scripts. Node >=22.14 is required for the npm launcher. A partial
 bundle set declares its actual targets for local tests and owner-authorized testing publications;
@@ -128,20 +128,22 @@ proof of a successful registry publication or a successful remote workflow run.
 directly on PATH. The version comes from Cargo (`1.0.0-beta.6` becomes `1.0.0b6`).
 No Python API, runtime wrapper or install-time binary download is added.
 
-On Apple Silicon macOS, install Maturin 1.15.0 in a build environment and run:
+On a supported native runner, install Maturin 1.15.0 in a build environment and run:
 
 ```sh
 bash packaging/pypi/build.sh dist/pypi
-bash packaging/pypi/smoke.sh dist/pypi /tmp/canisend-wheel-smoke
+bash packaging/pypi/smoke.sh dist/pypi/*.whl /tmp/canisend-wheel-smoke TARGET_TRIPLE
 ```
 
 The build includes the GPL and third-party notices plus `git archive HEAD` corresponding
 source under `share/canisend`. Build from a committed checkout. The smoke checks native
-signature, source identity, doctor, a fresh Workspace, embedded Skills and bundled notices.
+signature on macOS, source identity, target identity, doctor, a fresh Workspace, embedded Skills
+and bundled notices.
 CI also runs the existing MCP protocol regression against the wheel-installed executable.
 
 The existing PyPI Trusted Publisher must identify `jxpeng98/CanISend` and workflow `release.yml`;
 if it restricts the environment, use `pypi`. Dispatch from main with `pypi_only=true`, `npm_only=false` and the exact
-Cargo prerelease tag. This path builds, verifies and retains one macOS ARM64 wheel, uploads
-through OIDC, then downloads and compares PyPI bytes before a second isolated installation.
-Other wheel platforms and full native/GUI qualification remain deferred.
+Cargo prerelease tag. This path builds, verifies and retains Apple Silicon macOS, Linux x86_64
+GNU and Linux arm64 GNU wheels, uploads them together through OIDC, then downloads and compares
+each platform's PyPI bytes before a second isolated installation. Full native/GUI qualification
+remains separate.

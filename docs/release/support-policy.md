@@ -33,10 +33,15 @@ archives:
 | Linux x86_64 static musl | `x86_64-unknown-linux-musl` | `.tar.gz` |
 | Windows x86_64 | `x86_64-pc-windows-msvc` | `.zip` |
 
-Linux arm64 is unsupported in `1.0`. A target triple means the published archive and its native release-matrix
-runner are qualified; it does not imply support for every historical operating-system version, alternative libc,
-emulator, compatibility layer, or modified executable. The installation guide explains archive selection and the
-release-verification guide defines the required checksum, provenance, and signing checks.
+Linux arm64 is available only in the current npm and PyPI registry-testing prerelease on glibc;
+it is not a sixth qualified native archive target. Registry builds for Apple Silicon macOS,
+Linux x86_64 GNU and Linux arm64 GNU run native build, installation and registry-readback checks,
+but do not replace the five-target GitHub Release contract or its qualification evidence. A target
+triple in `release/targets.json` means the published archive and its native release-matrix runner
+are qualified; it does not imply support for every historical operating-system version,
+alternative libc, emulator, compatibility layer, or modified executable. The installation guide
+explains channel selection and the release-verification guide defines the required checksum,
+provenance, and signing checks.
 
 The desktop application is distributed for Apple Silicon macOS during Alpha. Beta and later also
 require exact-candidate Intel macOS GUI compilation evidence, but that compile-only record is not a
@@ -90,7 +95,7 @@ The `1.0` line supports local text, text-extractable PDF, supplied URL/HTML, rev
 the clean Workspace v4 CLI and MCP operations returned by `tools/list`, current Agent v4 host
 resources, and the Apple Silicon macOS desktop workflow described above. Scanned/image-only PDFs
 without extractable text, browser/portal automation, automatic application submission,
-Windows/Linux desktop packages, and Linux arm64 archives are outside this support line.
+Windows/Linux desktop packages and Linux arm64 GitHub Release archives are outside this support line.
 
 External Codex, Claude Code, and Claude Desktop handoff is the primary reasoning surface. Codex
 CLI is the required real-host qualification surface for Beta entry and must pass the canonical

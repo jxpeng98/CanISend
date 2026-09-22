@@ -2,8 +2,9 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.9`, published and independently verified on npm, Cargo and
-  PyPI testing channels; this is not a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.10`, prepared for npm, Cargo and PyPI testing publication;
+  Beta.9 remains the latest independently verified registry release. Neither is a fully qualified
+  checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -120,6 +121,12 @@ initially returned its documented processing response. [PR #241](https://github.
 preserves future Cargo candidates, verifies registry checksums, retries npm readback and fails
 closed on partial or unexpected registry state. The exact local machine record is
 `dist/beta9-registry-publication/verification.json`. No Git tag or GitHub Release was created.
+
+Beta.10 extends the registry-only build path to native Linux GNU x86_64 and arm64 runners.
+The npm candidate carries both Linux binaries with the existing macOS arm64 binary, and PyPI
+builds one wheel per platform. Each Linux candidate must pass native installation before upload
+and registry installation after upload. This does not add a sixth qualified GitHub Release target
+or claim full Beta/Host qualification.
 
 ## Supported public package scope
 
