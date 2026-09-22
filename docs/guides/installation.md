@@ -25,7 +25,7 @@ versions: the native downloads below are currently `v1.0.0-beta.1`.
 Requires Rust 1.97 or newer and a C/C++ build toolchain:
 
 ```sh
-cargo install canisend --version 1.0.0-beta.9 --locked
+cargo install canisend --version 1.0.0-beta.10 --locked
 canisend version
 canisend doctor
 ```
@@ -35,12 +35,12 @@ Skills are compiled into the executable. Keep `--locked` to use the release's de
 
 ## Install through PyPI
 
-Requires Python 3.10 or newer. Beta.9 supplies Apple Silicon macOS; Beta.10 adds glibc-based
-Linux x86_64 and arm64 wheels after publication. Install in a virtual environment:
+Requires Python 3.10 or newer. Beta.10 supplies Apple Silicon macOS and glibc-based Linux
+x86_64 and arm64 wheels. Install in a virtual environment:
 
 ```sh
 python3 -m venv ~/.venvs/canisend
-~/.venvs/canisend/bin/python -m pip install canisend==1.0.0b9
+~/.venvs/canisend/bin/python -m pip install canisend==1.0.0b10
 ~/.venvs/canisend/bin/canisend version
 ```
 
@@ -49,7 +49,7 @@ Rust CLI and its embedded resources; it needs no Rust or Node.js installation. L
 and corresponding source are installed under the environment's `share/canisend` directory.
 It does not provide the historical Python API. Linux musl and Windows wheels are not supplied.
 
-Use the explicit version: `1.0.0b9` is the PyPI spelling of `1.0.0-beta.9`, and a plain
+Use the explicit version: `1.0.0b10` is the PyPI spelling of `1.0.0-beta.10`, and a plain
 unversioned pip installation may select the older stable Python product.
 
 For upgrades, back up your Workspace first, rerun the Cargo installation command or install
