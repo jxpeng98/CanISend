@@ -2,9 +2,8 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.10`, prepared for npm, Cargo and PyPI testing publication;
-  Beta.9 remains the latest independently verified registry release. Neither is a fully qualified
-  checkpoint.
+- Checked-in source: `1.0.0-beta.10`, published and independently verified on npm `next`, Cargo
+  and PyPI for macOS ARM64 and Linux GNU x86_64/arm64. It is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -124,9 +123,28 @@ closed on partial or unexpected registry state. The exact local machine record i
 
 Beta.10 extends the registry-only build path to native Linux GNU x86_64 and arm64 runners.
 The npm candidate carries both Linux binaries with the existing macOS arm64 binary, and PyPI
-builds one wheel per platform. Each Linux candidate must pass native installation before upload
-and registry installation after upload. This does not add a sixth qualified GitHub Release target
-or claim full Beta/Host qualification.
+builds one wheel per platform. Registry publication completed from source
+`ed0ce00a82c5190e4764f636f5a0d65c71f22976` in
+[run 35704356744](https://github.com/jxpeng98/CanISend/actions/runs/35704356744):
+
+- npm published `canisend@1.0.0-beta.10`, moved `next` to Beta.10 and retained `latest` at
+  Beta.3. Its three native targets passed exact-byte and clean-install checks; the public tarball
+  SHA-256 is `ad9d3a0a597fa462dd1309cfccf2761d4014ca27d9da781cbf33b89d2867c8e7`.
+- Cargo published `canisend` and all seven dependency crates at `1.0.0-beta.10`. All eight
+  registry archives matched their candidates and checksums; locked installation, Workspace and
+  MCP checks passed. The public `canisend` crate checksum is
+  `5a714987f5f567230e50c49e31344495a600a2892a25d3fd7ad1cfd9eb6ed051`.
+- PyPI published three `canisend==1.0.0b10` wheels. Their SHA-256 values are
+  `47d6047c0d1d5daef5c1f87a7dba8f064793e576731b87235243a84753437ad3` for macOS arm64,
+  `4b828d36fdd178a7378d04230a6970336b49613632d2d6b3bb107ddd77e55f9c` for Linux x86_64,
+  and `e4a64a4968021b1fb1ed2394771e57b86ac8cc6ce563e407341150f5af5039cf` for Linux arm64.
+  All three passed exact-byte and fresh-install checks.
+
+The first PyPI arm64 readback ran before that runner's index view had converged. A same-source
+rerun passed, and [PR #244](https://github.com/jxpeng98/CanISend/pull/244) adds bounded readback
+retry for later releases. Each Linux candidate passed native installation before upload and
+registry installation after upload. This does not add a sixth qualified GitHub Release target,
+create a Git tag or GitHub Release, or claim full Beta/Host qualification.
 
 ## Supported public package scope
 

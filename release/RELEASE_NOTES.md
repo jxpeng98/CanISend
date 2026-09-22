@@ -1,7 +1,7 @@
 # CanISend 1.0.0-beta.10
 
 Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
-`7581d2f72e4d753e1c220d68e05d5e55ea310fa0`. This registry-only release is not a qualified
+`ed0ce00a82c5190e4764f636f5a0d65c71f22976`. This registry-only release is not a qualified
 GitHub checkpoint; see the [release record](../RELEASE.md) for exact evidence and remaining gates.
 
 This release adds guided, policy-only permission onboarding and keeps all 40 CLI commands easy to
@@ -68,9 +68,9 @@ It also never logs in or uploads on the user behalf.
 - It does not migrate Python-era Workspaces or preserve the `0.6.x` Python command tree.
 - Rust-native schema migrations are append-only. A binary rejects unsupported or future authority
   before mutation.
-- This npm release contains only an Apple Silicon macOS CLI. The paused full release policy
-  declares five CLI targets and an Apple Silicon desktop with a version-matched CLI in DMG/ZIP
-  bundles; those artifacts require separate qualification and are not part of this npm release.
+- The npm release and PyPI wheels support Apple Silicon macOS and Linux GNU x86_64/arm64.
+  Linux arm64 remains registry-testing-only. The paused full release policy declares five CLI
+  archive targets and an Apple Silicon desktop; those artifacts require separate qualification.
 
 ## Install and verify
 
