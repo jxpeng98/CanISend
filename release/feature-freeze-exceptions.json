@@ -848,6 +848,51 @@
         "xtask/src/main.rs"
       ],
       "reason": "Enable the owner-authorized registry-only Beta publishers through npm and PyPI Trusted Publishing plus the repository Cargo token while preserving local formal macOS and full native qualification gates."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "f1a2ddebf9a94c7e449736bb67f305e1b57e93e1",
+      "paths": [
+        ".github/ISSUE_TEMPLATE/bug.yml",
+        ".github/workflows/release.yml",
+        "Cargo.lock",
+        "Cargo.toml",
+        "RELEASE.md",
+        "apps/canisend-desktop/package.json",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-desktop/Cargo.toml",
+        "crates/canisend-desktop/tauri.conf.json",
+        "crates/canisend-desktop/tauri.windows.conf.json",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-mcp/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/alpha-package-contract.json",
+        "tools/native-preview/package.json",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Prepare the deterministic Beta.10 registry-testing source and exact internal package pins without claiming a qualified native checkpoint, tag or Host evidence."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "ed2859c62d1379fc9b2e88e8c7e80016e597a5c9",
+      "paths": [
+        ".github/workflows/release.yml",
+        "RELEASE.md",
+        "packaging/README.md",
+        "packaging/npm/launcher.test.cjs",
+        "packaging/npm/pack.mjs",
+        "packaging/npm/pack.test.mjs",
+        "packaging/pypi/pyproject.toml",
+        "packaging/pypi/smoke.sh",
+        "scripts/package_native_release.sh",
+        "xtask/src/main.rs"
+      ],
+      "reason": "Add owner-authorized native Linux GNU x86_64 and arm64 registry Beta builds, installation checks and support boundaries while preserving the five-target qualified release contract."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
