@@ -1979,8 +1979,17 @@ jobs:
           version="${RELEASE_TAG#v}"
           version="${version/-beta./b}"
           python3 -m venv "$RUNNER_TEMP/pypi-tools"
-          "$RUNNER_TEMP/pypi-tools/bin/pip" download --no-deps --only-binary=:all: --no-cache-dir \
-            --dest dist/pypi-registry "canisend==$version"
+          for attempt in {1..20}; do
+            if "$RUNNER_TEMP/pypi-tools/bin/pip" download --no-deps --only-binary=:all: --no-cache-dir \
+              --dest dist/pypi-registry "canisend==$version"; then
+              break
+            fi
+            if [[ "$attempt" == 20 ]]; then
+              echo "PyPI did not expose canisend==$version for ${{ matrix.target }}" >&2
+              exit 1
+            fi
+            sleep 15
+          done
           wheel="$(find dist/pypi-registry -name '*.whl' -print -quit)"
           candidate="dist/pypi/$(basename "$wheel")"
           cmp "$candidate" "$wheel"

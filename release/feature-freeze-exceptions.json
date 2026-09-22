@@ -893,6 +893,14 @@
         "xtask/src/main.rs"
       ],
       "reason": "Add owner-authorized native Linux GNU x86_64 and arm64 registry Beta builds, installation checks and support boundaries while preserving the five-target qualified release contract."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "6221bb91ff63f414d1134eaf3f899735d1f4aa84",
+      "paths": [
+        ".github/workflows/release.yml"
+      ],
+      "reason": "Retry exact PyPI wheel readback across bounded index propagation delay after native Linux arm64 evidence showed the uploaded wheel was not immediately visible from every runner."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
