@@ -1,6 +1,6 @@
 ---
 name: canisend-workspace
-description: Set up, connect, upgrade or recover a CanISend Workspace; import Profile Sources, confirm Evidence or create an Application. Also supplies the shared state and consent rules for CanISend stage Skills.
+description: Build or resume a Profile through conversation when the user has no prepared materials; set up, connect or recover a CanISend Workspace, import sources and confirm Evidence. Supplies shared state and consent rules for CanISend stage Skills.
 ---
 
 # CanISend Workspace
@@ -11,10 +11,11 @@ CanISend owns durable state; the Host owns reasoning and conversation. Tasks:
 ## Shared operating rules
 
 Read these once per connection/version change; reuse current context across stage Skills.
-Require `canisend.workspace/v4` and `canisend.agent/v4`. Discover actual MCP schemas;
+Require `canisend.workspace/v4` and `canisend.agent/v4` for CanISend operations. Discover actual MCP schemas;
 use CLI `--help` for CLI-only operations. A task-model entry is not proof of a callable tool.
+Profile conversation and user-owned draft preparation can start before an Application exists.
 
-- Start with body-free status and Application metadata. Bind the selected Application UUID,
+- Start CanISend work with body-free status; read Application metadata when one is selected. Bind that Application UUID,
   Pack ID/version/digest, revision and snapshot digest. A Workspace may contain different
   Packs. Read `canisend_application_pack_show` for the verified catalog and material counts.
 - Use CanISend operations for state; never inspect or edit `.canisend`, SQLite, immutable
@@ -74,9 +75,84 @@ customizations and report the conflict; do not force-update or edit ownership ma
 Reconnect, rediscover schemas and refresh state. If the executable path changed, use
 `host setup` for the new registration command. Workspace v2/v3 import is unsupported.
 
+## Build or resume a Profile through conversation
+
+Use the `profile-evidence` task when the user has no CV, files or prepared Profile,
+or wants to continue an unfinished interview. Do not require a job advert or create
+a placeholder Application. A reusable Profile can precede any concrete opportunity.
+
+### Interview and factual review
+
+- Establish the intended application family, career stage, field and preferred language
+  from available context. Ask only for what is missing. Start with a small round of
+  one to three questions; adapt later rounds rather than presenting a complete form.
+- Explore the most relevant experience first. For research and teaching applicants, possible
+  modules are education, research/projects, publications, teaching/mentoring and
+  service. For other applicants, use their goals and the verified Pack vocabulary
+  when available. Skip inapplicable modules and respect declined questions.
+- For each experience, clarify dates, the user's role, actions and outcomes. Preserve
+  approximate dates and qualifications. Ask for numbers or supporting records only
+  when useful; absence of records does not prevent recording an honest self-report.
+- After a useful group of answers, present a short factual summary for correction.
+  Keep proposed facts, user-confirmed self-reports, future intentions and unresolved
+  gaps distinct. Mark an extracted fact confirmed only after the user verifies that
+  summary or supplies an explicit correction. Silence and approval of a file write
+  do not confirm the facts. Do not promote self-reports to externally verified claims.
+- Unknown information stays in the gap list. Do not infer degrees, achievements,
+  publications, dates, metrics or personal details to complete a template. Explain
+  conflicts and ask which account is correct before using either as a confirmed fact.
+- Offer a first usable Profile once there is meaningful confirmed content; do not
+  require every module to be complete. Ask for the verified Pack's required identity
+  fields, such as name and email, when preparing its material set. They are not
+  prerequisites for starting the interview.
+
+### Persistent, editable drafts
+
+Use authorized Host file tools to keep two ordinary user-owned Markdown files in
+the user's chosen directory; otherwise use `inputs/profile-interview/` beneath the
+Workspace. These files are outside CanISend's managed authority. Never place them
+in `.canisend`, managed `profile/`, `applications/`, or Host Skill directories.
+
+- `interview.md`: retain goal/language, covered or skipped modules, relevant user
+  statements and their proposed/confirmed status, conflicts, unanswered questions,
+  the next useful questions, and the reviewed-source import receipt when available.
+  Save relevant statements and summaries, not a full conversation transcript or
+  consent forms, secrets and approval tokens. Local draft labels are not Evidence IDs.
+- `profile.md`: a readable source containing only user-confirmed factual summaries
+  and clearly separated user-confirmed future intentions. Identify its origin as a
+  user-reviewed interview/self-report; attribute any supplied external record
+  separately. Keep uncertain answers and the gap checklist in `interview.md`.
+
+Save after a reviewed module or a meaningful correction, and before a requested
+pause. On resume, read the authorized existing drafts, preserve manual edits and
+check the outstanding questions against the user's latest corrections. Ask the next
+unanswered question instead of replaying the interview. Reconcile conflicting edits
+before rewriting files. A draft is not canonical Evidence and is not included in
+Workspace backup until its reviewed content is imported as a Profile Source.
+If Host file tools are unavailable, provide copyable drafts and report that resumable
+local storage has not been created; do not claim a saved file or completed import.
+
+### Hand off to the existing application flow
+
+Show `profile.md` and obtain the user's factual review before importing it through
+the supported CLI operation below. Use the existing private-read authorization;
+factual review does not grant file access. Record the real Source ID, revision and
+digest from the receipt so later sessions can reuse that exact import.
+
+When a concrete Application is selected, compare its requirements with the Profile,
+ask only for relevant gaps, explicitly associate the selected Profile Source, and
+confirm source-spanned Evidence through the existing MCP operations. Importing a
+Profile alone does not confirm Evidence or authorize every Application to read it.
+Only then continue to Materials and Review/export.
+
+If reviewed facts change after import, prepare and import a new reviewed source;
+keep the original source and audit history. Reconcile affected Evidence and links
+through the actual supported operations before regenerating drafts. A new import
+does not automatically replace earlier associations or invalidate their Evidence.
+
 ## Profile, Evidence and Application creation
 
-- Import a supported Profile Source with `canisend --workspace PATH profile source import
+- Import a supported Profile Source with `canisend --workspace PATH profile-source import
   FILE --sensitivity private-local --confirm-private-read --json` only after the user
   authorizes that read: this CLI flag asserts consent, unlike an MCP form request.
   Check `--help` for supported formats; use authorized Host tools for conversions and

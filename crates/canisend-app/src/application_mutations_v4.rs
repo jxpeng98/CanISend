@@ -1749,6 +1749,13 @@ mod tests {
         ))
     }
 
+    fn structured_fixture_text(text: &str) -> String {
+        serde_json::json!({"format":"canisend.deliverable-document/v3", "fields":[],
+            "sections":[{"id":"body","heading":null,"body":{"text":text,
+                "role":"non-factual","evidence":[],"requirements":[]}}],"unresolved_fields":[]})
+        .to_string()
+    }
+
     fn item(value: &str) -> WorkflowPackItemId {
         WorkflowPackItemId::try_new(value).expect("Pack item ID")
     }
@@ -2571,8 +2578,9 @@ mod tests {
                     deliverables: vec![ApplicationFlowDeliverableDraftV3 {
                         kind: item("primary-document"),
                         title: "Private draft".to_owned(),
-                        media_type: "text/markdown".to_owned(),
-                        content: "PRIVATE-DRAFT-BODY-V1".to_owned(),
+                        media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3
+                            .to_owned(),
+                        content: structured_fixture_text("PRIVATE-DRAFT-BODY-V1"),
                     }],
                 },
             )
@@ -2594,7 +2602,10 @@ mod tests {
             Some(PrivateReadConsent::granted_by_user()),
         )
         .expect("consented audit");
-        assert_eq!(audit.data.deliverables[0].content, "PRIVATE-DRAFT-BODY-V1");
+        assert_eq!(
+            audit.data.deliverables[0].content,
+            structured_fixture_text("PRIVATE-DRAFT-BODY-V1")
+        );
 
         let revision_preview = broker
             .preview_deliverable_revision(
@@ -2604,8 +2615,8 @@ mod tests {
                     expected_revision: Revision::try_new(5).expect("revision"),
                     deliverable_id: deliverable_id.clone(),
                     title: "Private revised draft".to_owned(),
-                    media_type: "text/markdown".to_owned(),
-                    content: "PRIVATE-DRAFT-BODY-V2".to_owned(),
+                    media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3.to_owned(),
+                    content: structured_fixture_text("PRIVATE-DRAFT-BODY-V2"),
                 },
             )
             .expect("revision preview");
@@ -2627,7 +2638,10 @@ mod tests {
             Some(PrivateReadConsent::granted_by_user()),
         )
         .expect("revised audit");
-        assert_eq!(audit.data.deliverables[0].content, "PRIVATE-DRAFT-BODY-V2");
+        assert_eq!(
+            audit.data.deliverables[0].content,
+            structured_fixture_text("PRIVATE-DRAFT-BODY-V2")
+        );
 
         assert!(Application::inspect_review_v4(&root, &application_id, None).is_err());
         let read_consent = PrivateReadConsent::granted_by_user();
@@ -3074,8 +3088,8 @@ mod tests {
                     expected_revision: replanned.snapshot.application.revision,
                     deliverable_id: deliverable_id.clone(),
                     title: "Recovered draft".to_owned(),
-                    media_type: "text/markdown".to_owned(),
-                    content: "CORRECTED-DRAFT-BODY".to_owned(),
+                    media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3.to_owned(),
+                    content: structured_fixture_text("CORRECTED-DRAFT-BODY"),
                 },
             )
             .unwrap();

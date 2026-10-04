@@ -51,14 +51,14 @@
     {
       "kind": "primary-document",
       "title": "Synthetic admission statement",
-      "media_type": "text/markdown",
-      "content": "# Synthetic admission statement\n\nThis fictional statement is a structure-only example for the synthetic public-interest design programme. The reviewed evaluation dimensions are motivation, relevant preparation, and intended learning outcomes. It deliberately supplies no real biography, credential, institution history, or personal claim."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"This fictional statement is a structure-only example for the synthetic public-interest design programme. The reviewed evaluation dimensions are motivation, relevant preparation, and intended learning outcomes. It deliberately supplies no real biography, credential, institution history, or personal claim.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     },
     {
       "kind": "supporting-document",
       "title": "Synthetic portfolio note",
-      "media_type": "text/markdown",
-      "content": "# Synthetic portfolio note\n\nProject sample one is a fictional paper prototype used only to demonstrate problem framing. Project sample two is a fictional offline service map used only to demonstrate reflection. Neither sample identifies a person, client, school, employer, or live service."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"Project sample one is a fictional paper prototype used only to demonstrate problem framing. Project sample two is a fictional offline service map used only to demonstrate reflection. Neither sample identifies a person, client, school, employer, or live service.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     }
   ],
   "export_slug": "admission"

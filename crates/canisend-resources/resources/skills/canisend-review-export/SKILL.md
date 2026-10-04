@@ -24,6 +24,14 @@ private-read and `request_confirmation: true` fields. Use individual or active A
 under Workspace's shared rules; verify returned state
 and report optional receipt fields as absent when they are not returned.
 
+Readiness checks execute the bound Pack's validators before approval and again before local
+export. The complete required Plan set, current associated confirmed Evidence, exact citation
+digests/revisions, required sourced fields and unresolved placeholders are checked. Classifications
+and wording still need your evidence comparison: a valid reference does not prove that its quote
+supports the claim, and `intent`/`non-factual` must not hide factual assertions. A revision clears
+approval. Repair a rejected draft through Materials and preview review again; approval cannot
+waive a validator. Historical plain-text drafts need structured revision for validated export.
+
 ## Local export and verification
 
 Require current readiness. `request_private_export` requests separate export consent; preview

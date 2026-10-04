@@ -229,6 +229,16 @@ pub fn project_deliverable_typst_v3(
         std::str::from_utf8(template).map_err(|_| TypstProjectionError::PackTemplateEncoding)?;
     let body = std::str::from_utf8(content)
         .map_err(|_| TypstProjectionError::DeliverableContentEncoding)?;
+    let structured = if deliverable.media_type.as_deref()
+        == Some(canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3)
+    {
+        Some(
+            canisend_contracts::DeliverableDocumentV3::decode(content)
+                .map_err(|_| TypstProjectionError::DeliverableContentEncoding)?,
+        )
+    } else {
+        None
+    };
     let mut output = String::with_capacity(template.len() + body.len() + 1024);
     output.push_str(template);
     output.push_str(
@@ -273,11 +283,42 @@ pub fn project_deliverable_typst_v3(
     writeln!(output, "  title: {},", typst_string(&deliverable.title))
         .expect("writing to String cannot fail");
     output.push_str("  generated-date: none,\n");
-    output.push_str("  sections: (\n    (id: \"content\", heading: none, body: ");
-    output.push_str(&typst_string(body.trim()));
-    output.push_str(
-        "),\n  ),\n  fields: (),\n)\n\n#canisend_render_document(canisend_document_data)\n",
-    );
+    output.push_str("  sections: (\n");
+    if let Some(document) = &structured {
+        for section in &document.sections {
+            writeln!(
+                output,
+                "    (id: {}, heading: {}, body: {}),",
+                typst_string(section.id.as_str()),
+                section
+                    .heading
+                    .as_deref()
+                    .map_or_else(|| "none".to_owned(), typst_string),
+                typst_string(&section.body.text)
+            )
+            .expect("writing to String cannot fail");
+        }
+    } else {
+        writeln!(
+            output,
+            "    (id: \"content\", heading: none, body: {}),",
+            typst_string(body.trim())
+        )
+        .expect("writing to String cannot fail");
+    }
+    output.push_str("  ),\n  fields: (\n");
+    if let Some(document) = &structured {
+        for field in &document.fields {
+            writeln!(
+                output,
+                "    (key: {}, value: {}),",
+                typst_string(field.key.as_str()),
+                typst_string(&field.value.text)
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    output.push_str("  ),\n)\n\n#canisend_render_document(canisend_document_data)\n");
     if output.len() > MAX_TYPST_SOURCE_BYTES {
         return Err(TypstProjectionError::SourceTooLarge {
             max_bytes: MAX_TYPST_SOURCE_BYTES,
@@ -734,6 +775,76 @@ Missing user font behavior remains deterministic."#,
         assert!(text.contains("Ελληνικά"));
         assert!(text.contains("Кириллица"));
         assert!(text.contains("https://example.edu/jobs/11"));
+    }
+
+    #[test]
+    fn modernpro_headers_preserve_long_profile_contacts_in_every_document_kind() {
+        let fields = [
+            ("candidate-name", "Dr. Nova Placeholder"),
+            (
+                "candidate-role",
+                "Researcher in Synthetic Application Systems",
+            ),
+            ("candidate-address", "Sample City, Exampleland"),
+            (
+                "email",
+                "nova.placeholder.with.a.long.contact.label@candidate.invalid",
+            ),
+            ("phone", "+00 000 000 000"),
+            (
+                "website",
+                "https://candidate.invalid/research/synthetic-application-systems/selected-publications",
+            ),
+            (
+                "linkedin",
+                "https://network.invalid/in/nova-placeholder-synthetic-researcher",
+            ),
+            ("location", "Sample City, Exampleland"),
+        ];
+        for kind in DocumentKind::ALL {
+            let mut document = document(kind, true);
+            document.sections[0].body =
+                "Synthetic profile body remains below the header.".to_owned();
+            document.placeholders = fields
+                .iter()
+                .enumerate()
+                .map(|(index, (key, value))| DocumentPlaceholderRecord {
+                    id: entity(100 + index as u64),
+                    key: (*key).to_owned(),
+                    instruction: "Use the reviewed synthetic profile field".to_owned(),
+                    required: true,
+                    resolution: Some((*value).to_owned()),
+                    revision: Revision::try_new(1).expect("revision"),
+                })
+                .collect();
+            let source = project_document_typst(
+                &artifact_reference(ArtifactKind::CoverLetter, 40),
+                &document,
+            )
+            .expect("long-profile projection");
+            let rendered = EmbeddedTypstCompiler::new()
+                .compile_pdf(&source)
+                .expect("long-profile render");
+            assert_eq!(rendered.warning_count(), 0, "warnings for {kind:?}");
+            assert_eq!(rendered.page_count(), 1, "unexpected overflow for {kind:?}");
+            let text = pdf_extract::extract_text_from_mem(rendered.bytes())
+                .expect("extract long-profile PDF text");
+            let compact: String = text
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            for (_, value) in fields {
+                let expected: String = value
+                    .chars()
+                    .filter(|character| !character.is_whitespace())
+                    .collect();
+                assert!(
+                    compact.contains(&expected),
+                    "missing profile field for {kind:?}: {value}"
+                );
+            }
+            assert!(text.contains("Synthetic profile body remains below the header."));
+        }
     }
 
     #[test]

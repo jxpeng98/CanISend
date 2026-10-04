@@ -172,6 +172,8 @@ jq -n \
 printf '%s\n' \
   '# Profile' \
   '' \
+  'MCP Fixture Candidate' \
+  'mcp-fixture@candidate.invalid' \
   'MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme.' \
   > "$profile_source"
 
@@ -640,7 +642,7 @@ evidence_arguments="$(
       profile_source: {id: $data.source.id, revision: $data.source.revision,
         sha256: $data.source.original.sha256},
       proposals: {profile_revision: $data.profile_revision, proposals: [{
-        kind: "employment", summary: "Managed a cross-domain programme (synthetic fixture)",
+        kind: "other", summary: "Synthetic identity, contact and cross-domain programme",
         source_quote: $quote,
         source_span: {source: $data.source.normalized_text, start_byte: 0,
           end_byte: ($quote | utf8bytelength)},
@@ -1267,6 +1269,25 @@ academic_drafts='[
     "content": "PRIVATE-MCP-ACADEMIC-CV: MCP-V4-PROFILE-PRIVATE-SENTINEL managed a cross-domain programme."
   }
 ]'
+
+# Use the actual confirmed revision from this isolated fixture. The Pack validators must
+# exercise sourced identity and body text, rather than silently approving legacy Markdown.
+structured_drafts() {
+  jq -c --argjson evidence "$confirmed_evidence" --argjson academic "$1" '
+    def fact($text): {text: $text, role: "evidence-bound", evidence: [$evidence], requirements: []};
+    map(.media_type = "application/vnd.canisend.deliverable+json" |
+      .content = ({
+        format: "canisend.deliverable-document/v3",
+        fields: (if $academic then [
+          {key: "candidate-name", value: fact("MCP Fixture Candidate")},
+          {key: "email", value: fact("mcp-fixture@candidate.invalid")}
+        ] else [] end),
+        sections: [{id: "body", heading: null, body: fact(.content)}],
+        unresolved_fields: []
+      } | tojson))'
+}
+generic_drafts="$(structured_drafts false <<< "$generic_drafts")"
+academic_drafts="$(structured_drafts true <<< "$academic_drafts")"
 
 qualify_application_lifecycle \
   generic \

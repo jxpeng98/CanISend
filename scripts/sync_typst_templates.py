@@ -132,6 +132,7 @@ def synchronize(cv, letter, check=False):
     package_path = ROOT / "release/alpha-package-contract.json"
     package = json.loads(package_path.read_bytes())
     package["contracts"]["resource_manifest"]["sha256"] = sha(files[declarations_path])
+    package["contracts"]["resource_manifest"]["entry_count"] = len(declarations)
     for binding in package["contracts"]["workflow_packs"]:
         if binding["id"] == pack["id"]:
             binding.update(version=pack["version"], content_digest=pack["content_digest"])

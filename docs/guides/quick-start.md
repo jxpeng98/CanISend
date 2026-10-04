@@ -97,6 +97,13 @@ Application does not relabel or clear the other.
 
 Import a reviewed Profile Source. Private-local files require explicit read consent:
 
+If you have no prepared file, connect your Host in steps 5–6 and ask
+`canisend-workspace` to build your Profile through conversation. You can skip the
+example Applications in step 3 when you only need a reusable Profile. The
+[Profile interview](./agent-integration.md#build-a-profile-from-conversation)
+keeps editable drafts, confirmed facts and unanswered questions, so you can pause
+and resume. Import the reviewed `profile.md` when ready:
+
 ```console
 canisend --workspace ./my-applications profile-source import ./profile.md \
   --sensitivity private-local --confirm-private-read --json

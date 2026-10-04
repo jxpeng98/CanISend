@@ -2371,14 +2371,63 @@ mod tests {
     use super::{
         AgentSkillsScopeArgument, ApplicationCommand, ApplicationPackCommand, AssociationCommand,
         Cli, Command, CommandFailure, EvidenceCommand, ExitClass, HostCommand, ProfileCommand,
-        ProfileSourceCommand, WorkspaceCommand, clap_leaf_paths, human_failure_lines,
-        public_clap_leaf_paths, unsupported_legacy_surface,
+        ProfileSourceCommand, ProfileSourceSensitivityArgument, WorkspaceCommand, clap_leaf_paths,
+        human_failure_lines, public_clap_leaf_paths, unsupported_legacy_surface,
     };
 
     #[test]
     fn clap_usage_errors_are_reserved_for_exit_two() {
         let error = Cli::try_parse_from(["canisend", "unknown"]).expect_err("unknown command");
         assert_eq!(error.exit_code(), i32::from(ExitClass::CliUsage.code()));
+    }
+
+    #[test]
+    fn shipped_workspace_skill_profile_import_uses_supported_cli() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let destination = std::env::temp_dir().join(format!(
+            "canisend-cli-guidance-{}-{nonce}",
+            std::process::id()
+        ));
+        let exported = canisend_app::Application::export_agent_assets(
+            &canisend_app::AgentPackExportRequest::new(
+                canisend_app::AgentHost::Codex,
+                &destination,
+            ),
+        )
+        .expect("export current Host resources");
+        let skill = exported
+            .data
+            .manifest
+            .files
+            .iter()
+            .find(|file| file.path.ends_with("canisend-workspace/SKILL.md"))
+            .expect("Workspace Skill in exported pack");
+        let body = std::fs::read_to_string(destination.join(&skill.path)).expect("exported Skill");
+        std::fs::remove_dir_all(destination).expect("remove isolated exported pack");
+        let command = body
+            .split('`')
+            .find(|text| text.starts_with("canisend --workspace PATH ") && text.contains("import"))
+            .expect("advertised Profile import command");
+        let arguments = command.split_whitespace().collect::<Vec<_>>();
+        assert!(
+            unsupported_legacy_surface(arguments.iter().map(std::ffi::OsString::from)).is_none(),
+            "the shipped import guidance must pass the actual CLI preflight"
+        );
+        let parsed = Cli::try_parse_from(arguments).expect("parse the shipped import command");
+        let Command::ProfileSource {
+            command: ProfileSourceCommand::Import(request),
+        } = parsed.command
+        else {
+            panic!("guidance must select Profile Source import");
+        };
+        assert!(request.confirm_private_read);
+        assert!(matches!(
+            request.sensitivity,
+            ProfileSourceSensitivityArgument::PrivateLocal
+        ));
     }
 
     #[test]

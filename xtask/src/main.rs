@@ -18208,12 +18208,12 @@ mod tests {
             freeze["schemas"]["family_file_counts"],
             json!({
                 "public_v2": 40,
-                "application_v3": 7,
+                "application_v3": 8,
                 "agent_v4": 7,
                 "workflow_pack_v1": 1
             })
         );
-        assert_eq!(freeze["schemas"]["total_files"], 55);
+        assert_eq!(freeze["schemas"]["total_files"], 56);
         assert_eq!(
             freeze["exit_codes"]["error_mappings"]
                 .as_array()

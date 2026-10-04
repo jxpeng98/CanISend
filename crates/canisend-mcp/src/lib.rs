@@ -46,8 +46,8 @@ const MAX_APPLICATION_ID_BYTES: usize = 128;
 const MAX_SESSION_INPUT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_TOOL_RESULT_BYTES: usize = 2 * 1024 * 1024;
 
-/// Render trusted preview/display data; never decode strings a second time or change
-/// the Broker-owned values used for commit validation.
+/// Render trusted preview/display data. Decode only the explicitly typed, bounded document
+/// contract for presentation; never reinterpret arbitrary strings or change Broker-owned values.
 fn readable_fields(value: &Value) -> String {
     fn render(value: &Value, label: &str, depth: usize, output: &mut String) {
         let indent = "  ".repeat(depth);
@@ -64,7 +64,25 @@ fn readable_fields(value: &Value) -> String {
                     _ => 3,
                 });
                 let child_depth = depth + usize::from(!label.is_empty());
+                let document = fields
+                    .iter()
+                    .find(|(key, _)| key.as_str() == "media_type")
+                    .filter(|(_, value)| {
+                        value.as_str()
+                            == Some(canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3)
+                    })
+                    .and_then(|_| fields.iter().find(|(key, _)| key.as_str() == "content"))
+                    .and_then(|(_, value)| value.as_str())
+                    .and_then(|content| {
+                        canisend_contracts::DeliverableDocumentV3::decode(content.as_bytes()).ok()
+                    });
                 for (key, value) in fields {
+                    if key == "content"
+                        && let Some(document) = &document
+                    {
+                        readable_document(document, child_depth, output);
+                        continue;
+                    }
                     let label = match key.as_str() {
                         "request" => "Proposed change".to_owned(),
                         "context" => "Reference details".to_owned(),
@@ -107,6 +125,57 @@ fn readable_fields(value: &Value) -> String {
     let mut output = String::new();
     render(value, "", 0, &mut output);
     output
+}
+
+fn readable_document(
+    document: &canisend_contracts::DeliverableDocumentV3,
+    depth: usize,
+    output: &mut String,
+) {
+    use canisend_contracts::DeliverableTextRoleV3;
+    fn value(text: &canisend_contracts::DeliverableTextV3, output: &mut String) {
+        output.push_str(&text.text);
+        output.push_str("\n\nDeclared role: ");
+        output.push_str(match text.role {
+            DeliverableTextRoleV3::EvidenceBound => "Fact with Evidence citations",
+            DeliverableTextRoleV3::RequirementBound => "Requirement with citations",
+            DeliverableTextRoleV3::Intent => "Personal intention",
+            DeliverableTextRoleV3::NonFactual => "Non-factual text",
+        });
+        output.push('\n');
+        for reference in &text.evidence {
+            output.push_str(&format!(
+                "Evidence: {}@{} SHA-256: {}\n",
+                reference.id,
+                reference.revision.get(),
+                reference.sha256
+            ));
+        }
+        for reference in &text.requirements {
+            output.push_str(&format!(
+                "Requirement: {}@{}\n",
+                reference.id,
+                reference.revision.get()
+            ));
+        }
+        output.push('\n');
+    }
+    output.push_str(&format!("{}Content:\n\n", "  ".repeat(depth)));
+    for field in &document.fields {
+        output.push_str(&format!("{}: ", field.key.as_str().replace('-', " ")));
+        value(&field.value, output);
+    }
+    for section in &document.sections {
+        if let Some(heading) = &section.heading {
+            output.push_str(heading);
+            output.push_str("\n\n");
+        }
+        value(&section.body, output);
+    }
+    for key in &document.unresolved_fields {
+        output.push_str(&format!("Unresolved field: {key}\n"));
+    }
+    output.push('\n');
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -371,7 +440,13 @@ pub struct RevisionPreviewParameters {
 pub struct DeliverableDraftInput {
     pub kind: String,
     pub title: String,
+    #[schemars(
+        description = "Use application/vnd.canisend.deliverable+json for structured ready-to-review content; plain text and Markdown are legacy literal drafts."
+    )]
     pub media_type: String,
+    #[schemars(
+        description = "For structured media, a JSON string with format canisend.deliverable-document/v3, fields, sections and unresolved_fields. Every value/body declares text, role, evidence and requirements; cite actual associated confirmed revisions."
+    )]
     pub content: String,
 }
 
@@ -403,7 +478,13 @@ pub struct DeliverableRevisePreviewParameters {
     pub expected_revision: u64,
     pub deliverable_id: String,
     pub title: String,
+    #[schemars(
+        description = "Use application/vnd.canisend.deliverable+json for structured ready-to-review content; plain text and Markdown are legacy literal drafts."
+    )]
     pub media_type: String,
+    #[schemars(
+        description = "For structured media, a JSON string matching canisend.deliverable-document/v3; preserve reviewed fields, sections and exact citation revisions. Revision clears prior approval."
+    )]
     pub content: String,
 }
 
@@ -2393,6 +2474,35 @@ mod tests {
         }
         assert!(rendered.contains(&"a".repeat(64)));
         assert!(!rendered.contains("\"content\":"));
+        assert_eq!(preview, before);
+    }
+
+    #[test]
+    fn structured_confirmation_shows_fields_text_roles_and_citations_without_changing_the_preview()
+    {
+        let body = "Future work — \"Evidence\"\n\nLiteral \\n and #read(\"/private/sentinel\") remain text.";
+        let source_id = "0190a541-6de8-7000-8000-000000000001";
+        let content = serde_json::json!({"format":"canisend.deliverable-document/v3",
+            "fields":[{"key":"candidate-name","value":{"text":"Fictional candidate",
+                "role":"evidence-bound","evidence":[{"id":source_id,"revision":2,"sha256":"a".repeat(64)}],"requirements":[]}}],
+            "sections":[{"id":"future","heading":"Future work","body":{"text":body,"role":"intent","evidence":[],"requirements":[]}}],
+            "unresolved_fields":["qualification"]}).to_string();
+        let preview = serde_json::json!({"request":{"title":"Statement",
+            "media_type":canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3,"content":content}});
+        let before = preview.clone();
+        let rendered = readable_fields(&preview);
+        for expected in [
+            "candidate name: Fictional candidate",
+            body,
+            "Declared role: Fact with Evidence citations",
+            "Declared role: Personal intention",
+            "Unresolved field: qualification",
+            source_id,
+            &"a".repeat(64),
+        ] {
+            assert!(rendered.contains(expected), "{rendered}");
+        }
+        assert!(!rendered.contains("\\\"Evidence\\\""));
         assert_eq!(preview, before);
     }
 

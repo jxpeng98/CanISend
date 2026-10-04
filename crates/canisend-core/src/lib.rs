@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod deliverable_validation_v3;
+pub use deliverable_validation_v3::*;
+
 mod pack_deliverable_catalog;
 mod pack_localization;
 mod pack_stage_graph;

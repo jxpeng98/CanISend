@@ -51,14 +51,14 @@
     {
       "kind": "primary-document",
       "title": "Synthetic records-classification proposal",
-      "media_type": "text/markdown",
-      "content": "# Synthetic records-classification proposal\n\nThis fictional proposal covers an offline records-classification prototype. Its reviewed structure is approach, governance, delivery stages, and validation. It does not claim access to live records, systems, credentials, suppliers, or delivery evidence."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"This fictional proposal covers an offline records-classification prototype. Its reviewed structure is approach, governance, delivery stages, and validation. It does not claim access to live records, systems, credentials, suppliers, or delivery evidence.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     },
     {
       "kind": "supporting-document",
       "title": "Synthetic compliance note",
-      "media_type": "text/markdown",
-      "content": "# Synthetic compliance note\n\nThe reviewed constraints are local-only processing, a six-week delivery window, and a fictional maximum of GBP 40,000. This example grants no network, procurement, data-access, or submission authority."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"The reviewed constraints are local-only processing, a six-week delivery window, and a fictional maximum of GBP 40,000. This example grants no network, procurement, data-access, or submission authority.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     }
   ],
   "export_slug": "tender-proposal"

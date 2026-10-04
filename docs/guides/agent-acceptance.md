@@ -62,7 +62,8 @@ to match new source digests.
 
 Keep an interactive fixture and its backup outside system temporary directories. Read actual
 current state and the complete, digest-matched Pack catalog before proposing materials. Academic
-requires both `cover-letter` and `cv`; a first validation error is not a complete catalog listing.
+requires both `cover-letter` and `cv`, plus every additional Required kind in the confirmed Plan;
+a first validation error is not a complete catalog listing.
 Import a synthetic Profile Source, use `canisend_evidence_confirm_preview` with exact source
 quotes and normalized byte ranges, then confirm its catalog through the native form. Associate
 the confirmed Evidence with each Application through the guarded association tools before
@@ -94,6 +95,67 @@ receive active approval tokens, answer human forms or turn synthetic responses i
 acceptance evidence. Record automated checks, human observations, protected CI and exact release
 artifact qualification separately. Missing audit receipt fields are not invented audit evidence.
 
+## Profile interview before an Application
+
+Use `canisend-workspace` and the existing `profile-evidence` task. Begin with a fresh Workspace
+containing no Profile Sources or Applications. Verify the installed Skill matches the candidate;
+an older executable cannot install the new interview guidance. An isolated model forward test
+can check conversation behavior, but does not establish actual Host file access, native forms,
+or real-user acceptance. Keep its findings separate from the interactive observations below.
+
+Profile import is CLI-only: `canisend --workspace PATH profile-source import FILE
+--sensitivity private-local --confirm-private-read --json`. The consent flag asserts the user's
+actual authorization to read that file; factual review alone does not supply it. Read the
+candidate's `profile-source import --help` rather than using a legacy command path.
+
+| User situation | Expected behavior |
+|---|---|
+| No prepared Profile and no specific opportunity | Start with a small adaptive round, reuse goals/language already supplied, and avoid requiring an Application or inventing credentials |
+| Pause after an incomplete answer, then reopen the same Workspace | Read `inputs/profile-interview/interview.md` and `profile.md`, preserve progress, and continue from the next relevant gap without repeating settled identity questions |
+| Correct a proposed leadership role to assistance; year is unknown | Remove the superseded claim, preserve the correction, and leave the year uncertain rather than infer it |
+| Manually edit the Profile between sessions | Preserve the edit, reconcile conflicts explicitly, and do not overwrite it with an older interview summary |
+| Describe a funding application as a future plan | Keep the intention separate from factual experience; never turn it into an awarded grant |
+| An organization prepares a grant Profile with an approximate participant count | Adapt the interview to the organization, clarify count/time scope, and preserve uncertainty instead of imposing academic career modules |
+| Host has no file tools | Provide copyable drafts and state that progress has not been saved |
+| User wants a draft saved but no import | Save only ordinary user files; retain zero canonical Profile Sources and Applications |
+| User reviews a first Profile and authorizes its import | Use the supported Profile Source import, record its exact receipt, and verify one Source with zero Applications; Evidence confirmation and association remain later steps |
+
+Use fictional facts for the functional check; the human controls the conversation and all native
+forms. These cases do not count as the formal real-applicant cohort. Inspect both saved files,
+not only the final chat response. Proposed facts and unresolved details belong in the interview
+record; the importable Profile contains reviewed facts, self-report attribution and separately
+labeled intentions. Do not leave a superseded role, guessed date or unreviewed achievement in it.
+After import, correct facts through a new reviewed Source and explicit reconciliation of affected
+Evidence/associations; do not claim the new Source automatically replaced earlier links.
+
+### Prepare the interactive Workspace
+
+Use a new persistent directory and the exact extracted candidate executable, not `target/debug`
+or an older binary on `PATH`. For example, substitute actual absolute paths in these commands:
+
+```sh
+/absolute/path/to/extracted/canisend --workspace /absolute/path/to/profile-host-check workspace init --json
+/absolute/path/to/extracted/canisend --workspace /absolute/path/to/profile-host-check host setup --host codex --executable /absolute/path/to/extracted/canisend --json
+/absolute/path/to/extracted/canisend --workspace /absolute/path/to/profile-host-check workspace status --json
+```
+
+Setup installs project Skills and returns MCP registration guidance. Follow that guidance in the
+chosen Host, open this Workspace there and rediscover tools. `host status` checks installation,
+not the live connection. Ask the Host to read `canisend_workspace_status` and
+`canisend_application_list` before the interview. Start with:
+
+> I have no prepared Profile and no specific opportunity. Use canisend-workspace to interview
+> me for research and teaching applications, a few questions at a time. Keep uncertain details
+> separate, show me summaries to review and save my progress. Do not import or create an
+> Application yet.
+
+After a small round, reopen the same Workspace in another Host session and exercise the resume
+and correction cases. Import only after reviewing the complete Profile and giving the actual
+required consent. Record candidate archive/binary hashes, installed Skill hash, Host name/version,
+Workspace identity, observed case outcomes and exact import receipt metadata. Omit private
+bodies, conversation text and active tokens from any shared result. Leave unobserved cases pending;
+a prepared checklist or an installed Skill is not a passed acceptance record.
+
 ## Whole-application Skill scenarios
 
 Use `canisend-application-workflow` for an end-to-end request. It coordinates the existing ten
@@ -121,7 +183,8 @@ model-level outcomes automatically.
 
 - A new Application request uses the supported CLI creation schema; it must not wait for a
   nonexistent MCP creation preview. Missing Source replacement adapters are reported precisely.
-- The first academic draft contains the catalog-required cover letter and CV together. Once
+- The first academic draft contains the catalog-required cover letter and CV together with all
+  other Required kinds in the confirmed Plan, such as research and teaching statements. Once
   drafts exist, a one-document edit uses revise rather than another initial draft commit.
 - Candidate reasoning happens before draft preview; `deliverable.audit` inspects persisted drafts
   after commit, not an unsaved candidate. A Plan proposal must be confirmed before drafting.
