@@ -63,7 +63,7 @@ fn five_fictional_generic_application_examples_are_embedded_and_offline() {
     for (resource_id, family) in expected {
         let resource = get(ResourceId::from_str(resource_id).expect("typed example resource ID"));
         assert_eq!(resource.descriptor.kind, ResourceKind::Example);
-        assert_eq!(resource.descriptor.version, "1.0.0");
+        assert_eq!(resource.descriptor.version, "1.0.1");
         assert!(resource.descriptor.path.starts_with("examples/generic-v4/"));
         let value: serde_json::Value =
             serde_json::from_slice(resource.bytes).expect("generic example JSON");

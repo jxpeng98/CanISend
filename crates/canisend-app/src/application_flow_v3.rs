@@ -391,6 +391,13 @@ mod tests {
 
     use super::*;
 
+    fn structured_fixture_text(text: &str) -> String {
+        serde_json::json!({"format":"canisend.deliverable-document/v3", "fields":[],
+            "sections":[{"id":"body","heading":null,"body":{"text":text,
+                "role":"non-factual","evidence":[],"requirements":[]}}],"unresolved_fields":[]})
+        .to_string()
+    }
+
     fn item(value: &str) -> WorkflowPackItemId {
         WorkflowPackItemId::try_new(value).expect("Pack item ID")
     }
@@ -516,15 +523,18 @@ mod tests {
                     ApplicationFlowDeliverableDraftV3 {
                         kind: item("primary-document"),
                         title: "Project narrative".to_owned(),
-                        media_type: "text/markdown".to_owned(),
-                        content: "A literal #read(\"/private/canisend-sentinel\") remains text."
+                        media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3
                             .to_owned(),
+                        content: structured_fixture_text(
+                            "A literal #read(\"/private/canisend-sentinel\") remains text.",
+                        ),
                     },
                     ApplicationFlowDeliverableDraftV3 {
                         kind: item("supporting-document"),
                         title: "Budget appendix".to_owned(),
-                        media_type: "text/plain".to_owned(),
-                        content: "Synthetic total: 100 units.".to_owned(),
+                        media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3
+                            .to_owned(),
+                        content: structured_fixture_text("Synthetic total: 100 units."),
                     },
                 ],
             },
@@ -554,7 +564,9 @@ mod tests {
         assert_eq!(review.data.deliverables.len(), 2);
         assert_eq!(
             review.data.deliverables[0].content,
-            "A literal #read(\"/private/canisend-sentinel\") remains text."
+            structured_fixture_text(
+                "A literal #read(\"/private/canisend-sentinel\") remains text."
+            )
         );
 
         let approved = Application::approve_application_flow_v3(
@@ -740,7 +752,7 @@ mod tests {
     }
 
     #[test]
-    fn migrated_academic_pack_completes_the_same_neutral_v3_flow() {
+    fn migrated_academic_plain_drafts_require_structured_revision_before_export() {
         let root = temporary_root("academic-complete");
         let backup = temporary_root("academic-complete-backup");
         Application::initialize_workspace(&root).expect("Workspace v2");
@@ -843,29 +855,19 @@ mod tests {
             &root,
             application_id.as_str(),
             ApplicationFlowApproveRequestV3 {
-                expected_revision: Revision::try_new(3).expect("revision"),
+                expected_revision: Revision::try_new(3).unwrap(),
             },
         )
-        .expect("academic approval");
-
+        .expect_err("legacy text has no verifiable claim structure");
         let destination = format!("applications/{application_id}/exports/academic-v3");
-        let exported = Application::export_application_flow_v3(
+        Application::export_application_flow_v3(
             &root,
-            ApplicationFlowExportRequestV3::try_new(application_id.as_str(), 4, &destination)
-                .expect("export request"),
+            ApplicationFlowExportRequestV3::try_new(application_id.as_str(), 3, &destination)
+                .unwrap(),
             Some(PrivateExportConsent::granted_by_user()),
         )
-        .expect("academic export");
-        assert_eq!(exported.data.render.documents.len(), 2);
-        assert!(!exported.data.render.submission_performed);
-        assert_eq!(exported.data.stages.len(), 10);
-        assert!(exported.data.stages.iter().all(|stage| {
-            if stage.id.local_id_str() == "evidence" {
-                stage.state == ApplicationFlowStageStateV3::Ready
-            } else {
-                stage.state == ApplicationFlowStageStateV3::Complete
-            }
-        }));
+        .expect_err("unreviewed text cannot export");
+        assert!(!root.join(destination).exists());
 
         fs::remove_dir_all(root).expect("remove fixture");
         fs::remove_dir_all(backup).expect("remove backup");

@@ -1077,6 +1077,7 @@ fn ensure_safe_parent(root: &Path, parent: &Path) -> Result<(), StoreError> {
 
 fn media_type_extension(media_type: Option<&str>) -> &'static str {
     match media_type {
+        Some(canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3) => ".json",
         Some("text/markdown") => ".md",
         Some("text/plain") => ".txt",
         Some("text/html") => ".html",

@@ -51,14 +51,14 @@
     {
       "kind": "primary-document",
       "title": "Synthetic internal governance dossier",
-      "media_type": "text/markdown",
-      "content": "# Synthetic internal governance dossier\n\nThis fictional dossier maps reviewed example evidence to governance responsibilities, documented decisions, and measurable follow-up actions. It contains no real role, person, organization relationship, event, authority, or performance claim."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"This fictional dossier maps reviewed example evidence to governance responsibilities, documented decisions, and measurable follow-up actions. It contains no real role, person, organization relationship, event, authority, or performance claim.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     },
     {
       "kind": "supporting-document",
       "title": "Synthetic supporting chronology",
-      "media_type": "text/markdown",
-      "content": "# Synthetic supporting chronology\n\nObservation one is a fictional agenda review. Observation two is a fictional follow-up checkpoint. Both remain separate from the fictional approved conclusion and contain no identifying or live-event data."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"Observation one is a fictional agenda review. Observation two is a fictional follow-up checkpoint. Both remain separate from the fictional approved conclusion and contain no identifying or live-event data.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     }
   ],
   "export_slug": "internal-dossier"

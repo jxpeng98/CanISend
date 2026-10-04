@@ -92,7 +92,7 @@ fn five_domain_families_finish_in_clean_v4_without_real_data_or_submission() {
         let id = ResourceId::from_str(resource_id).expect("typed example resource ID");
         let resource = get(id);
         assert_eq!(resource.descriptor.kind, ResourceKind::Example);
-        assert_eq!(resource.descriptor.version, "1.0.0");
+        assert_eq!(resource.descriptor.version, "1.0.1");
         let scenario: GenericExampleV1 =
             serde_json::from_slice(resource.bytes).expect("valid generic example JSON");
         validate_synthetic_contract(&scenario, expected_family);

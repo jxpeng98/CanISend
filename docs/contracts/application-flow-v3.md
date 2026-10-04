@@ -37,11 +37,16 @@ data as v3.
 4. `application-flow-v3.compose` validates Pack cardinality and MIME type, stores immutable content,
    and creates `review-required` Deliverables bound to the exact Plan and confirmed source
    revisions used as Evidence inputs.
+   It also requires every Required kind in the confirmed Plan. Ready-to-review documents use
+   the [structured Deliverable content contract](deliverable-document-v3.md); only cited Evidence
+   becomes the structured document's recorded input.
 5. `application-flow-v3.review` requires private-read consent and returns verified current
    Deliverable bodies for explicit local review. Routine status and list operations remain
    body-free.
 6. `application-flow-v3.approve` verifies every referenced Blob and advances every current
    Deliverable to `approved` under explicit user authority.
+   The bound Pack's readiness validators execute before this state change and before export.
+   Legacy plain/Markdown drafts require structured revision when their Pack declares validators.
 7. `application-flow-v3.export` first publishes the existing managed Application projection, then
    renders every approved Deliverable with its verified Pack template and the embedded Typst
    compiler. It writes validated PDFs plus `render-manifest.json` only below

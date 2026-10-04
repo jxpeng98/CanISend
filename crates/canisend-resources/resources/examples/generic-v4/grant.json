@@ -51,14 +51,14 @@
     {
       "kind": "primary-document",
       "title": "Synthetic resilience pilot narrative",
-      "media_type": "text/markdown",
-      "content": "# Synthetic resilience pilot narrative\n\nThis fictional Application addresses the requested twelve-month neighborhood resilience pilot. Its reviewed scope is limited to explaining activities, beneficiaries, evidence, and measurable outcomes. Each of those elements must remain traceable to confirmed evidence before any real-world use."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"This fictional Application addresses the requested twelve-month neighborhood resilience pilot. Its reviewed scope is limited to explaining activities, beneficiaries, evidence, and measurable outcomes. Each of those elements must remain traceable to confirmed evidence before any real-world use.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     },
     {
       "kind": "supporting-document",
       "title": "Synthetic budget assumptions note",
-      "media_type": "text/markdown",
-      "content": "# Synthetic budget assumptions note\n\nThe reviewed source sets a fictional ceiling of GBP 25,000. This supporting note records that category assumptions must be listed and checked against that ceiling; it introduces no real organization, person, account, or expenditure."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"The reviewed source sets a fictional ceiling of GBP 25,000. This supporting note records that category assumptions must be listed and checked against that ceiling; it introduces no real organization, person, account, or expenditure.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     }
   ],
   "export_slug": "grant"

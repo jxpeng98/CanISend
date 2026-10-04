@@ -144,14 +144,16 @@ until an explicit revision regenerates them under the current Plan.
 
 ## Schema registry
 
-The seven v3 schemas are generated deterministically from Rust types:
+The eight v3 schemas are generated deterministically from Rust types, including the
+[structured Deliverable content](deliverable-document-v3.md) schema:
 
 - `application-pack-binding.schema.json`;
 - `opportunity.schema.json`;
 - `application.schema.json`;
 - `requirement.schema.json`;
 - `plan.schema.json`;
-- `deliverable.schema.json`; and
+- `deliverable.schema.json`;
+- `deliverable-document.schema.json`; and
 - `application-model.schema.json`.
 
 They use an independent `ApplicationModelSchemaId` registry and do not modify the frozen set of

@@ -35,12 +35,18 @@ class TemplateSyncTest(unittest.TestCase):
             history = json.loads(history_path.read_bytes())
             pack_path = resources / "workflow-packs/org.canisend.academic-job/manifest.json"
             old_manifest = pack_path.read_text()
+            package_path = root / "release/alpha-package-contract.json"
+            package = json.loads(package_path.read_bytes())
+            package["contracts"]["resource_manifest"]["entry_count"] = 0
+            package_path.write_bytes(sync.encoded(package))
             with patch.object(sync, "ROOT", root), patch.object(sync, "RESOURCES", resources), \
                     patch.object(sync.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaises(ValueError):
                     sync.synchronize(*inputs, check=True)
                 self.assertEqual(pack_path.read_text(), old_manifest)
                 sync.synchronize(*inputs)
+                self.assertEqual(json.loads(package_path.read_bytes())["contracts"]["resource_manifest"]["entry_count"],
+                                 len(json.loads((resources / "manifest.json").read_bytes())))
                 upgraded = json.loads(history_path.read_bytes())
                 self.assertEqual(upgraded[:-1], history)
                 self.assertEqual(upgraded[-1]["manifest"], old_manifest)

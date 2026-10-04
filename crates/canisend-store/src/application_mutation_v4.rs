@@ -573,6 +573,13 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             &catalog,
             &request.deliverables,
         )?;
+        let kinds = request
+            .deliverables
+            .iter()
+            .map(|draft| catalog.kind_id(&draft.kind))
+            .collect::<Vec<_>>();
+        canisend_core::validate_required_plan_deliverables(plan, &kinds)
+            .map_err(StoreError::ApplicationModelConflict)?;
         for deliverable in &request.deliverables {
             validate_deliverable_text(
                 &deliverable.title,
@@ -806,7 +813,14 @@ impl<'a> ApplicationMutationServiceV4<'a> {
             sha256: digest.clone(),
         });
         deliverable.state = DeliverableStateV3::ReviewRequired;
-        deliverable.evidence_inputs = evidence_inputs;
+        deliverable.evidence_inputs = crate::application_flow_v3::document_evidence_inputs(
+            deliverable
+                .media_type
+                .as_deref()
+                .expect("revision assigned media type"),
+            &request.content,
+            &evidence_inputs,
+        )?;
         deliverable.revision = revision;
         deliverable.plan = PlanRevisionReferenceV3 {
             id: plan.id.clone(),
@@ -985,7 +999,7 @@ fn require_stale_materials(current: &StoredApplicationModelV3) -> Result<(), Sto
     Ok(())
 }
 
-fn validate_deliverable_text(
+pub(crate) fn validate_deliverable_text(
     title: &str,
     media_type: &str,
     content: &str,
@@ -995,15 +1009,22 @@ fn validate_deliverable_text(
             "Deliverable title must contain 1 to 512 bytes".to_owned(),
         ));
     }
-    if media_type != "text/plain" && media_type != "text/markdown" {
+    if media_type != "text/plain"
+        && media_type != "text/markdown"
+        && media_type != canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3
+    {
         return Err(StoreError::InvalidInput(
-            "Deliverable media type must be text/plain or text/markdown".to_owned(),
+            "Deliverable media type must be plain text, literal Markdown or structured document JSON".to_owned(),
         ));
     }
     if content.trim().is_empty() || content.len() > MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3 {
         return Err(StoreError::InvalidInput(
             "Deliverable content must be nonempty and within the canonical byte limit".to_owned(),
         ));
+    }
+    if media_type == canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3 {
+        canisend_contracts::DeliverableDocumentV3::decode(content.as_bytes())
+            .map_err(|error| StoreError::InvalidInput(error.to_owned()))?;
     }
     Ok(())
 }

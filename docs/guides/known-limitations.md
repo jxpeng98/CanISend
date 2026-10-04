@@ -6,10 +6,14 @@ installed-binary authority.
 
 ## Publication and qualification
 
-- `v1.0.0-alpha.9` is the latest publicly qualified checkpoint. It was built once from
-  `4876c5669b7ae48ca053b5e06e0005419d2051f6`, promoted without rebuilding, downloaded, and
-  independently reverified.
-- `v1.0.0-alpha.8`, `v1.0.0-alpha.7`, and earlier tags remain immutable historical checkpoints.
+- `v1.0.0-beta.1` is the latest publicly qualified checkpoint. It was built once from
+  `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and qualified against
+  candidate run `33281162734`.
+- `1.0.0-beta.10` is independently verified on npm `next`, Cargo, and PyPI. These testing
+  channels do not qualify a complete native checkpoint. See [release status](../../RELEASE.md).
+- `v1.0.0-alpha.9`, `v1.0.0-alpha.8`, `v1.0.0-alpha.7`, and earlier tags remain immutable
+  historical checkpoints. CLI development is active; GUI work and full native qualification
+  remain paused.
 - Windows and Linux public GUI artifacts are not qualified. Their standalone CLI targets have
   separate native release-matrix owners.
 - Community signatures do not establish an operating-system-trusted publisher. Notarization,
@@ -42,6 +46,13 @@ installed-binary authority.
 
 ## Documents and host integration
 
+- Profile-derived fields and factual text need confirmed, explicitly associated Evidence. The
+  Host prepares [structured documents](../contracts/deliverable-document-v3.md); importing a
+  profile does not automatically extract a CV or grant access to every field.
+- Plain-text and Markdown drafts remain readable, but Packs with readiness validators require
+  structured revision before approval/export. Markdown syntax is rendered literally.
+- Validators check declared provenance and current revisions. The user and Host still review
+  whether each quote supports its wording and whether the package addresses the opportunity.
 - Scanned or image-only PDFs require a separate trusted OCR tool and user review.
 - User-authored Typst, external Typst packages/files, unrestricted system fonts, browser
   automation, and portal automation are outside the current scope.

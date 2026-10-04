@@ -19,6 +19,13 @@ use canisend_contracts::{
 };
 use serde_json::{Value, json};
 
+fn structured_fixture_text(text: &str) -> String {
+    serde_json::json!({"format":"canisend.deliverable-document/v3", "fields":[],
+            "sections":[{"id":"body","heading":null,"body":{"text":text,
+                "role":"non-factual","evidence":[],"requirements":[]}}],"unresolved_fields":[]})
+    .to_string()
+}
+
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
 fn temporary_root(label: &str) -> std::path::PathBuf {
@@ -236,7 +243,7 @@ fn automatic_approval_is_scoped_and_preserves_guarded_boundaries() {
             "constraints": [], "execution_mode": "host-agent"}]}), false),
         ("plan_confirm", json!({}), false),
         ("deliverable_draft", json!({"deliverables": [{"kind": "primary-document", "title": "Fixture",
-            "media_type": "text/markdown", "content": "AUTO-APPROVAL-PRIVATE-DRAFT"}]}), false),
+            "media_type": canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3, "content": structured_fixture_text("AUTO-APPROVAL-PRIVATE-DRAFT")}]}), false),
         ("review_disposition", json!({"request_private_read": true}), true),
     ].into_iter().enumerate() {
         arguments["application_id"] = json!(id);
@@ -1070,42 +1077,40 @@ fn guarded_lifecycle(local_candidate: bool) {
     assert_eq!(cli_plan["data"]["plan"]["state"], json!("confirmed"));
 
     let draft_body = "PRIVATE-MCP-DELIVERABLE-V1";
-    let submitted =
-        if local_candidate {
-            let task = Application::prepare_local_task_v4(
-                &root,
-                application_id.as_str(),
-                canisend_contracts::Revision::try_new(5).unwrap(),
-            )
+    let submitted = if local_candidate {
+        let task = Application::prepare_local_task_v4(
+            &root,
+            application_id.as_str(),
+            canisend_contracts::Revision::try_new(5).unwrap(),
+        )
+        .unwrap()
+        .data;
+        let claimed = Application::claim_local_task_v4(&root, task.id.as_str(), task.generation)
             .unwrap()
             .data;
-            let claimed =
-                Application::claim_local_task_v4(&root, task.id.as_str(), task.generation)
-                    .unwrap()
-                    .data;
-            let candidate_path = root.join("worker-candidate.json");
-            fs::write(&candidate_path, serde_json::to_vec(&json!({
+        let candidate_path = root.join("worker-candidate.json");
+        fs::write(&candidate_path, serde_json::to_vec(&json!({
             "expected_revision": 5,
             "deliverables": [{"kind": "primary-document", "title": "Reviewed primary document",
-                "media_type": "text/markdown", "content": draft_body}]
+                "media_type": canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3, "content": structured_fixture_text(draft_body)}]
         })).unwrap()).unwrap();
-            let submitted = Application::submit_local_task_v4(
-                &root,
-                claimed.id.as_str(),
-                claimed.generation,
-                claimed.lease_id.as_ref().unwrap().as_str(),
-                &candidate_path,
-            )
-            .unwrap()
-            .data;
-            // A new reviewer process recovers the persisted candidate, not another process's approval.
-            drop(mcp);
-            mcp = McpProcess::start(&root);
-            mcp.initialize();
-            Some(submitted)
-        } else {
-            None
-        };
+        let submitted = Application::submit_local_task_v4(
+            &root,
+            claimed.id.as_str(),
+            claimed.generation,
+            claimed.lease_id.as_ref().unwrap().as_str(),
+            &candidate_path,
+        )
+        .unwrap()
+        .data;
+        // A new reviewer process recovers the persisted candidate, not another process's approval.
+        drop(mcp);
+        mcp = McpProcess::start(&root);
+        mcp.initialize();
+        Some(submitted)
+    } else {
+        None
+    };
     let draft_preview = if let Some(task) = &submitted {
         let mut arguments = json!({"application_id": application_id.as_str(), "task_id": task.id,
             "expected_generation": task.generation, "candidate_sha256": task.candidate_sha256,
@@ -1204,8 +1209,8 @@ fn guarded_lifecycle(local_candidate: bool) {
                     "deliverables": [{
                         "kind": "primary-document",
                         "title": "Reviewed primary document",
-                        "media_type": "text/markdown",
-                        "content": draft_body
+                        "media_type": canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3,
+                        "content": structured_fixture_text(draft_body)
                     }]
                 }
             }),
@@ -1349,8 +1354,8 @@ fn guarded_lifecycle(local_candidate: bool) {
                 "expected_revision": 6,
                 "deliverable_id": deliverable_id,
                 "title": "Revised primary document",
-                "media_type": "text/markdown",
-                "content": revised_content
+                "media_type": canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3,
+                "content": structured_fixture_text(&revised_content)
             }
         }),
     );
@@ -1377,6 +1382,7 @@ fn guarded_lifecycle(local_candidate: bool) {
         .unwrap();
     assert!(displayed.contains("Title: Revised primary document"));
     assert!(displayed.contains(&format!("Content:\n\n{revised_content}\n\n")));
+    assert!(displayed.contains("Declared role: Non-factual text"));
     assert!(displayed.contains(&digest));
     assert!(!displayed.contains(&token));
     assert!(!displayed.contains("\"expected_revision\":"));
@@ -1665,7 +1671,7 @@ fn guarded_lifecycle(local_candidate: bool) {
         }]})),
         ("plan_confirm", json!({})),
         ("deliverable_revise", json!({"deliverable_id": deliverable_id, "title": "Recovered material",
-            "media_type": "text/markdown", "content": "REGENERATED-AFTER-CORRECTION"})),
+            "media_type": canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3, "content": structured_fixture_text("REGENERATED-AFTER-CORRECTION")})),
         ("review_disposition", json!({"request_private_read": true})),
         ("export_prepare", json!({"destination": recovered_destination, "request_private_export": true})),
     ].into_iter().enumerate() {

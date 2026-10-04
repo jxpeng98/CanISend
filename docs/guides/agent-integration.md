@@ -20,6 +20,40 @@ Earlier Skills, protocol requests, command aliases, and host-resource layouts ar
 CanISend detects those resources before installation and returns clean-install guidance without
 modifying either the old files or authoritative Workspace state.
 
+## Build a Profile from conversation
+
+No existing CV or source file is required to start. After connecting your Host,
+ask it to use `canisend-workspace`, for example:
+
+> I have no prepared CV or Profile. Help me build one through conversation for
+> research and teaching applications. Ask a few questions at a time, show me the
+> factual summaries to correct, save my progress and keep uncertain details separate.
+
+The Host starts with your goals and career stage, then explores relevant experiences.
+You can skip a module, leave an answer uncertain, or pause and resume later. It should
+ask for your role, actions and outcomes rather than infer achievements from a title.
+A specific opportunity or Application is not needed for this interview.
+
+The Host saves editable `interview.md` and `profile.md` in your chosen directory;
+the default is `inputs/profile-interview/` beneath the Workspace. The interview
+records proposed facts, corrections, gaps and next questions. The Profile contains
+your confirmed factual summaries and separately labeled future intentions. A
+confirmed self-report is not an externally verified credential. Without Host file
+tools, you receive copyable text; saved progress is not implied.
+
+Review the Profile before import. The Host then uses the existing Profile Source
+import operation with the required file-access consent and records the returned
+Source reference. When you select an Application, it asks only for relevant gaps,
+explicitly associates the source and confirms source-spanned Evidence through the
+normal guarded operations before drafting. Imported or draft Profiles do not
+automatically grant access to every Application or become confirmed Evidence.
+
+These editable drafts are ordinary user files; they are not managed projections
+or canonical Workspace state. Workspace backup preserves imported Profile Sources,
+not unfinished interview files. After an imported fact changes, a new reviewed
+source and reconciliation of affected Evidence/associations are needed; a new
+import does not replace earlier links automatically.
+
 ## Install the v4 host resources
 
 CLI initialization with Host setup installs five version-matched Skills from one
@@ -28,7 +62,7 @@ embedded, integrity-checked source:
 | Skill | Canonical Agent v4 tasks |
 | --- | --- |
 | `canisend-application-workflow` | End-to-end orchestration and resumption over the existing tasks |
-| `canisend-workspace` | orientation, Profile/Evidence, Application creation, recovery |
+| `canisend-workspace` | orientation, Profile interview/Evidence, Application creation, recovery |
 | `canisend-intake` | Source intake and Requirements |
 | `canisend-materials` | fit/Plan and Deliverable drafting |
 | `canisend-review-export` | review and local export |
@@ -263,7 +297,7 @@ new proposals, rejects duplicate spans, and never deletes persisted Requirements
 text-PDF Sources require explicit private-read consent for both preview and commit.
 
 Profile Source bodies remain in local Workspace authority. A user can import a reviewed source
-without the App through `canisend profile source import`; `private-local` input requires the
+without the App through `canisend profile-source import`; `private-local` input requires the
 explicit `--confirm-private-read` flag. Both CLI listing and the MCP tool return IDs, revisions,
 digests, kinds, and privacy metadata without returning original or normalized body text.
 The two association-list tools require one exact Application ID and distinguish Workspace

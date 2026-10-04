@@ -97,17 +97,19 @@ pub enum ApplicationModelSchemaId {
     Requirement,
     Plan,
     Deliverable,
+    DeliverableDocument,
     ApplicationModel,
 }
 
 impl ApplicationModelSchemaId {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::PackBinding,
         Self::Opportunity,
         Self::Application,
         Self::Requirement,
         Self::Plan,
         Self::Deliverable,
+        Self::DeliverableDocument,
         Self::ApplicationModel,
     ];
 
@@ -120,6 +122,7 @@ impl ApplicationModelSchemaId {
             Self::Requirement => "canisend.requirement/v3",
             Self::Plan => "canisend.plan/v3",
             Self::Deliverable => "canisend.deliverable/v3",
+            Self::DeliverableDocument => "canisend.deliverable-document/v3",
             Self::ApplicationModel => "canisend.application-model/v3",
         }
     }
@@ -133,6 +136,7 @@ impl ApplicationModelSchemaId {
             Self::Requirement => "requirement",
             Self::Plan => "plan",
             Self::Deliverable => "deliverable",
+            Self::DeliverableDocument => "deliverable-document",
             Self::ApplicationModel => "application-model",
         }
     }
@@ -542,6 +546,9 @@ pub fn generate_application_model_schemas() -> Vec<GeneratedApplicationModelSche
         generate_application_model::<RequirementRecordV3>(ApplicationModelSchemaId::Requirement),
         generate_application_model::<PlanRecordV3>(ApplicationModelSchemaId::Plan),
         generate_application_model::<DeliverableRecordV3>(ApplicationModelSchemaId::Deliverable),
+        generate_application_model::<crate::DeliverableDocumentV3>(
+            ApplicationModelSchemaId::DeliverableDocument,
+        ),
         generate_application_model::<ApplicationModelSnapshotV3>(
             ApplicationModelSchemaId::ApplicationModel,
         ),

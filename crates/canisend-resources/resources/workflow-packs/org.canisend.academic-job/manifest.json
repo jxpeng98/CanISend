@@ -1,7 +1,7 @@
 {
   "format": "canisend.workflow-pack/v1",
   "id": "org.canisend.academic-job",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "schema_version": "1.0.0",
   "publisher": {
     "id": "org.canisend",
@@ -208,7 +208,7 @@
     "definitions": [
       {"id": "traceability", "capability": "canisend.validator.evidence-traceability", "parameters": {}},
       {"id": "unsupported-claims", "capability": "canisend.validator.unsupported-claims", "parameters": {}},
-      {"id": "placeholder-free", "capability": "canisend.validator.placeholder-free", "parameters": {}},
+      {"id": "placeholder-free", "capability": "canisend.validator.placeholder-free", "parameters": {"required_evidence_fields": ["candidate-name", "email"]}},
       {"id": "citation-integrity", "capability": "canisend.validator.citation-integrity", "parameters": {}},
       {"id": "review-complete", "capability": "canisend.validator.review-complete", "parameters": {}}
     ],
@@ -220,9 +220,9 @@
     {"id": "evidence-match-prompt", "kind": "prompt", "path": "prompts/evidence-match.md", "version": "2.0.0", "size_bytes": 1071, "sha256": "9fff43e5eb1dd3ed56ac34d243d3964d864ebfd7bb9d2e31806b24904f2c1480"},
     {"id": "document-draft-prompt", "kind": "prompt", "path": "prompts/document-draft.md", "version": "2.0.0", "size_bytes": 2020, "sha256": "fa63f2e28ec8959b1359d2682d665807c1bce47eb49fe2b78fcde04e47c4121d"},
     {"id": "document-review-prompt", "kind": "prompt", "path": "prompts/document-review.md", "version": "2.0.0", "size_bytes": 1783, "sha256": "8342ee4e3445237cc84687d0ca441979d640464a1d9b175504e525319b6e75e7"},
-    {"id": "modernpro-coverletter", "kind": "template", "path": "templates/modernpro-coverletter.typ", "version": "1.0.2", "size_bytes": 27820, "sha256": "b5c9376178d93a24d301d52a5e1466089ba1d40ce22b010d5e55304207147c99"},
-    {"id": "modernpro-cv", "kind": "template", "path": "templates/modernpro-cv.typ", "version": "2.1.1", "size_bytes": 30398, "sha256": "ff503a90cfbd6b8a3dcc770abe99a6a8897839195aaa08460f7e01d490f8e149"}
+    {"id": "modernpro-coverletter", "kind": "template", "path": "templates/modernpro-coverletter.typ", "version": "1.0.3", "size_bytes": 29439, "sha256": "180e64a98730a2eb917de01f31da7d7e451de4d1a0472b3e8253d28b4fec8e9e"},
+    {"id": "modernpro-cv", "kind": "template", "path": "templates/modernpro-cv.typ", "version": "2.1.2", "size_bytes": 32293, "sha256": "9b746f046a5d3037d6ca55e5328b2d418cc6b8a091b2d4536b168c23e24a59f4"}
   ],
   "migrations": [],
-  "content_digest": "38b9365c4403fb01c3f562226e81d102907a3e06afa6a81eff180932f6d74fa1"
+  "content_digest": "ef6a94be3d971ed0b44666863c28be0167fc4c058c7deef254ba7afae0f69bca"
 }

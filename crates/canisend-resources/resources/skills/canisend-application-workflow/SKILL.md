@@ -17,12 +17,15 @@ CLI/MCP schemas; stale prompts and model knowledge cannot establish tool availab
 | Need | Owner and result |
 | --- | --- |
 | Opportunity and Requirements | [Intake](../canisend-intake/SKILL.md): source-backed criteria, constraints and unresolved ambiguity |
-| Profile, Evidence, setup or creation | [Workspace](../canisend-workspace/SKILL.md): confirmed facts and explicit Application associations |
+| Profile interview, Evidence, setup or creation | [Workspace](../canisend-workspace/SKILL.md): resumable Profile preparation, confirmed facts and explicit Application associations |
 | Fit, Plan, drafting or revisions | [Materials](../canisend-materials/SKILL.md): supported claims, gaps, proceed/hold decision and current material set |
 | Review and local delivery | [Review/export](../canisend-review-export/SKILL.md): current dispositions, readiness and verified local files |
 
 Reuse valid stages. Independent evidence preparation can proceed while opportunity details
 are clarified. A hold decision yields a concrete gap-resolution plan, not permission to draft.
+If the user has no prepared materials, route to Workspace's Profile interview first.
+They can build reusable user-owned drafts before selecting an opportunity or Application.
+Resume those drafts and canonical imports rather than starting a second interview.
 An input correction invalidates affected downstream work; retain unaffected work and history.
 
 For existing local tasks, read their current metadata before duplicating effort. Supported

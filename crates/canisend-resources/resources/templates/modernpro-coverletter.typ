@@ -4,8 +4,8 @@
 // Copyright (c) 2026
 // Author:  Academic Template Collective
 // License: MIT
-// Version: 1.0.2
-// Date:    2026-09-04
+// Version: 1.0.3
+// Date:    2026-09-29
 // Email:   maintainers@example.invalid
 ///////////////////////////////
 
@@ -150,9 +150,9 @@
   line-spacing: none,
   paragraph-spacing: none,
   contact-separator: " · ",
-  name-align: left,
-  address-align: left,
-  contact-align: right,
+  name-align: none,
+  address-align: none,
+  contact-align: none,
   name-weight: "bold",
   body-weight: "regular",
   date-format: "[day] [month repr:long] [year]",
@@ -168,6 +168,7 @@
     default: "default",
   )
   let rhythm = letter-rhythm(resolved-preset)
+  let centered = _option(layout, "header-style", "split") == "centered"
   let resolved-repeat-header = as-bool(_option(layout, "repeat-header", false))
 
   let resolved-margin = _option(layout, "margin", margin)
@@ -228,9 +229,18 @@
     line-spacing: _option(layout, "line-spacing", _first-filled((line-spacing,), default: rhythm.line-spacing)),
     paragraph-spacing: _option(layout, "paragraph-spacing", _first-filled((paragraph-spacing,), default: rhythm.paragraph-spacing)),
     contact-separator: _option(layout, "contact-separator", contact-separator),
-    name-align: _option(layout, "name-align", name-align),
-    address-align: _option(layout, "address-align", address-align),
-    contact-align: _option(layout, "contact-align", contact-align),
+    name-align: _first-filled(
+      (_option(layout, "name-align", none), name-align),
+      default: if centered { center } else { left },
+    ),
+    address-align: _first-filled(
+      (_option(layout, "address-align", none), address-align),
+      default: if centered { center } else { left },
+    ),
+    contact-align: _first-filled(
+      (_option(layout, "contact-align", none), contact-align),
+      default: if centered { center } else { right },
+    ),
     name-weight: _option(theme, "name-weight", name-weight),
     body-weight: _option(theme, "body-weight", body-weight),
     date-format: _option(layout, "date-format", date-format),
@@ -266,7 +276,19 @@
   and is-filled(contact.icon)
 )
 
-#let _contact-label(contact, cfg) = {
+#let _contact-label(contact, cfg) = layout(size => {
+  // Only oversized tokens become breakable boxes, keeping copied labels free
+  // of added characters. Link destinations and short labels stay intact.
+  set text(hyphenate: false)
+  show regex("\\S+"): it => context {
+    if measure(it).width <= size.width { it } else {
+      it.text.matches(regex("[^./@_-]+[./@_-]?|[./@_-]")).map(part => {
+        if measure(text(part.text)).width > size.width {
+          part.text.clusters().map(char => box(char)).join()
+        } else { box(part.text) }
+      }).join()
+    }
+  }
   let label = if type(contact) == dictionary {
     _option(contact, "text", [])
   } else {
@@ -275,10 +297,18 @@
   let has-link = type(contact) == dictionary and ("link" in contact) and is-filled(contact.link)
   let rendered = text(fill: if has-link { cfg.accent } else { cfg.muted })[#label]
   if has-link { link(contact.link)[#rendered] } else { rendered }
-}
+})
 
 #let _contact-icon(contact, cfg) = if _contact-has-icon(contact) {
-  text(cfg.contact-icon-size, fill: cfg.accent)[#_option(contact, "icon", [])]
+  context {
+    // Center the visible glyph in the label's first line, independent of the
+    // icon font's metrics or a caller's legacy top-edge: "baseline" setting.
+    let icon = {
+      show text: it => text(top-edge: "bounds", bottom-edge: "bounds", it)
+      text(cfg.contact-icon-size, fill: cfg.accent)[#_option(contact, "icon", [])]
+    }
+    box(height: measure(text(cfg.contact-size)[M]).height, align(horizon, icon))
+  }
 } else {
   []
 }
@@ -286,19 +316,21 @@
 #let letter-contact-display(contacts, cfg) = {
   context {
     set text(cfg.contact-size, fill: cfg.muted)
-    contacts
-      .map(contact => {
-        if _contact-has-icon(contact) {
-          box([
-            #_contact-icon(contact, cfg)
-            #h(cfg.contact-icon-gap)
-            #_contact-label(contact, cfg)
-          ])
-        } else {
-          _contact-label(contact, cfg)
-        }
-      })
-      .join(cfg.contact-separator)
+    layout(size => contacts.map(contact => {
+      let item = if _contact-has-icon(contact) {
+        grid(
+          columns: (auto, auto),
+          column-gutter: cfg.contact-icon-gap,
+          align: left + top,
+          _contact-icon(contact, cfg),
+          _contact-label(contact, cfg),
+        )
+      } else {
+        _contact-label(contact, cfg)
+      }
+      // Keep short items together; long labels wrap inside the available width.
+      box(width: calc.min(size.width, measure(item).width), item)
+    }).join(cfg.contact-separator))
   }
 }
 
@@ -317,8 +349,8 @@
       let cells = ()
       for contact in contacts {
         cells += (
-          align(center + horizon, _contact-icon(contact, cfg)),
-          align(left + horizon, _contact-label(contact, cfg)),
+          align(center + top, _contact-icon(contact, cfg)),
+          align(left + top, _contact-label(contact, cfg)),
         )
       }
       grid(
@@ -364,39 +396,46 @@
   } else {
     letter-contact-stack(cfg.contacts, cfg)
   }
-  if cfg.header-style == "centered" {
-    block(breakable: false)[
-      #block(height: cfg.header-height, breakable: false)[
-        #align(bottom, [
-          #align(center, grid(columns: 1fr, row-gutter: cfg.header-row-gap, ..identity))
-          #if has-contacts {
-            v(cfg.header-row-gap)
-            align(center)[#letter-contact-display(cfg.contacts, cfg)]
-          }
-        ])
-      ]
-      #v(cfg.header-rule-gap)
-      #line(length: 100%, stroke: cfg.rule-stroke + cfg.accent)
-      #v(cfg.header-content-gap)
+  let header-content(vertical) = if cfg.header-style == "centered" {
+    [
+      #align(center, grid(columns: 1fr, row-gutter: cfg.header-row-gap, ..identity))
+      #if has-contacts {
+        v(cfg.header-row-gap)
+        align(cfg.contact-align)[#letter-contact-display(cfg.contacts, cfg)]
+      }
     ]
   } else {
-    block(breakable: false)[
-      #block(height: cfg.header-height, breakable: false)[
-        #align(bottom, grid(
-          columns: (1.08fr, 1fr),
-          column-gutter: 1.4em,
-          align: bottom,
-          grid(columns: 1fr, row-gutter: cfg.header-row-gap, ..identity),
-          align(cfg.contact-align + bottom, [
-            #if contact-block != none { contact-block }
-          ]),
-        ))
-      ]
-      #v(cfg.header-rule-gap)
-      #line(length: 100%, stroke: cfg.rule-stroke + cfg.accent)
-      #v(cfg.header-content-gap)
-    ]
+    grid(
+      columns: (1.08fr, 1fr),
+      column-gutter: 1.4em,
+      align: vertical,
+      grid(columns: 1fr, row-gutter: cfg.header-row-gap, ..identity),
+      align(cfg.contact-align + vertical, [
+        #if contact-block != none { contact-block }
+      ]),
+    )
   }
+
+  block(breakable: false)[
+    #layout(size => context {
+      let content = header-content(bottom)
+      let minimum = measure(box(height: cfg.header-height), width: size.width, height: size.height).height
+      // Align tall headers from the top, keeping the name beside the first contact.
+      if measure(content, width: size.width).height > minimum {
+        content = header-content(top)
+      }
+      grid(
+        columns: (0pt, 1fr),
+        column-gutter: 0pt,
+        align: bottom,
+        box(height: cfg.header-height),
+        content,
+      )
+    })
+    #v(cfg.header-rule-gap)
+    #line(length: 100%, stroke: cfg.rule-stroke + cfg.accent)
+    #v(cfg.header-content-gap)
+  ]
 }
 
 #let letter-continuation-header(cfg, label) = {
@@ -547,9 +586,9 @@
   line-spacing: none,
   paragraph-spacing: none,
   contact-separator: " · ",
-  name-align: left,
-  address-align: left,
-  contact-align: right,
+  name-align: none,
+  address-align: none,
+  contact-align: none,
   name-weight: "bold",
   body-weight: "regular",
   salutation-weight: "regular",
@@ -666,9 +705,9 @@
   line-spacing: none,
   paragraph-spacing: none,
   contact-separator: " · ",
-  name-align: left,
-  address-align: left,
-  contact-align: right,
+  name-align: none,
+  address-align: none,
+  contact-align: none,
   name-weight: "bold",
   body-weight: "regular",
   theme: none,
@@ -790,7 +829,7 @@
   }
 }
 // CanISend offline adapter. The package implementation above is copied from
-// @preview/modernpro-coverletter:1.0.2; this adapter projects the structured
+// @preview/modernpro-coverletter:1.0.3; this adapter projects the structured
 // document record without package imports, filesystem access, or system fonts.
 #let canisend_field(data, keys, fallback: none) = {
   let matches = data.fields.filter(field => keys.contains(field.key) and field.value != "")

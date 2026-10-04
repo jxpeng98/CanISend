@@ -51,14 +51,14 @@
     {
       "kind": "primary-document",
       "title": "Synthetic professional Application document",
-      "media_type": "text/markdown",
-      "content": "# Synthetic professional Application document\n\nThis fictional structure connects only the reviewed evaluation areas: scheduling, stakeholder communication, and quality control. It contains no real employment history, achievement, credential, organization relationship, or personal claim."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"This fictional structure connects only the reviewed evaluation areas: scheduling, stakeholder communication, and quality control. It contains no real employment history, achievement, credential, organization relationship, or personal claim.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     },
     {
       "kind": "supporting-document",
       "title": "Synthetic evidence note",
-      "media_type": "text/markdown",
-      "content": "# Synthetic evidence note\n\nExample one is a fictional scheduling exercise. Example two is a fictional document-quality review. They contain no names, contact details, employer identifiers, dates of employment, references, or live records."
+      "media_type": "application/vnd.canisend.deliverable+json",
+      "content": "{\"format\":\"canisend.deliverable-document/v3\",\"fields\":[],\"sections\":[{\"id\":\"body\",\"heading\":null,\"body\":{\"text\":\"Example one is a fictional scheduling exercise. Example two is a fictional document-quality review. They contain no names, contact details, employer identifiers, dates of employment, references, or live records.\",\"role\":\"non-factual\",\"evidence\":[],\"requirements\":[]}}],\"unresolved_fields\":[]}"
     }
   ],
   "export_slug": "professional-job"

@@ -521,23 +521,21 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
             .map_err(pack_catalog_error)?;
         validate_composed_deliverables(&catalog, &request.deliverables)?;
+        let kinds = request
+            .deliverables
+            .iter()
+            .map(|draft| catalog.kind_id(&draft.kind))
+            .collect::<Vec<_>>();
+        canisend_core::validate_required_plan_deliverables(plan, &kinds)
+            .map_err(StoreError::ApplicationModelConflict)?;
 
         let mut prepared = Vec::with_capacity(request.deliverables.len());
         for draft in request.deliverables {
-            if draft.media_type != "text/plain" && draft.media_type != "text/markdown" {
-                return Err(StoreError::InvalidInput(
-                    "canonical v3 rendering accepts text/plain or text/markdown Deliverables"
-                        .to_owned(),
-                ));
-            }
-            if draft.content.trim().is_empty()
-                || draft.content.len() > MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3
-            {
-                return Err(StoreError::InvalidInput(
-                    "Deliverable content must be nonempty and within the canonical v3 byte limit"
-                        .to_owned(),
-                ));
-            }
+            crate::application_mutation_v4::validate_deliverable_text(
+                &draft.title,
+                &draft.media_type,
+                &draft.content,
+            )?;
             let digest =
                 Sha256Digest::try_new(hex::encode(Sha256::digest(draft.content.as_bytes())))?;
             let id = DeliverableId::try_new(generate_id()?.to_string())?;
@@ -581,7 +579,11 @@ impl<'a> ApplicationFlowServiceV3<'a> {
                         sha256: digest.clone(),
                     }),
                     media_type: Some(draft.media_type.clone()),
-                    evidence_inputs: evidence_inputs.clone(),
+                    evidence_inputs: document_evidence_inputs(
+                        &draft.media_type,
+                        &draft.content,
+                        &evidence_inputs,
+                    )?,
                     revision: Revision::try_new(1)?,
                 })
             })
@@ -673,6 +675,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             ));
         }
         verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
+        self.validate_deliverable_readiness(pack, &current.snapshot, false)?;
         Ok(current)
     }
 
@@ -836,7 +839,7 @@ impl<'a> ApplicationFlowServiceV3<'a> {
         let manifest_path = join_path(destination, "render-manifest.json")?;
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
         files.push((manifest_path, manifest_bytes));
-        self.current_for_pack(pack, application_id, expected_revision)?;
+        self.validate_export(pack, application_id, expected_revision, destination)?;
         write_new_export_files(self.workspace_root, destination, &files)?;
         self.database.connection().execute(
             "INSERT INTO audit_events(
@@ -885,7 +888,91 @@ impl<'a> ApplicationFlowServiceV3<'a> {
             .map_err(pack_catalog_error)?;
         validate_snapshot_deliverable_counts(&catalog, &current.snapshot.deliverables)?;
         verify_content_blobs(self.blobs, &current.snapshot.deliverables)?;
+        self.validate_deliverable_readiness(pack, &current.snapshot, true)?;
         Ok(current)
+    }
+
+    fn validate_deliverable_readiness(
+        &mut self,
+        pack: &VerifiedWorkflowPackBundle,
+        snapshot: &ApplicationModelSnapshotV3,
+        exporting: bool,
+    ) -> Result<(), StoreError> {
+        let plan = snapshot.plan.as_ref().ok_or_else(|| {
+            StoreError::ApplicationModelConflict(
+                "a confirmed Plan is required for readiness".to_owned(),
+            )
+        })?;
+        canisend_core::validate_required_plan_deliverables(
+            plan,
+            snapshot.deliverables.iter().map(|item| &item.kind),
+        )
+        .map_err(StoreError::ApplicationModelConflict)?;
+        let catalog = WorkflowPackDeliverableCatalogRuntime::from_verified_bundle(pack)
+            .map_err(pack_catalog_error)?;
+        validate_snapshot_deliverable_counts(&catalog, &snapshot.deliverables)?;
+        let associations = ApplicationAssociationServiceV4::new(self.database, self.blobs)
+            .evidence_associations(&snapshot.application.id)?;
+        let confirmed =
+            ApplicationAssociationServiceV4::new(self.database, self.blobs).confirmed_evidence()?;
+        let current_evidence = associations
+            .into_iter()
+            .filter(|association| {
+                !association.stale
+                    && confirmed
+                        .iter()
+                        .any(|item| item.evidence == association.evidence)
+            })
+            .map(|association| association.evidence)
+            .collect::<Vec<_>>();
+        for deliverable in &snapshot.deliverables {
+            if deliverable.plan.id != plan.id || deliverable.plan.revision != plan.revision {
+                return Err(StoreError::ApplicationModelConflict(
+                    "Deliverable uses a stale Plan revision".to_owned(),
+                ));
+            }
+            let descriptor = catalog.descriptor(&deliverable.kind).ok_or_else(|| {
+                StoreError::ApplicationModelIntegrity(
+                    "Deliverable kind is absent from its verified Pack".to_owned(),
+                )
+            })?;
+            if descriptor.validators().is_empty() {
+                continue;
+            }
+            if deliverable.media_type.as_deref()
+                != Some(canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3)
+            {
+                return Err(StoreError::ApplicationModelConflict(
+                    "Pack readiness validators require a structured Deliverable; revise legacy text before approval or export".to_owned()));
+            }
+            let content = deliverable.content.as_ref().ok_or_else(|| {
+                StoreError::ApplicationModelIntegrity("Deliverable content is absent".to_owned())
+            })?;
+            let bytes = self.blobs.read_verified(
+                &content.sha256,
+                MAX_APPLICATION_FLOW_DELIVERABLE_BYTES_V3 as u64,
+            )?;
+            let document = canisend_contracts::DeliverableDocumentV3::decode(&bytes)
+                .map_err(|error| StoreError::InvalidInput(error.to_owned()))?;
+            canisend_core::validate_deliverable_document_v3(
+                descriptor,
+                &document,
+                snapshot,
+                deliverable,
+                &current_evidence,
+                exporting,
+            )
+            .map_err(StoreError::ApplicationModelConflict)?;
+            let mut checked = BTreeSet::new();
+            for reference in document.texts().flat_map(|text| &text.evidence) {
+                if checked.insert((reference.id.clone(), reference.revision)) {
+                    let source = crate::EvidenceService::new(self.database, self.blobs)
+                        .source_reference_v4(reference)?;
+                    self.blobs.verify(&source.sha256, DEFAULT_MAX_BLOB_BYTES)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn current_for_pack(
@@ -1155,6 +1242,27 @@ fn verify_content_blobs(
     Ok(())
 }
 
+pub(crate) fn document_evidence_inputs(
+    media_type: &str,
+    content: &str,
+    legacy_inputs: &[EntityRevisionReferenceV3],
+) -> Result<Vec<EntityRevisionReferenceV3>, StoreError> {
+    if media_type != canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3 {
+        return Ok(legacy_inputs.to_vec());
+    }
+    let document = canisend_contracts::DeliverableDocumentV3::decode(content.as_bytes())
+        .map_err(|error| StoreError::InvalidInput(error.to_owned()))?;
+    let references = document
+        .texts()
+        .flat_map(|text| &text.evidence)
+        .map(|reference| (reference.id.clone(), reference.revision))
+        .collect::<BTreeSet<_>>();
+    Ok(references
+        .into_iter()
+        .map(|(id, revision)| EntityRevisionReferenceV3 { id, revision })
+        .collect())
+}
+
 fn derive_stages(
     pack: &VerifiedWorkflowPackBundle,
     snapshot: &ApplicationModelSnapshotV3,
@@ -1365,6 +1473,7 @@ mod tests {
         database_path: PathBuf,
         application_id: ApplicationId,
         staled: bool,
+        evidence_id: Option<canisend_contracts::EntityId>,
     }
 
     impl RenderExecutor for StalingApplicationPdfExecutor {
@@ -1401,14 +1510,21 @@ mod tests {
                 self.staled = true;
                 let mut concurrent =
                     Database::open(&self.database_path).expect("open concurrent database");
-                ApplicationModelRepository::new(&mut concurrent)
-                    .archive(
-                        &self.application_id,
-                        application_revision,
-                        ActorKind::System,
-                        "test-stale-export",
-                    )
-                    .expect("advance Application during rendering");
+                if let Some(evidence_id) = &self.evidence_id {
+                    concurrent.connection().execute(
+                        "INSERT INTO evidence_revisions(evidence_id, revision, sha256, confirmed, created_at, excluded, sensitivity)
+                         SELECT evidence_id, 2, sha256, 0, created_at, 1, sensitivity FROM evidence_revisions
+                         WHERE evidence_id = ?1 AND revision = 1", [evidence_id.as_str()]).expect("test-only Evidence invalidation during rendering");
+                } else {
+                    ApplicationModelRepository::new(&mut concurrent)
+                        .archive(
+                            &self.application_id,
+                            application_revision,
+                            ActorKind::System,
+                            "test-stale-export",
+                        )
+                        .expect("advance Application during rendering");
+                }
             }
             Ok("= Stale executor output\n".to_owned())
         }
@@ -1440,96 +1556,126 @@ mod tests {
 
     #[test]
     fn current_evidence_associations_drive_inputs_and_failed_exports_are_atomic() {
-        let root = root();
-        let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
-        let generic = bundle(generic_application_workflow_pack());
-        let source = "Provide one project narrative.";
-        let created =
-            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-                .create(
-                    &generic,
-                    ApplicationFlowCreateRequestV3 {
-                        title: "Evidence association fixture".to_owned(),
-                        opportunity_metadata: BTreeMap::new(),
-                        application_metadata: BTreeMap::new(),
-                        source_text: source.to_owned(),
-                        requirements: vec![ApplicationFlowRequirementDraftV3 {
-                            category: item("format"),
-                            statement: source.to_owned(),
-                            priority: RequirementPriorityV3::Mandatory,
-                            start_byte: 0,
-                            end_byte: u64::try_from(source.len()).expect("source length"),
+        for stale_evidence in [true, false] {
+            let root = root();
+            let mut workspace = Workspace::init_v4(&root).expect("Workspace v4");
+            let generic = bundle(generic_application_workflow_pack());
+            let source = "Provide one project narrative.";
+            let created =
+                ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                    .create(
+                        &generic,
+                        ApplicationFlowCreateRequestV3 {
+                            title: "Evidence association fixture".to_owned(),
+                            opportunity_metadata: BTreeMap::new(),
+                            application_metadata: BTreeMap::new(),
+                            source_text: source.to_owned(),
+                            requirements: vec![ApplicationFlowRequirementDraftV3 {
+                                category: item("format"),
+                                statement: source.to_owned(),
+                                priority: RequirementPriorityV3::Mandatory,
+                                start_byte: 0,
+                                end_byte: u64::try_from(source.len()).expect("source length"),
+                            }],
+                        },
+                    )
+                    .expect("Application");
+            let application_id = created.stored.snapshot.application.id.clone();
+            let text = "Synthetic fixture coordinated a local project.";
+            let profile = crate::ProfileService::new(&mut workspace.database, &workspace.blobs)
+                .import_source(
+                    crate::NewProfileSource {
+                        kind: canisend_contracts::ProfileSourceKind::PlainText,
+                        original_bytes: text.as_bytes().to_vec(),
+                        normalized_text: text.to_owned(),
+                        content_type: "text/plain".to_owned(),
+                        sensitivity: PrivacyClassification::Public,
+                    },
+                    ActorKind::User,
+                )
+                .expect("synthetic profile");
+            let profile_reference = ContentRevisionReferenceV3 {
+                id: profile.id,
+                revision: profile.revision,
+                sha256: profile.original.sha256,
+            };
+            let mut evidence =
+                crate::EvidenceService::new(&mut workspace.database, &workspace.blobs);
+            let catalog = evidence
+                .prepare_v4(
+                    &profile_reference,
+                    &canisend_contracts::EvidenceProposalSet {
+                        profile_revision: Revision::try_new(1).unwrap(),
+                        proposals: vec![canisend_contracts::EvidenceProposalRecord {
+                            kind: canisend_contracts::EvidenceKind::Other,
+                            summary: text.to_owned(),
+                            source_quote: text.to_owned(),
+                            source_span: canisend_contracts::SourceTextSpan {
+                                source: profile.normalized_text,
+                                start_byte: 0,
+                                end_byte: text.len() as u64,
+                            },
+                            sensitivity: PrivacyClassification::Public,
                         }],
                     },
                 )
-                .expect("Application");
-        let application_id = created.stored.snapshot.application.id;
-        let evidence_id = generate_id().expect("Evidence ID");
-        let evidence_digest = Sha256Digest::try_new(hex::encode(Sha256::digest(b"evidence-v1")))
-            .expect("Evidence digest");
-        let created_at = now_utc().expect("timestamp");
-        workspace
-            .database
-            .connection()
-            .execute(
-                "INSERT INTO evidence_items(id, kind, created_at)
-                 VALUES (?1, 'other', ?2)",
-                params![evidence_id.as_str(), created_at.as_str()],
-            )
-            .expect("Evidence item");
-        workspace
-            .database
-            .connection()
-            .execute(
-                "INSERT INTO evidence_revisions(
-                    evidence_id, revision, sha256, confirmed, created_at, excluded, sensitivity
-                 ) VALUES (?1, 1, ?2, 1, ?3, 0, 'public')",
-                params![
-                    evidence_id.as_str(),
-                    evidence_digest.as_str(),
-                    created_at.as_str()
-                ],
-            )
-            .expect("Evidence revision");
-        ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
-            .associate_evidence(
-                &application_id,
-                &ContentRevisionReferenceV3 {
-                    id: evidence_id.clone(),
-                    revision: Revision::try_new(1).expect("revision"),
-                    sha256: evidence_digest,
-                },
-                None,
-                ActorKind::User,
-            )
-            .expect("Evidence association");
+                .expect("sourced evidence");
+            evidence
+                .confirm_v4(
+                    &profile_reference,
+                    &catalog,
+                    &application_id,
+                    created.stored.snapshot.application.revision,
+                    &created.stored.snapshot_sha256,
+                )
+                .expect("confirmed evidence");
+            let reference =
+                ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
+                    .confirmed_evidence()
+                    .unwrap()[0]
+                    .evidence
+                    .clone();
+            let evidence_id = reference.id.clone();
+            let evidence_digest = reference.sha256.clone();
+            ApplicationAssociationServiceV4::new(&mut workspace.database, &workspace.blobs)
+                .associate_evidence(
+                    &application_id,
+                    &ContentRevisionReferenceV3 {
+                        id: evidence_id.clone(),
+                        revision: Revision::try_new(1).expect("revision"),
+                        sha256: evidence_digest,
+                    },
+                    None,
+                    ActorKind::User,
+                )
+                .expect("Evidence association");
 
-        let status =
+            let status =
+                ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                    .status(&generic, &application_id)
+                    .expect("status");
+            assert!(status.stages.iter().any(|stage| {
+                stage.id.local_id_str() == "evidence"
+                    && stage.state == ApplicationFlowStageStateV3::Complete
+            }));
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-                .status(&generic, &application_id)
-                .expect("status");
-        assert!(status.stages.iter().any(|stage| {
-            stage.id.local_id_str() == "evidence"
-                && stage.state == ApplicationFlowStageStateV3::Complete
-        }));
-        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-            .confirm_requirements_and_plan(
-                &generic,
-                &application_id,
-                ApplicationFlowPlanRequestV3 {
-                    expected_revision: Revision::try_new(1).expect("revision"),
-                    decision: item("proceed"),
-                    deliverables: vec![ApplicationFlowPlannedDeliverableV3 {
-                        kind: item("primary-document"),
-                        disposition: PlannedDeliverableDispositionV3::Required,
-                        rationale: "Required by Pack".to_owned(),
-                        constraints: Vec::new(),
-                        execution_mode: Some(ExecutionMode::ManualImport),
-                    }],
-                },
-            )
-            .expect("Plan");
-        let composed =
+                .confirm_requirements_and_plan(
+                    &generic,
+                    &application_id,
+                    ApplicationFlowPlanRequestV3 {
+                        expected_revision: Revision::try_new(1).expect("revision"),
+                        decision: item("proceed"),
+                        deliverables: vec![ApplicationFlowPlannedDeliverableV3 {
+                            kind: item("primary-document"),
+                            disposition: PlannedDeliverableDispositionV3::Required,
+                            rationale: "Required by Pack".to_owned(),
+                            constraints: Vec::new(),
+                            execution_mode: Some(ExecutionMode::ManualImport),
+                        }],
+                    },
+                )
+                .expect("Plan");
+            let composed =
             ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
                 .compose(
                     &generic,
@@ -1539,108 +1685,119 @@ mod tests {
                         deliverables: vec![ApplicationFlowDeliverableDraftV3 {
                             kind: item("primary-document"),
                             title: "Narrative".to_owned(),
-                            media_type: "text/plain".to_owned(),
-                            content: "Grounded in the explicitly associated Evidence.".to_owned(),
+                            media_type: canisend_contracts::DELIVERABLE_DOCUMENT_MEDIA_TYPE_V3.to_owned(),
+                            content: serde_json::json!({"format":"canisend.deliverable-document/v3", "fields":[],
+                                "sections":[{"id":"body","heading":null,"body":{"text":text,
+                                    "role":"evidence-bound","evidence":[reference],"requirements":[]}}],
+                                "unresolved_fields":[]}).to_string(),
                         }],
                     },
                 )
                 .expect("Deliverable");
-        assert_eq!(
-            composed.commit.stored.snapshot.deliverables[0].evidence_inputs,
-            vec![EntityRevisionReferenceV3 {
-                id: evidence_id,
-                revision: Revision::try_new(1).expect("revision"),
-            }]
-        );
+            assert_eq!(
+                composed.commit.stored.snapshot.deliverables[0].evidence_inputs,
+                vec![EntityRevisionReferenceV3 {
+                    id: evidence_id.clone(),
+                    revision: Revision::try_new(1).expect("revision"),
+                }]
+            );
 
-        ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-            .approve(
-                &generic,
-                &application_id,
-                ApplicationFlowApproveRequestV3 {
-                    expected_revision: Revision::try_new(3).expect("revision"),
-                },
-            )
-            .expect("approve Deliverable");
-        let destination =
-            SafeRelativePath::try_new(format!("applications/{application_id}/exports/invalid-pdf"))
-                .expect("export destination");
-        let audit_before: i64 = workspace
-            .database
-            .connection()
-            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
-            .expect("audit count before invalid export");
-        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-            .export(
-                &generic,
-                &application_id,
-                Revision::try_new(4).expect("revision"),
-                &destination,
-                &mut InvalidApplicationPdfExecutor,
-            )
-            .expect_err("invalid executor PDF must fail before export writes");
-        assert!(matches!(
-            error,
-            StoreError::EmbeddedRender(RenderError::InvalidPdf)
-        ));
-        assert!(!root.join(destination.as_str()).exists());
-        let audit_after: i64 = workspace
-            .database
-            .connection()
-            .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
-            .expect("audit count after invalid export");
-        assert_eq!(audit_after, audit_before);
+            ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                .approve(
+                    &generic,
+                    &application_id,
+                    ApplicationFlowApproveRequestV3 {
+                        expected_revision: Revision::try_new(3).expect("revision"),
+                    },
+                )
+                .expect("approve Deliverable");
+            let destination = SafeRelativePath::try_new(format!(
+                "applications/{application_id}/exports/invalid-pdf"
+            ))
+            .expect("export destination");
+            let audit_before: i64 = workspace
+                .database
+                .connection()
+                .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+                .expect("audit count before invalid export");
+            let error =
+                ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                    .export(
+                        &generic,
+                        &application_id,
+                        Revision::try_new(4).expect("revision"),
+                        &destination,
+                        &mut InvalidApplicationPdfExecutor,
+                    )
+                    .expect_err("invalid executor PDF must fail before export writes");
+            assert!(matches!(
+                error,
+                StoreError::EmbeddedRender(RenderError::InvalidPdf)
+            ));
+            assert!(!root.join(destination.as_str()).exists());
+            let audit_after: i64 = workspace
+                .database
+                .connection()
+                .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+                .expect("audit count after invalid export");
+            assert_eq!(audit_after, audit_before);
 
-        let stale_destination = SafeRelativePath::try_new(format!(
-            "applications/{application_id}/exports/stale-snapshot"
-        ))
-        .expect("stale export destination");
-        let export_audit_before: i64 = workspace
-            .database
-            .connection()
-            .query_row(
-                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("export audit count before stale export");
-        let error = ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
-            .export(
-                &generic,
-                &application_id,
-                Revision::try_new(4).expect("revision"),
-                &stale_destination,
-                &mut StalingApplicationPdfExecutor {
-                    database_path: root.join(".canisend/state.sqlite3"),
-                    application_id: application_id.clone(),
-                    staled: false,
-                },
-            )
-            .expect_err("Application changed during rendering must fail before export writes");
-        assert!(matches!(error, StoreError::ApplicationModelConflict(_)));
-        assert!(!root.join(stale_destination.as_str()).exists());
-        let export_audit_after: i64 = workspace
-            .database
-            .connection()
-            .query_row(
-                "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("export audit count after stale export");
-        assert_eq!(export_audit_after, export_audit_before);
-        assert_eq!(
-            ApplicationModelRepository::new(&mut workspace.database)
-                .get(&application_id)
-                .expect("stale Application")
-                .snapshot
-                .application
-                .revision,
-            Revision::try_new(5).expect("advanced revision")
-        );
+            let stale_destination = SafeRelativePath::try_new(format!(
+                "applications/{application_id}/exports/stale-snapshot"
+            ))
+            .expect("stale export destination");
+            let export_audit_before: i64 = workspace
+                .database
+                .connection()
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("export audit count before stale export");
+            let error =
+                ApplicationFlowServiceV3::new(&mut workspace.database, &workspace.blobs, &root)
+                    .export(
+                        &generic,
+                        &application_id,
+                        Revision::try_new(4).expect("revision"),
+                        &stale_destination,
+                        &mut StalingApplicationPdfExecutor {
+                            database_path: root.join(".canisend/state.sqlite3"),
+                            application_id: application_id.clone(),
+                            staled: false,
+                            evidence_id: stale_evidence.then(|| evidence_id.clone()),
+                        },
+                    )
+                    .expect_err(
+                        "Application changed during rendering must fail before export writes",
+                    );
+            assert!(matches!(error, StoreError::ApplicationModelConflict(_)));
+            assert!(!root.join(stale_destination.as_str()).exists());
+            let export_audit_after: i64 = workspace
+                .database
+                .connection()
+                .query_row(
+                    "SELECT COUNT(*) FROM audit_events WHERE action = 'application-flow.export'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("export audit count after stale export");
+            assert_eq!(export_audit_after, export_audit_before);
+            assert_eq!(
+                ApplicationModelRepository::new(&mut workspace.database)
+                    .get(&application_id)
+                    .unwrap()
+                    .snapshot
+                    .application
+                    .revision
+                    .get(),
+                if stale_evidence { 4 } else { 5 }
+            );
 
-        drop(workspace);
-        fs::remove_dir_all(root).expect("remove fixture");
+            drop(workspace);
+            fs::remove_dir_all(root).expect("remove fixture");
+        }
     }
 
     #[test]

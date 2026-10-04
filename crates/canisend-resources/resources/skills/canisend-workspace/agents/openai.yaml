@@ -1,5 +1,5 @@
 interface:
   display_name: "CanISend Workspace"
-  short_description: "Orient, configure, and recover a Workspace v4"
+  short_description: "Build a Profile by conversation or manage a Workspace"
   brand_color: "#2563EB"
-  default_prompt: "Use $canisend-workspace to set up, inspect or recover this CanISend Workspace."
+  default_prompt: "Use $canisend-workspace to build or resume my Profile through conversation, or manage this CanISend Workspace."
