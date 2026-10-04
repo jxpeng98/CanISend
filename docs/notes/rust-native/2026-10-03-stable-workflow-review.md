@@ -287,3 +287,50 @@ acceptance were not run. GUI work and full native qualification remain paused.
 No tag, push, publication, qualification-ledger amendment or dependency-exception
 renewal is part of this change. Local source checks, local artifact smoke tests,
 remote CI and real-user acceptance remain separate facts.
+
+## RC publication request and CI repair, 2026-10-04
+
+The owner requested an RC publication. Implementation commit
+`a7f5b4ab12c41d7baa8410ca460e60c0fa6b0bc5` was pushed to
+`feat/evidence-bound-profile-workflows` and opened as
+[PR #246](https://github.com/jxpeng98/CanISend/pull/246). Protected `main` requires
+PR integration and six named Fast CI contexts; protections were not changed.
+
+The initial [Fast CI run](https://github.com/jxpeng98/CanISend/actions/runs/37236952074)
+exposed a stale synthetic contract-freeze test: current schema generation now
+contains eight Application schemas and 56 total schemas, but the assertion still
+expected seven and 55. The owning test reproduced locally before correcting those
+two expectations. Historical contract-freeze and qualification records were not
+regenerated. The initial
+[dependency run](https://github.com/jxpeng98/CanISend/actions/runs/37236952068)
+also rejected the exception review that became overdue after 2026-10-03.
+
+A fresh `cargo-deny 0.19.7` scan against RustSec database commit
+`ef6173cbc5c50ec8166f9a5b28f07834144373ee` passed advisories, bans, licenses and
+sources. Re-reviewed all 23 existing entries and their current input boundaries;
+the 751-package lock fingerprint, exception IDs, reachability, removal conditions
+and hard expiry remain unchanged. Review dates are now 2026-10-04/2026-10-18,
+with hard expiry still 2026-10-19. The
+[dependency guide](../../release/dependency-assurance.md) records the exact scan
+and the unused `lopdf` font-creation path checked during review.
+
+Fresh local repair validation passed: all 92 xtask tests, formatting, relevant
+all-target Clippy with warnings denied, dependency policy, source check and diff
+checks. Remote CI for the repair is pending at this commit; the PR's current
+checks and exact run records own subsequent integration facts. The legacy
+`macos-quality` and `macos-tests` contexts run common checks on Linux; skipped GUI
+checks are not native macOS qualification.
+
+The read-only `release prepare-stage v1.0.0-rc.1` preflight exited 1:
+`RC transition requires a qualified signed Beta and active feature freeze`.
+`release status --json` still reports active Beta qualification pending, feature
+freeze frozen, zero RCs and Stable authorization false. Source remains Beta.10.
+Formal RC also needs current real-Host and consented cohort evidence, and exact
+local macOS artifact/evidence handoff before full publication. These requirements
+remain open; the model fixtures and unsigned local archive do not satisfy them.
+
+The existing Beta.11 registry-testing transition preview passes without writes;
+it is an available alternative, not an RC publication, and was not applied.
+No tag or release was created. Request receipts and the unpublished RC notes draft
+are retained in ignored `dist/rc1-publication-request/`. Source integration and
+formal release completion remain separate outcomes.
