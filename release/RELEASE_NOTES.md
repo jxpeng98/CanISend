@@ -1,11 +1,21 @@
-# CanISend 1.0.0-beta.10
+# CanISend 1.0.0-beta.11
 
-Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
-`ed0ce00a82c5190e4764f636f5a0d65c71f22976`. This registry-only release is not a qualified
+Prepared for the owner-authorized npm `next`, Cargo and PyPI testing publication; exact-package
+publication and installation checks are pending. This registry-only release is not a qualified
 GitHub checkpoint; see the [release record](../RELEASE.md) for exact evidence and remaining gates.
 
-This release adds guided, policy-only permission onboarding and keeps all 40 CLI commands easy to
-discover and use:
+The academic application and Profile preparation changes come from
+[PR #246](https://github.com/jxpeng98/CanISend/pull/246):
+
+- Start a Profile from a guided conversation, keep editable drafts under `inputs/profile-interview/`,
+  and import a reviewed source only after explicit consent. Existing evidence links remain explicit.
+- Generate structured academic CV, cover letter and statements from confirmed, associated evidence.
+  Required-plan completeness, evidence citations and revisions are checked before review and export.
+- Use academic Pack `1.0.3`, ModernPro CV `2.1.2` and ModernPro cover letter `1.0.3`;
+  Typst projection preserves user text as literal content and rejects stale evidence after rendering.
+- Install Workspace Skill `4.0.8` with corrected Profile import guidance and resumable draft handling.
+
+This release also retains guided permission onboarding and the existing CLI improvements:
 
 - `canisend host setup --host codex --guided` records a reviewed strict or guarded permission plan
   and installs matching project guidance without granting consent or editing the Host's global
