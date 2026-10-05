@@ -984,6 +984,14 @@
         "xtask/Cargo.toml"
       ],
       "reason": "Prepare the owner-authorized sequential Beta.12 registry-testing source with exact internal pins and versioned Typst Preview guidance; preserve historical native qualification, consent, real-Host acceptance and formal RC/Stable gates."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "5458dd5417da8a115a8f67368abe96293ec932ff",
+      "paths": [
+        "RELEASE.md"
+      ],
+      "reason": "Record the verified owner-authorized Beta.12 registry publication, exact public digests, installation and upgrade receipts; preserve signed native qualification, real-Host acceptance, consent, cohort binding and formal RC/Stable authorization."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

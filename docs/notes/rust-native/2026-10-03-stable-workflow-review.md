@@ -390,7 +390,39 @@ ModernPro CV `2.1.2` and ModernPro cover letter `1.0.3`; the templates and acade
 bound to their existing versions. The owner delegated read-only remote CI monitoring to
 `gpt-6.1-sol` with high reasoning effort.
 
-Preparation checks, exact installation/upgrade evidence and registry publication are pending.
+Preparation checks passed: eight stage regressions, six version regressions, the npm package
+structure test, formatting, 140 local document links and the source check. The exact clean-tree
+GNU ARM64 development archive from `b47430881f3aacda3818633e96946173873efa9b` passed extraction,
+installation/uninstall, documented dual-Pack workflow, backup/restore and Host/Agent v4 MCP
+lifecycle; archive SHA-256 is `f0fc469b11193b7f6cb428fe5f7d64f6880bfeca6b084730360cd38e45196fb5`.
+This development archive is separate from the protected-merge registry candidates.
+
+[PR #250](https://github.com/jxpeng98/CanISend/pull/250) passed all four enabled Fast CI jobs in
+[run 37374446053](https://github.com/jxpeng98/CanISend/actions/runs/37374446053) and dependency
+assurance in [run 37374446093](https://github.com/jxpeng98/CanISend/actions/runs/37374446093).
+The PR merged normally as `72bd47e8836bf6cb0e18d003f05373fd9afeaf22`, with a tree identical to its passing head.
+Merged-main [Fast CI 37375229941](https://github.com/jxpeng98/CanISend/actions/runs/37375229941)
+and [dependency assurance 37375229883](https://github.com/jxpeng98/CanISend/actions/runs/37375229883)
+also passed at this exact source.
+The owner-designated `gpt-6.1-sol` high-effort agent monitored remote source/publication jobs;
+root performed release mutations. GUI skips and Linux checks with legacy macOS names supply
+no native macOS evidence.
+
+[Registry run 37375311170](https://github.com/jxpeng98/CanISend/actions/runs/37375311170) passed all 13 enabled build, publish and installation jobs.
+Independent readback matched the npm tarball and three PyPI wheels to retained candidates and
+verified public digests and all eight Cargo VCS identities. Linux ARM64 npm/PyPI installation
+and MCP checks, npm signature/attestation and exact source-archive comparison passed. Public
+Beta.11-to-Beta.12 upgrade verified all three Host Skills, custom Agent/template preservation,
+idempotence, edited-managed-file refusal, backup/restore rollback and safe Host removal.
+See the [release record](../../../RELEASE.md) for exact public hashes and ignored
+`dist/beta12-registry-publication/` for machine receipts.
+
+The requested registry publication is complete. The public-package human academic trial is
+prepared under `dist/beta12-host-acceptance/`, starting from zero Profiles and Applications;
+all actual observation cases remain pending. The read-only formal RC preflight still refuses:
+`RC transition requires a qualified signed Beta and active feature freeze`. Historical native,
+provider dogfood, feedback, freeze baseline and cohort records are unchanged; the latest
+qualified GitHub checkpoint remains Beta.1. No tag or GitHub Release was created.
 Actual human academic acceptance remains separate: an unprepared applicant must complete the
 Profile interview and review a CV, cover letter, research and teaching statements using verified
 facts. Model fixtures do not supply those observations. Formal RC gates, including signed native

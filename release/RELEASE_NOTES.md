@@ -1,8 +1,8 @@
 # CanISend 1.0.0-beta.12
 
-Prepared for owner-authorized npm `next`, Cargo and PyPI testing publication. Exact registry
-bytes and installation checks are pending. See the [release record](../RELEASE.md) for the last
-verified publication and remaining qualification gates.
+Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
+`72bd47e8836bf6cb0e18d003f05373fd9afeaf22`. Exact candidate, installation and upgrade checks passed.
+See the [release record](../RELEASE.md) for public hashes and remaining qualification gates.
 
 This release packages the template guidance merged in
 [PR #249](https://github.com/jxpeng98/CanISend/pull/249):
