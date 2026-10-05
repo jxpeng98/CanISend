@@ -2,10 +2,8 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.12`, prepared for owner-authorized registry testing; publication
-  and exact-package installation verification are pending. The latest independently verified
-  registry release is Beta.11 on npm `next`, Cargo and PyPI for macOS ARM64 and Linux GNU
-  x86_64/arm64. Neither registry release is a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.12`, published and independently verified on npm `next`, Cargo
+  and PyPI for macOS ARM64 and Linux GNU x86_64/arm64. It is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -183,8 +181,38 @@ Beta.12 packages the Typst Preview guidance merged in
 Host instructions (`4.0.5`) and Materials Skill (`4.0.4`) include exact ModernPro CV `2.1.2`
 and cover-letter `1.0.3` imports with CV, letter and statement examples. Workspace upgrade
 refreshes managed Skills while preserving user-owned Agent files and template edits. Publication
-on npm `next`, Cargo and PyPI is authorized; exact registry bytes, installation, upgrade and
-rollback remain to be verified. No qualification or real-user acceptance is inferred.
+on npm `next`, Cargo and PyPI completed from source `72bd47e8836bf6cb0e18d003f05373fd9afeaf22` in
+[run 37375311170](https://github.com/jxpeng98/CanISend/actions/runs/37375311170); all 13 enabled build, publish and installation jobs passed.
+
+- npm `canisend@1.0.0-beta.12` has OIDC provenance; `next` points to this version and `latest`
+  remains Beta.3. The exact retained candidate matches the public tarball, SHA-256
+  `666d361176306f5ab4ec3ee9016035c7f9cace02924ce194bcbe2d5d9d260cea`.
+  Independent signature and attestation verification passed.
+- Cargo published `canisend` and seven dependency crates at `1.0.0-beta.12`. Exact candidate
+  checks, registry checksums, locked clean installation, Workspace health and nine MCP protocol
+  tests passed. All eight independent archive/VCS readbacks bind the source above; the public
+  `canisend` checksum is `726cefa45c0df3023c63e16c6b929b081b71711788c7239fa7b74ecbb89670de`.
+- PyPI `canisend==1.0.0b12` has three wheels matching the retained CI candidates and public hashes.
+  Exact-byte and fresh-install checks passed on all three native platforms.
+
+| PyPI wheel | SHA-256 |
+| --- | --- |
+| `canisend-1.0.0b12-py3-none-macosx_11_0_arm64.whl` | `b3dc372459c4dd5c17e47b892d3ad64996f443deb3ff334012edee65ab708555` |
+| `canisend-1.0.0b12-py3-none-manylinux_2_35_aarch64.whl` | `2483c0fb32f1724d42387ced88c9dc71a7d47a4101f211136ff8889adef28cfa` |
+| `canisend-1.0.0b12-py3-none-manylinux_2_35_x86_64.whl` | `7bc21ea322d03cadfcc9cdfb5a7a2a3bf93e4113fb01918e64b35e99b039c270` |
+
+Independent Linux ARM64 npm and PyPI installation/MCP checks passed, and the installed npm
+source archive is byte-identical to the exact protected Git archive. Upgrading a public Beta.11
+Workspace with the public Beta.12 executable updated all three Host Skill installations, preserved
+user-owned Agent/template edits, remained idempotent, and rejected modified managed Skills before
+writing. Restoring the pre-upgrade backup into a separate Workspace passed with the old executable;
+removing Host resources preserved the Workspace and custom files. Exact receipts are retained under
+`dist/beta12-registry-publication/verification.json` and `public-upgrade/verification.json`.
+
+No Git tag or GitHub Release was created. Actual human academic acceptance, current real-Host
+qualification, the consented cohort and full signed native qualification remain pending. The new
+human trial is prepared separately under `dist/beta12-host-acceptance/`; no user observation is
+marked passed. Formal RC and Stable gates are unchanged.
 
 ## Supported public package scope
 
