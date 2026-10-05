@@ -2,9 +2,8 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.11`, prepared for the owner-authorized npm `next`, Cargo
-  and PyPI testing publication. Beta.10 remains the last verified registry release until the
-  new packages pass publication and installation checks. This is not a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.11`, published and independently verified on npm `next`, Cargo
+  and PyPI for macOS ARM64 and Linux GNU x86_64/arm64. It is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -146,6 +145,36 @@ rerun passed, and [PR #244](https://github.com/jxpeng98/CanISend/pull/244) adds 
 retry for later releases. Each Linux candidate passed native installation before upload and
 registry installation after upload. This does not add a sixth qualified GitHub Release target,
 create a Git tag or GitHub Release, or claim full Beta/Host qualification.
+
+Beta.11 carries the evidence-bound academic packages, resumable Profile interviews and Typst
+updates merged in [PR #246](https://github.com/jxpeng98/CanISend/pull/246). Version preparation
+passed protected CI in [PR #247](https://github.com/jxpeng98/CanISend/pull/247). Registry
+publication completed from source `64c3bbd5f74c2ee2f436b764a427cf676841d136` in
+[run 37333356088](https://github.com/jxpeng98/CanISend/actions/runs/37333356088):
+
+- npm published `canisend@1.0.0-beta.11` with OIDC provenance, moved `next` to Beta.11,
+  and retained `latest` at Beta.3. Its three native targets passed exact-byte and clean-install
+  checks. The public tarball SHA-256 is `e7d4808990710488f04f992e975b7b97fff9f43ac0e65b5f4edb342a7446f41c`.
+- Cargo published `canisend` and all seven dependency crates at `1.0.0-beta.11`.
+  All eight public archives match the source candidates and registry checksums; locked clean
+  installation, Workspace checks and nine MCP protocol tests passed. Independent readback binds
+  every archive to the exact source above. The public `canisend` checksum is
+  `b4154928895941cc6767df06d908a43b053acff0bd82ca08a752af937c6b0f60`.
+- PyPI published three `canisend==1.0.0b11` wheels. All three public files match the exact CI
+  candidates and checksums; fresh installation passed on each platform.
+
+| PyPI wheel | SHA-256 |
+| --- | --- |
+| `canisend-1.0.0b11-py3-none-macosx_11_0_arm64.whl` | `ba26e89784d522c55c96530986c9554bdf484527d99e118a1ab3ddcb3c2b5d04` |
+| `canisend-1.0.0b11-py3-none-manylinux_2_35_aarch64.whl` | `70406298570ddaf38de86f5a001624cbc74a3383e9c976aa7fadf5e2a66f1f22` |
+| `canisend-1.0.0b11-py3-none-manylinux_2_35_x86_64.whl` | `a0d55327b287cbbdd8dd9d06c9f22bd0fcaa843136f5e260a4b226aa4e513232` |
+
+Independent Linux ARM64 installation also passed for the exact npm package and PyPI wheel,
+including Workspace and Agent v4 MCP checks. npm registry signature, attestation and exact
+source-archive verification also passed. Exact public packages and source/byte receipts
+are retained under `dist/beta11-registry-publication/verification.json`. This is a registry-testing
+release; no Git tag or GitHub Release was created. Full native qualification, real-Host acceptance,
+and the consented cohort remain pending; RC and Stable gates are unchanged.
 
 ## Supported public package scope
 
