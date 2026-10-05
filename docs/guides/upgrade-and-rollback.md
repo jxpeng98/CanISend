@@ -78,6 +78,12 @@ It preflights all selected installations for customizations before updating any 
 Repeated upgrades are safe. The command does not import unsupported Workspace v2/v3 state.
 Templates are bundled in the new CLI; existing Applications retain their bound Pack and history.
 
+The refreshed Materials Skill also records the exact Typst Preview package versions and usage
+for user-owned CV, cover-letter and statement files. No template repository clone is needed;
+see the [template guide](typst-templates.md). Exported Agent packs and starter template copies
+remain snapshots. Regenerate an Agent pack from the upgraded binary when updating its `AGENTS.md`;
+review the merge into user-owned guidance rather than overwriting it.
+
 Use `workspace upgrade --host codex` (or `claude`) to select or install one Host's project
 Skills. Without `--host`, a Workspace with no installed Skills stays that way. These commands
 return readable text in a terminal and JSON when piped or passed `--json`. They do not prompt for approval.

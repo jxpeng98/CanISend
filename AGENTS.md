@@ -32,3 +32,16 @@ At a resource, public-contract, CI or integration milestone, run
 `cargo run -p xtask --locked -- source check`; Fast CI owns the complete remote suite.
 Packaging changes also need exact-package installation and lifecycle checks.
 Report source checks, remote CI, artifact qualification and real-user acceptance separately.
+
+<!-- canisend:typst-preview:start -->
+## Typst templates
+
+Standalone authoring imports `@preview/modernpro-cv:2.1.2` for CVs and
+`@preview/modernpro-coverletter:1.0.3` for cover letters and statements. See the
+[template guide](docs/guides/typst-templates.md) for APIs and upgrade instructions.
+Keep these pins aligned with `release/modernpro-sources.json` and the embedded template contract.
+`scripts/sync_typst_templates.py` updates this section, shipped Host guides and Materials Skills
+alongside template changes. Use `--guidance-only --check` to check guidance without source checkouts.
+Managed rendering retains its offline, exact-Pack boundary; user-owned Preview documents use
+the external Typst compiler.
+<!-- canisend:typst-preview:end -->

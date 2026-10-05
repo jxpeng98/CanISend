@@ -235,6 +235,11 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Check pinned Typst Preview guidance and synchronization
+        run: |
+          python3 scripts/sync_typst_templates.py --guidance-only --check
+          python3 -m unittest discover -s scripts -p test_sync_typst_templates.py
+
       - name: Run relevant Clippy targets
         run: cargo clippy --workspace --exclude canisend-gui --all-targets --all-features --locked -- -D warnings
 

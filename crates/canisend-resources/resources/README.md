@@ -24,8 +24,11 @@ chooses its own Workflow Pack; the Workspace itself has no mode.
    see `canisend profile-source import --help`.
 4. Select a Workflow Pack and create an Application; see `canisend application create --help`.
    The files in `examples/generic-v4/` are fictional intake references.
-5. Copy and edit the bundled Typst files in `templates/` when a Workflow Pack allows a custom
-   template. The desktop App is not required.
+5. For standalone Typst authoring, use the pinned `@preview` imports and CV, cover-letter and
+   statement examples in `canisend-materials`. The external Typst compiler resolves and caches
+   those packages; no template repository checkout is needed. CanISend-managed Deliverables
+   use their exact Pack's embedded templates through structured drafts and guarded export.
+   The desktop App is not required.
 
 Importing a Profile Source does not confirm Evidence or associate it with an Application.
 The Host guides those guarded steps after you choose an Application. Workspace backup preserves
@@ -34,3 +37,7 @@ imported Profile Sources; keep a separate copy of unfinished interview drafts.
 `canisend.toml` and `.canisend/` are authoritative. The `applications/`, `jobs/`, and `agent/`
 projection folders start empty and are populated by CanISend operations; do not add private
 material there as a substitute for importing a Profile Source.
+
+After a CLI upgrade, run `canisend --workspace . workspace upgrade` to refresh installed project
+Skills and their template guidance, then reconnect the Host. Global Skills use scoped `host setup`.
+Files initially copied into `templates/` are snapshots; an upgrade preserves user-edited copies.

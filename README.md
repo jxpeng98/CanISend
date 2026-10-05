@@ -107,6 +107,11 @@ Add `--host codex` or `--host claude` to install or select one Host; global Skil
 with the CLI; existing applications retain their bound template version and history.
 See [upgrade and recovery](docs/guides/upgrade-and-rollback.md).
 
+For standalone CV, cover-letter and statement authoring, the updated source Agent guidance
+records pinned Typst `@preview` imports and examples. See the
+[template guide](docs/guides/typst-templates.md); project Skills receive those instructions
+through `workspace upgrade` with a CLI built from this source.
+
 ## Current status
 
 The checked-in source version is `1.0.0-beta.11`, with clearer help across all 40 CLI commands,
