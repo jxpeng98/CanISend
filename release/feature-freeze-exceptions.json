@@ -937,6 +937,25 @@
         "RELEASE.md"
       ],
       "reason": "Record the verified owner-authorized Beta.11 registry publication, exact public digests and installation receipts without changing native qualification, real-Host acceptance, consent or RC/Stable authorization."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "5487cabe65eaf57ea3b278976a184aa0304a85f9",
+      "paths": [
+        ".github/workflows/fast-ci.yml",
+        "AGENTS.md",
+        "crates/canisend-resources/resources/README.md",
+        "crates/canisend-resources/resources/agent/claude/CLAUDE.md",
+        "crates/canisend-resources/resources/agent/codex/AGENTS.md",
+        "crates/canisend-resources/resources/agent/generic/README.md",
+        "crates/canisend-resources/resources/manifest.json",
+        "crates/canisend-resources/resources/skills/canisend-materials/SKILL.md",
+        "crates/canisend-resources/tests/manifest.rs",
+        "release/alpha-package-contract.json",
+        "scripts/sync_typst_templates.py",
+        "scripts/test_sync_typst_templates.py"
+      ],
+      "reason": "Synchronize the owner-requested pinned Typst Preview APIs, root and shipped Agent guidance, managed Skill upgrades and owning CI regressions for 1.0 usability; preserve offline exact-Pack rendering, historical template bytes, consent and release qualification gates."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

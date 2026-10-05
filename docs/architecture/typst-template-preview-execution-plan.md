@@ -180,3 +180,44 @@ Evidence:
 
 Next: include these resources in the next authorized CLI candidate, address the existing operation
 registry test failure separately, and run the candidate's normal packaged-binary qualification.
+
+## Versioned Preview authoring guidance — 2026-10-05
+
+Scope: supply the user-requested Typst `@preview` imports and practical APIs through versioned
+Agent resources, avoiding a template repository checkout for standalone authoring. Managed
+rendering keeps its verified offline, exact-Pack template boundary.
+
+- Root `AGENTS.md`, Codex/Claude/generic Host guides, the managed Materials Skill and the
+  [template guide](../guides/typst-templates.md) use the committed source pins: CV 2.1.2 and
+  coverletter/statements 1.0.3. Examples cover CV, cover letter and research statement; a teaching
+  statement uses the same entry point with the requested title and headings.
+- Template synchronization now refreshes every instruction block and advances changed guidance
+  resource versions along with template changes. Guidance-only refresh/check needs no upstream
+  checkout. It checks pin identity, preserves text outside managed blocks and refuses missing
+  markers before writing. Fast CI owns drift checks and synchronization regressions.
+- `workspace upgrade` refreshes template usage in managed project Skills. It preserves user-owned
+  `AGENTS.md` and starter template snapshots; exported Host guides are regenerated snapshots.
+  The instructions retain evidence, consent, review and export controls.
+
+Checks completed:
+
+- Three owning synchronization regressions passed: template upgrades, immutable Pack history,
+  idempotence, read-only drift detection, guidance-only repair and invalid-input preflight.
+- All three documented examples compiled with Typst 0.15.1 using an isolated empty Preview cache;
+  both downloaded package entrypoints exactly matched the committed upstream source hashes.
+  Cached compilation also passed for CV, cover letter, research and teaching statements with
+  an unusable download proxy, without compiler warnings.
+- All 17 embedded resource regressions passed, including exported Host packs, owned-file upgrades,
+  conflict refusal and historical resource resolution. The local-reference check continues to
+  require files inside the exported pack; public HTTPS API links are not treated as local files.
+- An old local Beta.11 CLI to updated development CLI smoke passed for Codex, Claude and generic
+  project Skills: current pins, repeated upgrade, customized Skill refusal, Workspace integrity,
+  doctor and managed-file removal. User-owned `AGENTS.md`, edited template snapshots and Workspace
+  data were preserved. This is local development evidence, not native artifact qualification.
+- Formatting, affected-resource all-target Clippy with denied warnings, changed Markdown links
+  and `xtask source check` passed. The deterministic vocabulary inventory was refreshed for the
+  added template instructions; domain behavior and template/Pack bytes did not change.
+
+Protected Fast CI owns the complete remote suite; its result is recorded on the integration PR.
+The resources belong in the next authorized CLI publication. This source change does not
+republish Beta.11 or qualify native artifacts, real-user acceptance, RC or Stable.

@@ -403,6 +403,10 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
                 let body = std::str::from_utf8(&bytes).expect("Skill UTF-8");
                 for link in body.split("](").skip(1) {
                     let target = link.split(')').next().expect("link target");
+                    // Public API references are not files in the exported pack.
+                    if target.starts_with("https://") {
+                        continue;
+                    }
                     let resolved = root
                         .join(&entry.path)
                         .parent()

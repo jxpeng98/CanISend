@@ -76,6 +76,11 @@ Install and update are idempotent within v4. CanISend replaces only bytes record
 manifest, refuses user-modified or unmanaged paths, and performs a complete digest preflight before
 uninstalling. Host setup never writes inside `.canisend`.
 
+The Materials Skill and exported Host guidance include the exact Typst Preview versions and
+CV, cover-letter and statement APIs. See the [template guide](typst-templates.md). After replacing
+the CLI, `workspace upgrade` refreshes project Skills and these instructions together; reconnect
+the Host before continuing. Setup preserves user-owned `AGENTS.md` files.
+
 When a user selects Codex or Claude in the App's **Create workspace** dialog, CanISend can safely
 create the complete project-local setup because the destination is required to be new or empty.
 It writes `.codex/config.toml` or `.mcp.json` with the exact version-matched desktop executable and
@@ -333,8 +338,8 @@ one opaque, process-bounded token. Expiry, replay, stale
 revision, wrong Pack, denied consent, or host restart requires a fresh orientation and preview.
 
 The canonical task model, operation registry, seven schemas, two examples, host guide, and Skills
-ship in the Agent v4 export pack. The Codex pack has 20 files; Claude and generic-host packs have
-16 because OpenAI UI metadata is Codex-specific.
+ship in the Agent v4 export pack. The Codex pack has 22 files; Claude and generic-host packs have
+17 because OpenAI UI metadata is Codex-specific.
 
 ## User-only boundaries
 
