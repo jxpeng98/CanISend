@@ -901,6 +901,34 @@
         ".github/workflows/release.yml"
       ],
       "reason": "Retry exact PyPI wheel readback across bounded index propagation delay after native Linux arm64 evidence showed the uploaded wheel was not immediately visible from every runner."
+    },
+    {
+      "class": "release-evidence",
+      "commit": "a1c651c0259a5d386b5265ec97469539c5ad6fbf",
+      "paths": [
+        ".github/ISSUE_TEMPLATE/bug.yml",
+        ".github/workflows/release.yml",
+        "Cargo.lock",
+        "Cargo.toml",
+        "RELEASE.md",
+        "apps/canisend-desktop/package.json",
+        "crates/canisend-app/Cargo.toml",
+        "crates/canisend-cli/Cargo.toml",
+        "crates/canisend-core/Cargo.toml",
+        "crates/canisend-desktop/Cargo.toml",
+        "crates/canisend-desktop/tauri.conf.json",
+        "crates/canisend-desktop/tauri.windows.conf.json",
+        "crates/canisend-io/Cargo.toml",
+        "crates/canisend-mcp/Cargo.toml",
+        "crates/canisend-resources/Cargo.toml",
+        "crates/canisend-store/Cargo.toml",
+        "fuzz/Cargo.lock",
+        "fuzz/Cargo.toml",
+        "release/alpha-package-contract.json",
+        "tools/native-preview/package.json",
+        "xtask/Cargo.toml"
+      ],
+      "reason": "Prepare the owner-authorized sequential Beta.11 registry-testing source with exact internal pins and accurate pending-publication notes; preserve historical native qualification, consent, real-Host and RC/Stable gates."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",

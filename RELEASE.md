@@ -2,8 +2,9 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.10`, published and independently verified on npm `next`, Cargo
-  and PyPI for macOS ARM64 and Linux GNU x86_64/arm64. It is not a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.11`, prepared for the owner-authorized npm `next`, Cargo
+  and PyPI testing publication. Beta.10 remains the last verified registry release until the
+  new packages pass publication and installation checks. This is not a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
