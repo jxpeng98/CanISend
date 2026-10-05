@@ -1,8 +1,19 @@
-# CanISend 1.0.0-beta.11
+# CanISend 1.0.0-beta.12
 
-Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
-`64c3bbd5f74c2ee2f436b764a427cf676841d136`. This registry-only release is not a qualified
-GitHub checkpoint; see the [release record](../RELEASE.md) for exact evidence and remaining gates.
+Prepared for owner-authorized npm `next`, Cargo and PyPI testing publication. Exact registry
+bytes and installation checks are pending. See the [release record](../RELEASE.md) for the last
+verified publication and remaining qualification gates.
+
+This release packages the template guidance merged in
+[PR #249](https://github.com/jxpeng98/CanISend/pull/249):
+
+- Versioned Host instructions `4.0.5` and Materials Skill `4.0.4` provide pinned Typst Preview
+  imports for ModernPro CV `2.1.2` and ModernPro cover letter `1.0.3`, with CV, letter and
+  research/teaching statement examples. Standalone authoring uses Typst package resolution.
+- `workspace upgrade` refreshes the managed Skill instructions, preserves user-owned Agent files
+  and template edits, and rejects conflicting managed-file edits before mutation.
+- The [template guide](../docs/guides/typst-templates.md) explains the version mapping and durable
+  Agent-file pointer. The managed renderer continues to use integrity-bound built-in resources.
 
 The academic application and Profile preparation changes come from
 [PR #246](https://github.com/jxpeng98/CanISend/pull/246):

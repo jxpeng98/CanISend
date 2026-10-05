@@ -2,8 +2,10 @@
 
 ## Current state
 
-- Checked-in source: `1.0.0-beta.11`, published and independently verified on npm `next`, Cargo
-  and PyPI for macOS ARM64 and Linux GNU x86_64/arm64. It is not a fully qualified checkpoint.
+- Checked-in source: `1.0.0-beta.12`, prepared for owner-authorized registry testing; publication
+  and exact-package installation verification are pending. The latest independently verified
+  registry release is Beta.11 on npm `next`, Cargo and PyPI for macOS ARM64 and Linux GNU
+  x86_64/arm64. Neither registry release is a fully qualified checkpoint.
 - Latest public checkpoint: [`v1.0.0-beta.1`](https://github.com/jxpeng98/CanISend/releases/tag/v1.0.0-beta.1),
   built once from `6e1397b79031cad54e794ccdc9edca2153f23b3e`, independently reverified, and
   recorded as qualified against candidate run `33281162734`.
@@ -175,6 +177,14 @@ source-archive verification also passed. Exact public packages and source/byte r
 are retained under `dist/beta11-registry-publication/verification.json`. This is a registry-testing
 release; no Git tag or GitHub Release was created. Full native qualification, real-Host acceptance,
 and the consented cohort remain pending; RC and Stable gates are unchanged.
+
+Beta.12 packages the Typst Preview guidance merged in
+[PR #249](https://github.com/jxpeng98/CanISend/pull/249). Versioned Codex, Claude and generic
+Host instructions (`4.0.5`) and Materials Skill (`4.0.4`) include exact ModernPro CV `2.1.2`
+and cover-letter `1.0.3` imports with CV, letter and statement examples. Workspace upgrade
+refreshes managed Skills while preserving user-owned Agent files and template edits. Publication
+on npm `next`, Cargo and PyPI is authorized; exact registry bytes, installation, upgrade and
+rollback remain to be verified. No qualification or real-user acceptance is inferred.
 
 ## Supported public package scope
 

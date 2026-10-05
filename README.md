@@ -30,13 +30,13 @@ canisend doctor
 ```
 
 `next` tracks testing releases; the default `latest` tag may be older.
-Beta.10 is the current independently verified registry release.
+Beta.11 is the current independently verified registry release; Beta.12 is being prepared.
 The package includes the native CLI and its resources; no Rust toolchain is needed.
 
 Other ways to install this testing version:
 
-- **Cargo:** `cargo install canisend --version 1.0.0-beta.10 --locked` (requires Rust 1.97+ and native build tools).
-- **PyPI, macOS Apple Silicon or Linux GNU x86_64/arm64:** `python -m pip install canisend==1.0.0b10` inside a virtual environment. No Rust toolchain is needed.
+- **Cargo:** `cargo install canisend --version 1.0.0-beta.11 --locked` (requires Rust 1.97+ and native build tools).
+- **PyPI, macOS Apple Silicon or Linux GNU x86_64/arm64:** `python -m pip install canisend==1.0.0b11` inside a virtual environment. No Rust toolchain is needed.
 
 See [installation options](docs/guides/installation.md) for setup and upgrade commands.
 
@@ -114,11 +114,12 @@ through `workspace upgrade` with a CLI built from this source.
 
 ## Current status
 
-The checked-in source version is `1.0.0-beta.11`, with clearer help across all 40 CLI commands,
+The checked-in source version is `1.0.0-beta.12`, with clearer help across all 40 CLI commands,
 shortcuts such as `ws`, `app` and `-w`, and `--text` for readable output through pipes. Existing
 commands and JSON responses remain compatible. See the [command reference](docs/guides/cli-reference.md).
-Beta.11 adds guided Profile drafts, evidence-bound academic application packages and updated Typst
-templates. It is published and independently verified on Cargo, npm `next`, and PyPI (`1.0.0b11`).
+Beta.12 adds pinned Typst Preview imports and examples to versioned Agent guidance; publication
+is pending. Beta.11 remains the independently verified Cargo, npm `next`, and PyPI (`1.0.0b11`)
+release with guided Profile drafts and evidence-bound academic application packages.
 The npm package and PyPI wheels support macOS ARM64 and Linux GNU x86_64/arm64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process

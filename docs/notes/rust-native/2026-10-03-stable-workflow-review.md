@@ -378,3 +378,20 @@ The requested registry-testing publication is complete. Historical qualification
 contract freeze and cohort records remain unchanged. The latest qualified GitHub checkpoint is
 still Beta.1. No tag or GitHub Release was created; full native/macOS handoff, current real-Host v4
 acceptance and the consented cohort remain open before formal RC or Stable authorization.
+
+
+## Registry Beta.12 preparation, 2026-10-05
+
+The owner authorized the next registry-testing release after merging the Typst Preview guidance
+in [PR #249](https://github.com/jxpeng98/CanISend/pull/249). The transactional forward-only stage
+preview selects 27 current version surfaces and preserves historical qualification, feedback and
+candidate records. This release carries Host instructions `4.0.5`, Materials Skill `4.0.4`,
+ModernPro CV `2.1.2` and ModernPro cover letter `1.0.3`; the templates and academic Pack remain
+bound to their existing versions. The owner delegated read-only remote CI monitoring to
+`gpt-6.1-sol` with high reasoning effort.
+
+Preparation checks, exact installation/upgrade evidence and registry publication are pending.
+Actual human academic acceptance remains separate: an unprepared applicant must complete the
+Profile interview and review a CV, cover letter, research and teaching statements using verified
+facts. Model fixtures do not supply those observations. Formal RC gates, including signed native
+qualification, current real-Host evidence and the consented cohort, remain unchanged.
