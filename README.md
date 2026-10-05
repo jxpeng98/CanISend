@@ -113,8 +113,7 @@ The checked-in source version is `1.0.0-beta.11`, with clearer help across all 4
 shortcuts such as `ws`, `app` and `-w`, and `--text` for readable output through pipes. Existing
 commands and JSON responses remain compatible. See the [command reference](docs/guides/cli-reference.md).
 Beta.11 adds guided Profile drafts, evidence-bound academic application packages and updated Typst
-templates; registry publication is pending. Beta.10 remains the last independently verified release
-on Cargo, npm `next`, and PyPI (`1.0.0b10`).
+templates. It is published and independently verified on Cargo, npm `next`, and PyPI (`1.0.0b11`).
 The npm package and PyPI wheels support macOS ARM64 and Linux GNU x86_64/arm64.
 It adds an optional **Auto approval** checkbox to routine confirmation forms: authorize work on
 one application for up to 60 minutes per connection. Include a Profile Source once to process

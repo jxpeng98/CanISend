@@ -1,7 +1,7 @@
 # CanISend 1.0.0-beta.11
 
-Prepared for the owner-authorized npm `next`, Cargo and PyPI testing publication; exact-package
-publication and installation checks are pending. This registry-only release is not a qualified
+Published and independently verified on npm `next`, Cargo and PyPI testing channels from source
+`64c3bbd5f74c2ee2f436b764a427cf676841d136`. This registry-only release is not a qualified
 GitHub checkpoint; see the [release record](../RELEASE.md) for exact evidence and remaining gates.
 
 The academic application and Profile preparation changes come from

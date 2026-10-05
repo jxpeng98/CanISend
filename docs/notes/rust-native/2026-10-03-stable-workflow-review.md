@@ -334,3 +334,47 @@ it is an available alternative, not an RC publication, and was not applied.
 No tag or release was created. Request receipts and the unpublished RC notes draft
 are retained in ignored `dist/rc1-publication-request/`. Source integration and
 formal release completion remain separate outcomes.
+
+## Registry Beta.11 publication, 2026-10-05
+
+The owner changed the publication target to a new registry-testing Beta while preserving the
+formal RC gates. The transactional stage tool prepared 27 controlled version surfaces and exact
+internal pins in `a1c651c0259a5d386b5265ec97469539c5ad6fbf`; a second commit,
+`a7fb733cc77d18bfcc9a8f007942107815b31249`, records its 21 nonautomatic freeze-exception paths.
+[PR #247](https://github.com/jxpeng98/CanISend/pull/247) merged normally as `64c3bbd5f74c2ee2f436b764a427cf676841d136`.
+No branch protections were changed. The merged tree equals the passing PR tree.
+
+Fresh preparation checks passed: eight stage regressions, six version regressions, three npm
+packaging tests, formatting, 129 local document links, dependency policy and the Cargo source check.
+The note-body stage-neutral regression first rejected a newly added version token; removing the
+token fixed the notes without changing the test policy. Protected
+[PR Fast CI](https://github.com/jxpeng98/CanISend/actions/runs/37332307979) and
+[PR dependency assurance](https://github.com/jxpeng98/CanISend/actions/runs/37332307827) passed.
+Merged-main [Fast CI](https://github.com/jxpeng98/CanISend/actions/runs/37333167983) and
+[dependency assurance](https://github.com/jxpeng98/CanISend/actions/runs/37333167972) also passed.
+All four enabled Fast CI jobs passed; both GUI jobs were skipped. The legacy macOS-named shared
+checks ran on Linux and supply no native macOS qualification.
+
+A clean-tree GNU ARM64 `release-alpha` archive from the pre-merge PR head passed exact extraction,
+installation/uninstall, documented dual-Pack workflow, backup/restore, Host resources and Agent v4
+MCP lifecycle checks. Its SHA-256 is `cbae4fed0a30bd2eefa8b5830f6a349c62fcf6518257f42519ef0a8def6cf20d`.
+That local archive is separate from the registry candidates built from the protected merge source.
+
+[Registry run 37333356088](https://github.com/jxpeng98/CanISend/actions/runs/37333356088) completed all 13 enabled build, publish and installation jobs.
+Cargo published eight packages at `1.0.0-beta.11`; its exact-archive checks, locked registry install
+and nine packaged MCP tests passed. npm published `canisend@1.0.0-beta.11` on `next`, preserving
+`latest` at Beta.3. PyPI published three native `1.0.0b11` wheels. npm and PyPI cover macOS ARM64
+and Linux GNU x86_64/arm64. Independent readback matched the npm tarball and all three wheels to
+retained CI candidates, checked public hashes, and verified all eight Cargo VCS identities against
+the exact source above. Isolated Linux ARM64 installs and MCP checks passed; the installed PyPI
+candidate is byte-identical to the public wheel. npm registry signature and attestation checks
+also passed, and the installed source archive exactly matches `git archive` of the published commit.
+The first independent per-version npm read returned 404 during index propagation; the consumer
+index subsequently exposed the exact version and matched the retained package. The publication
+workflow's bounded readback passed. See the [release record](../../../RELEASE.md)
+for exact public digests and ignored `dist/beta11-registry-publication/verification.json` for receipts.
+
+The requested registry-testing publication is complete. Historical qualification, provider dogfood,
+contract freeze and cohort records remain unchanged. The latest qualified GitHub checkpoint is
+still Beta.1. No tag or GitHub Release was created; full native/macOS handoff, current real-Host v4
+acceptance and the consented cohort remain open before formal RC or Stable authorization.
