@@ -992,6 +992,22 @@
         "RELEASE.md"
       ],
       "reason": "Record the verified owner-authorized Beta.12 registry publication, exact public digests, installation and upgrade receipts; preserve signed native qualification, real-Host acceptance, consent, cohort binding and formal RC/Stable authorization."
+    },
+    {
+      "class": "release-blocker",
+      "commit": "607724dcaef280ff5d48d36f198deaf32924ef6c",
+      "paths": [
+        "crates/canisend-resources/resources/agent/claude/CLAUDE.md",
+        "crates/canisend-resources/resources/agent/codex/AGENTS.md",
+        "crates/canisend-resources/resources/agent/generic/README.md",
+        "crates/canisend-resources/resources/manifest.json",
+        "crates/canisend-resources/resources/skills/canisend-materials/SKILL.md",
+        "crates/canisend-resources/tests/manifest.rs",
+        "release/alpha-package-contract.json",
+        "scripts/sync_typst_templates.py",
+        "scripts/test_sync_typst_templates.py"
+      ],
+      "reason": "Prevent stale Typst authoring instructions by routing bundled Agent guides to the installed Materials Skill, retaining managed-file preservation and exact-Pack rendering."
     }
   ],
   "schema": "canisend.feature-freeze-exceptions/v1",
