@@ -399,8 +399,8 @@ fn host_packs_are_self_contained_versioned_and_integrity_manifested() {
             let bytes = fs::read(root.join(&entry.path)).expect("pack file");
             assert_eq!(bytes.len(), entry.size);
             assert_eq!(hex::encode(Sha256::digest(&bytes)), entry.sha256);
-            if entry.path.ends_with("/SKILL.md") {
-                let body = std::str::from_utf8(&bytes).expect("Skill UTF-8");
+            if entry.path.ends_with("/SKILL.md") || entry.resource_id.ends_with(".guide") {
+                let body = std::str::from_utf8(&bytes).expect("Agent guidance UTF-8");
                 for link in body.split("](").skip(1) {
                     let target = link.split(')').next().expect("link target");
                     // Public API references are not files in the exported pack.

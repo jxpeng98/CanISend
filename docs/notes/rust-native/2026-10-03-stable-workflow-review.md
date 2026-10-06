@@ -427,3 +427,22 @@ Actual human academic acceptance remains separate: an unprepared applicant must 
 Profile interview and review a CV, cover letter, research and teaching statements using verified
 facts. Model fixtures do not supply those observations. Formal RC gates, including signed native
 qualification, current real-Host evidence and the consented cohort, remain unchanged.
+
+
+## Stable Agent authoring pointers, 2026-10-06
+
+The owner requested bundled Agent guidance that follows the installed Materials Skill across
+Workspace upgrades. Codex, Claude and generic guides now point to their project-local Skill,
+explain selected global scope, missing installations, conflict preservation and reconnection,
+and retain the exact-Pack managed-rendering boundary. The synchronizer keeps these guides
+stable when only template pins change. Host guide resources advance to `4.0.6`; the Materials
+Skill advances to `4.0.5` for its revised upgrade explanation. Template sources, Preview pins,
+Pack bindings, user-owned Agent files and historical qualification records are unchanged.
+
+Local checks passed: three synchronizer regressions, 17 resource regressions (including exported
+Agent-to-Skill link resolution), Materials Skill validation, formatting, affected-resource
+Clippy, generated-guidance consistency, nine local links in the changed guides and whitespace.
+Source and protected CI results are recorded separately in ignored
+`dist/agent-materials-guidance/verification.json`. This is an unpublished source improvement;
+the completed public Beta.12 packages retain their original bytes and publication identity.
+Exact native qualification and actual human acceptance remain separate, pending release gates.

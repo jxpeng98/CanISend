@@ -76,10 +76,13 @@ Install and update are idempotent within v4. CanISend replaces only bytes record
 manifest, refuses user-modified or unmanaged paths, and performs a complete digest preflight before
 uninstalling. Host setup never writes inside `.canisend`.
 
-The Materials Skill and exported Host guidance include the exact Typst Preview versions and
-CV, cover-letter and statement APIs. See the [template guide](typst-templates.md). After replacing
-the CLI, `workspace upgrade` refreshes project Skills and these instructions together; reconnect
-the Host before continuing. Setup preserves user-owned `AGENTS.md` files.
+The Materials Skill owns the exact Typst Preview versions and CV, cover-letter and statement APIs.
+Bundled Codex, Claude and generic Host guides link to that Skill instead of copying version pins
+or examples. See the [template guide](typst-templates.md). After replacing the CLI,
+`workspace upgrade` refreshes project Skills and their template instructions; reconnect the Host
+and reread the installed Skill before continuing. With no installed project Skills, use
+`workspace upgrade --host HOST` to install the selected Host's resources. Setup and upgrade
+preserve user-owned `AGENTS.md` and `CLAUDE.md` files. Global Skills require scoped `host setup`.
 
 When a user selects Codex or Claude in the App's **Create workspace** dialog, CanISend can safely
 create the complete project-local setup because the destination is required to be new or empty.
