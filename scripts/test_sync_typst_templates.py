@@ -47,6 +47,9 @@ class TemplateSyncTest(unittest.TestCase):
             package = json.loads(package_path.read_bytes())
             package["contracts"]["resource_manifest"]["entry_count"] = 0
             package_path.write_bytes(sync.encoded(package))
+            declarations_before = json.loads((resources / "manifest.json").read_bytes())
+            snapshot_guides = {item["id"]: (resources / item["path"]).read_bytes()
+                               for item in declarations_before if item["id"] in sync.HOST_GUIDES}
             with patch.object(sync, "ROOT", root), patch.object(sync, "RESOURCES", resources), \
                     patch.object(sync.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaises(ValueError):
@@ -62,6 +65,13 @@ class TemplateSyncTest(unittest.TestCase):
                 for item in declarations:
                     if item["id"] in sync.GUIDANCE_RESOURCES:
                         guide = (resources / item["path"]).read_text()
+                        if item["id"] in sync.HOST_GUIDES:
+                            old = next(entry for entry in declarations_before if entry["id"] == item["id"])
+                            self.assertEqual(item, old)
+                            self.assertEqual((resources / item["path"]).read_bytes(),
+                                             snapshot_guides[item["id"]])
+                            self.assertNotIn("@preview/", guide)
+                            continue
                         for directory in inputs:
                             version = sync.tomllib.loads((directory / "typst.toml").read_text())["package"]["version"]
                             self.assertIn(f"@preview/{directory.name}:{version}", guide)
@@ -94,12 +104,12 @@ class TemplateSyncTest(unittest.TestCase):
             declarations = json.loads(declarations_path.read_bytes())
             before = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
             guide = resources / "agent/codex/AGENTS.md"
-            cv_version = json.loads((root / "release/modernpro-sources.json").read_bytes())["modernpro-cv"]["version"]
-            guide.write_text(guide.read_text().replace(f"@preview/modernpro-cv:{cv_version}", "@preview/modernpro-cv:0.0.0"))
+            guide.write_text(guide.read_text().replace(".agents/skills/canisend-materials/SKILL.md",
+                                                      "stale/skills/canisend-materials/SKILL.md"))
             with patch.object(sync, "ROOT", root), patch.object(sync, "RESOURCES", resources):
                 with self.assertRaisesRegex(ValueError, "template synchronization required"):
                     sync.refresh_guidance(check=True)
-                self.assertIn("@preview/modernpro-cv:0.0.0", guide.read_text())
+                self.assertIn("stale/skills/canisend-materials/SKILL.md", guide.read_text())
                 sync.refresh_guidance()
                 self.assertEqual(guide.read_bytes(), before[guide])
                 updated = json.loads(declarations_path.read_bytes())

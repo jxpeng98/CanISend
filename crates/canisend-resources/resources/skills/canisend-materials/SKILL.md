@@ -137,9 +137,12 @@ placeholders as Evidence. Existing Applications retain their original Pack/templ
 
 After upgrading the CLI, run `canisend --workspace PATH workspace upgrade` to refresh project
 Skills, including this template guidance; global Skills use `host setup --host HOST --scope global`.
-Reconnect the Host and reread its resources. An exported Agent pack's `AGENTS.md`, `CLAUDE.md` or
-`README.md` is a snapshot: regenerate it from the upgraded binary's resource bundle when
-upgrading, then review any merge into user-owned guidance. Never overwrite a user's `AGENTS.md`.
+Reconnect the Host and reread the installed Materials Skill for current pins and APIs. Bundled
+Host guides delegate authoring details to this Skill; a durable pointer in user-owned `AGENTS.md`
+does not need new version numbers on each template upgrade. Exported Agent packs still contain
+resource snapshots; use the selected Workspace/Host's managed Skills for ongoing work, and
+regenerate a pack when its protocol or workflow instructions change. Never overwrite a user's
+`AGENTS.md` or `CLAUDE.md`.
 
 API references: [CV](https://typst.app/universe/package/modernpro-cv/),
 [letters and statements](https://typst.app/universe/package/modernpro-coverletter/),

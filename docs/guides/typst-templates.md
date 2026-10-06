@@ -72,9 +72,12 @@ placeholders as Evidence. Existing Applications retain their original Pack/templ
 
 After upgrading the CLI, run `canisend --workspace PATH workspace upgrade` to refresh project
 Skills, including this template guidance; global Skills use `host setup --host HOST --scope global`.
-Reconnect the Host and reread its resources. An exported Agent pack's `AGENTS.md`, `CLAUDE.md` or
-`README.md` is a snapshot: regenerate it from the upgraded binary's resource bundle when
-upgrading, then review any merge into user-owned guidance. Never overwrite a user's `AGENTS.md`.
+Reconnect the Host and reread the installed Materials Skill for current pins and APIs. Bundled
+Host guides delegate authoring details to this Skill; a durable pointer in user-owned `AGENTS.md`
+does not need new version numbers on each template upgrade. Exported Agent packs still contain
+resource snapshots; use the selected Workspace/Host's managed Skills for ongoing work, and
+regenerate a pack when its protocol or workflow instructions change. Never overwrite a user's
+`AGENTS.md` or `CLAUDE.md`.
 
 API references: [CV](https://typst.app/universe/package/modernpro-cv/),
 [letters and statements](https://typst.app/universe/package/modernpro-coverletter/),
@@ -92,14 +95,21 @@ copy its template implementation:
 
 Project initialization and upgrade do not replace this user-owned file. Review it when changing
 the Host or authoring workflow; current package versions arrive through managed Skill updates.
+The bundled Codex, Claude and generic guides use this routing: project-local Materials Skills live
+at `.agents/skills/canisend-materials/SKILL.md`, `.claude/skills/canisend-materials/SKILL.md` and
+`skills/canisend-materials/SKILL.md`, respectively. If the selected installation is missing, run
+`canisend --workspace PATH workspace upgrade --host HOST`; without `--host`, upgrade refreshes only
+existing installations. Global Skills use scoped `host setup`. Preserve customizations when a
+managed-file conflict is reported, then reconnect the Host and reread the updated Skill.
 
 ## Maintainer synchronization
 
 After a reviewed template update, synchronize the local upstream sources as described in the
 [template execution plan](../architecture/typst-template-preview-execution-plan.md).
 That command updates bundled templates, preserves historical Pack bytes, advances changed guide
-versions, and updates the Preview pins and usage in root `AGENTS.md`, all exported Host guides,
-the managed Materials Skill and this guide together.
+versions, and updates the Preview pins and usage in root `AGENTS.md`, the managed Materials Skill
+and this guide together. Exported Host guides retain stable Skill links and upgrade instructions;
+their resource versions advance only when that routing changes.
 
 To refresh or check only the instructions using committed source pins, without cloning template
 repositories:

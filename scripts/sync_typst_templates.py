@@ -18,10 +18,45 @@ RESOURCES = ROOT / "crates/canisend-resources/resources"
 MARKER = "// CanISend offline adapter."
 GUIDANCE_START = "<!-- canisend:typst-preview:start -->"
 GUIDANCE_END = "<!-- canisend:typst-preview:end -->"
+HOST_GUIDES = {
+    "agent.codex.guide": ("codex", ".agents/skills"),
+    "agent.claude.guide": ("claude", ".claude/skills"),
+    "agent.generic.guide": ("generic", "skills"),
+}
 GUIDANCE_RESOURCES = {
-    "agent.codex.guide", "agent.claude.guide", "agent.generic.guide",
+    *HOST_GUIDES,
     "skill.canisend-materials",
 }
+
+
+def agent_guidance(host, skill_root):
+    return f'''## Authoring guidance and upgrades
+
+For CanISend authoring, read the installed [canisend-materials Skill]({skill_root}/canisend-materials/SKILL.md).
+Its template guidance supplies the exact Typst Preview package versions, entry points and
+CV, cover-letter and statement examples. Load it again after a CLI/Workspace upgrade or Host
+reconnection; use its current versions rather than remembered imports or copied Agent examples.
+If the user chose global Skills, read the Materials Skill from that installation instead.
+
+After backing up the Workspace and installing the new CLI, run
+`canisend --workspace PATH workspace upgrade` to refresh existing project Skills.
+If this Host's Skills are absent, use `canisend --workspace PATH workspace upgrade --host {host}`
+to install them. Global Skills use `canisend --workspace PATH host setup --host {host} --scope global`.
+Check `canisend --workspace PATH host status --host {host}` (with `--scope global` for global Skills)
+and reconnect the Host before continuing. If managed files were edited or are unmanaged,
+preserve the customizations and resolve the reported conflict; never force-update them.
+
+For user-owned Typst documents, keep exact imports and review any version change by compiling
+and inspecting the affected PDFs. No template repository checkout is needed. CanISend-managed
+Deliverables retain their exact bound Pack templates, structured review and guarded export;
+the embedded renderer works offline and does not compile arbitrary Preview imports.
+
+This Agent guide is a durable pointer, not a copy of the template pins. Setup and Workspace
+upgrade preserve user-owned `AGENTS.md` and `CLAUDE.md`. When adopting this guide, review its
+merge into user guidance. An exported Agent pack's bundled resources remain snapshots;
+use the selected Workspace/Host's managed Skill installation for ongoing work. Regenerate the
+pack when its protocol or workflow instructions change.
+'''
 
 
 def preview_guidance(pins):
@@ -94,9 +129,12 @@ placeholders as Evidence. Existing Applications retain their original Pack/templ
 
 After upgrading the CLI, run `canisend --workspace PATH workspace upgrade` to refresh project
 Skills, including this template guidance; global Skills use `host setup --host HOST --scope global`.
-Reconnect the Host and reread its resources. An exported Agent pack's `AGENTS.md`, `CLAUDE.md` or
-`README.md` is a snapshot: regenerate it from the upgraded binary's resource bundle when
-upgrading, then review any merge into user-owned guidance. Never overwrite a user's `AGENTS.md`.
+Reconnect the Host and reread the installed Materials Skill for current pins and APIs. Bundled
+Host guides delegate authoring details to this Skill; a durable pointer in user-owned `AGENTS.md`
+does not need new version numbers on each template upgrade. Exported Agent packs still contain
+resource snapshots; use the selected Workspace/Host's managed Skills for ongoing work, and
+regenerate a pack when its protocol or workflow instructions change. Never overwrite a user's
+`AGENTS.md` or `CLAUDE.md`.
 
 API references: [CV](https://typst.app/universe/package/modernpro-cv/),
 [letters and statements](https://typst.app/universe/package/modernpro-coverletter/),
@@ -128,7 +166,8 @@ def guidance_files(pins, declarations):
     for declaration in declarations:
         if declaration["id"] in GUIDANCE_RESOURCES:
             path = RESOURCES / declaration["path"]
-            body = replace_guidance(path, block)
+            guide = HOST_GUIDES.get(declaration["id"])
+            body = replace_guidance(path, agent_guidance(*guide) if guide else block)
             files[path] = body
             if body != path.read_bytes():
                 major, minor, patch = map(int, declaration["version"].split("."))

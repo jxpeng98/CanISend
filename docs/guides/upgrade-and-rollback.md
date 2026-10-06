@@ -81,8 +81,10 @@ Templates are bundled in the new CLI; existing Applications retain their bound P
 The refreshed Materials Skill also records the exact Typst Preview package versions and usage
 for user-owned CV, cover-letter and statement files. No template repository clone is needed;
 see the [template guide](typst-templates.md). Exported Agent packs and starter template copies
-remain snapshots. Regenerate an Agent pack from the upgraded binary when updating its `AGENTS.md`;
-review the merge into user-owned guidance rather than overwriting it.
+remain snapshots. Bundled Host guides link to the installed Materials Skill, so a durable pointer
+in user-owned `AGENTS.md` or `CLAUDE.md` does not need new template version numbers on each upgrade.
+Use the selected Workspace/Host's managed Skills for ongoing work; regenerate exported packs when
+their protocol or workflow instructions change. Review any merge into user guidance.
 
 Use `workspace upgrade --host codex` (or `claude`) to select or install one Host's project
 Skills. Without `--host`, a Workspace with no installed Skills stays that way. These commands
